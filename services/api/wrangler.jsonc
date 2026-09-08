@@ -1,0 +1,27 @@
+{
+  // CYVRA Mobile Evidence API — Cloudflare Worker `cyvra-mobile-api`.
+  // New resource only; never reuse cyvoriq-erase-api / cyvra-approvals.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cyvra-mobile-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-11-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "hyperdrive": [
+    {
+      // Bind Neon (pooled URL) via Hyperdrive in production. `id` is a
+      // placeholder until the real Hyperdrive config `cyvra-mobile-neon`
+      // exists. `localConnectionString` points wrangler dev at the workspace
+      // Postgres cluster that stands in for Neon locally.
+      "binding": "HYPERDRIVE",
+      "id": "00000000000000000000000000000000",
+      "localConnectionString": "postgres://cyvra:cyvra@127.0.0.1:5432/cyvra_mobile"
+    }
+  ],
+  "vars": {
+    "APP_ORIGIN": "http://localhost:5173",
+    "API_ENV": "development"
+  }
+}

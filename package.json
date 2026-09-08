@@ -1,0 +1,22 @@
+{
+  "name": "cyvra-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CYVRA Mobile Evidence — monorepo (customer web + Cloudflare Worker API + Neon/Drizzle database).",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "workerd", "sharp"]
+  },
+  "scripts": {
+    "dev": "pnpm run --parallel --filter @cyvra/api --filter @cyvra/web dev",
+    "dev:api": "pnpm --filter @cyvra/api dev",
+    "dev:web": "pnpm --filter @cyvra/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @cyvra/database generate",
+    "db:migrate": "pnpm --filter @cyvra/database migrate"
+  }
+}
