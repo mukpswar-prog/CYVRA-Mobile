@@ -17,6 +17,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @cyvra/database generate",
-    "db:migrate": "pnpm --filter @cyvra/database migrate"
+    "db:migrate": "pnpm --filter @cyvra/database migrate",
+    "test:local-auth": "bash scripts/test-local-auth.sh"
   }
 }

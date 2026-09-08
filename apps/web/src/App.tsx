@@ -133,8 +133,8 @@ export function App() {
               <h2>Enter your code</h2>
               <p className="muted">{notice}</p>
               {devCode && (
-                <p className="dev-code" aria-label="dev code">
-                  Dev code: <strong>{devCode}</strong>
+                <p className="dev-code" aria-label="preview code">
+                  Preview code: <strong>{devCode}</strong>
                 </p>
               )}
               <label htmlFor="code">6-digit code</label>

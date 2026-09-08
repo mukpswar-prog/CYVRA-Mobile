@@ -1,10 +1,15 @@
+import { sha256Hex } from "./crypto";
 import type { Env } from "./env";
 
 export interface SendOtpResult {
   sent: boolean;
-  /** Present only in dev mode (no RESEND_API_KEY) to ease local testing. */
+  /** Present when email was not sent (local / unverified-domain preview). */
   devCode?: string;
   error?: string;
+}
+
+function previewFallback(env: Env): boolean {
+  return env.API_ENV !== "production";
 }
 
 /**
@@ -12,8 +17,10 @@ export interface SendOtpResult {
  * (never the browser), with an idempotency key, and we check `{ data, error }`
  * rather than relying on thrown errors.
  *
- * In dev mode (no RESEND_API_KEY) nothing is sent: the code is logged and
- * surfaced so the local sign-in flow works without a verified Resend domain.
+ * Local / Pages preview (API_ENV !== production): if RESEND_API_KEY is empty
+ * or Resend rejects the send (unverified cyvra.co.in), the 6-digit code is
+ * returned in the JSON so G3 can be tested without a verified domain.
+ * Production never returns the code.
  */
 export async function sendOtpEmail(
   env: Env,
@@ -23,19 +30,20 @@ export async function sendOtpEmail(
 
   if (!env.RESEND_API_KEY) {
     console.log(
-      `[otp][dev] no RESEND_API_KEY set — not sending. email=${email} code=${code} challenge=${challengeId}`,
+      `[otp][preview] no RESEND_API_KEY set — not sending. email=${email} challenge=${challengeId}`,
     );
-    return { sent: false, devCode: code };
+    return { sent: false, devCode: previewFallback(env) ? code : undefined };
   }
 
   const from = env.RESEND_FROM ?? "CYVRA Mobile <noreply@cyvra.co.in>";
+  const emailHash = await sha256Hex(email);
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
-      // Idempotency scoped to the challenge so retries don't double-send.
-      "Idempotency-Key": `otp/${challengeId}`,
+      // Guideline §6.4: otp/<email-hash>/<challenge-id>, 24h window (Resend default).
+      "Idempotency-Key": `otp/${emailHash}/${challengeId}`,
     },
     body: JSON.stringify({
       from,
@@ -52,6 +60,10 @@ export async function sendOtpEmail(
   if (!response.ok) {
     const error = payload?.message ?? `Resend responded ${response.status}`;
     console.error(`[otp] Resend send failed: ${error}`);
+    if (previewFallback(env)) {
+      console.warn("[otp][preview] unverified domain or send error — returning code in JSON");
+      return { sent: false, devCode: code };
+    }
     return { sent: false, error };
   }
 

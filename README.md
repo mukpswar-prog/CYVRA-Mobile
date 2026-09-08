@@ -2,7 +2,7 @@
 
 Android phone and tablet verification, evidence, and reports for the CYVRA platform.
 
-**Governing document:** [GUIDELINE.md](GUIDELINE.md) — read it before writing code.
+**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md).
 
 - Company: CYVORIQ Solutions Pvt. Ltd.
 - Planned site: https://mobile.cyvra.co.in
@@ -31,10 +31,12 @@ web on Pages):
 
 1. Enter your email on the web app → the Worker creates an OTP challenge.
 2. The Worker emails the 6-digit code via **Resend** (from the Worker only). In
-   local dev, with no `RESEND_API_KEY`, the code is logged and returned so the
+   local / Pages preview (`API_ENV` is not `production`), if `RESEND_API_KEY` is
+   empty or the from-domain is unverified, the code is returned in JSON so the
    flow completes without a verified domain.
-3. Enter the code → the Worker upserts the user, creates a session, and sets an
-   HttpOnly cookie. `GET /me` returns the signed-in user.
+3. Enter the code → the Worker upserts the user, creates a session, sets an
+   HttpOnly cookie, and returns a Bearer token (needed when Pages preview and
+   workers.dev are cross-site). `GET /me` accepts cookie or `Authorization`.
 
 ## Local development
 
@@ -77,3 +79,5 @@ Open http://localhost:5173 and sign in.
 | `pnpm db:generate` | Generate Drizzle SQL migrations from the schema |
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm typecheck` | Type-check every package |
+| `pnpm test:local-auth` | Curl the local Worker health + OTP + session slice |
+| `bash scripts/g1-cloud-preview.sh` | Create Hyperdrive / Worker / Pages **after** Cloudflare+Neon login |

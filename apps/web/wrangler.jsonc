@@ -1,0 +1,6 @@
+{
+  // Cloudflare Pages project `cyvra-mobile`. New resource only; never reuse cyvra-www.
+  "name": "cyvra-mobile",
+  "compatibility_date": "2024-11-27",
+  "pages_build_output_dir": "./dist"
+}
