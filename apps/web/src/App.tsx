@@ -149,7 +149,7 @@ export function App() {
                 required
               />
               <button className="btn" type="submit" disabled={busy}>
-                {busy ? "Verifying…" : "Verify &amp; sign in"}
+                {busy ? "Verifying…" : "Verify & sign in"}
               </button>
               <button
                 type="button"
