@@ -51,7 +51,7 @@ Full steps: [docs/codespaces-pages.md](docs/codespaces-pages.md).
 
 The Cloud Agent environment is configured in [`.cursor/environment.json`](.cursor/environment.json):
 
-- **install** (`scripts/install.sh`): installs Postgres + `pnpm install`.
+- **install** (`scripts/install.sh`): Node 24 LTS, npm 12.0.2, pnpm 12, Python 3.14, Postgres, then `pnpm install`. Versions: [docs/tooling.md](docs/tooling.md).
 - **start** (`scripts/start.sh`): starts a local Postgres cluster (a stand-in
   for Neon so nothing cloud is required), applies Drizzle migrations, and seeds
   `services/api/.dev.vars`.
@@ -60,7 +60,10 @@ The Cloud Agent environment is configured in [`.cursor/environment.json`](.curso
 Manual equivalent:
 
 ```bash
-pnpm install
+nvm install && nvm use                  # Node 24.21.0 from .nvmrc
+npm install -g npm@12.0.2               # current npm CLI
+corepack enable && corepack prepare pnpm@12.3.4 --activate
+pnpm install                            # uses pnpm-lock.yaml (not package-lock.json)
 bash scripts/local-postgres.sh start   # local Neon stand-in on :5432
 pnpm --filter @cyvra/database migrate
 pnpm dev                                # runs api (:8787) + web (:5173)
@@ -89,4 +92,5 @@ Open http://localhost:5173 and sign in.
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm typecheck` | Type-check every package |
 | `pnpm test:local-auth` | Curl the local Worker health + OTP + session slice |
+| Tooling pins | Node 24, npm 12.0.2, pnpm 12, Python 3.14 — [docs/tooling.md](docs/tooling.md) |
 | `bash scripts/g1-cloud-preview.sh` | Create Hyperdrive / Worker / Pages **after** Cloudflare+Neon login |

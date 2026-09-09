@@ -65,7 +65,8 @@ if [[ -z "$HYPERDRIVE_ID" ]]; then
 fi
 echo "[g1] Hyperdrive id=$HYPERDRIVE_ID"
 
-HYPERDRIVE_ID="$HYPERDRIVE_ID" python3 - << 'PY'
+PY="$(cd "$(dirname "$0")" && pwd)/python"
+HYPERDRIVE_ID="$HYPERDRIVE_ID" "$PY" - << 'PY'
 import os
 from pathlib import Path
 hid = os.environ["HYPERDRIVE_ID"]
@@ -83,7 +84,7 @@ else:
     print("[g1] wrote Hyperdrive id into services/api/wrangler.jsonc")
 PY
 
-SESSION_SECRET="${SESSION_SECRET:-$(python3 -c 'import secrets; print(secrets.token_hex(32))')}"
+SESSION_SECRET="${SESSION_SECRET:-$("$PY" -c 'import secrets; print(secrets.token_hex(32))')}"
 WORKER_DIR="services/api"
 
 echo "[g1] setting Worker secrets (values not printed)"

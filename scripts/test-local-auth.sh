@@ -2,11 +2,12 @@
 # Local G2 auth slice check against wrangler dev (:8787). No cloud, no secrets.
 set -euo pipefail
 API="${API_URL:-http://localhost:8787}"
+PY="$(cd "$(dirname "$0")" && pwd)/python"
 
 echo "[test] GET $API/health"
 HEALTH="$(curl -fsS "$API/health")"
 echo "$HEALTH"
-HEALTH="$HEALTH" python3 - << 'PY'
+HEALTH="$HEALTH" "$PY" - << 'PY'
 import json, os
 h = json.loads(os.environ["HEALTH"])
 assert h.get("status") == "ok", h
@@ -39,7 +40,7 @@ REQ="$(curl -fsS -X POST "$API/auth/request" \
   -H "Origin: http://localhost:5173" \
   -d "$PROFILE")"
 echo "$REQ"
-REQ="$REQ" python3 - << 'PY'
+REQ="$REQ" "$PY" - << 'PY'
 import json, os
 d = json.loads(os.environ["REQ"])
 assert d.get("delivery") == "dev-log", d
@@ -57,7 +58,7 @@ VERIFY="$(curl -fsS -X POST "$API/auth/verify" \
   -H "Origin: http://localhost:5173" \
   -d "{\"challengeId\":\"$CHALLENGE\",\"code\":\"$CODE\"}")"
 echo "$VERIFY"
-VERIFY="$VERIFY" EMAIL="$EMAIL" python3 - << 'PY'
+VERIFY="$VERIFY" EMAIL="$EMAIL" "$PY" - << 'PY'
 import json, os
 d = json.loads(os.environ["VERIFY"])
 assert d["user"]["email"] == os.environ["EMAIL"], d
@@ -72,7 +73,7 @@ TOKEN="$(cat /tmp/cyvra-token.txt)"
 echo "[test] GET /me with Authorization Bearer"
 ME="$(curl -fsS "$API/me" -H "Authorization: Bearer $TOKEN")"
 echo "$ME"
-ME="$ME" EMAIL="$EMAIL" python3 - << 'PY'
+ME="$ME" EMAIL="$EMAIL" "$PY" - << 'PY'
 import json, os
 d = json.loads(os.environ["ME"])
 assert d["user"]["email"] == os.environ["EMAIL"], d
@@ -82,7 +83,7 @@ PY
 echo "[test] POST /auth/logout"
 curl -fsS -X POST "$API/auth/logout" -H "Authorization: Bearer $TOKEN" >/dev/null
 ME2="$(curl -fsS "$API/me" -H "Authorization: Bearer $TOKEN")"
-ME2="$ME2" python3 - << 'PY'
+ME2="$ME2" "$PY" - << 'PY'
 import json, os
 d = json.loads(os.environ["ME2"])
 assert d.get("user") is None, d

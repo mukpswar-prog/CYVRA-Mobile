@@ -5,12 +5,12 @@
   "terminals": [
     {
       "name": "api",
-      "command": "pnpm --filter @cyvra/api dev",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\"; pnpm --filter @cyvra/api dev",
       "description": "Cloudflare Worker API (cyvra-mobile-api) via wrangler dev on http://localhost:8787. Local Postgres stands in for Neon through the Hyperdrive localConnectionString."
     },
     {
       "name": "web",
-      "command": "pnpm --filter @cyvra/web dev",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\"; pnpm --filter @cyvra/web dev",
       "description": "Customer web app (apps/web) via Vite on http://localhost:5173. Registration / sign-in for mobile.cyvra.co.in."
     }
   ],

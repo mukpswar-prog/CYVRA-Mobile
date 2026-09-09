@@ -36,9 +36,9 @@ export const users = pgTable(
       .defaultNow(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   },
-  (table) => ({
-    emailUnique: uniqueIndex("users_email_unique").on(sql`lower(${table.email})`),
-  }),
+  (table) => [
+    uniqueIndex("users_email_unique").on(sql`lower(${table.email})`),
+  ],
 );
 
 export const emailOtpChallenges = pgTable(
@@ -62,9 +62,9 @@ export const emailOtpChallenges = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => ({
-    emailIdx: index("email_otp_challenges_email_idx").on(table.email),
-  }),
+  (table) => [
+    index("email_otp_challenges_email_idx").on(table.email),
+  ],
 );
 
 export const sessions = pgTable(
@@ -81,10 +81,10 @@ export const sessions = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => ({
-    tokenUnique: uniqueIndex("sessions_token_hash_unique").on(table.tokenHash),
-    userIdx: index("sessions_user_id_idx").on(table.userId),
-  }),
+  (table) => [
+    uniqueIndex("sessions_token_hash_unique").on(table.tokenHash),
+    index("sessions_user_id_idx").on(table.userId),
+  ],
 );
 
 export type User = typeof users.$inferSelect;

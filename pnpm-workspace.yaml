@@ -3,3 +3,23 @@ packages:
   - "services/*"
   - "packages/*"
   - "database"
+
+# pnpm 12: build scripts are denied unless listed here (replaces package.json pnpm.onlyBuiltDependencies).
+allowBuilds:
+  esbuild: true
+  workerd: true
+  sharp: true
+
+# drizzle-orm's optional workers-types peer makes pnpm install two copies (4.x vs 5.x)
+# and TypeScript treats those copies as incompatible types. Drop the peer so there is
+# one drizzle-orm; the Worker still depends on @cloudflare/workers-types directly.
+overrides:
+  "@cloudflare/workers-types": "5.20260908.1"
+  "drizzle-orm>@cloudflare/workers-types": "-"
+
+dedupePeerDependents: true
+
+# Latest Wrangler pulls an alpha miniflare; allow both past the default minimumReleaseAge gate.
+minimumReleaseAgeExclude:
+  - miniflare@5.20260908.0-alpha
+  - wrangler@4.130.0

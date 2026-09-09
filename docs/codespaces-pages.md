@@ -28,8 +28,10 @@ cd /workspaces/CYVRA-Mobile
 git fetch origin
 git checkout cursor/g0-g3-mobile-slice-7474
 # or, after you merge PR #2: git checkout main && git pull
-corepack enable
-pnpm install
+nvm install && nvm use                  # Node 24.21.0 (.nvmrc); npm 12 needs Node 24
+npm install -g npm@12.0.2
+corepack enable && corepack prepare pnpm@12.3.4 --activate
+pnpm install                            # pnpm-lock.yaml; do not npm install
 ```
 
 ## 2. Point local files at Neon (gitignored)
@@ -90,6 +92,8 @@ If `cyvra-mobile` is not yet attached to GitHub:
 ```text
 corepack enable && pnpm install --frozen-lockfile && pnpm --filter @cyvra/web build
 ```
+
+Node version is pinned in `.nvmrc` / `.node-version` to **24.21.0** (npm 12). If the dashboard still has `NODE_VERSION=20`, remove it or set it to `24.21.0` so it does not override the files.
 
 6. Build output directory: `apps/web/dist`
 7. Environment variable (Pages, production **and** preview) — already set:

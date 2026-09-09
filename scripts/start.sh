@@ -3,7 +3,10 @@
 # Per-boot runtime reconciliation: bring up local Postgres, apply migrations,
 # and ensure the Worker's local dev vars exist. Idempotent and returns.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+# shellcheck disable=SC1091
+. "$ROOT/scripts/tooling-env.sh"
 
 bash scripts/local-postgres.sh start
 
