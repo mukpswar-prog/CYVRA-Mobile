@@ -64,7 +64,8 @@ curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
 
 Expect `"database":"connected"`. That curl is a test, not a secret to save.
 
-Then local wrangler (uses local Postgres via `localConnectionString`):
+Then local wrangler (uses local Postgres via `localConnectionString`).
+Or one shot for G5 ingest: `bash scripts/run-local-evidence.sh`.
 
 ```bash
 export DATABASE_URL_DIRECT='…direct…'   # or rely on database/.env

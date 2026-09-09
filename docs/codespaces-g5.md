@@ -49,27 +49,37 @@ curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
 
 Expected: `200` and `status=ok`.
 
-## 5. G5 evidence ingest (local Postgres, no phone)
+## 5. G5 evidence ingest (Codespaces)
 
-`wrangler dev` and the local cluster must already be up (`scripts/start.sh` or `pnpm dev`).
+Codespaces does **not** start Postgres or wrangler. `pnpm db:migrate` with no
+Neon URL talks to `127.0.0.1:5432`. The ingest script talks to `:8787`. If
+those are down you get `ECONNREFUSED` / `curl: (7)` — that is missing local
+services, not a bad migration.
+
+One command (installs Postgres if needed, migrates the **local** cluster,
+starts wrangler if `:8787` is down, runs the ingest test, leaves wrangler up):
 
 ```bash
 cd /workspaces/CYVRA-Mobile
-pnpm db:migrate
-API_URL=http://127.0.0.1:8787 bash scripts/test-local-evidence.sh
+git pull --rebase origin cursor/g0-g3-mobile-slice-7474
+bash scripts/run-local-evidence.sh
 ```
 
-Expected: unauthenticated POST is 401; honest IMEI `NOT_AVAILABLE` is 200; IMEI `PASS` is 400; replay keeps the original `collectedAt`.
+First run may `apt-get install postgresql` (sudo). Expected: 401 without a
+session; honest IMEI `NOT_AVAILABLE` is 200; IMEI `PASS` is 400; replay keeps
+the original `collectedAt`.
 
-Live Neon still has auth tables only until you apply migration `0002_sturdy_salo` with the **direct** URL in gitignored `database/.env`:
+Do **not** run bare `pnpm db:migrate` until Postgres is up (the command above
+does that). Live Neon is a different URL:
 
 ```bash
-# database/.env — Neon direct host (no -pooler). Never commit this file.
+# gitignored database/.env — Neon direct host (no -pooler). Never commit this file.
 # DATABASE_URL_DIRECT=postgres://neondb_owner:***@ep-….aws.neon.tech/neondb?sslmode=require
 pnpm db:migrate
 ```
 
-Do **not** deploy ingest routes to the live Worker until that Neon migrate succeeds. `/health` does not need the new tables; `POST /evidence/batches` does.
+Do **not** deploy ingest routes to the live Worker until that Neon migrate
+succeeds. `/health` does not need the new tables; `POST /evidence/batches` does.
 
 ## Do not run here
 

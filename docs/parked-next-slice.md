@@ -39,5 +39,7 @@ the Erase admin frontend yet. Payment-then-issue still pending.
 
 ## Codespaces leftover
 
-`curl 127.0.0.1:8787/health` fails until `pnpm --filter @cyvra/api dev` is
-running. Pull this branch first. See [codespaces-pages.md](./codespaces-pages.md).
+`curl 127.0.0.1:8787/health` fails until local wrangler is running.
+Use `bash scripts/run-local-evidence.sh` (starts Postgres + wrangler) or
+`pnpm --filter @cyvra/api dev` after `bash scripts/start.sh`.
+See [codespaces-g5.md](./codespaces-g5.md).

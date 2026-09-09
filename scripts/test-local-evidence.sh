@@ -1,11 +1,27 @@
 #!/usr/bin/env bash
 # Local G5 evidence ingest against wrangler dev (:8787). No phone, no cloud.
 set -euo pipefail
-API="${API_URL:-http://localhost:8787}"
+API="${API_URL:-http://127.0.0.1:8787}"
 PY="$(cd "$(dirname "$0")" && pwd)/python"
 
+case "$API" in
+  http://127.0.0.1:*|http://localhost:*|http://[::1]:*) ;;
+  *)
+    echo "[test] refusing non-local API $API"
+    echo "[test] this script is wrangler on 127.0.0.1:8787 only"
+    exit 1
+    ;;
+esac
+
 echo "[test] GET $API/health"
-HEALTH="$(curl -fsS "$API/health")"
+if ! HEALTH="$(curl -fsS --max-time 5 "$API/health")"; then
+  echo "[test] cannot reach $API (wrangler is not running)."
+  echo "[test] Codespaces:  bash scripts/run-local-evidence.sh"
+  echo "[test] Manual:      bash scripts/start.sh"
+  echo "[test]              pnpm --filter @cyvra/api dev    # other terminal"
+  echo "[test]              API_URL=http://127.0.0.1:8787 bash scripts/test-local-evidence.sh"
+  exit 1
+fi
 echo "$HEALTH"
 HEALTH="$HEALTH" "$PY" - << 'PY'
 import json, os

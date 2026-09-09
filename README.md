@@ -98,6 +98,6 @@ Open http://localhost:5173 and sign in.
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm typecheck` | Type-check every package |
 | `pnpm test:local-auth` | Curl the local Worker health + OTP + session slice |
-| `pnpm test:local-evidence` | Curl local ingest: honesty + `collectedAt` replay |
+| `pnpm test:local-evidence` | Start local Postgres + wrangler if needed, then ingest honesty/`collectedAt` tests |
 | Tooling pins | Node 24, npm 12.0.2, pnpm 12, Python 3.14 — [docs/tooling.md](docs/tooling.md) |
 | `bash scripts/g1-cloud-preview.sh` | Create Hyperdrive / Worker / Pages **after** Cloudflare+Neon login |

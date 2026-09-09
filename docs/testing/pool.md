@@ -59,7 +59,7 @@ Codespaces can verify the JVM core and local ingest. APK install waits for a pho
 | T-G5-CORE | Codespaces: `cd apps/android && ./gradlew :core:test --no-daemon` | Gradle **9.1.0** (Java 25 OK). `G5CoreTest` PASS | `automated` |
 | T-G5-CATALOG-SYNC | `pnpm --filter @cyvra/evidence test` | `s1-catalog.v1.json` IDs match TypeScript catalog | `automated` |
 | T-G5-PARSE | Unit: `parseEvidenceIngest` on honest IMEI `NOT_AVAILABLE` | Parses; honesty is a later gate | `automated` |
-| T-G5-INGEST | `API_URL=http://127.0.0.1:8787 bash scripts/test-local-evidence.sh` | 401 without session; honest IMEI 200; IMEI PASS 400; replay keeps `collectedAt` | `automated` (local Postgres) |
+| T-G5-INGEST | Codespaces: `bash scripts/run-local-evidence.sh` | Starts local Postgres + wrangler if needed. 401 without session; honest IMEI 200; IMEI PASS 400; replay keeps `collectedAt` | `automated` (local Postgres) |
 | T-G5-NEON | Codespaces: `pnpm db:migrate` with Neon `DATABASE_URL_DIRECT` | Tables `device_lifecycles`, `processing_sessions`, `capability_profiles`, `evidence_records`, `evidence_batches` | `queued-dashboard` (do not migrate from this agent) |
 | T-G5-APP-SDK | Android Studio: open `apps/android` with SDK, `local.properties` sdk.dir | `:app` module appears; assembleDebug | `queued-dashboard` (needs Android SDK) |
 
