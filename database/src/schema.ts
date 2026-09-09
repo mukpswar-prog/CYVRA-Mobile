@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -10,14 +11,12 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * G2 authentication slice of the CYVRA Mobile Evidence schema.
+ * G2 authentication + G5 evidence ingest.
  *
- * This is intentionally the minimal subset needed for Resend OTP sign-in:
- * `users`, `email_otp_challenges`, and `sessions`. The full logical model
- * (organizations, device_lifecycles, evidence_records, reports, ...) from the
- * engineering guideline is layered on later gates.
- *
- * Auth lives in the Worker (not Neon Auth) so OTP + sessions stay in one place.
+ * Auth (`users`, `email_otp_challenges`, `sessions`) lives in the Worker, not
+ * Neon Auth. Evidence tables store S1 batches; `collected_at` is the client
+ * collection time and is never updated on idempotent re-upload. Report /
+ * sanitization tables wait for later gates.
  */
 
 export const users = pgTable(
@@ -87,6 +86,128 @@ export const sessions = pgTable(
   ],
 );
 
+/**
+ * G5 evidence ingest. IDs are not interchangeable
+ * (PROCESSING_SESSION_ID ≠ DEVICE_LIFECYCLE_ID ≠ EVIDENCE_ID).
+ * `collected_at` is the client collection time and is never updated on sync.
+ */
+export const deviceLifecycles = pgTable(
+  "device_lifecycles",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    manufacturer: text("manufacturer"),
+    model: text("model"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("device_lifecycles_user_id_idx").on(table.userId)],
+);
+
+export const processingSessions = pgTable(
+  "processing_sessions",
+  {
+    id: uuid("id").primaryKey(),
+    deviceLifecycleId: uuid("device_lifecycle_id")
+      .notNull()
+      .references(() => deviceLifecycles.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("processing_sessions_lifecycle_idx").on(table.deviceLifecycleId),
+    index("processing_sessions_user_id_idx").on(table.userId),
+  ],
+);
+
+export const capabilityProfiles = pgTable(
+  "capability_profiles",
+  {
+    id: uuid("id").primaryKey(),
+    deviceLifecycleId: uuid("device_lifecycle_id")
+      .notNull()
+      .references(() => deviceLifecycles.id, { onDelete: "cascade" }),
+    processingSessionId: uuid("processing_session_id")
+      .notNull()
+      .references(() => processingSessions.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("capability_profiles_lifecycle_version").on(
+      table.deviceLifecycleId,
+      table.version,
+    ),
+  ],
+);
+
+export const evidenceRecords = pgTable(
+  "evidence_records",
+  {
+    id: uuid("id").primaryKey(),
+    deviceLifecycleId: uuid("device_lifecycle_id")
+      .notNull()
+      .references(() => deviceLifecycles.id, { onDelete: "cascade" }),
+    processingSessionId: uuid("processing_session_id")
+      .notNull()
+      .references(() => processingSessions.id, { onDelete: "cascade" }),
+    testId: text("test_id").notNull(),
+    source: text("source").notNull(),
+    result: text("result").notNull(),
+    collectedAt: timestamp("collected_at", { withTimezone: true }).notNull(),
+    method: text("method").notNull(),
+    limitation: text("limitation"),
+    notes: text("notes"),
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    digest: text("digest"),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("evidence_records_session_idx").on(table.processingSessionId),
+    index("evidence_records_test_id_idx").on(table.testId),
+  ],
+);
+
+export const evidenceBatches = pgTable(
+  "evidence_batches",
+  {
+    id: uuid("id").primaryKey(),
+    deviceLifecycleId: uuid("device_lifecycle_id")
+      .notNull()
+      .references(() => deviceLifecycles.id, { onDelete: "cascade" }),
+    processingSessionId: uuid("processing_session_id")
+      .notNull()
+      .references(() => processingSessions.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientCreatedAt: timestamp("client_created_at", { withTimezone: true }).notNull(),
+    recordCount: integer("record_count").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("evidence_batches_user_id_idx").on(table.userId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type EmailOtpChallenge = typeof emailOtpChallenges.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
+export type DeviceLifecycle = typeof deviceLifecycles.$inferSelect;
+export type ProcessingSession = typeof processingSessions.$inferSelect;
+export type CapabilityProfileRow = typeof capabilityProfiles.$inferSelect;
+export type EvidenceRecordRow = typeof evidenceRecords.$inferSelect;
+export type EvidenceBatchRow = typeof evidenceBatches.$inferSelect;
