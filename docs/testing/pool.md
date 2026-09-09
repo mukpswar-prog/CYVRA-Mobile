@@ -56,7 +56,7 @@ Codespaces can verify the JVM core. APK install waits for a phone + Android Stud
 
 | ID | How | Expected | Status |
 |---|---|---|---|
-| T-G5-CORE | Codespaces: `cd apps/android && ./gradlew :core:test --no-daemon` | `G5CoreTest` PASS (catalog 41 tests, PERMISSION_DENIED, IMEI/SOH/Knox blocked, queue keeps `collectedAt`) | `automated` |
+| T-G5-CORE | Codespaces: `cd apps/android && ./gradlew :core:test --no-daemon` | Gradle **9.1.0** (Java 25 OK). `G5CoreTest` PASS | `automated` |
 | T-G5-CATALOG-SYNC | `pnpm --filter @cyvra/evidence test` | `s1-catalog.v1.json` IDs match TypeScript catalog | `automated` |
 | T-G5-APP-SDK | Android Studio: open `apps/android` with SDK, `local.properties` sdk.dir | `:app` module appears; assembleDebug | `queued-dashboard` (needs Android SDK) |
 

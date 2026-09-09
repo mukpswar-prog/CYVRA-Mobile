@@ -30,14 +30,15 @@ Expected: all G4 tests pass; typecheck clean.
 
 ## 3. G5 Android **core** (no phone, no Android SDK)
 
-This VM/Codespace can run the JVM module. It cannot install an APK.
+Codespaces default JDK is **Java 25**. The wrapper is Gradle **9.1.0** so that JVM can run Gradle (8.13 dies with `What went wrong: 25.0.4.1`).
 
 ```bash
 cd /workspaces/CYVRA-Mobile/apps/android
+java -version
 ./gradlew :core:test --no-daemon
 ```
 
-Expected: `G5CoreTest` PASS.
+Expected: log line `cyvra-mobile-android: Java 25…`, then `BUILD SUCCESSFUL`, `G5CoreTest` PASS.
 
 ## 4. Live hosts (optional)
 

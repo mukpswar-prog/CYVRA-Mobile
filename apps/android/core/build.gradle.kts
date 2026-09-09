@@ -6,10 +6,15 @@ plugins {
 group = "cyvra.mobile"
 version = "0.0.0"
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 dependencies {
