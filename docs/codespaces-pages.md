@@ -13,8 +13,8 @@ Never commit `.env`, `.dev.vars`, or connection strings.
 
 | Piece | How it updates |
 | --- | --- |
-| Customer web `cyvra-mobile` | GitHub `main` (and preview branches) → Cloudflare Pages |
-| Worker `cyvra-mobile-api` | Already created. Needs Hyperdrive `cyvra-mobile-neon` bound as `HYPERDRIVE`, then a Worker deploy |
+| Customer web `cyvra-mobile` | GitHub `main` (and preview branches) → Cloudflare Pages, after dashboard **Connect Git**. Until then, Direct Upload to **`cyvra-mobile` only** |
+| Worker `cyvra-mobile-api` | Live at `https://cyvra-mobile-api.mukpswar.workers.dev`. Hyperdrive `cyvra-mobile-neon` (`db31fc8dafca49b29172da7046b97175`) is bound as `HYPERDRIVE` |
 | Neon `floral-art-02749206` | Migrations from Codespaces (`pnpm db:migrate`) using **direct** URL |
 | Resend | Worker secret only; optional for preview OTP |
 
@@ -92,13 +92,18 @@ corepack enable && pnpm install --frozen-lockfile && pnpm --filter @cyvra/web bu
 ```
 
 6. Build output directory: `apps/web/dist`
-7. Environment variable (Pages, production **and** preview):
+7. Environment variable (Pages, production **and** preview) — already set:
 
 ```text
-VITE_API_URL=https://cyvra-mobile-api.<your-subdomain>.workers.dev
+VITE_API_URL=https://cyvra-mobile-api.mukpswar.workers.dev
 ```
 
-Use the real `workers.dev` URL of **`cyvra-mobile-api`**. No `DATABASE_URL` on Pages.
+No `DATABASE_URL` on Pages.
+
+`cyvra-mobile` is still a Direct Uploads project (Git provider = No). The API
+cannot attach Git (`8000069`). Use the dashboard **Connect Git** step above.
+Until then, do **not** run `wrangler pages deploy` against `cyvra-www`. A
+Direct Upload is only allowed for project **`cyvra-mobile`**.
 
 ## 5. Push so Pages builds
 
@@ -116,9 +121,13 @@ Then tell the Worker the Pages origin (CORS): Worker `cyvra-mobile-api` →
 Settings → Variables → `APP_ORIGIN` = the Pages URL, `API_ENV` = `preview`
 until custom domain.
 
-## 6. Still required (not done by Pages Git)
+## 6. Hyperdrive (already created)
 
-Create Hyperdrive **`cyvra-mobile-neon`** from the Neon **pooled** URL, bind it
-on Worker `cyvra-mobile-api` as **`HYPERDRIVE`**, redeploy that Worker. Paste
-only the Hyperdrive **id** (32 hex chars) into `services/api/wrangler.jsonc`
-when you want the repo to match the dashboard. Never commit the connection string.
+Hyperdrive **`cyvra-mobile-neon`** id `db31fc8dafca49b29172da7046b97175` is
+bound on Worker `cyvra-mobile-api` as **`HYPERDRIVE`**. The same id is in
+`services/api/wrangler.jsonc`. Never commit the Neon connection string.
+
+Worker vars on preview: `API_ENV=preview`,
+`APP_ORIGIN=https://cyvra-mobile.pages.dev`. After the first Pages URL is
+live, keep `APP_ORIGIN` pointed at that origin (CORS also allowlists
+`*.cyvra-mobile.pages.dev`).
