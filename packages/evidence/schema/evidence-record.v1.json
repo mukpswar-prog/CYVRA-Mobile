@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mobile.cyvra.co.in/schema/evidence-record/v1",
+  "title": "CYVRA evidence record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "evidenceId",
+    "deviceLifecycleId",
+    "processingSessionId",
+    "testId",
+    "source",
+    "result",
+    "collectedAt",
+    "method"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "evidenceId": { "type": "string", "format": "uuid" },
+    "deviceLifecycleId": { "type": "string", "format": "uuid" },
+    "processingSessionId": { "type": "string", "format": "uuid" },
+    "capabilityProfileId": { "type": "string", "format": "uuid" },
+    "testId": { "type": "string", "minLength": 1 },
+    "source": {
+      "enum": [
+        "S1_APPLICATION",
+        "S2_STATION",
+        "S2_AUTHORIZED_ADB",
+        "S3_ENTERPRISE",
+        "TECHNICIAN_OBSERVATION"
+      ]
+    },
+    "result": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "LIMITED",
+        "NOT_AVAILABLE",
+        "NOT_SUPPORTED",
+        "NOT_TESTED",
+        "CANCELLED",
+        "ERROR",
+        "PERMISSION_DENIED"
+      ]
+    },
+    "collectedAt": { "type": "string", "format": "date-time" },
+    "method": { "type": "string", "minLength": 1 },
+    "limitation": {
+      "enum": [
+        "PERMISSION_DENIED",
+        "HARDWARE_ABSENT",
+        "API_PRIVILEGED",
+        "LAYER_FORBIDDEN",
+        "USER_CANCELLED",
+        "OFFLINE",
+        "INCONCLUSIVE",
+        "FEATURE_UNDECLARED",
+        "SENSOR_DECLARED_BUT_MISSING"
+      ]
+    },
+    "notes": { "type": "string" },
+    "payload": { "type": "object" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

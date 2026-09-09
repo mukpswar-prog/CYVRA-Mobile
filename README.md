@@ -2,15 +2,16 @@
 
 Android phone and tablet verification, evidence, and reports for the CYVRA platform.
 
-**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Freeze audit + G4+ plan (awaiting approval): [docs/freeze-audit.md](docs/freeze-audit.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
+**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Freeze audit: [docs/freeze-audit.md](docs/freeze-audit.md). G4 evidence package: [packages/evidence](packages/evidence). Test pool: [docs/testing/pool.md](docs/testing/pool.md). Samsung/AOSP research: [docs/research/samsung-s1-sources.md](docs/research/samsung-s1-sources.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
 [docs/admin-mobile-section.md](docs/admin-mobile-section.md).
 
 - Company: CYVORIQ Solutions Pvt. Ltd.
-- Planned site: https://mobile.cyvra.co.in
+- Planned site: https://mobile.cyvra.co.in (live)
 - Frozen Windows product: https://www.cyvra.co.in — **not** this repository
 
-> Do not start CYVRA Station, Knox/S3, or the Android app yet. This repo is the
-> mobile web + API first slice (gates G1–G3). See [GUIDELINE.md](GUIDELINE.md) §10.
+> Do not start CYVRA Station or Knox/S3. Android (G5) is approved to follow G4
+> but waits for a Samsung device for execution tests. See [GUIDELINE.md](GUIDELINE.md) §10
+> and [docs/testing/pool.md](docs/testing/pool.md).
 
 ---
 
@@ -20,7 +21,7 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 apps/web/            Customer web (Vite + React) → mobile.cyvra.co.in
 services/api/        Cloudflare Worker `cyvra-mobile-api` (Hono + pg via Hyperdrive)
 database/            Drizzle schema + migrations (Neon project floral-art-02749206)
-packages/evidence/   Shared evidence vocabulary (guideline §8.6)
+packages/evidence/   Evidence JSON Schema + S1 capability contract (G4)
 scripts/             Dev environment helpers (local Postgres, install, start)
 ```
 

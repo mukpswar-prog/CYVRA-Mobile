@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mobile.cyvra.co.in/schema/report-manifest/v1",
+  "title": "CYVRA Report 1 manifest shape v1",
+  "description": "G4 defines the freeze shape. frozenAt is set at G6; until then it is null. Later sanitization must not rewrite a frozen manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reportId",
+    "deviceLifecycleId",
+    "processingSessionId",
+    "coverage",
+    "entries",
+    "frozenAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "reportId": { "type": "string", "format": "uuid" },
+    "deviceLifecycleId": { "type": "string", "format": "uuid" },
+    "processingSessionId": { "type": "string", "format": "uuid" },
+    "coverage": { "enum": ["COMPLETE", "LIMITED", "PARTIAL"] },
+    "frozenAt": { "type": ["string", "null"], "format": "date-time" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["testId", "evidenceId", "result", "source"],
+        "properties": {
+          "testId": { "type": "string" },
+          "evidenceId": { "type": "string", "format": "uuid" },
+          "result": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "LIMITED",
+              "NOT_AVAILABLE",
+              "NOT_SUPPORTED",
+              "NOT_TESTED",
+              "CANCELLED",
+              "ERROR",
+              "PERMISSION_DENIED"
+            ]
+          },
+          "source": {
+            "enum": [
+              "S1_APPLICATION",
+              "S2_STATION",
+              "S2_AUTHORIZED_ADB",
+              "S3_ENTERPRISE",
+              "TECHNICIAN_OBSERVATION"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

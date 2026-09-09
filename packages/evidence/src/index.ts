@@ -1,52 +1,94 @@
-/**
- * Shared evidence vocabulary (guideline §8.6). Kept deliberately small for the
- * early gates; the full capability contract + JSON Schema land in gate G4.
- *
- * Rules encoded here on purpose:
- * - Results are never invented: missing evidence is LIMITED / NOT_AVAILABLE.
- * - UNAVAILABLE / NOT_TESTED / NOT_SUPPORTED / PERMISSION_DENIED are NOT FAIL.
- * - Evidence sources stay labelled; higher tiers do not overwrite lower ones.
- */
+export {
+  SCHEMA_VERSION,
+  EVIDENCE_RESULTS,
+  EVIDENCE_SOURCES,
+  COVERAGE_LABELS,
+  ACCESS_LEVELS,
+  USB_STATES,
+  ADB_STATES,
+  FACT_STATES,
+  REPORT_DOMAINS,
+  LIMITATION_CODES,
+  SOURCE_SUMMARY_RANK,
+  isFailure,
+  isNonFailure,
+  coerceToFail,
+} from "./vocabulary";
+export type {
+  EvidenceResult,
+  EvidenceSource,
+  CoverageLabel,
+  AccessLevel,
+  UsbState,
+  AdbState,
+  FactState,
+  ReportDomain,
+  LimitationCode,
+} from "./vocabulary";
 
-export const EVIDENCE_RESULTS = [
-  "PASS",
-  "FAIL",
-  "LIMITED",
-  "NOT_AVAILABLE",
-  "NOT_SUPPORTED",
-  "NOT_TESTED",
-  "CANCELLED",
-  "ERROR",
-] as const;
-export type EvidenceResult = (typeof EVIDENCE_RESULTS)[number];
+export {
+  ID_KINDS,
+  isUuid,
+  asProcessingSessionId,
+  asDeviceLifecycleId,
+  asEvidenceId,
+  asReportId,
+  asCapabilityProfileId,
+  asEvidenceBatchId,
+} from "./ids";
+export type {
+  IdKind,
+  ProcessingSessionId,
+  DeviceLifecycleId,
+  EvidenceId,
+  ReportId,
+  CapabilityProfileId,
+  EvidenceBatchId,
+  TestId,
+} from "./ids";
 
-export const EVIDENCE_SOURCES = [
-  "S1_APPLICATION",
-  "S2_STATION",
-  "S2_AUTHORIZED_ADB",
-  "S3_ENTERPRISE",
-  "TECHNICIAN_OBSERVATION",
-] as const;
-export type EvidenceSource = (typeof EVIDENCE_SOURCES)[number];
+export {
+  canonicalJson,
+  bytesOfCanonical,
+  sha256Hex,
+  digestCanonical,
+  digestRecord,
+} from "./digest";
 
-/** Coverage labels are NOT quality grades. */
-export const COVERAGE_LABELS = ["COMPLETE", "LIMITED", "PARTIAL"] as const;
-export type CoverageLabel = (typeof COVERAGE_LABELS)[number];
+export {
+  ANDROID_FEATURES,
+  ANDROID_PERMISSIONS,
+  S1_TEST_CATALOG,
+  getTestDefinition,
+  catalogTestIds,
+} from "./catalog";
 
-/** Results that must never be coerced into FAIL. */
-const NON_FAILURE: ReadonlySet<EvidenceResult> = new Set([
-  "NOT_AVAILABLE",
-  "NOT_SUPPORTED",
-  "NOT_TESTED",
-  "CANCELLED",
-]);
+export { S1_CAPABILITY_CONTRACT, contractHasModelBranch } from "./contract";
+export { planEvidence } from "./plan";
+export { classifyConflicts } from "./conflict";
+export type { ConflictGroup } from "./conflict";
+export { assertS1Honesty, recordIsHonest } from "./honesty";
+export {
+  validateEvidenceRecord,
+  validateEvidenceBatch,
+  validateReportManifest,
+  isEvidenceResult,
+  isEvidenceSource,
+} from "./validate";
+export type { ValidationIssue } from "./validate";
 
-/** Only an explicit FAIL is a failure. */
-export function isFailure(result: EvidenceResult): boolean {
-  return result === "FAIL";
-}
-
-/** True for results that must not be reported as a failure. */
-export function isNonFailure(result: EvidenceResult): boolean {
-  return NON_FAILURE.has(result);
-}
+export type {
+  AndroidFeatureFact,
+  PermissionFact,
+  CapabilityProfile,
+  TestDefinition,
+  CapabilityRule,
+  CapabilityContract,
+  TestReadiness,
+  PlannedTest,
+  EvidenceRecord,
+  EvidenceBatch,
+  ManifestEntry,
+  ReportManifest,
+  HonestyIssue,
+} from "./types";
