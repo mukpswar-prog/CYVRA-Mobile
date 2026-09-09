@@ -2,7 +2,7 @@
 
 Android phone and tablet verification, evidence, and reports for the CYVRA platform.
 
-**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
+**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
 [docs/admin-mobile-section.md](docs/admin-mobile-section.md).
 
 - Company: CYVORIQ Solutions Pvt. Ltd.

@@ -18,6 +18,8 @@ freeze plan: CYVRA Mobile ops is a **section** of existing
 Create-your-account collects **full name** (mandatory), company, two address
 lines, **pincode** (mandatory), state, and **email**. Email is the Resend OTP
 target. Resend domain/key is still **pending** — preview returns `devCode`.
+Dashboard steps for Neon, Resend, Worker secrets, and `mobile.cyvra.co.in`:
+[dashboard-configure.md](./dashboard-configure.md).
 
 ## Serial keys / admin UI
 
