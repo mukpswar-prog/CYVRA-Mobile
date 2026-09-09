@@ -140,13 +140,11 @@ Then in **GitHub Codespaces** (not Neon SQL, not Cloudflare’s search box):
 curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
 ```
 
-Expect `"database":"connected"`. If it is `unreachable`, origin still has the old password or a `-pooler` host. Edit origin again. Do not recreate Hyperdrive.
+Expect `"database":"connected"`. If it is `unreachable`, origin still has the old password. Edit origin again. Do not recreate Hyperdrive.
 
 Which Neon/Cloudflare guide and what not to click: [neon-cloudflare.md](./neon-cloudflare.md).
 
-Expect `"database":"connected"`. If it is `unreachable`, Hyperdrive still has the old password — edit origin again. Do not recreate Hyperdrive.
-
-**Stop here and reply:** Neon tables ok / password rotated / Hyperdrive saved / health JSON (the JSON is not a secret).
+**Stop here and reply:** Neon tables ok / Hyperdrive saved / health JSON (the JSON is not a secret).
 
 ---
 
