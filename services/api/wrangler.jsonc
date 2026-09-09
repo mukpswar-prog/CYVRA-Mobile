@@ -12,12 +12,10 @@
   "hyperdrive": [
     {
       // Bind Neon project floral-art-02749206 (pooled URL) via Hyperdrive
-      // `cyvra-mobile-neon`. `id` stays the 32-zero placeholder until a
-      // logged-in session runs `scripts/g1-cloud-preview.sh` (wrangler is not
-      // authenticated in this environment). `localConnectionString` points
-      // wrangler dev at the workspace Postgres cluster.
+      // `cyvra-mobile-neon` (id is the live config; not a secret).
+      // localConnectionString is wrangler-dev only.
       "binding": "HYPERDRIVE",
-      "id": "00000000000000000000000000000000",
+      "id": "db31fc8dafca49b29172da7046b97175",
       "localConnectionString": "postgres://cyvra:cyvra@127.0.0.1:5432/cyvra_mobile"
     }
   ],
