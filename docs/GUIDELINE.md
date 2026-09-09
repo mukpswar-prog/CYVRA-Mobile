@@ -200,7 +200,13 @@ Worker rules (Cloudflare current practice):
 - Observability on; no module-level request state
 - Resend **only** from the Worker (Resend API has no CORS on purpose)
 
-Pages: customer web. Optional later `ops` on the **same** mobile origin (`mobile.cyvra.co.in/ops`), not `admin.cyvra.co.in`.
+Pages: customer web on `mobile.cyvra.co.in`. Serial-key / payment approval for
+CYVRA Mobile is a **section inside the existing** Windows hosts
+`admin.cyvra.co.in` and `accounts.cyvra.co.in` (freeze plan, 9 Sep 2026). Same
+login; super admin `ceo@cyvoriq.com`. A **CYVRA Mobile** button opens that
+section. Do **not** create a second admin Pages project. Do **not** copy
+Windows licence tables; mobile serial records live in Neon
+`floral-art-02749206`.
 
 Git flow: feature branch → Pages preview → review → merge `main` → production.
 
@@ -360,9 +366,10 @@ UI may say “Wi-Fi Check”. Evidence stores stable `TEST_ID`. Never key the da
 
 ## 9. What this guideline forbids
 
-- Work in `mukpswar-prog/Erase`, `cyvra-admin`, `cyvoriq-erase-api`
+- Rebuilding Windows Erase, `cyvra-www`, or `cyvoriq-erase-api` in this repo
 - Renaming or converting `cyvra-approvals` / Worker `cyvra-approvals`
-- Reusing Windows cookies, licence APIs, or Neon (if any) for mobile
+- Reusing Windows licence APIs or Windows Neon for mobile customer data
+- A **second** admin host for mobile (freeze plan: add a **CYVRA Mobile** section to existing `admin.cyvra.co.in` / `accounts.cyvra.co.in`, same login, super admin `ceo@cyvoriq.com`)
 - Journey B inside `cyvra-www` as the v1 frontend
 - Vercel Publish; GitHub Codespaces as the build path
 - FRP/lock bypass, root-default, unrestricted ADB console
@@ -384,11 +391,11 @@ Nothing below starts until this guideline is accepted. Then work **only** in `CY
 | **G0** | This guideline in `CYVRA-Mobile/docs`. Repo private. Description fixed. | GitHub |
 | **G1** | Empty pipe: Pages `cyvra-mobile`, Worker `cyvra-mobile-api`, Hyperdrive → Neon `floral-art-02749206`, Resend domain verified | CF + Neon + Resend |
 | **G2** | Drizzle schema: users, OTP challenges, sessions. Worker health + `POST /auth/request` + `POST /auth/verify` | Worker + Neon + Resend |
-| **G3** | `apps/web` registration / sign-in on Pages preview, then custom domain `mobile.cyvra.co.in`. Honest empty home: Samsung in development, no fake grades | Pages |
+| **G3** | `apps/web` registration / sign-in on Pages preview, then custom domain `mobile.cyvra.co.in`. Honest empty home: Samsung in development, no fake grades. Registration collects name + pincode (mandatory), company, two-line address, state, email (OTP). | Pages |
 | **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` (no pretty marketing) | GitHub |
 | **G5** | S1 Android on **one** owned Samsung: profile, core tests, offline store, upload to Worker | App + API + Neon |
 | **G6** | Render Report 1 (LIMITED/withheld where due) from frozen manifest | API + web |
-| **G7** | Mobile ops view on `mobile.cyvra.co.in/ops` — not Windows admin | Pages |
+| **G7** | CYVRA Mobile section inside existing `admin.cyvra.co.in` and `accounts.cyvra.co.in` — same Windows login, button opens mobile ops (serial issue/approval). Super admin `ceo@cyvoriq.com`. Not a new admin host. | Existing admin Pages + mobile Worker/Neon |
 | **G8** | Allowed `cyvra-www` tab → `mobile.cyvra.co.in` | Erase website only |
 | **G9** | Decision 5.1.20.2 then Station + optional S2 ADB | Later |
 | **G10** | S3 only with real enterprise/OEM path | Later |

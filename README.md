@@ -2,7 +2,8 @@
 
 Android phone and tablet verification, evidence, and reports for the CYVRA platform.
 
-**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Paused next-slice handoff: [docs/parked-next-slice.md](docs/parked-next-slice.md).
+**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
+[docs/admin-mobile-section.md](docs/admin-mobile-section.md).
 
 - Company: CYVORIQ Solutions Pvt. Ltd.
 - Planned site: https://mobile.cyvra.co.in
@@ -29,14 +30,12 @@ Resend-style email OTP sign-in, matching guideline gates **G2** (Worker health +
 `POST /auth/request` + `POST /auth/verify`, Neon-backed) and **G3** (registration
 web on Pages):
 
-1. Enter your email on the web app → the Worker creates an OTP challenge.
-2. The Worker emails the 6-digit code via **Resend** (from the Worker only). In
-   local / Pages preview (`API_ENV` is not `production`), if `RESEND_API_KEY` is
-   empty or the from-domain is unverified, the code is returned in JSON so the
-   flow completes without a verified domain.
-3. Enter the code → the Worker upserts the user, creates a session, sets an
-   HttpOnly cookie, and returns a Bearer token (needed when Pages preview and
-   workers.dev are cross-site). `GET /me` accepts cookie or `Authorization`.
+1. Fill **Create your account**: full name and pincode are required, plus
+   company, two address lines, state, and email.
+2. Email is only for the Worker to send a Resend OTP. Resend domain/key is
+   still pending — in preview the code is shown on screen (`devCode`).
+3. Enter the code → the Worker upserts the user (profile + email), creates a
+   session, sets an HttpOnly cookie, and returns a Bearer token.
 
 ## Codespaces → GitHub → Pages
 
