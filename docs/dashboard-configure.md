@@ -107,16 +107,32 @@ A Neon password was pasted in chat earlier. Rotate it now.
 3. Connect again, pooled checkbox **off**, copy the **new direct** URL.
 4. Go to Hyperdrive (Phase 1.5) **immediately**, or the live Worker will fail until origin is updated.
 
-### 1.5 Point Hyperdrive at the new **direct** URL
+### 1.5 Point Hyperdrive at the existing config (do not create)
 
-You already opened `cyvra-mobile-neon`. Stay on that config only.
+You are already on the Hyperdrive **list**. There is no “origin” box on that list.
 
 https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda/workers/hyperdrive
 
-1. Confirm name **`cyvra-mobile-neon`** and id `db31fc8dafca49b29172da7046b97175`. Do not open Erase Hyperdrive.
-2. Find **Origin** / **Connection string** / **Database**.
-3. Paste the **direct** Neon URL from 1.3/1.4 (no `-pooler`, `sslmode=require` is fine).
-4. **Save**. Do not create a new Hyperdrive.
+1. If a **Create Hyperdrive Connection** modal is open (`?modal=1`), close it
+   (X, Cancel, or Esc). Do **not** pick Connect to public/private/PlanetScale.
+   Do **not** click **Connect database** (that creates a new config).
+2. In the table, ignore the first row `cyvra-erase-neon-production`.
+3. Click the **blue name** `cyvra-mobile-neon` (it is the link). Confirm the
+   Configuration ID is `db31fc8dafca49b29172da7046b97175`.
+   Direct URL:
+   https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda/workers/hyperdrive/db31fc8dafca49b29172da7046b97175
+4. Open the **Settings** tab (not Metrics).
+5. Origin is **not** a Git field. You will see host / port / database / user /
+   password (or one connection-string box).
+6. Host today starts with `ep-round-sound-b3maswpk-pooler` (Neon pooler).
+   Prefer the **direct** host: same name **without** `-pooler`
+   (`ep-round-sound-b3maswpk.c-4.ap-southeast-1.aws.neon.tech`).
+   Port `5432`, database `neondb`, user `neondb_owner`.
+   Paste a new password only if you rotated Neon.
+7. **Save**.
+
+If you have **not** rotated the Neon password and live health is already
+`database=connected`, Save is optional. Do not create a second Hyperdrive.
 
 Then in **GitHub Codespaces** (not Neon SQL, not Cloudflare’s search box):
 

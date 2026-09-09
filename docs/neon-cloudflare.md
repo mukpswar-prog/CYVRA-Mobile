@@ -41,7 +41,7 @@ Neon’s Workers guide: **uncheck Pooled connection**. Hyperdrive already pools.
 | Thing | Where |
 | --- | --- |
 | `curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health` | **Codespaces / local terminal only.** It is a test. Do not paste it into Neon, Hyperdrive, or Git. |
-| Neon **direct** connection string | Hyperdrive `cyvra-mobile-neon` **origin** (Cloudflare). Also gitignored `database/.env` as `DATABASE_URL_DIRECT`. |
+| Neon **direct** connection string | Hyperdrive `cyvra-mobile-neon` **Settings** (click the blue name on the list; do not use **Connect database**). Also gitignored `database/.env` as `DATABASE_URL_DIRECT`. |
 | Neon password | Password manager. Never Git, never chat. |
 | Pages | `VITE_API_URL` only (Worker URL). No database. |
 
