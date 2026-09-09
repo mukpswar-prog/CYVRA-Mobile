@@ -13,10 +13,18 @@ export DATABASE_URL_DIRECT="$DATABASE_URL"
 echo "[start] applying database migrations"
 pnpm --filter @cyvra/database migrate
 
-# Seed local Worker dev vars from the example if not already present.
+# Seed gitignored local files from examples when missing. Never overwrite.
 if [ ! -f services/api/.dev.vars ]; then
   cp services/api/.dev.vars.example services/api/.dev.vars
   echo "[start] created services/api/.dev.vars from example"
+fi
+if [ ! -f database/.env ]; then
+  cp database/.env.example database/.env
+  echo "[start] created database/.env from example (local Postgres)"
+fi
+if [ ! -f apps/web/.env ]; then
+  cp apps/web/.env.example apps/web/.env
+  echo "[start] created apps/web/.env from example"
 fi
 
 echo "[start] done"
