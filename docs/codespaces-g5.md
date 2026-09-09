@@ -93,14 +93,24 @@ Do not paste the connection string into chat. Leave `books_to_read` if present.
 
 ### 6.1 Point `DATABASE_URL_DIRECT` at Neon, then migrate
 
+Do **not** use `nano` (often missing in Codespaces). `database/.env` is
+gitignored, so the file tree may hide it.
+
 ```bash
 cd /workspaces/CYVRA-Mobile
-nano database/.env
+git pull --rebase origin cursor/g0-g3-mobile-slice-7474
+bash scripts/open-db-env.sh
 ```
 
-Set **`DATABASE_URL_DIRECT`** (not only `DATABASE_URL`) to the Neon **direct**
-string: Connect → production / `neondb` / `neondb_owner` → **Pooled connection
-unchecked**. Host must **not** contain `-pooler`.
+That creates the file if needed and opens it in the editor. Change **only**
+the `DATABASE_URL_DIRECT=` line to the Neon **direct** string: Connect →
+production / `neondb` / `neondb_owner` → **Pooled connection unchecked**.
+Host must **not** contain `-pooler`. Leave `DATABASE_URL` as `127.0.0.1`.
+Save the file (Ctrl+S).
+
+If the editor did not open: Command Palette (`Ctrl+Shift+P`) → type
+`excludeGitIgnore` → turn **Explorer: Exclude Git Ignore** off, then
+`Ctrl+P` and open `database/.env`.
 
 ```bash
 git check-ignore -v database/.env
