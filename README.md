@@ -12,7 +12,8 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 > Do not start CYVRA Station or Knox/S3. G5 Android **core** is in `apps/android`
 > (Codespaces: `./gradlew :core:test`). Worker ingest is `POST /evidence/batches`
 > (local: `pnpm test:local-evidence`). Device/APK tests wait for a Samsung phone.
-> Live Neon evidence tables wait for `pnpm db:migrate` with a direct URL.
+> Live Neon evidence tables wait for [docs/resume-neon-migrate.md](docs/resume-neon-migrate.md)
+> (start there tomorrow: `DATABASE_URL_DIRECT` is still local).
 > See [docs/codespaces-g5.md](docs/codespaces-g5.md) and [docs/testing/pool.md](docs/testing/pool.md).
 
 ---

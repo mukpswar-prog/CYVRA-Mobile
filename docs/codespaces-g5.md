@@ -81,6 +81,8 @@ pnpm db:migrate
 Do **not** deploy ingest routes to the live Worker until that Neon migrate
 succeeds. `/health` does not need the new tables; `POST /evidence/batches` does.
 
+**Paused 9 Sep 2026 evening.** Tomorrow: [resume-neon-migrate.md](./resume-neon-migrate.md).
+
 ## 6. Live Neon migrate + Worker deploy (Codespaces)
 
 A4 (password rotate + live `/health` `database=connected`) can succeed **before**

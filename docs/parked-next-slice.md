@@ -4,11 +4,9 @@ Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
 freeze plan: CYVRA Mobile ops is a **section** of existing
 `admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
 
-**Save point (9 Sep 2026):** G0–G3 pipe is live. Custom domain
-https://mobile.cyvra.co.in/ works. Freeze audit is **approved**. G4 is in
-`packages/evidence`. G5 Android **core** + local Worker ingest are on this
-branch. Live Neon evidence tables and the APK still wait. Test pool:
-[testing/pool.md](./testing/pool.md).
+**Save point (9 Sep 2026 evening):** Stopped at live Neon evidence migrate.
+`DATABASE_URL_DIRECT` is still `127.0.0.1`. **Tomorrow start here:**
+[resume-neon-migrate.md](./resume-neon-migrate.md) (one step at a time).
 
 ## Live G0–G3
 
