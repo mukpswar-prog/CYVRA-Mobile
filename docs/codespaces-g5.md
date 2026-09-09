@@ -1,4 +1,4 @@
-# Codespaces — what you run (G4 + G5 core)
+# Codespaces — what you run (G4 + G5 core + ingest)
 
 You opened Codespaces on **`main`**. Work is on
 `cursor/g0-g3-mobile-slice-7474`. Switch first, then verify. Do **not** force-push.
@@ -26,7 +26,7 @@ pnpm --filter @cyvra/evidence test
 pnpm typecheck
 ```
 
-Expected: all G4 tests pass; typecheck clean.
+Expected: G4 + parse tests pass (19); typecheck clean.
 
 ## 3. G5 Android **core** (no phone, no Android SDK)
 
@@ -48,6 +48,28 @@ curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
 ```
 
 Expected: `200` and `status=ok`.
+
+## 5. G5 evidence ingest (local Postgres, no phone)
+
+`wrangler dev` and the local cluster must already be up (`scripts/start.sh` or `pnpm dev`).
+
+```bash
+cd /workspaces/CYVRA-Mobile
+pnpm db:migrate
+API_URL=http://127.0.0.1:8787 bash scripts/test-local-evidence.sh
+```
+
+Expected: unauthenticated POST is 401; honest IMEI `NOT_AVAILABLE` is 200; IMEI `PASS` is 400; replay keeps the original `collectedAt`.
+
+Live Neon still has auth tables only until you apply migration `0002_sturdy_salo` with the **direct** URL in gitignored `database/.env`:
+
+```bash
+# database/.env — Neon direct host (no -pooler). Never commit this file.
+# DATABASE_URL_DIRECT=postgres://neondb_owner:***@ep-….aws.neon.tech/neondb?sslmode=require
+pnpm db:migrate
+```
+
+Do **not** deploy ingest routes to the live Worker until that Neon migrate succeeds. `/health` does not need the new tables; `POST /evidence/batches` does.
 
 ## Do not run here
 

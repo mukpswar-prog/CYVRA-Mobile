@@ -6,7 +6,9 @@ freeze plan: CYVRA Mobile ops is a **section** of existing
 
 **Save point (9 Sep 2026):** G0–G3 pipe is live. Custom domain
 https://mobile.cyvra.co.in/ works. Freeze audit is **approved**. G4 is in
-`packages/evidence`. No Android until G5. Test pool: [testing/pool.md](./testing/pool.md).
+`packages/evidence`. G5 Android **core** + local Worker ingest are on this
+branch. Live Neon evidence tables and the APK still wait. Test pool:
+[testing/pool.md](./testing/pool.md).
 
 ## Live G0–G3
 

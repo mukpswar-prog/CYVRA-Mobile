@@ -10,7 +10,9 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 - Frozen Windows product: https://www.cyvra.co.in — **not** this repository
 
 > Do not start CYVRA Station or Knox/S3. G5 Android **core** is in `apps/android`
-> (Codespaces: `./gradlew :core:test`). Device/APK tests wait for a Samsung phone.
+> (Codespaces: `./gradlew :core:test`). Worker ingest is `POST /evidence/batches`
+> (local: `pnpm test:local-evidence`). Device/APK tests wait for a Samsung phone.
+> Live Neon evidence tables wait for `pnpm db:migrate` with a direct URL.
 > See [docs/codespaces-g5.md](docs/codespaces-g5.md) and [docs/testing/pool.md](docs/testing/pool.md).
 
 ---
@@ -96,5 +98,6 @@ Open http://localhost:5173 and sign in.
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm typecheck` | Type-check every package |
 | `pnpm test:local-auth` | Curl the local Worker health + OTP + session slice |
+| `pnpm test:local-evidence` | Curl local ingest: honesty + `collectedAt` replay |
 | Tooling pins | Node 24, npm 12.0.2, pnpm 12, Python 3.14 — [docs/tooling.md](docs/tooling.md) |
 | `bash scripts/g1-cloud-preview.sh` | Create Hyperdrive / Worker / Pages **after** Cloudflare+Neon login |
