@@ -4,17 +4,15 @@ Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
 freeze plan: CYVRA Mobile ops is a **section** of existing
 `admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
 
-**Save point (9 Sep 2026):** G0–G3 pipe is live on Pages preview. Main coding
-does **not** start until the freeze audit is approved:
-[freeze-audit.md](./freeze-audit.md). First coding slice after approval is **G4**
-(`packages/evidence` JSON Schema + capability contract). Dashboard DNS
-(`mobile.cyvra.co.in`) remains a human click-path, not that coding slice.
+**Save point (9 Sep 2026):** G0–G3 pipe is live. Custom domain
+https://mobile.cyvra.co.in/ works. Freeze audit is **approved**. G4 is in
+`packages/evidence`. No Android until G5. Test pool: [testing/pool.md](./testing/pool.md).
 
 ## Live G0–G3
 
 | Piece | Value |
 |---|---|
-| Pages | https://cyvra-mobile.pages.dev |
+| Pages | https://cyvra-mobile.pages.dev and https://mobile.cyvra.co.in/ |
 | Worker | https://cyvra-mobile-api.mukpswar.workers.dev |
 | Hyperdrive | `cyvra-mobile-neon` → `db31fc8dafca49b29172da7046b97175` |
 | Neon | `floral-art-02749206` |

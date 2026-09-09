@@ -16,9 +16,9 @@ Reply with **status only** (Verified / Not started / error text with no secrets)
 | Hyperdrive | `cyvra-mobile-neon` id `db31fc8dafca49b29172da7046b97175` |
 | Neon | project `floral-art-02749206`, database `neondb` |
 | Zone `cyvra.co.in` | Cloudflare nameservers (`sloan` / `guy.ns.cloudflare.com`) |
-| `mobile.cyvra.co.in` | **no DNS yet** |
+| `mobile.cyvra.co.in` | **live** (HTTP 200, 9 Sep 2026) |
 | `api-mobile.cyvra.co.in` | **no DNS yet** |
-| Resend | domain/key **not** on the Worker yet (`API_ENV=preview` returns `devCode`) |
+| Resend | domain Verified; Worker has `RESEND_API_KEY`; `API_ENV=preview` |
 
 ## Order (do not skip)
 
