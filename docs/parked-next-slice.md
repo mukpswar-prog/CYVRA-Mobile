@@ -19,7 +19,9 @@ Create-your-account collects **full name** (mandatory), company, two address
 lines, **pincode** (mandatory), state, and **email**. Email is the Resend OTP
 target. Resend domain/key is still **pending** — preview returns `devCode`.
 Dashboard steps for Neon, Resend, Worker secrets, and `mobile.cyvra.co.in`:
-[dashboard-configure.md](./dashboard-configure.md).
+[dashboard-configure.md](./dashboard-configure.md). Resend domain `cyvra.co.in`
+is **Verified**. www nav must **link out** to mobile, not reuse Erase OTP:
+[www-mobile-button.md](./www-mobile-button.md).
 
 ## Serial keys / admin UI
 
