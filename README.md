@@ -9,9 +9,9 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 - Planned site: https://mobile.cyvra.co.in (live)
 - Frozen Windows product: https://www.cyvra.co.in — **not** this repository
 
-> Do not start CYVRA Station or Knox/S3. Android (G5) is approved to follow G4
-> but waits for a Samsung device for execution tests. See [GUIDELINE.md](GUIDELINE.md) §10
-> and [docs/testing/pool.md](docs/testing/pool.md).
+> Do not start CYVRA Station or Knox/S3. G5 Android **core** is in `apps/android`
+> (Codespaces: `./gradlew :core:test`). Device/APK tests wait for a Samsung phone.
+> See [docs/codespaces-g5.md](docs/codespaces-g5.md) and [docs/testing/pool.md](docs/testing/pool.md).
 
 ---
 
@@ -19,6 +19,7 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 
 ```
 apps/web/            Customer web (Vite + React) → mobile.cyvra.co.in
+apps/android/        S1 Android scaffold (`:core` JVM tests in Codespaces)
 services/api/        Cloudflare Worker `cyvra-mobile-api` (Hono + pg via Hyperdrive)
 database/            Drizzle schema + migrations (Neon project floral-art-02749206)
 packages/evidence/   Evidence JSON Schema + S1 capability contract (G4)
@@ -47,7 +48,7 @@ Day-to-day verification is in GitHub Codespaces
 Pages project **`cyvra-mobile`** builds from this repo (`main` = production).
 Do not connect Pages to Erase / `cyvra-www`.
 
-Full steps: [docs/codespaces-pages.md](docs/codespaces-pages.md).
+Full steps: [docs/codespaces-g5.md](docs/codespaces-g5.md) (switch off `main` first), then [docs/codespaces-pages.md](docs/codespaces-pages.md).
 
 ## Local development
 

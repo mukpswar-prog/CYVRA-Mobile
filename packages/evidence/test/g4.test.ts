@@ -281,4 +281,15 @@ describe("G4 JSON Schema files", () => {
     ) as { required: string[] };
     assert.ok(manifest.required.includes("frozenAt"));
   });
+
+  it("exports s1-catalog.v1.json with the same TEST_IDs as the TypeScript catalog", () => {
+    const exported = JSON.parse(
+      readFileSync(join(root, "schema", "s1-catalog.v1.json"), "utf8"),
+    ) as { catalog: Array<{ testId: string }>; contract: { contractId: string } };
+    assert.equal(exported.contract.contractId, "CYVRA-CC-S1-V1");
+    assert.deepEqual(
+      exported.catalog.map((row) => row.testId),
+      S1_TEST_CATALOG.map((row) => row.testId),
+    );
+  });
 });

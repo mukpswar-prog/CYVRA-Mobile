@@ -50,12 +50,19 @@ Run: `pnpm --filter @cyvra/evidence test` and `pnpm --filter @cyvra/evidence typ
 
 ---
 
-## G5 — S1 Android (queued — no Samsung in hand)
+## G5 — S1 Android scaffold (no Samsung in hand)
 
-Do **not** start the Kotlin app in the G4 slice. When a phone exists, run in
-this order. One owned Samsung phone first, then one Samsung tablet.
+Codespaces can verify the JVM core. APK install waits for a phone + Android Studio.
 
-### Setup
+| ID | How | Expected | Status |
+|---|---|---|---|
+| T-G5-CORE | Codespaces: `cd apps/android && ./gradlew :core:test --no-daemon` | `G5CoreTest` PASS (catalog 41 tests, PERMISSION_DENIED, IMEI/SOH/Knox blocked, queue keeps `collectedAt`) | `automated` |
+| T-G5-CATALOG-SYNC | `pnpm --filter @cyvra/evidence test` | `s1-catalog.v1.json` IDs match TypeScript catalog | `automated` |
+| T-G5-APP-SDK | Android Studio: open `apps/android` with SDK, `local.properties` sdk.dir | `:app` module appears; assembleDebug | `queued-dashboard` (needs Android SDK) |
+
+Device rows below stay `queued-no-device`. Unlock with the **owner’s** credentials. If lock is unknown: **stop**. No bypass. No Knox enrollment. USB debugging off unless a later S2 session needs it.
+
+### Setup (when a Samsung exists)
 
 1. Unlock the device with the **owner’s** credentials. If lock is unknown: **stop**. No bypass.
 2. Install the CYVRA Mobile Evidence debug APK (sideload). No root. No Knox enrollment.

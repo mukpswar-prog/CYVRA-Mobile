@@ -1,0 +1,727 @@
+{
+  "schemaVersion": "1.0.0",
+  "catalog": [
+    {
+      "testId": "IDN.BUILD_IDENTITY",
+      "domain": "IDENTITY_CONFIGURATION",
+      "userName": "Build identity",
+      "objectiveName": "Device build and configuration identity",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "IDN.ANDROID_ID",
+      "domain": "IDENTITY_CONFIGURATION",
+      "userName": "App-scoped Android ID",
+      "objectiveName": "Settings.Secure.ANDROID_ID (resettable, not IMEI)",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "IDN.IMEI_SERIAL",
+      "domain": "IDENTITY_CONFIGURATION",
+      "userName": "IMEI / hardware serial",
+      "objectiveName": "Non-resettable device identifiers",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S3_ENTERPRISE",
+      "s1ForbiddenPass": true,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "IDN.SCREEN_FORM",
+      "domain": "IDENTITY_CONFIGURATION",
+      "userName": "Screen form",
+      "objectiveName": "smallestScreenWidthDp form-factor snapshot",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "IDN.FEATURE_INVENTORY",
+      "domain": "IDENTITY_CONFIGURATION",
+      "userName": "Feature inventory",
+      "objectiveName": "PackageManager system feature declaration snapshot",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "PHY.HOUSING_OBSERVATION",
+      "domain": "PHYSICAL_CONDITION",
+      "userName": "Housing condition",
+      "objectiveName": "Technician housing condition observation",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "TECHNICIAN_OBSERVATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED",
+      "observationOnly": true
+    },
+    {
+      "testId": "PHY.DISPLAY_OBSERVATION",
+      "domain": "PHYSICAL_CONDITION",
+      "userName": "Display condition",
+      "objectiveName": "Technician display condition observation",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "TECHNICIAN_OBSERVATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED",
+      "observationOnly": true
+    },
+    {
+      "testId": "PHY.PORT_OBSERVATION",
+      "domain": "PHYSICAL_CONDITION",
+      "userName": "Port condition",
+      "objectiveName": "Technician port condition observation",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "TECHNICIAN_OBSERVATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED",
+      "observationOnly": true
+    },
+    {
+      "testId": "HW.CAMERA_BACK",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Rear camera present",
+      "objectiveName": "Rear camera hardware declaration",
+      "requireFeatures": [
+        "android.hardware.camera"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "HW.CAMERA_FRONT",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Front camera present",
+      "objectiveName": "Front camera hardware declaration",
+      "requireFeatures": [
+        "android.hardware.camera.front"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "HW.CAMERA_INVENTORY",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Camera inventory",
+      "objectiveName": "Camera2 cameraIdList inventory",
+      "requireFeatures": [
+        "android.hardware.camera.any"
+      ],
+      "requirePermissions": [
+        "android.permission.CAMERA"
+      ],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "HW.STORAGE_CAPACITY",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Storage capacity",
+      "objectiveName": "Internal storage capacity snapshot",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "HW.MEMORY",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Memory",
+      "objectiveName": "ActivityManager memory snapshot",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "HW.SENSOR_INVENTORY",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Sensor inventory",
+      "objectiveName": "SensorManager getSensorList inventory",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "HW.VIBRATOR_PRESENT",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Vibrator present",
+      "objectiveName": "Vibrator.hasVibrator declaration",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "HW.TELEPHONY_PRESENT",
+      "domain": "HARDWARE_CONFIGURATION",
+      "userName": "Telephony present",
+      "objectiveName": "android.hardware.telephony feature declaration",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.CAMERA_BACK_CAPTURE",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Camera Check",
+      "objectiveName": "Camera Functional Verification (rear)",
+      "requireFeatures": [
+        "android.hardware.camera"
+      ],
+      "requirePermissions": [
+        "android.permission.CAMERA"
+      ],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.CAMERA_FRONT_CAPTURE",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Front Camera Check",
+      "objectiveName": "Camera Functional Verification (front)",
+      "requireFeatures": [
+        "android.hardware.camera.front"
+      ],
+      "requirePermissions": [
+        "android.permission.CAMERA"
+      ],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.DISPLAY_RENDER",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Display Check",
+      "objectiveName": "Display Functional Verification",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.TOUCH_GRID",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Touch Check",
+      "objectiveName": "Touch Functional Verification",
+      "requireFeatures": [
+        "android.hardware.touchscreen"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.SPEAKER",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Speaker Check",
+      "objectiveName": "Audio Output Functional Verification",
+      "requireFeatures": [
+        "android.hardware.audio.output"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.MICROPHONE",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Microphone Check",
+      "objectiveName": "Microphone Functional Verification",
+      "requireFeatures": [
+        "android.hardware.microphone"
+      ],
+      "requirePermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.VIBRATION",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Vibration Check",
+      "objectiveName": "Vibrator Functional Verification",
+      "requireFeatures": [],
+      "requirePermissions": [
+        "android.permission.VIBRATE"
+      ],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.ACCELEROMETER",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Accelerometer Check",
+      "objectiveName": "Accelerometer Functional Verification",
+      "requireFeatures": [
+        "android.hardware.sensor.accelerometer"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.GYROSCOPE",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Gyroscope Check",
+      "objectiveName": "Gyroscope Functional Verification",
+      "requireFeatures": [
+        "android.hardware.sensor.gyroscope"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.PROXIMITY",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Proximity Check",
+      "objectiveName": "Proximity Sensor Functional Verification",
+      "requireFeatures": [
+        "android.hardware.sensor.proximity"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.AMBIENT_LIGHT",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Light Sensor Check",
+      "objectiveName": "Ambient Light Sensor Functional Verification",
+      "requireFeatures": [
+        "android.hardware.sensor.light"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "FN.MAGNETOMETER",
+      "domain": "FUNCTIONAL_VERIFICATION",
+      "userName": "Compass Check",
+      "objectiveName": "Magnetic Field Sensor Functional Verification",
+      "requireFeatures": [
+        "android.hardware.sensor.compass"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "NET.WIFI",
+      "domain": "CONNECTIVITY",
+      "userName": "Wi-Fi Check",
+      "objectiveName": "Wi-Fi radio classification",
+      "requireFeatures": [
+        "android.hardware.wifi"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "NET.BLUETOOTH",
+      "domain": "CONNECTIVITY",
+      "userName": "Bluetooth Check",
+      "objectiveName": "Bluetooth radio classification",
+      "requireFeatures": [
+        "android.hardware.bluetooth"
+      ],
+      "requirePermissions": [
+        "android.permission.BLUETOOTH_CONNECT"
+      ],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "NET.ACTIVE_TRANSPORT",
+      "domain": "CONNECTIVITY",
+      "userName": "Network class",
+      "objectiveName": "Active transport classification (wifi/cellular/ethernet/none)",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "NET.CELLULAR",
+      "domain": "CONNECTIVITY",
+      "userName": "Cellular Check",
+      "objectiveName": "Cellular radio classification",
+      "requireFeatures": [
+        "android.hardware.telephony"
+      ],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "PWR.BATTERY_STATUS",
+      "domain": "POWER_BATTERY_STORAGE",
+      "userName": "Battery status",
+      "objectiveName": "BatteryManager level, scale, plugged, EXTRA_HEALTH",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "PWR.BATTERY_SOH",
+      "domain": "POWER_BATTERY_STORAGE",
+      "userName": "Battery state of health",
+      "objectiveName": "Battery state of health (enterprise / flagged API)",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S3_ENTERPRISE",
+      "s1ForbiddenPass": true,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "PWR.STORAGE_FREE",
+      "domain": "POWER_BATTERY_STORAGE",
+      "userName": "Free storage",
+      "objectiveName": "Internal free-space snapshot",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "SEC.ACCESS_LEVEL",
+      "domain": "SECURITY_ACCESS_LIMITATIONS",
+      "userName": "Access level",
+      "objectiveName": "Session access level L0–L4 classification",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "SEC.LOCK_PRESENT",
+      "domain": "SECURITY_ACCESS_LIMITATIONS",
+      "userName": "Screen lock present",
+      "objectiveName": "KeyguardManager lock presence (detect only, no bypass)",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "SEC.USB_DATA",
+      "domain": "SECURITY_ACCESS_LIMITATIONS",
+      "userName": "USB data state",
+      "objectiveName": "USB connection classification independent of ADB",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "SEC.ADB_SETTING",
+      "domain": "SECURITY_ACCESS_LIMITATIONS",
+      "userName": "ADB setting",
+      "objectiveName": "ADB enabled setting (not authorized ADB)",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "SEC.PERMISSION_MATRIX",
+      "domain": "SECURITY_ACCESS_LIMITATIONS",
+      "userName": "Permission matrix",
+      "objectiveName": "Runtime permission grant snapshot",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S1_APPLICATION",
+      "s1ForbiddenPass": false,
+      "defaultUntested": "NOT_TESTED"
+    },
+    {
+      "testId": "SEC.KNOX_CLAIM",
+      "domain": "SECURITY_ACCESS_LIMITATIONS",
+      "userName": "Knox attestation",
+      "objectiveName": "Samsung Knox attestation / OEM authority",
+      "requireFeatures": [],
+      "requirePermissions": [],
+      "minSource": "S3_ENTERPRISE",
+      "s1ForbiddenPass": true,
+      "defaultUntested": "NOT_TESTED"
+    }
+  ],
+  "contract": {
+    "schemaVersion": "1.0.0",
+    "contractId": "CYVRA-CC-S1-V1",
+    "version": "1.0.0",
+    "layer": "S1",
+    "rules": [
+      {
+        "capabilityId": "CAP.CAMERA_BACK",
+        "requireFeatures": [
+          "android.hardware.camera"
+        ],
+        "tests": [
+          "HW.CAMERA_BACK",
+          "FN.CAMERA_BACK_CAPTURE"
+        ],
+        "requirePermissions": [
+          "android.permission.CAMERA"
+        ],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.CAMERA_FRONT",
+        "requireFeatures": [
+          "android.hardware.camera.front"
+        ],
+        "tests": [
+          "HW.CAMERA_FRONT",
+          "FN.CAMERA_FRONT_CAPTURE"
+        ],
+        "requirePermissions": [
+          "android.permission.CAMERA"
+        ],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.CAMERA_ANY",
+        "requireFeatures": [
+          "android.hardware.camera.any"
+        ],
+        "tests": [
+          "HW.CAMERA_INVENTORY"
+        ],
+        "requirePermissions": [
+          "android.permission.CAMERA"
+        ],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false,
+        "notes": "Android 10+ Camera2 characteristics that identify the device require CAMERA permission."
+      },
+      {
+        "capabilityId": "CAP.TOUCHSCREEN",
+        "requireFeatures": [
+          "android.hardware.touchscreen"
+        ],
+        "tests": [
+          "FN.TOUCH_GRID"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.MICROPHONE",
+        "requireFeatures": [
+          "android.hardware.microphone"
+        ],
+        "tests": [
+          "FN.MICROPHONE"
+        ],
+        "requirePermissions": [
+          "android.permission.RECORD_AUDIO"
+        ],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.AUDIO_OUTPUT",
+        "requireFeatures": [
+          "android.hardware.audio.output"
+        ],
+        "tests": [
+          "FN.SPEAKER"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.WIFI",
+        "requireFeatures": [
+          "android.hardware.wifi"
+        ],
+        "tests": [
+          "NET.WIFI"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false,
+        "notes": "S1 classifies Wi-Fi. It must not enable/disable Wi-Fi (WifiManager.setWifiEnabled is a no-op for apps targeting API 29+)."
+      },
+      {
+        "capabilityId": "CAP.BLUETOOTH",
+        "requireFeatures": [
+          "android.hardware.bluetooth"
+        ],
+        "tests": [
+          "NET.BLUETOOTH"
+        ],
+        "requirePermissions": [
+          "android.permission.BLUETOOTH_CONNECT"
+        ],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.TELEPHONY",
+        "requireFeatures": [
+          "android.hardware.telephony"
+        ],
+        "tests": [
+          "NET.CELLULAR"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false,
+        "notes": "Tablets without telephony declare this feature absent. That is NOT_SUPPORTED, not FAIL."
+      },
+      {
+        "capabilityId": "CAP.ACCELEROMETER",
+        "requireFeatures": [
+          "android.hardware.sensor.accelerometer"
+        ],
+        "tests": [
+          "FN.ACCELEROMETER"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.GYROSCOPE",
+        "requireFeatures": [
+          "android.hardware.sensor.gyroscope"
+        ],
+        "tests": [
+          "FN.GYROSCOPE"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.PROXIMITY",
+        "requireFeatures": [
+          "android.hardware.sensor.proximity"
+        ],
+        "tests": [
+          "FN.PROXIMITY"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.AMBIENT_LIGHT",
+        "requireFeatures": [
+          "android.hardware.sensor.light"
+        ],
+        "tests": [
+          "FN.AMBIENT_LIGHT"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.MAGNETOMETER",
+        "requireFeatures": [
+          "android.hardware.sensor.compass"
+        ],
+        "tests": [
+          "FN.MAGNETOMETER"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_SUPPORTED",
+        "s1ForbiddenPass": false
+      },
+      {
+        "capabilityId": "CAP.IMEI_SERIAL",
+        "requireFeatures": [],
+        "tests": [
+          "IDN.IMEI_SERIAL"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_AVAILABLE",
+        "s1ForbiddenPass": true,
+        "notes": "Android 10+ IMEI/serial require READ_PRIVILEGED_PHONE_STATE. Samsung Knox Configure/Manage only. Not S1."
+      },
+      {
+        "capabilityId": "CAP.BATTERY_SOH",
+        "requireFeatures": [],
+        "tests": [
+          "PWR.BATTERY_SOH"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_AVAILABLE",
+        "s1ForbiddenPass": true,
+        "notes": "Battery SOH is Knox Asset Intelligence / flagged BatteryManager API. S1 records battery status only."
+      },
+      {
+        "capabilityId": "CAP.KNOX_ATTESTATION",
+        "requireFeatures": [],
+        "tests": [
+          "SEC.KNOX_CLAIM"
+        ],
+        "requirePermissions": [],
+        "missingFeatureResult": "NOT_AVAILABLE",
+        "s1ForbiddenPass": true,
+        "notes": "Knox SDK is S3. Android 15+ further restricts Knox methods to Device/Profile Owner."
+      }
+    ]
+  }
+}

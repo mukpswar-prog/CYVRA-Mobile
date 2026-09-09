@@ -1,6 +1,6 @@
 # Freeze audit + main-coding plan
 
-**Status:** APPROVED 9 Sep 2026. G4 coding started.  
+**Status:** APPROVED 9 Sep 2026. G4 done. G5 Android **core** scaffold started (no device).  
 **Governing law:** [GUIDELINE.md](../GUIDELINE.md) (also [docs/GUIDELINE.md](./GUIDELINE.md)).  
 **Branch:** `cursor/g0-g3-mobile-slice-7474`
 
@@ -66,7 +66,7 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 | **G2** | `users` / `email_otp_challenges` / `sessions`. `/health`, `POST /auth/request`, `POST /auth/verify` | **Live.** Neon tables exist. Worker `/health` = `status=ok`, `env=preview`, `database=connected`. Preview may still return `devCode` until `API_ENV=production`. Full guideline tables (`device_lifecycles`, `evidence_records`, …) are **not** created yet — by design. |
 | **G3** | Registration on Pages preview, then `mobile.cyvra.co.in`. Honest empty home. Name + pincode mandatory. | **Custom domain live.** `https://mobile.cyvra.co.in/` HTTP 200 (same bundle as pages.dev). Worker still `*.workers.dev`. `api-mobile.cyvra.co.in` NXDOMAIN. |
 | **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` | **This slice.** Schemas + S1 catalog + digest + `PERMISSION_DENIED`. |
-| **G5** | S1 Android on **one** owned Samsung | **Not started.** No `apps/android`. |
+| **G5** | S1 Android on **one** owned Samsung | **Scaffold started.** JVM `:core` in `apps/android` (plan/honesty/queue). APK/device tests queued. No Neon evidence tables yet. |
 | **G6** | Render Report 1 from a frozen manifest | **Not started.** No report engine, no PDF, no manifest freeze. |
 | **G7** | Mobile section on existing admin/accounts | **Spec only** (`docs/admin-mobile-section.md`). Erase `admin-frontend` is another repo. CORS already allowlists those hosts. |
 | **G8** | Thin `cyvra-www` tab → `mobile.cyvra.co.in` | **Plan only.** Last. Domain `mobile.cyvra.co.in` now exists; still do not patch www in this repo. |
