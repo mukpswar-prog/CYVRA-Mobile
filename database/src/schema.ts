@@ -25,14 +25,20 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     email: text("email").notNull(),
+    fullName: text("full_name"),
+    companyName: text("company_name"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    pincode: text("pincode"),
+    state: text("state"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   },
-  (table) => ({
-    emailUnique: uniqueIndex("users_email_unique").on(sql`lower(${table.email})`),
-  }),
+  (table) => [
+    uniqueIndex("users_email_unique").on(sql`lower(${table.email})`),
+  ],
 );
 
 export const emailOtpChallenges = pgTable(
@@ -40,6 +46,13 @@ export const emailOtpChallenges = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     email: text("email").notNull(),
+    // Snapshot of the registration form, applied to `users` on verify.
+    fullName: text("full_name"),
+    companyName: text("company_name"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    pincode: text("pincode"),
+    state: text("state"),
     // SHA-256 hex of the one-time code. Plaintext codes are never persisted.
     codeHash: text("code_hash").notNull(),
     attempts: integer("attempts").notNull().default(0),
@@ -49,9 +62,9 @@ export const emailOtpChallenges = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => ({
-    emailIdx: index("email_otp_challenges_email_idx").on(table.email),
-  }),
+  (table) => [
+    index("email_otp_challenges_email_idx").on(table.email),
+  ],
 );
 
 export const sessions = pgTable(
@@ -68,10 +81,10 @@ export const sessions = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => ({
-    tokenUnique: uniqueIndex("sessions_token_hash_unique").on(table.tokenHash),
-    userIdx: index("sessions_user_id_idx").on(table.userId),
-  }),
+  (table) => [
+    uniqueIndex("sessions_token_hash_unique").on(table.tokenHash),
+    index("sessions_user_id_idx").on(table.userId),
+  ],
 );
 
 export type User = typeof users.$inferSelect;

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Prefer the latest stable CPython installed by scripts/install-python.sh.
+set -euo pipefail
+if command -v python3.14 >/dev/null 2>&1; then
+  exec python3.14 "$@"
+fi
+exec python3 "$@"

@@ -1,7 +1,7 @@
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { getCookie, setCookie } from "hono/cookie";
+import { setCookie } from "hono/cookie";
 import {
   emailOtpChallenges,
   sessions,
@@ -16,13 +16,20 @@ import {
 } from "./crypto";
 import { sendOtpEmail } from "./email";
 import type { Env } from "./env";
+import {
+  parseRegistration,
+  profileColumns,
+} from "./registration";
+import { isAllowedOrigin } from "./origins";
+import {
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  readSessionToken,
+  sessionCookieOptions,
+} from "./session";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MAX_OTP_ATTEMPTS = 5;
-const SESSION_COOKIE = "cyvra_session";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Variables = { db: Database };
 
@@ -30,15 +37,16 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use("*", async (c, next) => {
   return cors({
-    origin: c.env.APP_ORIGIN ?? "http://localhost:5173",
+    origin: (origin) => (isAllowedOrigin(origin, c.env) ? origin : ""),
     credentials: true,
     allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
+    allowHeaders: ["Content-Type", "Authorization"],
   })(c, next);
 });
 
 /** Open a DB connection for the request and close it after the response. */
 app.use("*", async (c, next) => {
+  if (c.req.method === "OPTIONS") return next();
   const { db, client } = await connect(c.env.HYPERDRIVE.connectionString);
   c.set("db", db);
   try {
@@ -63,12 +71,12 @@ app.get("/health", async (c) => {
 
 app.post("/auth/request", async (c) => {
   const db = c.get("db");
-  const body = (await c.req.json().catch(() => ({}))) as { email?: string };
-  const email = (body.email ?? "").trim().toLowerCase();
-
-  if (!EMAIL_RE.test(email)) {
-    return c.json({ error: "A valid email address is required." }, 400);
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const parsed = parseRegistration(body);
+  if (!parsed.ok) {
+    return c.json({ error: parsed.error }, 400);
   }
+  const profile = parsed.value;
 
   const code = generateOtpCode();
   const codeHash = await sha256Hex(code);
@@ -76,11 +84,16 @@ app.post("/auth/request", async (c) => {
 
   const [challenge] = await db
     .insert(emailOtpChallenges)
-    .values({ email, codeHash, expiresAt })
+    .values({
+      email: profile.email,
+      codeHash,
+      expiresAt,
+      ...profileColumns(profile),
+    })
     .returning({ id: emailOtpChallenges.id });
 
   const result = await sendOtpEmail(c.env, {
-    email,
+    email: profile.email,
     code,
     challengeId: challenge.id,
   });
@@ -96,7 +109,7 @@ app.post("/auth/request", async (c) => {
     devCode: result.devCode,
     message: result.sent
       ? "We emailed you a 6-digit sign-in code."
-      : "Dev mode: no email sent. Use the code shown below (also in the API logs).",
+      : "Preview mode: no email sent (Resend key missing or domain unverified). Use the code shown below.",
   });
 });
 
@@ -153,17 +166,34 @@ app.post("/auth/verify", async (c) => {
     .where(eq(users.email, challenge.email))
     .limit(1);
 
+  const isNewUser = !user;
+  const profile = {
+    fullName: challenge.fullName ?? user?.fullName ?? null,
+    companyName: challenge.companyName ?? user?.companyName ?? null,
+    addressLine1: challenge.addressLine1 ?? user?.addressLine1 ?? null,
+    addressLine2: challenge.addressLine2 ?? user?.addressLine2 ?? null,
+    pincode: challenge.pincode ?? user?.pincode ?? null,
+    state: challenge.state ?? user?.state ?? null,
+  };
+
   if (!user) {
     [user] = await db
       .insert(users)
-      .values({ email: challenge.email })
+      .values({
+        email: challenge.email,
+        lastLoginAt: new Date(),
+        ...profile,
+      })
       .returning();
+  } else {
+    await db
+      .update(users)
+      .set({
+        lastLoginAt: new Date(),
+        ...profile,
+      })
+      .where(eq(users.id, user.id));
   }
-
-  await db
-    .update(users)
-    .set({ lastLoginAt: new Date() })
-    .where(eq(users.id, user.id));
 
   const token = generateSessionToken();
   const tokenHash = await sha256Hex(token);
@@ -172,28 +202,44 @@ app.post("/auth/verify", async (c) => {
     .insert(sessions)
     .values({ userId: user.id, tokenHash, expiresAt: sessionExpiresAt });
 
-  setCookie(c, SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "Lax",
-    path: "/",
-    secure: c.env.API_ENV === "production",
-    maxAge: SESSION_TTL_MS / 1000,
-  });
+  setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(c));
 
   return c.json({
-    user: { id: user.id, email: user.email },
-    isNewUser: !user.lastLoginAt,
+    user: {
+      id: user.id,
+      email: user.email,
+      fullName: profile.fullName,
+      companyName: profile.companyName,
+      addressLine1: profile.addressLine1,
+      addressLine2: profile.addressLine2,
+      pincode: profile.pincode,
+      state: profile.state,
+    },
+    isNewUser,
+    // Returned so Pages preview (pages.dev → workers.dev) can auth without
+    // third-party cookies. Cookie still set for same-site custom domains.
+    token,
   });
 });
 
 app.get("/me", async (c) => {
   const db = c.get("db");
-  const token = getCookie(c, SESSION_COOKIE);
+  const token = readSessionToken(c);
   if (!token) return c.json({ user: null }, 200);
 
   const tokenHash = await sha256Hex(token);
   const [row] = await db
-    .select({ id: users.id, email: users.email, lastLoginAt: users.lastLoginAt })
+    .select({
+      id: users.id,
+      email: users.email,
+      fullName: users.fullName,
+      companyName: users.companyName,
+      addressLine1: users.addressLine1,
+      addressLine2: users.addressLine2,
+      pincode: users.pincode,
+      state: users.state,
+      lastLoginAt: users.lastLoginAt,
+    })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .where(
@@ -209,12 +255,12 @@ app.get("/me", async (c) => {
 
 app.post("/auth/logout", async (c) => {
   const db = c.get("db");
-  const token = getCookie(c, SESSION_COOKIE);
+  const token = readSessionToken(c);
   if (token) {
     const tokenHash = await sha256Hex(token);
     await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
   }
-  setCookie(c, SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  setCookie(c, SESSION_COOKIE, "", { ...sessionCookieOptions(c), maxAge: 0 });
   return c.json({ ok: true });
 });
 

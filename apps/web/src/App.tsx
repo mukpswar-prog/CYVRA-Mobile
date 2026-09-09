@@ -1,14 +1,25 @@
 import { useEffect, useState } from "react";
 import { api, type AuthUser } from "./api";
+import { IN_STATES } from "./in-states";
 
-type Step = "email" | "code" | "done";
+type Step = "register" | "code" | "done";
+
+const emptyForm = {
+  fullName: "",
+  companyName: "",
+  addressLine1: "",
+  addressLine2: "",
+  pincode: "",
+  state: "",
+  email: "",
+};
 
 export function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
 
-  const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<Step>("register");
+  const [form, setForm] = useState(emptyForm);
   const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | undefined>();
@@ -24,12 +35,16 @@ export function App() {
       .finally(() => setLoadingSession(false));
   }, []);
 
-  async function submitEmail(e: React.FormEvent) {
+  function setField(name: keyof typeof emptyForm, value: string) {
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function submitRegister(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setBusy(true);
     try {
-      const r = await api.requestOtp(email);
+      const r = await api.requestOtp(form);
       setChallengeId(r.challengeId);
       setDevCode(r.devCode);
       setNotice(r.message);
@@ -59,8 +74,8 @@ export function App() {
   async function logout() {
     await api.logout().catch(() => undefined);
     setUser(null);
-    setStep("email");
-    setEmail("");
+    setStep("register");
+    setForm(emptyForm);
     setCode("");
     setChallengeId("");
     setDevCode(undefined);
@@ -100,7 +115,11 @@ export function App() {
             <div className="signed-in">
               <h2>You're signed in</h2>
               <p className="muted">Account</p>
+              {user.fullName && <p className="email-pill">{user.fullName}</p>}
               <p className="email-pill">{user.email}</p>
+              {user.companyName && (
+                <p className="muted small">{user.companyName}</p>
+              )}
               <p className="muted small">
                 This is a separate mobile account (not your Windows Erase login).
               </p>
@@ -108,22 +127,100 @@ export function App() {
                 Sign out
               </button>
             </div>
-          ) : step === "email" ? (
-            <form onSubmit={submitEmail}>
+          ) : step === "register" ? (
+            <form onSubmit={submitRegister}>
               <h2>Create your account</h2>
               <p className="muted">
-                Enter your email and we'll send a 6-digit sign-in code.
+                Tell us who you are. We will send a 6-digit code to your email
+                (Resend email delivery is still pending — preview shows the
+                code on screen).
               </p>
-              <label htmlFor="email">Email address</label>
+
+              <label htmlFor="fullName">Full name *</label>
+              <input
+                id="fullName"
+                autoComplete="name"
+                placeholder="Your name"
+                value={form.fullName}
+                onChange={(e) => setField("fullName", e.target.value)}
+                required
+                minLength={2}
+              />
+
+              <label htmlFor="companyName">Company name</label>
+              <input
+                id="companyName"
+                autoComplete="organization"
+                placeholder="Company (optional)"
+                value={form.companyName}
+                onChange={(e) => setField("companyName", e.target.value)}
+              />
+
+              <label htmlFor="addressLine1">Address line 1</label>
+              <input
+                id="addressLine1"
+                autoComplete="address-line1"
+                placeholder="Street, building"
+                value={form.addressLine1}
+                onChange={(e) => setField("addressLine1", e.target.value)}
+              />
+
+              <label htmlFor="addressLine2">Address line 2</label>
+              <input
+                id="addressLine2"
+                autoComplete="address-line2"
+                placeholder="Area, landmark"
+                value={form.addressLine2}
+                onChange={(e) => setField("addressLine2", e.target.value)}
+              />
+
+              <div className="field-row">
+                <div>
+                  <label htmlFor="pincode">Pincode *</label>
+                  <input
+                    id="pincode"
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    placeholder="560001"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    value={form.pincode}
+                    onChange={(e) =>
+                      setField("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="state">State</label>
+                  <select
+                    id="state"
+                    value={form.state}
+                    onChange={(e) => setField("state", e.target.value)}
+                  >
+                    <option value="">Select state</option>
+                    {IN_STATES.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <label htmlFor="email">Email address *</label>
               <input
                 id="email"
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={form.email}
+                onChange={(e) => setField("email", e.target.value)}
                 required
               />
+              <p className="muted small">
+                Used only to send the sign-in OTP from the Worker via Resend.
+              </p>
               <button className="btn" type="submit" disabled={busy}>
                 {busy ? "Sending…" : "Send sign-in code"}
               </button>
@@ -133,8 +230,8 @@ export function App() {
               <h2>Enter your code</h2>
               <p className="muted">{notice}</p>
               {devCode && (
-                <p className="dev-code" aria-label="dev code">
-                  Dev code: <strong>{devCode}</strong>
+                <p className="dev-code" aria-label="preview code">
+                  Preview code: <strong>{devCode}</strong>
                 </p>
               )}
               <label htmlFor="code">6-digit code</label>
@@ -155,12 +252,12 @@ export function App() {
                 type="button"
                 className="btn ghost"
                 onClick={() => {
-                  setStep("email");
+                  setStep("register");
                   setCode("");
                   setError("");
                 }}
               >
-                Use a different email
+                Edit registration details
               </button>
             </form>
           ) : null}

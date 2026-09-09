@@ -1,7 +1,7 @@
 # Worker secrets for local dev (never commit real values). Copy to `.dev.vars`.
-# When RESEND_API_KEY is unset the Worker runs in dev mode: it does NOT send
-# email and instead logs the OTP (and returns it in the API response so the
-# local sign-in flow can complete without a verified Resend domain).
+# When RESEND_API_KEY is unset (or API_ENV is not production and Resend rejects
+# an unverified domain) the Worker does NOT email: it returns the OTP in JSON
+# so local / Pages preview can complete without a verified Resend domain.
 RESEND_API_KEY=
 RESEND_FROM="CYVRA Mobile <noreply@cyvra.co.in>"
 SESSION_SECRET=local-dev-session-secret-change-me

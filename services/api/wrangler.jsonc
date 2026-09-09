@@ -4,19 +4,18 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cyvra-mobile-api",
   "main": "src/index.ts",
-  "compatibility_date": "2024-11-27",
+  "compatibility_date": "2026-09-09",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
   },
   "hyperdrive": [
     {
-      // Bind Neon (pooled URL) via Hyperdrive in production. `id` is a
-      // placeholder until the real Hyperdrive config `cyvra-mobile-neon`
-      // exists. `localConnectionString` points wrangler dev at the workspace
-      // Postgres cluster that stands in for Neon locally.
+      // Bind Neon project floral-art-02749206 (pooled URL) via Hyperdrive
+      // `cyvra-mobile-neon` (id is the live config; not a secret).
+      // localConnectionString is wrangler-dev only.
       "binding": "HYPERDRIVE",
-      "id": "00000000000000000000000000000000",
+      "id": "db31fc8dafca49b29172da7046b97175",
       "localConnectionString": "postgres://cyvra:cyvra@127.0.0.1:5432/cyvra_mobile"
     }
   ],
