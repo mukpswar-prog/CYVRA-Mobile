@@ -38,6 +38,16 @@ web on Pages):
    HttpOnly cookie, and returns a Bearer token (needed when Pages preview and
    workers.dev are cross-site). `GET /me` accepts cookie or `Authorization`.
 
+## Codespaces → GitHub → Pages
+
+Day-to-day verification is in GitHub Codespaces
+(`https://supreme-umbrella-6v4rwwwxrwq524w4j.github.dev/`,
+`/workspaces/CYVRA-Mobile`). After checks pass, push to GitHub. Cloudflare
+Pages project **`cyvra-mobile`** builds from this repo (`main` = production).
+Do not connect Pages to Erase / `cyvra-www`.
+
+Full steps: [docs/codespaces-pages.md](docs/codespaces-pages.md).
+
 ## Local development
 
 The Cloud Agent environment is configured in [`.cursor/environment.json`](.cursor/environment.json):
