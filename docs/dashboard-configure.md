@@ -22,7 +22,7 @@ Reply with **status only** (Verified / Not started / error text with no secrets)
 
 ## Order (do not skip)
 
-1. **Neon** — confirm project, tables, pooled vs direct, rotate leaked password, point Hyperdrive at the new pooled URL.
+1. **Neon** — confirm project and tables, rotate leaked password, point Hyperdrive at the **direct** (unpooled) Neon URL.
 2. **Resend** — verify `cyvra.co.in` (SPF/DKIM/DMARC), create a **sending-only** API key.
 3. **Worker** — put `RESEND_*` and `SESSION_SECRET` in **production** secrets. Keep `API_ENV=preview` until a real OTP email arrives.
 4. **Subdomains** — Pages custom domain `mobile.cyvra.co.in`. Worker custom domain `api-mobile.cyvra.co.in`.
@@ -63,7 +63,8 @@ You should see at least:
 - `users`
 - `email_otp_challenges`
 - `sessions`
-- `__drizzle_migrations`
+
+(`__drizzle_migrations` may live in schema `drizzle`, not `public`. The three tables above are enough.)
 
 Then:
 
@@ -84,13 +85,18 @@ not create tables by hand.
 
 ### 1.3 Copy connection strings (keep them local)
 
-Dashboard → **Connect** (or the connection widget).
+Neon Dashboard → **Connect**.
 
-1. Database: `neondb`. Role: `neondb_owner`.
-2. **Pooled** (has `-pooler` in the host). This is what Hyperdrive uses.
-3. **Direct** (same host **without** `-pooler`). This is migrations only.
+1. Branch: **production**. Database: `neondb`. Role: `neondb_owner`.
+2. **Uncheck Pooled connection.** The host must **not** contain `-pooler`.
+   Hyperdrive is the pooler ([Neon Workers guide](https://neon.com/docs/guides/cloudflare-workers)).
+3. Copy that **direct** string into a password manager.
 
-Never put either URL on Cloudflare Pages. Never commit them.
+A pooled string (`-pooler` in the host) is **not** the Hyperdrive origin.
+
+Never put either URL on Cloudflare Pages. Never commit them. Never paste them in chat.
+
+The health `curl` is **not** stored anywhere. After Hyperdrive Save, run it in **Codespaces**.
 
 ### 1.4 Rotate the role password (required)
 
@@ -98,25 +104,29 @@ A Neon password was pasted in chat earlier. Rotate it now.
 
 1. Neon → project → **Settings** → **Roles** (or Dashboard → role menu).
 2. Reset / generate password for `neondb_owner`.
-3. Copy the **new** pooled URL and the **new** direct URL into a password manager only.
-4. Go to Hyperdrive (Phase 1.5) **before** you close the password dialog, or you will lock the Worker out.
+3. Connect again, pooled checkbox **off**, copy the **new direct** URL.
+4. Go to Hyperdrive (Phase 1.5) **immediately**, or the live Worker will fail until origin is updated.
 
-### 1.5 Point Hyperdrive at the new pooled URL
+### 1.5 Point Hyperdrive at the new **direct** URL
 
-Open Cloudflare (same account `5a3eeb2b3d42726a8ba08732464a0eda`):
+You already opened `cyvra-mobile-neon`. Stay on that config only.
 
 https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda/workers/hyperdrive
 
-1. Click **`cyvra-mobile-neon` only**. Do not open `cyvra-erase-neon-production`.
-2. Confirm id is `db31fc8dafca49b29172da7046b97175`.
-3. Origin / connection string → paste the **new pooled** Neon URL (`-pooler`, `sslmode=require`).
-4. Save.
+1. Confirm name **`cyvra-mobile-neon`** and id `db31fc8dafca49b29172da7046b97175`. Do not open Erase Hyperdrive.
+2. Find **Origin** / **Connection string** / **Database**.
+3. Paste the **direct** Neon URL from 1.3/1.4 (no `-pooler`, `sslmode=require` is fine).
+4. **Save**. Do not create a new Hyperdrive.
 
-Then check:
+Then in **GitHub Codespaces** (not Neon SQL, not Cloudflare’s search box):
 
 ```bash
 curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
 ```
+
+Expect `"database":"connected"`. If it is `unreachable`, origin still has the old password or a `-pooler` host. Edit origin again. Do not recreate Hyperdrive.
+
+Which Neon/Cloudflare guide and what not to click: [neon-cloudflare.md](./neon-cloudflare.md).
 
 Expect `"database":"connected"`. If it is `unreachable`, Hyperdrive still has the old password — edit origin again. Do not recreate Hyperdrive.
 

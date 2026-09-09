@@ -42,10 +42,10 @@ cp services/api/.dev.vars.example services/api/.dev.vars
 cp apps/web/.env.example apps/web/.env
 ```
 
-Edit `database/.env`:
+Edit `database/.env` (migrations only):
 
-- `DATABASE_URL` = Neon **pooled** URL (`-pooler` in the host)
-- `DATABASE_URL_DIRECT` = Neon **direct** URL (same host **without** `-pooler`)
+- `DATABASE_URL_DIRECT` = Neon **direct** URL (pooled checkbox **off**, host **without** `-pooler`)
+- `DATABASE_URL` can match that for local scripts; the **Worker** does not read this file
 
 Leave `apps/web/.env` as `VITE_API_URL=http://localhost:8787` for Codespaces.
 
@@ -53,6 +53,16 @@ Leave `RESEND_API_KEY` empty in `.dev.vars` until the domain is verified. Previe
 shows the OTP on screen.
 
 ## 3. Verify in Codespaces
+
+First, prove the **live** Worker → Hyperdrive → Neon path (no local Postgres):
+
+```bash
+curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
+```
+
+Expect `"database":"connected"`. That curl is a test, not a secret to save.
+
+Then local wrangler (uses local Postgres via `localConnectionString`):
 
 ```bash
 export DATABASE_URL_DIRECT='…direct…'   # or rely on database/.env

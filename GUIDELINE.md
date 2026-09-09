@@ -220,8 +220,9 @@ This project **is** the mobile system of record. Do not create a second “just 
 
 **Use:**
 
-- **Pooled** connection (`-pooler`) behind Hyperdrive for the Worker
-- **Direct** connection for Drizzle migrations only
+- **Hyperdrive origin** = Neon **direct** URL (uncheck Pooled; host has **no** `-pooler`). Hyperdrive is the pooler. Do not stack Neon PgBouncer. Native `pg` in the Worker ([Neon Cloudflare Workers](https://neon.com/docs/guides/cloudflare-workers)).
+- **Direct** connection also for Drizzle migrations (`DATABASE_URL_DIRECT`)
+- Do **not** follow [Neon Cloudflare Pages](https://neon.com/docs/guides/cloudflare-pages) (that puts `DATABASE_URL` on Pages Functions)
 - Drizzle as the schema tool; migrations in `database/`
 - Neon **branches** for preview/PR schema tests; reset from parent when dirty
 - Scale-to-zero is acceptable for v1; first query after idle will be slower
