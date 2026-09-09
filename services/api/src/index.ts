@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { setCookie } from "hono/cookie";
@@ -15,6 +15,7 @@ import {
   timingSafeEqualHex,
 } from "./crypto";
 import { sendOtpEmail } from "./email";
+import { evidenceRoutes } from "./evidence";
 import type { Env } from "./env";
 import {
   parseRegistration,
@@ -27,6 +28,7 @@ import {
   readSessionToken,
   sessionCookieOptions,
 } from "./session";
+import { lookupSessionUser } from "./user";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_OTP_ATTEMPTS = 5;
@@ -223,35 +225,13 @@ app.post("/auth/verify", async (c) => {
 });
 
 app.get("/me", async (c) => {
-  const db = c.get("db");
   const token = readSessionToken(c);
   if (!token) return c.json({ user: null }, 200);
-
-  const tokenHash = await sha256Hex(token);
-  const [row] = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      fullName: users.fullName,
-      companyName: users.companyName,
-      addressLine1: users.addressLine1,
-      addressLine2: users.addressLine2,
-      pincode: users.pincode,
-      state: users.state,
-      lastLoginAt: users.lastLoginAt,
-    })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(
-      and(
-        eq(sessions.tokenHash, tokenHash),
-        gt(sessions.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
-
-  return c.json({ user: row ?? null });
+  const user = await lookupSessionUser(c.get("db"), token);
+  return c.json({ user });
 });
+
+app.route("/evidence", evidenceRoutes);
 
 app.post("/auth/logout", async (c) => {
   const db = c.get("db");

@@ -45,7 +45,7 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", copy);
+  const digest = await crypto.subtle.digest("SHA-256", copy);
   return bufferToHex(digest);
 }
 

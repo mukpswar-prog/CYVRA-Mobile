@@ -77,6 +77,14 @@ export {
 } from "./validate";
 export type { ValidationIssue } from "./validate";
 
+export {
+  parseEvidenceRecord,
+  parseEvidenceBatch,
+  parseCapabilityProfile,
+  parseEvidenceIngest,
+} from "./parse";
+export type { ParseResult, EvidenceIngestRequest } from "./parse";
+
 export type {
   AndroidFeatureFact,
   PermissionFact,
