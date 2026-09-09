@@ -75,6 +75,7 @@ async function main() {
   const db = drizzle(pool);
   const migrationsFolder = resolve(__dirname, "../migrations");
   console.log(`[migrate] applying migrations from ${migrationsFolder}`);
+  console.log(`[migrate] target ${hostPort(connectionString)}`);
   await migrate(db, { migrationsFolder });
   await pool.end();
   console.log("[migrate] done");

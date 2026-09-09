@@ -81,6 +81,66 @@ pnpm db:migrate
 Do **not** deploy ingest routes to the live Worker until that Neon migrate
 succeeds. `/health` does not need the new tables; `POST /evidence/batches` does.
 
+## 6. Live Neon migrate + Worker deploy (Codespaces)
+
+A4 (password rotate + live `/health` `database=connected`) can succeed **before**
+evidence tables exist. Neon SQL listing only `users` / `sessions` /
+`email_otp_challenges` (and maybe leftover `books_to_read`) means **A6 did not
+run against Neon**. `start.sh` seeds `DATABASE_URL_DIRECT` as `127.0.0.1`.
+Changing only `DATABASE_URL` still migrates local Postgres.
+
+Do not paste the connection string into chat. Leave `books_to_read` if present.
+
+### 6.1 Point `DATABASE_URL_DIRECT` at Neon, then migrate
+
+```bash
+cd /workspaces/CYVRA-Mobile
+nano database/.env
+```
+
+Set **`DATABASE_URL_DIRECT`** (not only `DATABASE_URL`) to the Neon **direct**
+string: Connect → production / `neondb` / `neondb_owner` → **Pooled connection
+unchecked**. Host must **not** contain `-pooler`.
+
+```bash
+git check-ignore -v database/.env
+git status --short
+bash scripts/migrate-neon.sh
+```
+
+`migrate-neon.sh` prints the **host only** and refuses `127.0.0.1` or `-pooler`.
+Expect `[migrate] target ep-….neon.tech:5432` then `[migrate] done`.
+
+Neon SQL Editor again: you must see `device_lifecycles`, `processing_sessions`,
+`capability_profiles`, `evidence_records`, `evidence_batches`.
+
+### 6.2 Deploy the Worker (API token — not `wrangler login`)
+
+`wrangler login` in Codespaces **always times out**. OAuth callback is
+`http://localhost:8976` on the codespace, not your Windows browser.
+
+1. https://dash.cloudflare.com/profile/api-tokens → **Create Token**.
+2. Template **Edit Cloudflare Workers**.
+3. Account resources: include `5a3eeb2b3d42726a8ba08732464a0eda`.
+4. Create. Copy once. Do not paste it into chat. Prefer a **new** token (an
+   older one was pasted in chat and should stay rotated).
+5. In the Codespaces terminal (this session only):
+
+```bash
+export CLOUDFLARE_API_TOKEN=...   # paste in the terminal, not in Git or chat
+bash scripts/deploy-api-preview.sh
+```
+
+To persist across rebuilds: GitHub repo **Settings → Secrets and variables →
+Codespaces →** `CLOUDFLARE_API_TOKEN`, then rebuild the codespace.
+
+Expect whoami on account `5a3eeb2b3d42726a8ba08732464a0eda`, deploy of
+`cyvra-mobile-api` with `API_ENV=preview` and
+`APP_ORIGIN=https://cyvra-mobile.pages.dev`. Do not add a second `API_ENV`.
+Do not flip to `production`. The deploy script passes those `--var`s so
+local `wrangler.jsonc` (`localhost:5173` / `development`) does not overwrite
+the live Worker.
+
 ## Do not run here
 
 - `./gradlew :app:assembleDebug` — needs Android SDK + `local.properties`. Use Android Studio on a machine with SDK when a Samsung is available.

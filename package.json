@@ -18,6 +18,8 @@
     "test:evidence": "pnpm --filter @cyvra/evidence test",
     "db:generate": "pnpm --filter @cyvra/database generate",
     "db:migrate": "pnpm --filter @cyvra/database migrate",
+    "db:migrate:neon": "bash scripts/migrate-neon.sh",
+    "deploy:api-preview": "bash scripts/deploy-api-preview.sh",
     "test:local-auth": "bash scripts/test-local-auth.sh",
     "test:local-evidence": "bash scripts/run-local-evidence.sh"
   }
