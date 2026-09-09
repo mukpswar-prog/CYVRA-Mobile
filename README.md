@@ -2,7 +2,7 @@
 
 Android phone and tablet verification, evidence, and reports for the CYVRA platform.
 
-**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
+**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Freeze audit + G4+ plan (awaiting approval): [docs/freeze-audit.md](docs/freeze-audit.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
 [docs/admin-mobile-section.md](docs/admin-mobile-section.md).
 
 - Company: CYVORIQ Solutions Pvt. Ltd.
@@ -32,8 +32,9 @@ web on Pages):
 
 1. Fill **Create your account**: full name and pincode are required, plus
    company, two address lines, state, and email.
-2. Email is only for the Worker to send a Resend OTP. Resend domain/key is
-   still pending — in preview the code is shown on screen (`devCode`).
+2. Email is only for the Worker to send a Resend OTP. Domain `cyvra.co.in` is
+   Verified. Worker `API_ENV` is still `preview`, so the UI may show `devCode`
+   until production is flipped.
 3. Enter the code → the Worker upserts the user (profile + email), creates a
    session, sets an HttpOnly cookie, and returns a Bearer token.
 
