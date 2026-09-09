@@ -89,7 +89,8 @@ evidence tables exist. Neon SQL listing only `users` / `sessions` /
 run against Neon**. `start.sh` seeds `DATABASE_URL_DIRECT` as `127.0.0.1`.
 Changing only `DATABASE_URL` still migrates local Postgres.
 
-Do not paste the connection string into chat. Leave `books_to_read` if present.
+Do **not** `source` or `bash database/.env`. Comments and Neon passwords can
+contain `(` and `$`. `migrate-neon.sh` parses the file; it does not execute it.
 
 ### 6.1 Point `DATABASE_URL_DIRECT` at Neon, then migrate
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Apply Drizzle migrations to live Neon floral-art-02749206 (direct URL only).
-# Refuses localhost and Neon -pooler. Never prints the password.
+# Parses database/.env in Python (never `source`s it — comments and passwords
+# can contain '(' '$' which break bash). Never prints the password.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -11,41 +12,61 @@ cd "$ROOT"
 ENV_FILE="$ROOT/database/.env"
 if [ ! -f "$ENV_FILE" ]; then
   echo "[neon] missing gitignored $ENV_FILE" >&2
-  echo "[neon] copy database/.env.example then set DATABASE_URL_DIRECT to the Neon direct URL (pooled checkbox off, host has no -pooler)." >&2
+  echo "[neon] bash scripts/open-db-env.sh  then set DATABASE_URL_DIRECT" >&2
   exit 1
 fi
 
-# shellcheck disable=SC1090
-set -a
-. "$ENV_FILE"
-set +a
+PY="$(cd "$(dirname "$0")" && pwd)/python"
+URL_FILE="$(mktemp)"
+chmod 600 "$URL_FILE"
+cleanup() { rm -f "$URL_FILE"; }
+trap cleanup EXIT
 
-if [ -z "${DATABASE_URL_DIRECT:-}" ]; then
+HOST="$("$PY" - "$ENV_FILE" "$URL_FILE" << 'PY'
+from pathlib import Path
+from urllib.parse import urlparse
+import sys
+
+env_path = Path(sys.argv[1])
+url_path = Path(sys.argv[2])
+direct = ""
+for raw in env_path.read_text(encoding="utf-8").splitlines():
+    line = raw.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    if key.strip() != "DATABASE_URL_DIRECT":
+        continue
+    value = value.strip()
+    if (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
+        value = value[1:-1]
+    direct = value
+    break
+
+if not direct:
+    print("", end="")
+    sys.exit(0)
+
+url_path.write_text(direct, encoding="utf-8")
+host = (urlparse(direct).hostname or "").lower()
+print(host)
+PY
+)"
+
+if [ -z "$HOST" ]; then
   echo "[neon] DATABASE_URL_DIRECT is empty in database/.env" >&2
   echo "[neon] migrate uses DATABASE_URL_DIRECT first. Editing only DATABASE_URL still hits local Postgres." >&2
   exit 1
 fi
 
-PY="$(cd "$(dirname "$0")" && pwd)/python"
-HOST="$("$PY" - << 'PY'
-import os
-from urllib.parse import urlparse
-raw = os.environ.get("DATABASE_URL_DIRECT", "")
-host = (urlparse(raw).hostname or "").lower()
-print(host)
-PY
-)"
-
 echo "[neon] DATABASE_URL_DIRECT host: $HOST"
 
 case "$HOST" in
-  "" )
-    echo "[neon] could not parse host from DATABASE_URL_DIRECT" >&2
-    exit 1
-    ;;
   127.0.0.1|localhost|::1 )
     echo "[neon] refusing local Postgres ($HOST)." >&2
-    echo "[neon] nano database/.env and set DATABASE_URL_DIRECT to the Neon direct URL." >&2
+    echo "[neon] Edit DATABASE_URL_DIRECT only (leave DATABASE_URL as 127.0.0.1)." >&2
     echo "[neon] start.sh seeded both URLs as 127.0.0.1 — changing only DATABASE_URL is not enough." >&2
     exit 1
     ;;
@@ -61,6 +82,8 @@ if [[ "$HOST" != *.neon.tech ]]; then
   echo "[neon] host is not *.neon.tech ($HOST). Stop if this is not floral-art-02749206." >&2
   exit 1
 fi
+
+export DATABASE_URL_DIRECT="$(cat "$URL_FILE")"
 
 echo "[neon] applying migrations to Neon (not Hyperdrive, not local Postgres)"
 pnpm --filter @cyvra/database migrate
