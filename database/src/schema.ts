@@ -25,6 +25,12 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     email: text("email").notNull(),
+    fullName: text("full_name"),
+    companyName: text("company_name"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    pincode: text("pincode"),
+    state: text("state"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -40,6 +46,13 @@ export const emailOtpChallenges = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     email: text("email").notNull(),
+    // Snapshot of the registration form, applied to `users` on verify.
+    fullName: text("full_name"),
+    companyName: text("company_name"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    pincode: text("pincode"),
+    state: text("state"),
     // SHA-256 hex of the one-time code. Plaintext codes are never persisted.
     codeHash: text("code_hash").notNull(),
     attempts: integer("attempts").notNull().default(0),

@@ -33,6 +33,8 @@ export function isAllowedOrigin(
     const url = new URL(origin);
     if (url.protocol !== "https:") return false;
     if (url.hostname === "mobile.cyvra.co.in") return true;
+    if (url.hostname === "admin.cyvra.co.in") return true;
+    if (url.hostname === "accounts.cyvra.co.in") return true;
     if (url.hostname === "cyvra-mobile.pages.dev") return true;
     if (url.hostname.endsWith(".cyvra-mobile.pages.dev")) return true;
   } catch {

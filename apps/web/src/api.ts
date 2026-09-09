@@ -49,17 +49,33 @@ export interface RequestOtpResponse {
   message: string;
 }
 
+export interface RegistrationInput {
+  fullName: string;
+  companyName: string;
+  addressLine1: string;
+  addressLine2: string;
+  pincode: string;
+  state: string;
+  email: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
+  fullName?: string | null;
+  companyName?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  pincode?: string | null;
+  state?: string | null;
 }
 
 export const api = {
   health: () => request<{ status: string; database: string }>("/health"),
-  requestOtp: (email: string) =>
+  requestOtp: (profile: RegistrationInput) =>
     request<RequestOtpResponse>("/auth/request", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(profile),
     }),
   verifyOtp: async (challengeId: string, code: string) => {
     const data = await request<{ user: AuthUser; isNewUser: boolean; token?: string }>(

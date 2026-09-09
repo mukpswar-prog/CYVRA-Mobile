@@ -124,6 +124,8 @@ body {
   border-radius: 16px;
   padding: 28px;
   box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
+  max-height: min(78vh, 760px);
+  overflow: auto;
 }
 
 .card h2 {
@@ -146,19 +148,28 @@ label {
   font-size: 14px;
 }
 
-input {
+input,
+select {
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
   font-size: 16px;
   outline: none;
+  background: #fff;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 #code {
@@ -256,5 +267,8 @@ input:focus {
   }
   .intro h1 {
     font-size: 32px;
+  }
+  .field-row {
+    grid-template-columns: 1fr;
   }
 }

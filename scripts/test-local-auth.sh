@@ -25,11 +25,19 @@ echo "$PREFLIGHT" | grep -qi "access-control-allow-origin: https://g0-g3-preview
 echo "[test] CORS allowlist ok"
 
 EMAIL="preview-tester@resend.dev"
+PROFILE='{"fullName":"Preview Tester","companyName":"CYVORIQ","addressLine1":"Line 1","addressLine2":"Line 2","pincode":"560001","state":"Karnataka","email":"'"$EMAIL"'"}'
+echo "[test] POST /auth/request rejects missing name"
+BAD="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/auth/request" \
+  -H "content-type: application/json" \
+  -H "Origin: http://localhost:5173" \
+  -d "{\"email\":\"$EMAIL\",\"pincode\":\"560001\"}")"
+echo "$BAD" | grep -q "HTTP:400"
+
 echo "[test] POST /auth/request"
 REQ="$(curl -fsS -X POST "$API/auth/request" \
   -H "content-type: application/json" \
   -H "Origin: http://localhost:5173" \
-  -d "{\"email\":\"$EMAIL\"}")"
+  -d "$PROFILE")"
 echo "$REQ"
 REQ="$REQ" python3 - << 'PY'
 import json, os
@@ -53,6 +61,8 @@ VERIFY="$VERIFY" EMAIL="$EMAIL" python3 - << 'PY'
 import json, os
 d = json.loads(os.environ["VERIFY"])
 assert d["user"]["email"] == os.environ["EMAIL"], d
+assert d["user"].get("fullName") == "Preview Tester", d
+assert d["user"].get("pincode") == "560001", d
 assert d.get("token"), d
 open("/tmp/cyvra-token.txt","w").write(d["token"])
 print("[test] verify ok, token length", len(d["token"]))
