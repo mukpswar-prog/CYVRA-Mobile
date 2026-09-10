@@ -466,19 +466,23 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
               /health ok preview database=connected.
               Immediate post-deploy curl was 404 (edge lag); recheck is 401
               {"error":"Admin token required."}.
-           Tick: "G7 401 on workers.dev".
+           Tick: "G7 401 on workers.dev". DONE (you, Codespaces curl).
 
   Phase 2  Code: separate origin policy  (agent, then you deploy)
            origins.ts allow www/admin/accounts.cyvoriq.co.in
            session.ts first-party for cyvoriq.co.in
-           email default From noreply@cyvoriq.co.in (secret put after verify)
-           tests Origin: admin.cyvoriq.co.in
-           GUIDELINE §9 + docs that still say Erase admin
-           Tick: "CORS allows cyvoriq; Erase admin still allowed until Phase 5".
+           DEPLOYED with G7 (version 00f142ba). Tick: CORS in Git + live Worker.
 
-  Phase 3  api.cyvoriq.co.in  (you)
-           Worker custom domain. Prove /health on the new host.
-           Tick: "api.cyvoriq.co.in health ok".
+  Phase 3  api.cyvoriq.co.in  (you + agent)                   NEXT
+           wrangler.jsonc custom_domain api.cyvoriq.co.in (this zone only).
+           In Codespaces (token still in that shell, or paste cyvoriq-mobile):
+             git pull
+             bash scripts/attach-api-cyvoriq.sh
+           Prove: https://api.cyvoriq.co.in/health → ok
+                  https://api.cyvoriq.co.in/admin/serials → 401
+           Dashboard fallback: Worker cyvra-mobile-api → Domains & Routes
+             → Custom domain api.cyvoriq.co.in.
+           Never attach mobile.cyvra.co.in or api.cyvra.co.in.
 
   Phase 4  Resend cyvoriq.co.in  (you, then agent)
            Add domain, DNS in cyvoriq zone, Verified, RESEND_FROM put.

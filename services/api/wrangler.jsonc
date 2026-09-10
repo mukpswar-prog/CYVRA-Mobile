@@ -22,5 +22,13 @@
   "vars": {
     "APP_ORIGIN": "http://localhost:5173",
     "API_ENV": "development"
-  }
+  },
+  // New product hostname only. Never api.cyvra.co.in or mobile.cyvra.co.in.
+  "routes": [
+    {
+      "pattern": "api.cyvoriq.co.in",
+      "custom_domain": true,
+      "zone_name": "cyvoriq.co.in"
+    }
+  ]
 }
