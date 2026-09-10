@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * G2 authentication + G5 evidence ingest.
+ * G2 authentication + G5 evidence ingest + G6 reports + G7 serials.
  *
  * Auth (`users`, `email_otp_challenges`, `sessions`) lives in the Worker, not
  * Neon Auth. Evidence tables store S1 batches; `collected_at` is the client
@@ -250,5 +250,33 @@ export type ProcessingSession = typeof processingSessions.$inferSelect;
 export type CapabilityProfileRow = typeof capabilityProfiles.$inferSelect;
 export type EvidenceRecordRow = typeof evidenceRecords.$inferSelect;
 export type EvidenceBatchRow = typeof evidenceBatches.$inferSelect;
+/**
+ * G7 mobile serials. Not Windows licence rows. Issue happens after a human
+ * notes that payment transferred. `issued_at` is write-once.
+ */
+export const mobileSerials = pgTable(
+  "mobile_serials",
+  {
+    id: uuid("id").primaryKey(),
+    publicNumber: text("public_number").notNull(),
+    status: text("status").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    paymentNoted: text("payment_noted").notNull(),
+    issuedBy: text("issued_by").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mobile_serials_public_number_unique").on(table.publicNumber),
+    index("mobile_serials_customer_email_idx").on(table.customerEmail),
+    index("mobile_serials_status_idx").on(table.status),
+  ],
+);
+
 export type ReportRow = typeof reports.$inferSelect;
 export type ReportManifestRow = typeof reportManifests.$inferSelect;
+export type MobileSerialRow = typeof mobileSerials.$inferSelect;
