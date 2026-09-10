@@ -89,5 +89,5 @@ echo "[neon] applying migrations to Neon (not Hyperdrive, not local Postgres)"
 pnpm --filter @cyvra/database migrate
 echo "[neon] done. In Neon SQL Editor, public tables should now include"
 echo "       device_lifecycles, processing_sessions, capability_profiles,"
-echo "       evidence_records, evidence_batches."
+echo "       evidence_records, evidence_batches, reports, report_manifests."
 echo "[neon] Leave books_to_read if it exists (not ours). Do not drop it from chat."

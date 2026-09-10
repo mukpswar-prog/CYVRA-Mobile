@@ -147,7 +147,8 @@ bash scripts/migrate-neon.sh
 Expect `[migrate] target ep-….neon.tech:5432` then `[migrate] done`.
 
 Neon SQL Editor again: you must see `device_lifecycles`, `processing_sessions`,
-`capability_profiles`, `evidence_records`, `evidence_batches`.
+`capability_profiles`, `evidence_records`, `evidence_batches`, and after G6
+`reports`, `report_manifests`.
 
 ### 6.2 Deploy the Worker (API token — not `wrangler login`)
 
@@ -162,7 +163,9 @@ Neon SQL Editor again: you must see `device_lifecycles`, `processing_sessions`,
 5. In the Codespaces terminal (this session only):
 
 ```bash
-export CLOUDFLARE_API_TOKEN=...   # paste in the terminal, not in Git or chat
+# Hidden prompt — paste the token, press Enter. Do not type the three dots.
+# Do not paste the token into chat.
+read -r -s CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
 bash scripts/deploy-api-preview.sh
 ```
 
