@@ -34,7 +34,15 @@ UNAUTH="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
   -H "Origin: http://localhost:5173" \
   -d '{"customerEmail":"buyer@example.com","paymentNoted":"transferred"}')"
 echo "$UNAUTH"
+if echo "$UNAUTH" | grep -q "ADMIN_API_TOKEN is not configured"; then
+  echo "[test] wrangler is running without ADMIN_API_TOKEN in its process."
+  echo "[test] start.sh may have appended the key after wrangler started."
+  echo "[test] Fix: bash scripts/run-local-admin-serials.sh"
+  echo "[test] (that script restarts the :8787 pid so .dev.vars reloads)"
+  exit 1
+fi
 echo "$UNAUTH" | grep -q "HTTP:401"
+echo "$UNAUTH" | grep -q "Admin token required"
 
 echo "[test] POST /admin/serials with wrong email is 401"
 WRONG="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
