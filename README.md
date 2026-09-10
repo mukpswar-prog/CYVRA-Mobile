@@ -13,8 +13,8 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 > (Codespaces: `./gradlew :core:test`). Worker ingest is `POST /evidence/batches`
 > (local: `pnpm test:local-evidence`). Report 1 freeze is `POST /reports/freeze`
 > (local: `pnpm test:local-report`). Device/APK tests wait for a Samsung phone.
-> Live Neon evidence tables are applied (10 Sep 2026). Neon `0003` report tables
-> are not live until you run `bash scripts/migrate-neon.sh`. Do not start G7.
+> Live Neon evidence + `0003` report tables are applied (10 Sep 2026). Worker
+> `cyvra-mobile-api` is preview with Report 1 routes. Do not start G7.
 > See [docs/codespaces-g5.md](docs/codespaces-g5.md) and [docs/testing/pool.md](docs/testing/pool.md).
 
 ---

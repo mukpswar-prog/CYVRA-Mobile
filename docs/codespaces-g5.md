@@ -93,13 +93,17 @@ Expected: 401 without a session; withheld IMEI / camera / cellular ingest
 is 200; freeze is PARTIAL; replay keeps `frozenAt`; GET report has
 `Camera Check` + footer non-goals.
 
-Do **not** deploy report routes to the live Worker until Neon has `0003`
-(`reports`, `report_manifests`):
+**Done 10 Sep 2026.** Neon has `0003`. Worker `cyvra-mobile-api` is preview
+(version `38ef01e5-8400-4452-87d1-e1e576e2e27a`). `/health` is `ok` /
+`preview` / `connected`. Unauth freeze is 401.
+
+Redeploy later only with a real token at the hidden prompt (never three
+dots, never chat):
 
 ```bash
-bash scripts/open-db-env.sh    # DATABASE_URL_DIRECT = Neon **direct** host
-bash scripts/migrate-neon.sh
-bash scripts/deploy-api-preview.sh   # needs CLOUDFLARE_API_TOKEN; keep API_ENV=preview
+unset CLOUDFLARE_API_TOKEN
+read -r -s CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
+bash scripts/deploy-api-preview.sh
 ```
 
 See [resume-neon-migrate.md](./resume-neon-migrate.md) (historical Neon steps).

@@ -131,7 +131,8 @@ Run units: `pnpm --filter @cyvra/evidence test`. Local freeze: `bash scripts/run
 | T-G6-WITHHOLD | Same script: IMEI `NOT_AVAILABLE` + camera `PERMISSION_DENIED` + cellular `NOT_SUPPORTED` | Coverage PARTIAL (catalog incomplete). No invented PASS/FAIL | `automated` (local Postgres) |
 | T-G6-NAMES | GET `/reports/:id` | User name + objective name (`Camera Check` / `Camera Functional Verification`) | `automated` |
 | T-G6-NONGOALS | GET report footer | No sanitization-done, OEM authority, ownership, warranty, “certified perfect” | `automated` |
-| T-G6-NEON | `bash scripts/migrate-neon.sh` after `0003` exists | Tables `reports`, `report_manifests` on Neon. Do this **before** live Worker deploy | `automated` (Neon migrate done 10 Sep 2026; Worker deploy still needs a real API token) |
+| T-G6-NEON | `bash scripts/migrate-neon.sh` after `0003` exists | Tables `reports`, `report_manifests` on Neon. Do this **before** live Worker deploy | `automated` (10 Sep 2026) |
+| T-G6-DEPLOY | `bash scripts/deploy-api-preview.sh` | Live `/health` `ok` / `preview` / `connected`. Unauth `POST /reports/freeze` is 401 | `automated` (10 Sep 2026, version `38ef01e5-8400-4452-87d1-e1e576e2e27a`) |
 | T-G6-PRINT | Signed-in web → Freeze / View → Print / Save as PDF | HTML print view; PDF is a view, not a second SoT | `queued-dashboard` |
 
 ---
