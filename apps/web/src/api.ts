@@ -94,4 +94,66 @@ export const api = {
     writeToken(undefined);
     return result;
   },
+  reportSessions: () =>
+    request<{ sessions: ReportSession[] }>("/reports/sessions"),
+  listReports: () =>
+    request<{ title: string; reports: ReportSummary[] }>("/reports"),
+  getReport: (reportId: string) => request<ReportDetail>(`/reports/${reportId}`),
+  freezeReport: (processingSessionId: string) =>
+    request<FreezeResult>("/reports/freeze", {
+      method: "POST",
+      body: JSON.stringify({ processingSessionId }),
+    }),
 };
+
+export interface ReportSession {
+  processingSessionId: string;
+  deviceLifecycleId: string;
+  createdAt: string;
+  manufacturer: string | null;
+  model: string | null;
+}
+
+export interface ReportSummary {
+  reportId: string;
+  publicNumber: string;
+  processingSessionId: string;
+  deviceLifecycleId: string;
+  coverage: "COMPLETE" | "LIMITED" | "PARTIAL";
+  coverageCaption?: string;
+  frozenAt: string;
+}
+
+export interface ReportEntry {
+  testId: string;
+  evidenceId: string;
+  result: string;
+  source: string;
+  userName: string;
+  objectiveName: string;
+  domain: string;
+  domainLabel: string;
+}
+
+export interface ReportDetail {
+  title: string;
+  reportId: string;
+  publicNumber: string;
+  coverage: "COMPLETE" | "LIMITED" | "PARTIAL";
+  coverageCaption: string;
+  frozenAt: string;
+  deviceLifecycleId?: string | null;
+  processingSessionId?: string | null;
+  entries: ReportEntry[];
+  nongoals: string[];
+}
+
+export interface FreezeResult {
+  title: string;
+  reportId: string;
+  publicNumber: string;
+  coverage: "COMPLETE" | "LIMITED" | "PARTIAL";
+  coverageCaption?: string;
+  frozenAt: string;
+  replayed: boolean;
+}
