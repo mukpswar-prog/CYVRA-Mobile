@@ -1,0 +1,91 @@
+WWW.CYVORIQ.CO.IN — FIRST CLICKS (11 Sep 2026)
+Repo: mukpswar-prog/CYVRA-Mobile  branch cursor/g0-g3-mobile-slice-7474
+Sister: docs/resume-after-break.md
+
+Apex NXDOMAIN is expected until this file is finished.
+Do not bind www to Worker cyvra-mobile-api.
+Do not open or edit Pages cyvra-www / Worker cyvoriq-erase-api.
+
+
+================================================================================
+1. CREATE PAGES PROJECT  cyvoriq-www
+================================================================================
+
+  Cloudflare → Workers & Pages → Create → Pages
+
+  Preferred: Connect to Git
+    Account / repo:  mukpswar-prog/CYVRA-Mobile
+    Project name:    cyvoriq-www          (exact. not cyvra-mobile, not cyvra-www)
+    Production branch:
+      cursor/g0-g3-mobile-slice-7474      until this branch is merged to main
+    Framework:       Vite
+    Root directory:  /                    (monorepo root)
+    Build command:   pnpm install && pnpm --filter @cyvra/web build
+    Build output:    apps/web/dist
+    Environment variables (Production + Preview), BUILD-TIME:
+      VITE_API_URL = https://api.cyvoriq.co.in
+
+  If Cloudflare says this repo is already used by cyvra-mobile:
+    still create a SECOND project named cyvoriq-www. Do not rename
+    or reconnect cyvra-mobile.
+
+  If Git connect is awkward, Direct Upload is fine:
+    Agent / Actions:  bash scripts/deploy-www-cyvoriq.sh
+    Workflow:         .github/workflows/deploy-www-cyvoriq.yml
+    Token named cyvoriq-mobile needs Account Cloudflare Pages Edit
+    in addition to Workers Scripts Edit. Dashboard Create does not
+    need that extra permission.
+
+  Never:
+    wrangler pages deploy --project-name cyvra-www
+    wrangler pages deploy --project-name cyvra-mobile   (that is preview)
+    Put DATABASE_URL, ADMIN_API_TOKEN, RESEND_*, SESSION_SECRET on Pages
+
+
+================================================================================
+2. CUSTOM DOMAINS  (after the first Pages deploy is 200 on *.pages.dev)
+================================================================================
+
+  Pages → cyvoriq-www → Custom domains → Set up a custom domain
+
+    1. www.cyvoriq.co.in
+    2. cyvoriq.co.in          (apex; Cloudflare flattens)
+
+  Zone picker must be cyvoriq.co.in.
+  If it offers cyvra.co.in, STOP.
+
+  Do not add a manual CNAME in DNS first. Let Pages create the records
+  (same lesson as api.cyvoriq.co.in).
+
+  Leave Worker domain api.cyvoriq.co.in alone.
+  Leave Pages cyvra-mobile / mobile.cyvra.co.in alone.
+
+
+================================================================================
+3. PROVE
+================================================================================
+
+  Browser:  https://www.cyvoriq.co.in/
+            CYVORIQ logo, register form. HTTPS lock.
+
+  PowerShell:
+
+    curl.exe -sS -I https://www.cyvoriq.co.in/
+    curl.exe -sS -I https://cyvoriq.co.in/
+    curl.exe -sS https://api.cyvoriq.co.in/health
+
+  Pass: www and apex HTTP 200. api health still ok / preview / connected.
+
+  Then (optional same session): register with your real inbox.
+    Resend → Emails → From must be noreply@cyvoriq.co.in
+    Keep API_ENV=preview. Do not paste the code in chat.
+
+
+================================================================================
+4. STOP AFTER WWW IS 200
+================================================================================
+
+  Do not create cyvoriq-admin or cyvoriq-accounts yet.
+  Do not 301 mobile.cyvra.co.in.
+  Do not set API_ENV=production.
+  Reply in chat: "www 200" plus whether OTP mail arrived (yes/no).

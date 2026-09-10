@@ -1,6 +1,8 @@
 CYVORIQ.CO.IN — DEEP MIGRATION AUDIT AND FOLLOW-ALONG PLAN
 Decision: D-2026-09-10-CYVORIQ-DOMAIN (confirmed 10 Sep 2026 after NS switch)
-Status:  ZONE ACTIVE (you, 10 Sep 2026). Phase 0 done. Phase 1–2 in progress.
+Status:  ZONE ACTIVE. Phases 0–4 Worker/Resend done 10 Sep 2026.
+         Phase 5 NEXT: Pages cyvoriq-www / www.cyvoriq.co.in
+         Resume: docs/resume-after-break.md + docs/www-cyvoriq-start.txt
 Date:    10 September 2026 (audit re-checked live this session)
 Repo:    mukpswar-prog/CYVRA-Mobile  branch cursor/g0-g3-mobile-slice-7474
 Governing: GUIDELINE.md. Sister plan: docs/cyvoriq-co-in-cutover.txt
@@ -416,18 +418,18 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
 ================================================================================
 
   YOU
-    [ ] Cloudflare: cyvoriq.co.in status Active
-    [ ] Neon: bash scripts/migrate-neon.sh  (0004)
-    [ ] wrangler secret put ADMIN_API_TOKEN   (invented string)
-    [ ] wrangler secret put RESEND_FROM       after Resend verifies
-        CYVRA Mobile <noreply@cyvoriq.co.in>
-    [ ] Cloudflare: Worker custom domain api.cyvoriq.co.in
-    [ ] Cloudflare: create Pages cyvoriq-www / cyvoriq-admin / cyvoriq-accounts
-        and attach the three hostnames
-    [ ] Resend: add + verify domain cyvoriq.co.in; paste DNS in THAT zone
+    [x] Cloudflare: cyvoriq.co.in status Active
+    [x] Neon: bash scripts/migrate-neon.sh  (0004)
+    [x] wrangler secret put ADMIN_API_TOKEN   (invented string)
+    [x] Cloudflare: Worker custom domain api.cyvoriq.co.in
+    [x] Resend: add + verify domain cyvoriq.co.in (you, 10 Sep 2026)
+    [x] dashboard: RESEND_FROM on cyvra-mobile-api
+    [ ] Cloudflare: create Pages cyvoriq-www and attach www + apex
+        (docs/www-cyvoriq-start.txt). admin / accounts after www is 200.
+    [ ] OTP From noreply@cyvoriq.co.in received (keep API_ENV=preview)
     [ ] Approve privacy/terms wording
-    [ ] Never paste secrets in chat. Token named cyvra-mobile unlocks wrangler
-        only (read -r -s CLOUDFLARE_API_TOKEN). It is not ADMIN_API_TOKEN.
+    [ ] Never paste secrets in chat. Token named cyvoriq-mobile unlocks wrangler
+        only. It is not ADMIN_API_TOKEN.
 
   AGENT
     [ ] This audit file
@@ -473,24 +475,23 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
            session.ts first-party for cyvoriq.co.in
            DEPLOYED with G7 (version 00f142ba). Tick: CORS in Git + live Worker.
 
-  Phase 3  api.cyvoriq.co.in  (dashboard — Codespaces not required)   NEXT
-           Live G7 is already on workers.dev. Attach hostname in Cloudflare:
-             Worker cyvra-mobile-api → Domains → api.cyvoriq.co.in
-             Zone MUST be cyvoriq.co.in.
-           Verify from Windows: docs/without-codespaces.txt
-           Future deploys: GitHub Actions workflow_dispatch
-             (.github/workflows/deploy-api-preview.yml)
+  Phase 3  api.cyvoriq.co.in  (dashboard)   DONE 10 Sep 2026
+           Worker cyvra-mobile-api → Domains → api.cyvoriq.co.in
+           Health ok / preview / connected. /admin/serials 401.
+           Apex cyvoriq.co.in still NXDOMAIN (reserved for Pages).
 
-  Phase 4  Resend cyvoriq.co.in  (you, then agent)
-           Add domain, DNS in cyvoriq zone, Verified, RESEND_FROM put.
-           Send one OTP to a real inbox. Keep API_ENV=preview until then.
-           Tick: "OTP From noreply@cyvoriq.co.in received".
+  Phase 4  Resend cyvoriq.co.in  (you)   DNS + secret DONE 10 Sep 2026
+           Domain Verified (Tokyo). Worker RESEND_FROM added.
+           Same RESEND_API_KEY kept (do not rotate).
+           OTP inbox proof still OPEN. Keep API_ENV=preview.
+           Tick pending: "OTP From noreply@cyvoriq.co.in received".
 
-  Phase 5  New websites  (agent build, you attach Pages)
-           www.cyvoriq.co.in      public + register + reports + policies
-           admin.cyvoriq.co.in    serials (real UI, not #ops)
+  Phase 5  New websites  (agent build, you attach Pages)   NEXT = www only
+           www.cyvoriq.co.in      public + register   ← tomorrow first
+           admin.cyvoriq.co.in    serials (after www is 200)
            accounts.cyvoriq.co.in account / serial status
            Then REMOVE CORS for admin.cyvra.co.in and accounts.cyvra.co.in
+           Clicks: docs/www-cyvoriq-start.txt
            Tick: "three hosts 200; Erase admin CORS gone".
 
   Phase 6  Keep old preview, then optional 301

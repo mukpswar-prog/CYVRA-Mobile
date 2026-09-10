@@ -103,7 +103,11 @@ Cloudflare dashboard + (optional) GitHub Actions.
 5. AFTER api.cyvoriq.co.in IS 401
 ================================================================================
 
-  Phase 4  Resend: add domain cyvoriq.co.in, DNS in THAT zone, then
-           wrangler secret put RESEND_FROM  via GitHub Action or Cursor later
-  Phase 5  New Pages cyvoriq-www / cyvoriq-admin / cyvoriq-accounts
-           (dashboard Create project; agent builds the apps in this repo)
+  Phase 4  DONE 10 Sep 2026: Resend cyvoriq.co.in Verified; RESEND_FROM on
+           Worker. OTP inbox proof still open. Keep API_ENV=preview.
+  Phase 5  NEXT: Pages cyvoriq-www + www.cyvoriq.co.in (+ apex).
+           Clicks: docs/www-cyvoriq-start.txt
+           Handoff: docs/resume-after-break.md
+           Optional upload: bash scripts/deploy-www-cyvoriq.sh
+           Workflow: .github/workflows/deploy-www-cyvoriq.yml
+           Do not create admin/accounts Pages until www is 200.
