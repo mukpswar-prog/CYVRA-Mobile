@@ -15,8 +15,8 @@ import {
  *
  * Auth (`users`, `email_otp_challenges`, `sessions`) lives in the Worker, not
  * Neon Auth. Evidence tables store S1 batches; `collected_at` is the client
- * collection time and is never updated on idempotent re-upload. Report /
- * sanitization tables wait for later gates.
+ * collection time and is never updated on idempotent re-upload. Report 1
+ * freeze tables (`reports`, `report_manifests`) are G6; sanitization waits.
  */
 
 export const users = pgTable(
@@ -203,6 +203,45 @@ export const evidenceBatches = pgTable(
   (table) => [index("evidence_batches_user_id_idx").on(table.userId)],
 );
 
+/**
+ * G6 Report 1 freeze. `frozen_at` is set once and never updated.
+ * The JSON snapshot is the SoT for the PDF/web view.
+ */
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deviceLifecycleId: uuid("device_lifecycle_id")
+      .notNull()
+      .references(() => deviceLifecycles.id, { onDelete: "cascade" }),
+    processingSessionId: uuid("processing_session_id")
+      .notNull()
+      .references(() => processingSessions.id, { onDelete: "cascade" }),
+    publicNumber: text("public_number").notNull(),
+    coverage: text("coverage").notNull(),
+    frozenAt: timestamp("frozen_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("reports_session_unique").on(table.processingSessionId),
+    uniqueIndex("reports_public_number_unique").on(table.publicNumber),
+    index("reports_user_id_idx").on(table.userId),
+  ],
+);
+
+export const reportManifests = pgTable("report_manifests", {
+  reportId: uuid("report_id")
+    .primaryKey()
+    .references(() => reports.id, { onDelete: "cascade" }),
+  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+  frozenAt: timestamp("frozen_at", { withTimezone: true }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type EmailOtpChallenge = typeof emailOtpChallenges.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
@@ -211,3 +250,5 @@ export type ProcessingSession = typeof processingSessions.$inferSelect;
 export type CapabilityProfileRow = typeof capabilityProfiles.$inferSelect;
 export type EvidenceRecordRow = typeof evidenceRecords.$inferSelect;
 export type EvidenceBatchRow = typeof evidenceBatches.$inferSelect;
+export type ReportRow = typeof reports.$inferSelect;
+export type ReportManifestRow = typeof reportManifests.$inferSelect;
