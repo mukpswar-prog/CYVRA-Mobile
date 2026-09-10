@@ -35,9 +35,15 @@ echo "[g7] This script does NOT migrate. If migrate is not done: bash scripts/mi
 echo
 
 if is_placeholder "${CLOUDFLARE_API_TOKEN:-}"; then
-  echo "[g7] Prompt 1/2 — Cloudflare user token named cyvra-mobile"
-  echo "[g7] Dashboard: https://dash.cloudflare.com/profile/api-tokens"
-  echo "[g7] Paste once, then Enter. The cursor will not move. That is hiding the secret."
+echo "[g7] Prompt 1/2 — Cloudflare USER token named cyvoriq-mobile"
+echo "[g7] Create it if needed: https://dash.cloudflare.com/profile/api-tokens"
+echo "[g7]   Create Token → template Edit Cloudflare Workers"
+echo "[g7]   Token name: cyvoriq-mobile"
+echo "[g7]   Must include Account → Workers Scripts → Edit"
+echo "[g7]   Zone: include cyvoriq.co.in only (do not include cyvra.co.in)"
+echo "[g7] Do NOT use cyvra-erase-*. Do NOT use Cloudflare Agent tokens."
+echo "[g7] ADMIN_API_TOKEN is prompt 2 — it is NOT on this page."
+echo "[g7] Paste once, then Enter. The cursor will not move. That is hiding the secret."
   unset CLOUDFLARE_API_TOKEN
   read -r -s CLOUDFLARE_API_TOKEN
   echo
@@ -53,7 +59,10 @@ fi
 echo "[g7] wrangler whoami (proves the token unlocks this account)"
 if ! pnpm --filter @cyvra/api exec wrangler whoami; then
   echo "[g7] Token was rejected (9109 / 10000)." >&2
-  echo "[g7] Use the token named cyvra-mobile. Do not use cyvra-erase-* tokens." >&2
+  echo "[g7] The value is invalid OR the token named cyvra-mobile only has" >&2
+  echo "[g7] Observability+Hyperdrive (screenshot 10 Sep 2026) — that cannot deploy." >&2
+  echo "[g7] Create a NEW token named cyvoriq-mobile (Edit Cloudflare Workers)." >&2
+  echo "[g7] Do not roll or delete cyvra-erase-* or Cloudflare Agent tokens." >&2
   echo "[g7] Then: unset CLOUDFLARE_API_TOKEN && bash scripts/live-g7-deploy.sh" >&2
   exit 1
 fi
