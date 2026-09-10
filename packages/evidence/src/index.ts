@@ -85,6 +85,19 @@ export {
 } from "./parse";
 export type { ParseResult, EvidenceIngestRequest } from "./parse";
 
+export {
+  computeCoverage,
+  buildReportEntries,
+  formatReportNumber,
+  enrichEntry,
+  assembleManifest,
+  assertManifestFrozen,
+  domainLabel,
+  coverageCaption,
+  REPORT_1_TITLE,
+  REPORT_1_NONGOALS,
+} from "./report";
+
 export type {
   AndroidFeatureFact,
   PermissionFact,
