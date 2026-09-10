@@ -13,10 +13,9 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 > (Codespaces: `./gradlew :core:test`). Worker ingest is `POST /evidence/batches`
 > (local: `pnpm test:local-evidence`). Report 1 freeze is `POST /reports/freeze`
 > (local: `pnpm test:local-report`). Device/APK tests wait for a Samsung phone.
-> Live Neon evidence + `0003` report tables are applied (10 Sep 2026). Worker
-> `cyvra-mobile-api` is preview with Report 1 routes. G7 serial API is local
-> until Neon `0004` + `ADMIN_API_TOKEN`. Do not start G8.
-> See [docs/codespaces-g5.md](docs/codespaces-g5.md) and [docs/testing/pool.md](docs/testing/pool.md).
+> Cutover host is `www.cyvoriq.co.in` (decision 10 Sep 2026). Keep
+> `mobile.cyvra.co.in` until that zone is proven. Same Neon. Do not patch Erase.
+> See [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt).
 
 ---
 

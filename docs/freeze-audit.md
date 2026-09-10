@@ -68,8 +68,8 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 | **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` | **This slice.** Schemas + S1 catalog + digest + `PERMISSION_DENIED`. |
 | **G5** | S1 Android on **one** owned Samsung | **Core + ingest live.** JVM `:core` in `apps/android`. Worker `POST /evidence/batches` + `GET /evidence/records`. Neon has evidence tables (`0002_sturdy_salo`, 10 Sep 2026). `/health` `database=connected`. APK/device tests queued. |
 | **G6** | Render Report 1 from a frozen manifest | **Live on preview.** `POST /reports/freeze` + signed-in HTML print view. Neon `0003` applied. Worker `/health` `ok` / `preview` / `connected`. Pages UI waits for a rebuild from this branch. |
-| **G7** | Mobile section on existing admin/accounts | **This-repo slice.** `mobile_serials` + `/admin/serials` + `ADMIN_API_TOKEN`. Erase button still later. CORS already allowlists admin hosts. |
-| **G8** | Thin `cyvra-www` tab → `mobile.cyvra.co.in` | **Plan only.** Last. Domain `mobile.cyvra.co.in` now exists; still do not patch www in this repo. |
+| **G7** | Ops on admin.cyvoriq.co.in / accounts.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages in this repo. Not Erase admin. Same Neon. |
+| **G8** | Public www.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages. Not a tab on www.cyvra.co.in. |
 | **G9** | Decision 5.1.20.2 then Station | **Forbidden until decision.** No `apps/station`. |
 | **G10** | S3 Knox / UEM | **Forbidden until S1 reports + real contract.** |
 

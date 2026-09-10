@@ -4,10 +4,10 @@ Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
 freeze plan: CYVRA Mobile ops is a **section** of existing
 `admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
 
-**Save point (10 Sep 2026):** G6 preview live. G7 local API green. Live
-`/admin/serials` is still **404** until Neon `0004` + secret + deploy.
-Build/test first (`/#ops`). Live www/admin/accounts only after
-[pre-live-runbook.txt](./pre-live-runbook.txt) section 6.
+**Save point (10 Sep 2026):** Management decision **D-2026-09-10-CYVORIQ-DOMAIN**.
+Mobile Evidence moves to `cyvoriq.co.in` (new zone, same Cloudflare account,
+same Neon). Erase / `cyvra.co.in` untouched. Do not delete
+`mobile.cyvra.co.in` yet. Plan: [cyvoriq-co-in-cutover.txt](./cyvoriq-co-in-cutover.txt).
 
 ## Live G0–G3
 
