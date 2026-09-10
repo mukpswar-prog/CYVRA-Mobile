@@ -43,10 +43,10 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 1. Code lives only in `mukpswar-prog/CYVRA-Mobile`. No folders in Erase.
 2. Cloudflare account `5a3eeb2b3d42726a8ba08732464a0eda` — **new** Pages/Worker/Hyperdrive only. Never `cyvra-www`, `cyvoriq-erase-api`, `cyvra-approvals`.
 3. Neon `floral-art-02749206` is the mobile SoT. Do not reuse Erase Neon or Hyperdrive `cyvra-erase-neon-production`.
-4. Resend from the Worker only. Domain `cyvra.co.in` is already Verified. Do not merge Windows OTP into mobile.
-5. Customer web is `mobile.cyvra.co.in` (today: `cyvra-mobile.pages.dev`). Optional API host `api-mobile.cyvra.co.in`. **Not** `api.cyvra.co.in`.
-6. No second admin host. G7 is a **CYVRA Mobile** section on existing `admin.cyvra.co.in` / `accounts.cyvra.co.in` (same login, super admin `ceo@cyvoriq.com`).
-7. www is a **link** last (G8). No Journey B inside `cyvra-www`. No OTP form on www.
+4. Resend from the Worker only. Today `cyvra.co.in` is Verified (Erase + preview). Cutover From domain is `cyvoriq.co.in`. Do not merge Windows OTP into mobile.
+5. Customer preview is `mobile.cyvra.co.in`. Long-term public site is `www.cyvoriq.co.in`. API hostname is `api.cyvoriq.co.in`. **Not** `api.cyvra.co.in`.
+6. G7 ops is **`admin.cyvoriq.co.in` / `accounts.cyvoriq.co.in`** (new Pages in this repo). Super admin `ceo@cyvoriq.com`. **Not** Erase admin.
+7. G8 is public `www.cyvoriq.co.in`. No Journey B inside `cyvra-www`. No OTP form on Erase www.
 8. Lifecycle: verification → Report 1 → separate sanitization auth → wipe → Final Report. Report 1 ≠ wipe.
 9. USB / QR / ADB-visible ≠ authorization. No lock/FRP bypass. No root as workflow.
 10. Detect, don’t assume. `NOT_AVAILABLE` / `NOT_SUPPORTED` / `NOT_TESTED` / `PERMISSION_DENIED` are not FAIL.

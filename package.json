@@ -16,6 +16,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test:evidence": "pnpm --filter @cyvra/evidence test",
+    "test:api-origins": "pnpm --filter @cyvra/api test",
     "db:generate": "pnpm --filter @cyvra/database generate",
     "db:migrate": "pnpm --filter @cyvra/database migrate",
     "db:migrate:neon": "bash scripts/migrate-neon.sh",

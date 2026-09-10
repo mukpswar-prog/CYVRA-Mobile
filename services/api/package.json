@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "@cloudflare/workers-types": "^5.20260908.1",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.23.1",
+    "tsx": "^4.21.0",
     "typescript": "^7.0.2",
     "wrangler": "^4.130.0"
   }

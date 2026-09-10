@@ -1,6 +1,6 @@
 CYVORIQ.CO.IN — DEEP MIGRATION AUDIT AND FOLLOW-ALONG PLAN
 Decision: D-2026-09-10-CYVORIQ-DOMAIN (confirmed 10 Sep 2026 after NS switch)
-Status:  PAPER COMPLETE. Follow this file for development. Do not start G9/G10.
+Status:  ZONE ACTIVE (you, 10 Sep 2026). Phase 0 done. Phase 1–2 in progress.
 Date:    10 September 2026 (audit re-checked live this session)
 Repo:    mukpswar-prog/CYVRA-Mobile  branch cursor/g0-g3-mobile-slice-7474
 Governing: GUIDELINE.md. Sister plan: docs/cyvoriq-co-in-cutover.txt
@@ -21,8 +21,8 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
   "You" = dashboard / registrar / Resend / Neon SQL (secrets stay off Git).
   "Agent" = this repo (code, CORS, apps, wrangler, docs).
 
-  This file is the playbook. Code changes start at Phase 1, not before
-  Phase 0 is ticked.
+  This file is the playbook. Phase 0 is ticked (zone Active). Code starts at
+  Phase 1 (G7 live) and Phase 2 (CORS / cookies / From).
 
 
 ================================================================================
@@ -128,7 +128,7 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
     [x] Super admin email already ceo@cyvoriq.com (not an Erase Windows login)
 
   Still missing for a separate cyvoriq website
-    [ ] Zone dashboard flag Active (NS already match; confirm in dash)
+    [x] Zone dashboard flag Active (you, 10 Sep 2026)
     [ ] Neon 0004 + live G7 (401 not 404)
     [ ] api.cyvoriq.co.in on the Worker
     [ ] New Pages + www / admin / accounts hosts
@@ -446,7 +446,7 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
 8. FOLLOW-ALONG PHASES  (do not skip)
 ================================================================================
 
-  Phase 0  Confirm isolation  (2 min, you)
+  Phase 0  Confirm isolation  (2 min, you)                   DONE 10 Sep 2026
            Cloudflare → cyvoriq.co.in = Active.
            Do not change cyvra.co.in NS.
            Tick: "zone Active".
@@ -454,7 +454,13 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
   Phase 1  G7 live on existing Worker  (you + agent)
            Why first: new hostnames are useless while /admin/serials is 404.
            1. migrate-neon.sh          0004
+              BLOCKED here: database/.env DATABASE_URL_DIRECT is 127.0.0.1.
+              You: bash scripts/open-db-env.sh  then set the Neon DIRECT host
+                   (no -pooler). Leave DATABASE_URL as 127.0.0.1.
            2. wrangler secret put ADMIN_API_TOKEN
+              BLOCKED here: CLOUDFLARE_API_TOKEN in this environment is invalid
+              (9109). You: read -r -s CLOUDFLARE_API_TOKEN && export ...
+              using the user token named cyvra-mobile (not an erase token).
            3. bash scripts/deploy-api-preview.sh   keep API_ENV=preview
            4. Prove: GET /admin/serials unauth → 401 (not 404/503/500)
            Tick: "G7 401 on workers.dev".

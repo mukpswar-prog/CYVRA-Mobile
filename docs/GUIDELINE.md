@@ -32,7 +32,7 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 3. Customer web on `mobile.cyvra.co.in`: registration first, via Resend.
 4. S1 Android app on one Samsung phone you own.
 5. CYVRA Station (Windows bench) only after Decision 5.1.20.2.
-6. Tiny `www.cyvra.co.in` nav tab **last**, linking out to mobile. Do not rebuild Windows Get Started.
+6. Public `www.cyvoriq.co.in` (new Pages in this repo). Do **not** rebuild Windows Get Started. Do **not** add a Mobile tab on `www.cyvra.co.in`.
 
 This Cursor session is still the parked **approvals** workspace. Product work belongs in `CYVRA-Mobile`. This agent could **read** the public GitHub repo and could **not** log into Cloudflare, Neon, or Resend from here (no dashboard credentials / MCP auth in this environment). Bind the IDs below; inspect live resources from a session that has those logins.
 
@@ -378,7 +378,8 @@ UI may say “Wi-Fi Check”. Evidence stores stable `TEST_ID`. Never key the da
 - Rebuilding Windows Erase, `cyvra-www`, or `cyvoriq-erase-api` in this repo
 - Renaming or converting `cyvra-approvals` / Worker `cyvra-approvals`
 - Reusing Windows licence APIs or Windows Neon for mobile customer data
-- A **second** admin host for mobile (freeze plan: add a **CYVRA Mobile** section to existing `admin.cyvra.co.in` / `accounts.cyvra.co.in`, same login, super admin `ceo@cyvoriq.com`)
+- Putting Mobile ops on Erase `admin.cyvra.co.in` / `accounts.cyvra.co.in` (decision 10 Sep 2026: new hosts `admin.cyvoriq.co.in` / `accounts.cyvoriq.co.in`)
+- Binding Erase Pages `cyvra-www` to `cyvoriq.co.in`
 - Journey B inside `cyvra-www` as the v1 frontend
 - Vercel Publish; GitHub Codespaces as the build path
 - FRP/lock bypass, root-default, unrestricted ADB console

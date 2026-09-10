@@ -1,8 +1,11 @@
 /**
  * Browser origins allowed to call this Worker with credentials.
  *
- * Preview hosts for Pages project `cyvra-mobile` are allowlisted so G3 can
- * land on a *.pages.dev URL before the custom domain mobile.cyvra.co.in exists.
+ * Product family: *.cyvoriq.co.in (www / admin / accounts / apex).
+ * Preview until cutover: mobile.cyvra.co.in and Pages cyvra-mobile.
+ * Erase admin/accounts stay allowlisted until Phase 5 of
+ * docs/cyvoriq-migration-audit.txt, then they must be removed.
+ * Erase www / api.cyvra.co.in are never allowed.
  */
 
 const LOCAL_ORIGINS = [
@@ -10,9 +13,27 @@ const LOCAL_ORIGINS = [
   "http://127.0.0.1:5173",
 ];
 
+const PAGES_PROJECTS = [
+  "cyvra-mobile",
+  "cyvoriq-www",
+  "cyvoriq-admin",
+  "cyvoriq-accounts",
+] as const;
+
 export interface OriginEnv {
   APP_ORIGIN?: string;
   ALLOWED_ORIGINS?: string;
+}
+
+export function isHostOrSubdomain(hostname: string, apex: string): boolean {
+  return hostname === apex || hostname.endsWith(`.${apex}`);
+}
+
+export function isPagesPreviewHost(hostname: string, project: string): boolean {
+  return (
+    hostname === `${project}.pages.dev` ||
+    hostname.endsWith(`.${project}.pages.dev`)
+  );
 }
 
 export function isAllowedOrigin(
@@ -32,11 +53,14 @@ export function isAllowedOrigin(
   try {
     const url = new URL(origin);
     if (url.protocol !== "https:") return false;
-    if (url.hostname === "mobile.cyvra.co.in") return true;
-    if (url.hostname === "admin.cyvra.co.in") return true;
-    if (url.hostname === "accounts.cyvra.co.in") return true;
-    if (url.hostname === "cyvra-mobile.pages.dev") return true;
-    if (url.hostname.endsWith(".cyvra-mobile.pages.dev")) return true;
+    const host = url.hostname;
+    if (isHostOrSubdomain(host, "cyvoriq.co.in")) return true;
+    if (host === "mobile.cyvra.co.in") return true;
+    if (host === "admin.cyvra.co.in") return true;
+    if (host === "accounts.cyvra.co.in") return true;
+    for (const project of PAGES_PROJECTS) {
+      if (isPagesPreviewHost(host, project)) return true;
+    }
   } catch {
     return false;
   }

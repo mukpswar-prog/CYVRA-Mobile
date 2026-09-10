@@ -28,6 +28,24 @@ assert h.get("database") == "connected", h
 print("[test] health ok")
 PY
 
+echo "$HEALTH" | grep -q "cyvra-mobile-api"
+
+echo "[test] CORS allows https://admin.cyvoriq.co.in"
+CORS="$(curl -sS -D - -o /dev/null --max-time 5 -X OPTIONS "$API/admin/serials" \
+  -H "Origin: https://admin.cyvoriq.co.in" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type,authorization,x-admin-email")"
+echo "$CORS" | grep -qi "access-control-allow-origin: https://admin.cyvoriq.co.in"
+
+echo "[test] CORS denies https://www.cyvra.co.in"
+DENY="$(curl -sS -D - -o /dev/null --max-time 5 -X OPTIONS "$API/admin/serials" \
+  -H "Origin: https://www.cyvra.co.in" \
+  -H "Access-Control-Request-Method: POST")"
+if echo "$DENY" | grep -qi "access-control-allow-origin: https://www.cyvra.co.in"; then
+  echo "[test] Erase www must not be allowlisted"
+  exit 1
+fi
+
 echo "[test] POST /admin/serials without token is 401"
 UNAUTH="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
   -H "content-type: application/json" \
@@ -49,7 +67,7 @@ WRONG="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
   -H "content-type: application/json" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "X-Admin-Email: not-the-super-admin@example.com" \
-  -H "Origin: https://admin.cyvra.co.in" \
+  -H "Origin: https://admin.cyvoriq.co.in" \
   -d '{"customerEmail":"buyer@example.com","paymentNoted":"UPI transferred 2026-09-10"}')"
 echo "$WRONG"
 echo "$WRONG" | grep -q "HTTP:401"
@@ -59,7 +77,7 @@ CREATE="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
   -H "content-type: application/json" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "X-Admin-Email: $ADMIN_EMAIL" \
-  -H "Origin: https://admin.cyvra.co.in" \
+  -H "Origin: https://admin.cyvoriq.co.in" \
   -d '{"customerEmail":"Buyer@Example.com","paymentNoted":"UPI transferred 2026-09-10"}')"
 echo "$CREATE"
 CREATE="$CREATE" "$PY" - << 'PY'
@@ -87,7 +105,7 @@ echo "[test] POST /admin/serials/$SERIAL_ID/issue"
 ISSUE="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials/$SERIAL_ID/issue" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "X-Admin-Email: $ADMIN_EMAIL" \
-  -H "Origin: https://admin.cyvra.co.in")"
+  -H "Origin: https://admin.cyvoriq.co.in")"
 echo "$ISSUE"
 ISSUE="$ISSUE" "$PY" - << 'PY'
 import json, os
@@ -107,7 +125,7 @@ echo "[test] replay issue keeps issuedAt"
 REPLAY="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials/$SERIAL_ID/issue" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "X-Admin-Email: $ADMIN_EMAIL" \
-  -H "Origin: https://admin.cyvra.co.in")"
+  -H "Origin: https://admin.cyvoriq.co.in")"
 echo "$REPLAY"
 REPLAY="$REPLAY" "$PY" - << 'PY'
 import json, os
@@ -125,7 +143,7 @@ echo "[test] GET /admin/serials lists the issued serial"
 LIST="$(curl -fsS "$API/admin/serials" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "X-Admin-Email: $ADMIN_EMAIL" \
-  -H "Origin: https://admin.cyvra.co.in")"
+  -H "Origin: https://admin.cyvoriq.co.in")"
 LIST="$LIST" SERIAL_ID="$SERIAL_ID" "$PY" - << 'PY'
 import json, os
 d = json.loads(os.environ["LIST"])
@@ -139,7 +157,7 @@ echo "[test] POST revoke"
 REVOKE="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials/$SERIAL_ID/revoke" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "X-Admin-Email: $ADMIN_EMAIL" \
-  -H "Origin: https://admin.cyvra.co.in")"
+  -H "Origin: https://admin.cyvoriq.co.in")"
 echo "$REVOKE"
 echo "$REVOKE" | grep -q "HTTP:200"
 echo "$REVOKE" | grep -q '"REVOKED"'

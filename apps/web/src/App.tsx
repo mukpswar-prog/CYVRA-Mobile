@@ -357,7 +357,8 @@ export function App() {
       <footer className="footer">
         <span>CYVORIQ Solutions Pvt. Ltd.</span>
         <span className="muted small">
-          mobile.cyvra.co.in · logins are separate from Windows Erase
+          www.cyvoriq.co.in · logins are separate from Windows Erase
+          (preview: mobile.cyvra.co.in)
         </span>
       </footer>
     </div>

@@ -44,7 +44,7 @@ app.use("*", async (c, next) => {
     origin: (origin) => (isAllowedOrigin(origin, c.env) ? origin : ""),
     credentials: true,
     allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Admin-Email"],
   })(c, next);
 });
 

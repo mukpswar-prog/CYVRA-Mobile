@@ -45,8 +45,8 @@ export function OpsTest() {
     <div className="signed-in">
       <h2>Ops test — mobile serials</h2>
       <p className="muted small">
-        Hidden page (<code>#ops</code>). This is not admin.cyvra.co.in. Use it
-        to prove create / issue / revoke before any live Erase nav change. The
+        Hidden page (<code>#ops</code>). This is not admin.cyvoriq.co.in. Use it
+        to prove create / issue / revoke before the real admin Pages host. The
         token is kept in this browser only.
       </p>
 

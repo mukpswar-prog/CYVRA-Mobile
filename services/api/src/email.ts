@@ -18,9 +18,9 @@ function previewFallback(env: Env): boolean {
  * rather than relying on thrown errors.
  *
  * Local / Pages preview (API_ENV !== production): if RESEND_API_KEY is empty
- * or Resend rejects the send (unverified cyvra.co.in), the 6-digit code is
+ * or Resend rejects the send (unverified cyvoriq.co.in), the 6-digit code is
  * returned in the JSON so G3 can be tested without a verified domain.
- * Production never returns the code.
+ * Production never returns the code. Keep cyvra.co.in verified for Erase.
  */
 export async function sendOtpEmail(
   env: Env,
@@ -35,7 +35,7 @@ export async function sendOtpEmail(
     return { sent: false, devCode: previewFallback(env) ? code : undefined };
   }
 
-  const from = env.RESEND_FROM ?? "CYVRA Mobile <noreply@cyvra.co.in>";
+  const from = env.RESEND_FROM ?? "CYVRA Mobile <noreply@cyvoriq.co.in>";
   const emailHash = await sha256Hex(email);
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
