@@ -473,16 +473,13 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
            session.ts first-party for cyvoriq.co.in
            DEPLOYED with G7 (version 00f142ba). Tick: CORS in Git + live Worker.
 
-  Phase 3  api.cyvoriq.co.in  (you + agent)                   NEXT
-           wrangler.jsonc custom_domain api.cyvoriq.co.in (this zone only).
-           In Codespaces (token still in that shell, or paste cyvoriq-mobile):
-             git pull
-             bash scripts/attach-api-cyvoriq.sh
-           Prove: https://api.cyvoriq.co.in/health → ok
-                  https://api.cyvoriq.co.in/admin/serials → 401
-           Dashboard fallback: Worker cyvra-mobile-api → Domains & Routes
-             → Custom domain api.cyvoriq.co.in.
-           Never attach mobile.cyvra.co.in or api.cyvra.co.in.
+  Phase 3  api.cyvoriq.co.in  (dashboard — Codespaces not required)   NEXT
+           Live G7 is already on workers.dev. Attach hostname in Cloudflare:
+             Worker cyvra-mobile-api → Domains → api.cyvoriq.co.in
+             Zone MUST be cyvoriq.co.in.
+           Verify from Windows: docs/without-codespaces.txt
+           Future deploys: GitHub Actions workflow_dispatch
+             (.github/workflows/deploy-api-preview.yml)
 
   Phase 4  Resend cyvoriq.co.in  (you, then agent)
            Add domain, DNS in cyvoriq zone, Verified, RESEND_FROM put.

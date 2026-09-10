@@ -19,6 +19,7 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 > handoff: [docs/resume-after-break.md](docs/resume-after-break.md). Plan:
 > [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt). Follow-along
 > audit: [docs/cyvoriq-migration-audit.txt](docs/cyvoriq-migration-audit.txt).
+> Codespaces quota is not required: [docs/without-codespaces.txt](docs/without-codespaces.txt).
 
 ---
 

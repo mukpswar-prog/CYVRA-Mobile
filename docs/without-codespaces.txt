@@ -1,0 +1,109 @@
+WITHOUT CODESPACES — CONTINUE ON cyvoriq.co.in
+Date: 10 September 2026
+GitHub Codespaces free quota is exhausted. That does NOT undo G7.
+Live Worker is already version 00f142ba. /admin/serials is 401.
+
+GUIDELINE already says: no Codespaces as the build path. Use Cursor +
+Cloudflare dashboard + (optional) GitHub Actions.
+
+================================================================================
+0. WHAT YOU DO NOT NEED CODESPACES FOR
+================================================================================
+
+  Already done (keep using these URLs from any browser/laptop):
+
+    https://cyvra-mobile-api.mukpswar.workers.dev/health
+    https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials   → 401
+    https://mobile.cyvra.co.in/
+    https://www.cyvra.co.in/     (Erase — do not change)
+
+  Next hostname attach is a Cloudflare DASHBOARD click, not a codespace.
+
+================================================================================
+1. NOW — ATTACH api.cyvoriq.co.in  (dashboard, 3 minutes)
+================================================================================
+
+  1. https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda
+  2. Workers & Pages → Workers → cyvra-mobile-api
+     (not cyvoriq-erase-api, not cyvra-www)
+  3. Settings → Domains & Routes  (sometimes labelled Triggers)
+  4. Add → Custom domain
+  5. Hostname: api.cyvoriq.co.in
+  6. Zone must be cyvoriq.co.in (the new zone). If the picker shows
+     cyvra.co.in, STOP. Wrong zone.
+  7. Add / save. Cloudflare creates the DNS record in cyvoriq.co.in only.
+
+  Do NOT add:
+    mobile.cyvra.co.in
+    api.cyvra.co.in
+    www.cyvra.co.in
+    admin.cyvra.co.in
+
+  Wait until the domain shows Active / SSL provisioned (can be 1–5 minutes).
+
+================================================================================
+2. VERIFY FROM WINDOWS  (PowerShell or cmd — no Codespaces)
+================================================================================
+
+  curl.exe -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
+  curl.exe -sS -w "HTTP:%{http_code}`n" https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials
+
+  After the custom domain is Active:
+
+  curl.exe -sS https://api.cyvoriq.co.in/health
+  curl.exe -sS -w "HTTP:%{http_code}`n" https://api.cyvoriq.co.in/admin/serials
+
+  Pass:
+    health JSON status=ok, env=preview, database=connected
+    /admin/serials → {"error":"Admin token required."} HTTP 401
+
+  Browser: open https://api.cyvoriq.co.in/health  (JSON is enough)
+
+  Paste those lines in chat (no tokens).
+
+================================================================================
+3. HOW WE WORK FROM HERE  (replace Codespaces)
+================================================================================
+
+  A. This Cursor Cloud agent  (preferred for repo work)
+     You stay in this chat. Agent edits GitHub. Dashboard stays yours.
+     Do not paste cyvoriq-mobile or ADMIN_API_TOKEN into chat.
+
+  B. Cloudflare dashboard
+     Custom domains, Pages projects, Resend DNS, zone records.
+
+  C. GitHub Actions  (when we need another Worker deploy)
+     Workflow: .github/workflows/deploy-api-preview.yml
+     You add ONE repo secret (Actions, not Codespaces):
+
+       GitHub → CYVRA-Mobile → Settings → Secrets and variables → Actions
+       New repository secret
+       Name:  CLOUDFLARE_API_TOKEN
+       Value: the cyvoriq-mobile user token (password manager)
+
+     Then Actions → Deploy mobile API preview → Run workflow.
+     That uses ubuntu-latest, not your Codespaces minutes.
+
+  D. Laptop Cursor later (optional)
+     Clone CYVRA-Mobile, pnpm install, same scripts as before.
+     Same hidden:  read -r -s CLOUDFLARE_API_TOKEN
+
+  Do not pay for Codespaces just to finish this cutover.
+
+================================================================================
+4. STILL FORBIDDEN
+================================================================================
+
+  Delete Pages cyvra-mobile / Worker / Hyperdrive / Neon
+  Touch Erase tokens, cyvra-www, api.cyvra.co.in
+  Put ADMIN_API_TOKEN or DATABASE_URL on Pages or in GitHub Actions secrets
+    (ADMIN_API_TOKEN is already on the Worker; leave it)
+
+================================================================================
+5. AFTER api.cyvoriq.co.in IS 401
+================================================================================
+
+  Phase 4  Resend: add domain cyvoriq.co.in, DNS in THAT zone, then
+           wrangler secret put RESEND_FROM  via GitHub Action or Cursor later
+  Phase 5  New Pages cyvoriq-www / cyvoriq-admin / cyvoriq-accounts
+           (dashboard Create project; agent builds the apps in this repo)
