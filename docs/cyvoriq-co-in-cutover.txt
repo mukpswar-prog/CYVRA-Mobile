@@ -1,6 +1,7 @@
 CYVORIQ / CYVRA MOBILE — DOMAIN CUTOVER MASTER PLAN
 Decision: D-2026-09-10-CYVORIQ-DOMAIN
-Status: MANAGEMENT DECISION ACCEPTED — PLAN FIRST. Do not delete old hosts.
+Status: ZONE ON CLOUDFLARE (NS guy/sloan). Phase B done. Next: Phase C (G7 live).
+        Do not delete old hosts.
 Date: 10 September 2026
 Governing file: GUIDELINE.md (amended by this decision)
 
@@ -30,14 +31,18 @@ Governing file: GUIDELINE.md (amended by this decision)
   (nameservers guy / sloan.ns.cloudflare.com). Cloudflare allows many zones
   per account. Adding cyvoriq.co.in does not remove cyvra.co.in.
 
-  Today (checked 10 Sep 2026):
+  Today (checked 10 Sep 2026, after NS update):
 
-    cyvoriq.co.in NS = ns59/ns60.domaincontrol.com  (GoDaddy)
-    cyvoriq.co.in A  = 15.197.148.33, 3.33.130.190  (GoDaddy / AWS parking)
-    SOA serial       = 2026090900
+    cyvoriq.co.in NS  = guy.ns.cloudflare.com / sloan.ns.cloudflare.com
+    cyvoriq.co.in SOA = dns.cloudflare.com
+    cyvoriq.co.in A   = (none yet — parking IPs gone)
+    cyvoriq.co.in MX  = (none)
+    cyvoriq.co.in TXT = (none)
+    cyvra.co.in NS    = guy / sloan (UNCHANGED — Erase safe)
 
-  So the domain exists, but it is NOT on Cloudflare yet. Parking IPs are not
-  our Pages/Worker.
+  Zone is on Cloudflare. Apex has no address yet. That is expected until we
+  attach Pages. No MX found — if this domain must receive mail, add MX/TXT
+  in this zone before people send to it. Do not copy Erase mail records.
 
   Human steps to add the zone (you, dashboard):
 
@@ -178,9 +183,11 @@ Governing file: GUIDELINE.md (amended by this decision)
 7. BUILD ORDER (DO NOT SKIP)
 ================================================================================
 
-  Phase A — paper (this file + GUIDELINE amendment)          THIS COMMIT
-  Phase B — you add zone cyvoriq.co.in, switch NS, inventory MX
-  Phase C — Neon 0004 + ADMIN_API_TOKEN + deploy G7 API
+  Phase A — paper (this file + GUIDELINE amendment)          DONE
+  Phase B — add zone cyvoriq.co.in, switch NS, inventory MX  DONE 10 Sep 2026
+            Public DNS: Cloudflare NS, empty A/MX/TXT.
+            Dashboard: confirm Active when you return (NS already match).
+  Phase C — Neon 0004 + ADMIN_API_TOKEN + deploy G7 API      NEXT AFTER BREAK
             still on workers.dev (prove 401 not 404)
   Phase D — attach api.cyvoriq.co.in to cyvra-mobile-api
   Phase E — apps in THIS repo:
@@ -219,13 +226,17 @@ Governing file: GUIDELINE.md (amended by this decision)
 10. YOU vs AGENT
 ================================================================================
 
-  You (dashboard)
-    - Add site cyvoriq.co.in on the same account
-    - Copy MX/TXT from GoDaddy if mail exists
-    - Change nameservers at GoDaddy for cyvoriq.co.in ONLY
-    - Tell this agent: zone Active, nameservers, whether MX exists
+  You (dashboard) — already done this session
+    - Add site cyvoriq.co.in on the same account          DONE
+    - Change nameservers at registrar for cyvoriq.co.in   DONE
+    - Public MX/TXT: none found
+    After the break: confirm zone status is Active.
+    Do not change cyvra.co.in nameservers.
 
   Agent (this repo)
-    - Master plan + GUIDELINE amendment (now)
-    - Later: CORS, APP_ORIGIN, www/admin/accounts apps, Pages wiring
+    - Master plan + GUIDELINE amendment + resume-after-break.md (saved)
+    - After the break: CORS, APP_ORIGIN, www/admin/accounts apps, Pages wiring
+    - First live move: Phase C (G7 on existing Worker), then Phase D
     - Will not edit Erase, will not delete old CF resources
+
+  Handoff file: docs/resume-after-break.md

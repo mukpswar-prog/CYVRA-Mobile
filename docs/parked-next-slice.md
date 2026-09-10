@@ -1,13 +1,13 @@
 # Resume notes (after 9 Sep 2026 break)
 
-Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
-freeze plan: CYVRA Mobile ops is a **section** of existing
-`admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
+Governing law: [GUIDELINE.md](./GUIDELINE.md). Decision 10 Sep 2026: Mobile
+ops and public site move to **`cyvoriq.co.in`**, not a section of Erase
+`admin.cyvra.co.in`. Resume: [resume-after-break.md](./resume-after-break.md).
 
-**Save point (10 Sep 2026):** Management decision **D-2026-09-10-CYVORIQ-DOMAIN**.
-Mobile Evidence moves to `cyvoriq.co.in` (new zone, same Cloudflare account,
-same Neon). Erase / `cyvra.co.in` untouched. Do not delete
-`mobile.cyvra.co.in` yet. Plan: [cyvoriq-co-in-cutover.txt](./cyvoriq-co-in-cutover.txt).
+**Save point (10 Sep 2026, break):** Zone `cyvoriq.co.in` is on Cloudflare
+(`guy` / `sloan.ns.cloudflare.com`). `cyvra.co.in` NS unchanged. Apex has no
+A/MX yet. Resume: [resume-after-break.md](./resume-after-break.md).
+Cutover: [cyvoriq-co-in-cutover.txt](./cyvoriq-co-in-cutover.txt).
 
 ## Live G0–G3
 

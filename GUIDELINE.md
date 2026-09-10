@@ -23,7 +23,7 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 
 **Do not rename** `cyvra-approvals` into this product. **Do not put folders in** `mukpswar-prog/Erase`. **Do not point mobile login at** `api.cyvra.co.in`.
 
-**Amendment 10 Sep 2026 (management):** Mobile Evidence’s public and ops hosts move to **`cyvoriq.co.in`** (new Cloudflare zone on the same account). Not a subdomain of `cyvra.co.in`. No Erase repo changes. Same Neon `floral-art-02749206`. Do not delete `mobile.cyvra.co.in` until the new origin is proven. Detail: [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt).
+**Amendment 10 Sep 2026 (management):** Mobile Evidence’s public and ops hosts move to **`cyvoriq.co.in`** (new Cloudflare zone on the same account). Not a subdomain of `cyvra.co.in`. No Erase repo changes. Same Neon `floral-art-02749206`. Do not delete `mobile.cyvra.co.in` until the new origin is proven. Detail: [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt). After-break handoff: [docs/resume-after-break.md](docs/resume-after-break.md).
 
 **First code (when you say go), in this order:**
 
