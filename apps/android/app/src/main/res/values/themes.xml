@@ -1,0 +1,4 @@
+<resources>
+    <style name="Theme.CyvraMobile" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+    <string name="app_name">CYVRA Mobile Evidence</string>
+</resources>

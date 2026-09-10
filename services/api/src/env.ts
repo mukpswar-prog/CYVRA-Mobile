@@ -9,4 +9,6 @@ export interface Env {
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   SESSION_SECRET?: string;
+  /** Ops only. Never a customer session. Never commit the value. */
+  ADMIN_API_TOKEN?: string;
 }

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mobile.cyvra.co.in/schema/capability-profile/v1",
+  "title": "CYVRA device capability profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "deviceLifecycleId",
+    "processingSessionId",
+    "version",
+    "capturedAt",
+    "accessLevel",
+    "usbState",
+    "adbState",
+    "manufacturer",
+    "brand",
+    "model",
+    "product",
+    "device",
+    "fingerprint",
+    "androidRelease",
+    "sdkInt",
+    "features",
+    "permissions",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "profileId": { "type": "string", "format": "uuid" },
+    "deviceLifecycleId": { "type": "string", "format": "uuid" },
+    "processingSessionId": { "type": "string", "format": "uuid" },
+    "version": { "type": "integer", "minimum": 1 },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "accessLevel": {
+      "enum": ["L0_LOCKED", "L1_LIMITED", "L2_S1_APP", "L3_STATION", "L4_ENTERPRISE"]
+    },
+    "usbState": {
+      "enum": [
+        "USB_UNKNOWN",
+        "USB_DISCONNECTED",
+        "USB_CONNECTED_CHARGING",
+        "USB_CONNECTED_DATA",
+        "USB_NOT_AUTHORIZED"
+      ]
+    },
+    "adbState": {
+      "enum": [
+        "ADB_UNKNOWN",
+        "ADB_DISABLED",
+        "ADB_VISIBLE_UNAUTHORIZED",
+        "ADB_AUTHORIZED"
+      ]
+    },
+    "manufacturer": { "type": "string" },
+    "brand": { "type": "string" },
+    "model": { "type": "string" },
+    "product": { "type": "string" },
+    "device": { "type": "string" },
+    "fingerprint": { "type": "string" },
+    "androidRelease": { "type": "string" },
+    "sdkInt": { "type": "integer", "minimum": 1 },
+    "smallestScreenWidthDp": { "type": "integer", "minimum": 0 },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature", "declared", "state"],
+        "properties": {
+          "feature": { "type": "string" },
+          "declared": { "type": "boolean" },
+          "detected": { "type": "boolean" },
+          "state": { "enum": ["DECLARED", "DETECTED", "TESTED"] }
+        }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["permission", "granted"],
+        "properties": {
+          "permission": { "type": "string" },
+          "granted": { "type": "boolean" }
+        }
+      }
+    },
+    "limitations": { "type": "array", "items": { "type": "string" } }
+  }
+}

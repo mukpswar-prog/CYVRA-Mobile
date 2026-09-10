@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mobile.cyvra.co.in/schema/evidence-batch/v1",
+  "title": "CYVRA evidence batch v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "batchId",
+    "deviceLifecycleId",
+    "processingSessionId",
+    "records",
+    "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "batchId": { "type": "string", "format": "uuid" },
+    "deviceLifecycleId": { "type": "string", "format": "uuid" },
+    "processingSessionId": { "type": "string", "format": "uuid" },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "https://mobile.cyvra.co.in/schema/evidence-record/v1" }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

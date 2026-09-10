@@ -5,3 +5,5 @@
 RESEND_API_KEY=
 RESEND_FROM="CYVRA Mobile <noreply@cyvra.co.in>"
 SESSION_SECRET=local-dev-session-secret-change-me
+# Local ops token for /admin/serials. Not a production secret.
+ADMIN_API_TOKEN=local-admin-token-change-me

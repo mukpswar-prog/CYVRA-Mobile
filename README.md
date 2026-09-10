@@ -2,15 +2,22 @@
 
 Android phone and tablet verification, evidence, and reports for the CYVRA platform.
 
-**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Freeze audit + G4+ plan (awaiting approval): [docs/freeze-audit.md](docs/freeze-audit.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
+**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Freeze audit: [docs/freeze-audit.md](docs/freeze-audit.md). G4 evidence package: [packages/evidence](packages/evidence). Test pool: [docs/testing/pool.md](docs/testing/pool.md). Samsung/AOSP research: [docs/research/samsung-s1-sources.md](docs/research/samsung-s1-sources.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
 [docs/admin-mobile-section.md](docs/admin-mobile-section.md).
 
 - Company: CYVORIQ Solutions Pvt. Ltd.
-- Planned site: https://mobile.cyvra.co.in
+- Planned site: https://mobile.cyvra.co.in (live)
 - Frozen Windows product: https://www.cyvra.co.in — **not** this repository
 
-> Do not start CYVRA Station, Knox/S3, or the Android app yet. This repo is the
-> mobile web + API first slice (gates G1–G3). See [GUIDELINE.md](GUIDELINE.md) §10.
+> Do not start CYVRA Station or Knox/S3. G5 Android **core** is in `apps/android`
+> (Codespaces: `./gradlew :core:test`). Worker ingest is `POST /evidence/batches`
+> (local: `pnpm test:local-evidence`). Report 1 freeze is `POST /reports/freeze`
+> (local: `pnpm test:local-report`). Device/APK tests wait for a Samsung phone.
+> Cutover host is `www.cyvoriq.co.in` (decision 10 Sep 2026). Keep
+> `mobile.cyvra.co.in` until that zone is proven. Same Neon. Do not patch Erase.
+> Zone `cyvoriq.co.in` is on Cloudflare (NS checked 10 Sep 2026). After-break
+> handoff: [docs/resume-after-break.md](docs/resume-after-break.md). Plan:
+> [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt).
 
 ---
 
@@ -18,9 +25,10 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 
 ```
 apps/web/            Customer web (Vite + React) → mobile.cyvra.co.in
+apps/android/        S1 Android scaffold (`:core` JVM tests in Codespaces)
 services/api/        Cloudflare Worker `cyvra-mobile-api` (Hono + pg via Hyperdrive)
 database/            Drizzle schema + migrations (Neon project floral-art-02749206)
-packages/evidence/   Shared evidence vocabulary (guideline §8.6)
+packages/evidence/   Evidence JSON Schema + S1 capability contract (G4)
 scripts/             Dev environment helpers (local Postgres, install, start)
 ```
 
@@ -46,7 +54,7 @@ Day-to-day verification is in GitHub Codespaces
 Pages project **`cyvra-mobile`** builds from this repo (`main` = production).
 Do not connect Pages to Erase / `cyvra-www`.
 
-Full steps: [docs/codespaces-pages.md](docs/codespaces-pages.md).
+Full steps: [docs/codespaces-g5.md](docs/codespaces-g5.md) (switch off `main` first), then [docs/codespaces-pages.md](docs/codespaces-pages.md).
 
 ## Local development
 
@@ -94,5 +102,8 @@ Open http://localhost:5173 and sign in.
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm typecheck` | Type-check every package |
 | `pnpm test:local-auth` | Curl the local Worker health + OTP + session slice |
+| `pnpm test:local-evidence` | Start local Postgres + wrangler if needed, then ingest honesty/`collectedAt` tests |
+| `pnpm test:local-report` | Start local Postgres + wrangler if needed, then freeze Report 1 (PARTIAL + replay) |
+| `pnpm test:local-admin-serials` | Local G7 serial create / issue / replay / revoke (no Erase UI) |
 | Tooling pins | Node 24, npm 12.0.2, pnpm 12, Python 3.14 — [docs/tooling.md](docs/tooling.md) |
 | `bash scripts/g1-cloud-preview.sh` | Create Hyperdrive / Worker / Pages **after** Cloudflare+Neon login |

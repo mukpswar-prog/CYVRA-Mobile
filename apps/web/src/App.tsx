@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
-import { api, type AuthUser } from "./api";
+import {
+  api,
+  type AuthUser,
+  type ReportDetail,
+  type ReportSession,
+  type ReportSummary,
+} from "./api";
 import { IN_STATES } from "./in-states";
+import { OpsTest } from "./OpsTest";
+import { ReportView } from "./ReportView";
+import { SignedInHome } from "./SignedInHome";
 
 type Step = "register" | "code" | "done";
 
@@ -26,6 +35,15 @@ export function App() {
   const [notice, setNotice] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [sessions, setSessions] = useState<ReportSession[]>([]);
+  const [reports, setReports] = useState<ReportSummary[]>([]);
+  const [reportDetail, setReportDetail] = useState<ReportDetail | null>(null);
+  const [showOps, setShowOps] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      (window.location.hash === "#ops" ||
+        new URLSearchParams(window.location.search).has("ops")),
+  );
 
   useEffect(() => {
     api
@@ -34,6 +52,39 @@ export function App() {
       .catch(() => setUser(null))
       .finally(() => setLoadingSession(false));
   }, []);
+
+  useEffect(() => {
+    function syncOps() {
+      setShowOps(
+        window.location.hash === "#ops" ||
+          new URLSearchParams(window.location.search).has("ops"),
+      );
+    }
+    window.addEventListener("hashchange", syncOps);
+    return () => window.removeEventListener("hashchange", syncOps);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setSessions([]);
+      setReports([]);
+      setReportDetail(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.all([api.reportSessions(), api.listReports()])
+      .then(([sessionRes, reportRes]) => {
+        if (cancelled) return;
+        setSessions(sessionRes.sessions);
+        setReports(reportRes.reports);
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   function setField(name: keyof typeof emptyForm, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -80,6 +131,41 @@ export function App() {
     setChallengeId("");
     setDevCode(undefined);
     setNotice("");
+    setSessions([]);
+    setReports([]);
+    setReportDetail(null);
+  }
+
+  async function freezeSession(processingSessionId: string) {
+    setError("");
+    setBusy(true);
+    try {
+      const frozen = await api.freezeReport(processingSessionId);
+      const [sessionRes, reportRes] = await Promise.all([
+        api.reportSessions(),
+        api.listReports(),
+      ]);
+      setSessions(sessionRes.sessions);
+      setReports(reportRes.reports);
+      const detail = await api.getReport(frozen.reportId);
+      setReportDetail(detail);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openReportById(reportId: string) {
+    setError("");
+    setBusy(true);
+    try {
+      setReportDetail(await api.getReport(reportId));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -92,7 +178,8 @@ export function App() {
         <span className="badge">Samsung — in development</span>
       </header>
 
-      <main className="hero">
+      <main className={reportDetail ? "hero report-hero" : "hero"}>
+        {reportDetail ? null : (
         <section className="intro">
           <h1>Android phone &amp; tablet verification you can trust.</h1>
           <p>
@@ -107,26 +194,27 @@ export function App() {
             <li>Reports are derived from preserved evidence, not assumptions.</li>
           </ul>
         </section>
+        )}
 
-        <section className="card">
-          {loadingSession ? (
+        <section className={reportDetail ? "card report-card" : "card"}>
+          {showOps ? (
+            <OpsTest />
+          ) : loadingSession ? (
             <p className="muted">Checking your session…</p>
+          ) : user && reportDetail ? (
+            <ReportView report={reportDetail} onBack={() => setReportDetail(null)} />
           ) : user ? (
-            <div className="signed-in">
-              <h2>You're signed in</h2>
-              <p className="muted">Account</p>
-              {user.fullName && <p className="email-pill">{user.fullName}</p>}
-              <p className="email-pill">{user.email}</p>
-              {user.companyName && (
-                <p className="muted small">{user.companyName}</p>
-              )}
-              <p className="muted small">
-                This is a separate mobile account (not your Windows Erase login).
-              </p>
-              <button className="btn ghost" onClick={logout}>
-                Sign out
-              </button>
-            </div>
+            <SignedInHome
+              fullName={user.fullName}
+              email={user.email}
+              companyName={user.companyName}
+              sessions={sessions}
+              reports={reports}
+              busy={busy}
+              onFreeze={freezeSession}
+              onOpen={openReportById}
+              onLogout={logout}
+            />
           ) : step === "register" ? (
             <form onSubmit={submitRegister}>
               <h2>Create your account</h2>

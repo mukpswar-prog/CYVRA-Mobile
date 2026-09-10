@@ -1,7 +1,7 @@
 # CYVRA Mobile Evidence — Engineering Guideline (governing)
 
 **Status:** GOVERNING. This is the execution law for the mobile product.  
-**Date:** 8 September 2026  
+**Date:** 8 September 2026, **amended 10 September 2026** (domain cutover: `cyvoriq.co.in`).  
 **Company:** CYVORIQ Solutions Pvt. Ltd.  
 **Platform:** CYVRA  
 **Product GitHub:** https://github.com/mukpswar-prog/CYVRA-Mobile  
@@ -19,9 +19,11 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 | GitHub | https://github.com/mukpswar-prog/CYVRA-Mobile | **Only** source of truth for mobile code and this guideline. Empty today except a one-line README. |
 | Cloudflare | Account `5a3eeb2b3d42726a8ba08732464a0eda` | Same **account** as Windows. **New** Pages + Worker + Hyperdrive + DNS. Never reuse `cyvra-www`, `cyvoriq-erase-api`, `cyvra-approvals`. |
 | Neon | Project `floral-art-02749206` | **Authoritative** Postgres for mobile users, sessions, evidence, reports. Not the Windows database. |
-| Resend | https://resend.com/emails | **Transactional** mail for `mobile.cyvra.co.in` (OTP / magic link, later report notices). Not marketing. Not called from the browser. |
+| Resend | https://resend.com/emails | **Transactional** mail. Today `cyvra.co.in` (Verified). Target From domain after cutover: `cyvoriq.co.in`. Not marketing. Not called from the browser. |
 
 **Do not rename** `cyvra-approvals` into this product. **Do not put folders in** `mukpswar-prog/Erase`. **Do not point mobile login at** `api.cyvra.co.in`.
+
+**Amendment 10 Sep 2026 (management):** Mobile Evidence’s public and ops hosts move to **`cyvoriq.co.in`** (new Cloudflare zone on the same account). Not a subdomain of `cyvra.co.in`. No Erase repo changes. Same Neon `floral-art-02749206`. Do not delete `mobile.cyvra.co.in` until the new origin is proven. Detail: [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt). After-break handoff: [docs/resume-after-break.md](docs/resume-after-break.md).
 
 **First code (when you say go), in this order:**
 
@@ -54,11 +56,15 @@ Those documents agree on honesty and compliance. They disagree on **where code l
 | CYVRA Mobile Evidence | Android phones **and** tablets — one product |
 | CYVRA Station | Professional Windows workstation (S2 orchestrator) |
 | CYVRA Enterprise | Later Knox / UEM / OEM — S3 |
-| `mobile.cyvra.co.in` | Approved mobile customer web |
+| `mobile.cyvra.co.in` | Preview customer web (keep until `www.cyvoriq.co.in` is proven) |
+| `www.cyvoriq.co.in` | Approved long-term customer / public web (decision 10 Sep 2026) |
+| `admin.cyvoriq.co.in` | Mobile ops (new Pages, not Erase admin) |
+| `accounts.cyvoriq.co.in` | Mobile accounts (new Pages, not Erase accounts) |
+| `api.cyvoriq.co.in` | Mobile API hostname on Worker `cyvra-mobile-api` |
 
 Tablet is **not** a separate product. Feature discovery decides the test list, not “this is a phone.”
 
-Public site story: one CYVRA platform. Deploy units: **two origins**. Windows stays on `www`. Mobile starts on `mobile`.
+Public site story: two products, two domain families. Windows Erase stays on `cyvra.co.in`. Mobile Evidence lives on `cyvoriq.co.in`.
 
 ---
 
@@ -187,8 +193,10 @@ Same login as Windows. **New resources only.**
 |---|---|---|
 | Pages | `cyvra-mobile` | `cyvra-www` |
 | Worker | `cyvra-mobile-api` | `cyvoriq-erase-api`, `cyvra-approvals` |
-| Custom domain | `mobile.cyvra.co.in` | `www` / `admin` / `api.cyvra.co.in` |
-| Optional API host | `api-mobile.cyvra.co.in` | existing API |
+| Custom domain | `www.cyvoriq.co.in` (cutover) | `www` / `admin` / `api.cyvra.co.in` |
+| Optional preview | `mobile.cyvra.co.in` (keep until cutover) | Erase hosts |
+| API host | `api.cyvoriq.co.in` | `api.cyvra.co.in` |
+| Ops | `admin.cyvoriq.co.in`, `accounts.cyvoriq.co.in` | Erase `admin` / `accounts` |
 | Hyperdrive | `cyvra-mobile-neon` → Neon pooled URL | D1 as evidence SoT |
 | Secrets | `RESEND_API_KEY`, session secrets | Windows `CYVRA_ADMIN_SESSION` |
 
@@ -200,12 +208,12 @@ Worker rules (Cloudflare current practice):
 - Observability on; no module-level request state
 - Resend **only** from the Worker (Resend API has no CORS on purpose)
 
-Pages: customer web on `mobile.cyvra.co.in`. Serial-key / payment approval for
-CYVRA Mobile is a **section inside the existing** Windows hosts
-`admin.cyvra.co.in` and `accounts.cyvra.co.in` (freeze plan, 9 Sep 2026). Same
-login; super admin `ceo@cyvoriq.com`. A **CYVRA Mobile** button opens that
-section. Do **not** create a second admin Pages project. Do **not** copy
-Windows licence tables; mobile serial records live in Neon
+Pages: customer web on `www.cyvoriq.co.in` (cutover). Until that zone is
+Active, `mobile.cyvra.co.in` remains the working preview. Serial-key /
+payment approval is **`admin.cyvoriq.co.in` / `accounts.cyvoriq.co.in`**
+(new Pages in this repo, 10 Sep 2026). Super admin `ceo@cyvoriq.com`.
+Do **not** add a CYVRA Mobile section on Erase `admin.cyvra.co.in`.
+Do **not** copy Windows licence tables; mobile serial records live in Neon
 `floral-art-02749206`.
 
 Git flow: feature branch → Pages preview → review → merge `main` → production.
@@ -263,21 +271,16 @@ This environment had no Resend MCP/CLI login. Verify in the dashboard: domain st
 
 ---
 
-## 7. Website boundary (the only allowed Erase-adjacent change)
+## 7. Website boundary
 
-**Product story** (www): Windows | Mobile | Tablet as equal journeys.  
-**Deploy unit:** www remains the Windows SPA.
+**Windows Erase** stays on `www.cyvra.co.in` / `api.cyvra.co.in`. Frozen.
 
-When you explicitly allow a **small** `cyvra-www` patch:
+**Mobile Evidence** public site is `www.cyvoriq.co.in` (decision 10 Sep 2026).
+Do **not** patch `cyvra-www`. Do **not** implement Journey B inside the
+Windows Pages build.
 
-- Nav/hero control: Windows | Mobile | Tablet
-- Mobile and Tablet **navigate** to `https://mobile.cyvra.co.in` (tablet: `?device=tablet`)
-- Copy: Samsung-compatible, in development. No Knox / all-OEM / IMEI / SOH claims
-- Windows Get Started / OTP / download **untouched**
-
-Do **not** implement Journey B inside the Windows Pages build. OEM catalog lives on the **mobile** frontend, backend-driven, Samsung first, others “not fully supported.”
-
-Auth v1: **separate** mobile accounts in Neon. Same email as Windows is allowed; **not** the same cookie. Tell users the logins are separate until joined. Never copy `cyvoriq_admin_session`.
+Auth v1: **separate** mobile accounts in Neon. Same email as Windows is
+allowed; **not** the same cookie. Never copy `cyvoriq_admin_session`.
 
 ---
 
@@ -392,12 +395,12 @@ Nothing below starts until this guideline is accepted. Then work **only** in `CY
 | **G0** | This guideline in `CYVRA-Mobile/docs`. Repo private. Description fixed. | GitHub |
 | **G1** | Empty pipe: Pages `cyvra-mobile`, Worker `cyvra-mobile-api`, Hyperdrive → Neon `floral-art-02749206`, Resend domain verified | CF + Neon + Resend |
 | **G2** | Drizzle schema: users, OTP challenges, sessions. Worker health + `POST /auth/request` + `POST /auth/verify` | Worker + Neon + Resend |
-| **G3** | `apps/web` registration / sign-in on Pages preview, then custom domain `mobile.cyvra.co.in`. Honest empty home: Samsung in development, no fake grades. Registration collects name + pincode (mandatory), company, two-line address, state, email (OTP). | Pages |
+| **G3** | `apps/web` registration / sign-in on Pages preview, then custom domain. Honest empty home. Name + pincode mandatory. **Cutover host:** `www.cyvoriq.co.in`. Preview host `mobile.cyvra.co.in` kept until proven. | Pages |
 | **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` (no pretty marketing) | GitHub |
 | **G5** | S1 Android on **one** owned Samsung: profile, core tests, offline store, upload to Worker | App + API + Neon |
 | **G6** | Render Report 1 (LIMITED/withheld where due) from frozen manifest | API + web |
-| **G7** | CYVRA Mobile section inside existing `admin.cyvra.co.in` and `accounts.cyvra.co.in` — same Windows login, button opens mobile ops (serial issue/approval). Super admin `ceo@cyvoriq.com`. Not a new admin host. | Existing admin Pages + mobile Worker/Neon |
-| **G8** | Allowed `cyvra-www` tab → `mobile.cyvra.co.in` | Erase website only |
+| **G7** | Ops on **`admin.cyvoriq.co.in` / `accounts.cyvoriq.co.in`** (new Pages in this repo). Serial issue/approval via `cyvra-mobile-api` + Neon. Super admin `ceo@cyvoriq.com`. **Not** Erase admin. | New Pages + mobile Worker/Neon |
+| **G8** | Public `www.cyvoriq.co.in` (new Pages, CYVORIQ logo). **Not** a tab on `www.cyvra.co.in`. Erase www stays frozen. | Pages `cyvoriq-www` |
 | **G9** | Decision 5.1.20.2 then Station + optional S2 ADB | Later |
 | **G10** | S3 only with real enterprise/OEM path | Later |
 
@@ -411,7 +414,7 @@ Worker / Hyperdrive:
 HYPERDRIVE          # binding, not a pasted password in source
 RESEND_API_KEY
 SESSION_SECRET
-APP_ORIGIN=https://mobile.cyvra.co.in
+APP_ORIGIN=https://www.cyvoriq.co.in
 ```
 
 Local `.env` (gitignored):

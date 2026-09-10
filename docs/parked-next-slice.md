@@ -1,20 +1,19 @@
 # Resume notes (after 9 Sep 2026 break)
 
-Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
-freeze plan: CYVRA Mobile ops is a **section** of existing
-`admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
+Governing law: [GUIDELINE.md](./GUIDELINE.md). Decision 10 Sep 2026: Mobile
+ops and public site move to **`cyvoriq.co.in`**, not a section of Erase
+`admin.cyvra.co.in`. Resume: [resume-after-break.md](./resume-after-break.md).
 
-**Save point (9 Sep 2026):** G0–G3 pipe is live on Pages preview. Main coding
-does **not** start until the freeze audit is approved:
-[freeze-audit.md](./freeze-audit.md). First coding slice after approval is **G4**
-(`packages/evidence` JSON Schema + capability contract). Dashboard DNS
-(`mobile.cyvra.co.in`) remains a human click-path, not that coding slice.
+**Save point (10 Sep 2026, break):** Zone `cyvoriq.co.in` is on Cloudflare
+(`guy` / `sloan.ns.cloudflare.com`). `cyvra.co.in` NS unchanged. Apex has no
+A/MX yet. Resume: [resume-after-break.md](./resume-after-break.md).
+Cutover: [cyvoriq-co-in-cutover.txt](./cyvoriq-co-in-cutover.txt).
 
 ## Live G0–G3
 
 | Piece | Value |
 |---|---|
-| Pages | https://cyvra-mobile.pages.dev |
+| Pages | https://cyvra-mobile.pages.dev and https://mobile.cyvra.co.in/ |
 | Worker | https://cyvra-mobile-api.mukpswar.workers.dev |
 | Hyperdrive | `cyvra-mobile-neon` → `db31fc8dafca49b29172da7046b97175` |
 | Neon | `floral-art-02749206` |
@@ -34,10 +33,12 @@ OTP: [www-mobile-button.md](./www-mobile-button.md).
 
 ## Serial keys / admin UI
 
-Tracked in [admin-mobile-section.md](./admin-mobile-section.md). Not built in
-the Erase admin frontend yet. Payment-then-issue still pending.
+This repo: [g7-freeze.md](./g7-freeze.md), `POST /admin/serials`.
+Erase `admin-frontend` button is not built. Payment stays a human note.
 
 ## Codespaces leftover
 
-`curl 127.0.0.1:8787/health` fails until `pnpm --filter @cyvra/api dev` is
-running. Pull this branch first. See [codespaces-pages.md](./codespaces-pages.md).
+`curl 127.0.0.1:8787/health` fails until local wrangler is running.
+Use `bash scripts/run-local-evidence.sh` (starts Postgres + wrangler) or
+`pnpm --filter @cyvra/api dev` after `bash scripts/start.sh`.
+See [codespaces-g5.md](./codespaces-g5.md).

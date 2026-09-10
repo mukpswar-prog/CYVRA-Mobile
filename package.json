@@ -15,8 +15,14 @@
     "dev:web": "pnpm --filter @cyvra/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
+    "test:evidence": "pnpm --filter @cyvra/evidence test",
     "db:generate": "pnpm --filter @cyvra/database generate",
     "db:migrate": "pnpm --filter @cyvra/database migrate",
-    "test:local-auth": "bash scripts/test-local-auth.sh"
+    "db:migrate:neon": "bash scripts/migrate-neon.sh",
+    "deploy:api-preview": "bash scripts/deploy-api-preview.sh",
+    "test:local-auth": "bash scripts/test-local-auth.sh",
+    "test:local-evidence": "bash scripts/run-local-evidence.sh",
+    "test:local-report": "bash scripts/run-local-report.sh",
+    "test:local-admin-serials": "bash scripts/run-local-admin-serials.sh"
   }
 }

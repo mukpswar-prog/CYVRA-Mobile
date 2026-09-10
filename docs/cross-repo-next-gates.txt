@@ -1,0 +1,288 @@
+CYVRA — CROSS-REPO NEXT GATES (PLAN ONLY)
+Date: 10 September 2026
+Status: BUILD/TEST APPROVED 10 Sep 2026. Live www/admin/accounts wait for
+docs/pre-live-runbook.txt section 6. Station/Knox remain prep-only.
+Governing law: GUIDELINE.md
+This file: one plan so we do not work in silos.
+
+================================================================================
+0. WHAT IS ALREADY TRUE (do not redo)
+================================================================================
+
+CYVRA-Mobile repo (this product)
+  - Customer web: https://mobile.cyvra.co.in  and  https://cyvra-mobile.pages.dev
+  - Worker:       https://cyvra-mobile-api.mukpswar.workers.dev
+  - Neon:         floral-art-02749206  (users, evidence, reports, mobile_serials schema in Git)
+  - G6 Report 1:  live on Worker preview (version 38ef01e5-8400-4452-87d1-e1e576e2e27a)
+  - G7 API:       /admin/serials in this branch (local). Neon 0004 + ADMIN_API_TOKEN secret not live yet.
+
+Windows Erase (different product, different GitHub, frozen except thin allowed patches)
+  - Public site:  https://www.cyvra.co.in          Pages project cyvra-www
+  - Public API:   https://api.cyvra.co.in          Worker cyvoriq-erase-api
+  - Ops:          https://admin.cyvra.co.in
+  - Accounts:     https://accounts.cyvra.co.in
+  - Cookie:       cyvoriq_admin_session   (NEVER copy this onto cyvra-mobile-api)
+  - GitHub:       mukpswar-prog/Erase   (or the private Erase repo that owns those Pages)
+                  This Codespaces token can only see CYVRA-Mobile. You open Erase locally.
+
+Same Cloudflare account: 5a3eeb2b3d42726a8ba08732464a0eda
+Same Resend domain:      cyvra.co.in (Verified)
+NOT the same Worker, cookie, Neon, or licence tables.
+
+================================================================================
+1. THREE DIFFERENT "MOBILE" BUTTONS — DO NOT MIX
+================================================================================
+
+There is no single "insert Mobile on cyvra.co.in". Three hosts, three jobs.
+
+  A. www.cyvra.co.in          PUBLIC marketing / Windows Get Started
+     Gate: G8 (LAST)
+     Button: "CYVRA Mobile" is a LINK to https://mobile.cyvra.co.in
+     Effect: a visitor leaves Windows and opens the mobile product.
+     Must NOT: OTP form, api.cyvra.co.in, download, Journey B, wipe claims.
+
+  B. admin.cyvra.co.in        OPS (issue / approve serials)
+     Gate: G7 UI (Erase admin-frontend)
+     Button: "CYVRA Mobile" opens a SECTION of the SAME admin app
+     Effect: ceo@cyvoriq.com (same Windows login) lists / creates / issues / revokes
+             mobile serials stored in Neon floral-art-02749206 via cyvra-mobile-api.
+     Must NOT: new admin host, copy Windows licence tables, customer OTP.
+
+  C. accounts.cyvra.co.in     ACCOUNTS (same login family as admin)
+     Gate: G7 UI (same Erase admin/accounts frontend pattern)
+     Button: same section pattern as admin
+     Effect: accounts staff see the same mobile serial SoT (mobile Neon).
+     Must NOT: a second accounts product or a second database.
+
+Footer "Mobile: +91 …" on www is a PHONE NUMBER. Do not reuse that word for the product button.
+
+================================================================================
+2. DEPENDENCY ORDER (locked)
+================================================================================
+
+  1. CYVRA-Mobile G7 API local          DONE in this branch
+  2. Neon 0004 (mobile_serials)         YOU — migrate-neon.sh
+  3. Worker secret ADMIN_API_TOKEN      YOU — wrangler secret put (not the deploy token)
+  4. Redeploy cyvra-mobile-api preview  YOU — deploy-api-preview.sh
+  5. Erase G7 UI on admin + accounts    ERASE REPO — after 2–4
+  6. Real OTP email trusted             DASHBOARD — keep API_ENV=preview until then
+  7. G8 www nav link                    ERASE REPO — LAST public change
+  8. G9 Station                         BLOCKED until Decision 5.1.20.2
+  9. G10 Knox / UEM                     BLOCKED until S1 device reports + real contract
+
+Do not skip to www (7) to "look finished". Do not start Station (8) or Knox (9) from this plan.
+
+================================================================================
+3. G7 — DETAILED STEPS (this repo first, then Erase)
+================================================================================
+
+3.1 Already in CYVRA-Mobile (do not rebuild)
+
+  Tables:  mobile_serials
+  Routes:  GET  /admin/serials
+           POST /admin/serials                 -> PENDING  (needs paymentNoted)
+           POST /admin/serials/:id/issue       -> ISSUED   (replay keeps issuedAt)
+           POST /admin/serials/:id/revoke      -> REVOKED
+  Auth:    Authorization: Bearer <ADMIN_API_TOKEN>
+           X-Admin-Email: ceo@cyvoriq.com
+  Numbers: CYVRA-M-<YEAR>-<UNIQUE>
+  CORS:    already allowlists admin.cyvra.co.in and accounts.cyvra.co.in
+
+  Effect: ops can store mobile serials without touching Windows licences.
+          Customers on mobile.cyvra.co.in do not see this UI.
+
+3.2 You — make the API live (CYVRA-Mobile Codespaces)
+
+  Step 1  git pull --rebase origin cursor/g0-g3-mobile-slice-7474
+  Step 2  bash scripts/run-local-admin-serials.sh
+          Expect 401 without token (NOT 503). Create PENDING, issue, replay, revoke.
+  Step 3  bash scripts/migrate-neon.sh
+          Neon SQL Editor must show table mobile_serials.
+          Leave books_to_read. Do not drop it.
+  Step 4  Create a NEW secret named ADMIN_API_TOKEN (long random).
+          This is NOT the Cloudflare deploy token (cyvra-mobile).
+          Do not paste it into chat. Do not put it in Git.
+          In Codespaces (after deploy token is already in the shell, use a second secret):
+            pnpm --filter @cyvra/api exec wrangler secret put ADMIN_API_TOKEN
+          Paste once at the wrangler prompt.
+  Step 5  bash scripts/deploy-api-preview.sh
+          Keep API_ENV=preview. Confirm /health still ok / preview / connected.
+  Step 6  Unauth POST https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials
+          Expect 401 Admin token required (secret is loaded).
+
+  Effect: live Worker can issue CYVRA-M serials. No public button yet.
+
+3.3 Erase repo — admin.cyvra.co.in  (after 3.2)
+
+  You must open mukpswar-prog/Erase (or whichever private repo builds
+  admin.cyvra.co.in). Do NOT add folders to Erase from CYVRA-Mobile.
+  Do NOT clone Erase into this repo.
+
+  Step 1  Confirm which Pages project serves admin.cyvra.co.in
+          (existing admin Pages — not a new project).
+  Step 2  Find the existing nav (Windows serial / licence section).
+  Step 3  Add one nav item: label "CYVRA Mobile".
+          Same login. Same cyvoriq_admin_session. Super admin ceo@cyvoriq.com.
+  Step 4  New VIEW only (not a new host):
+            list serials
+            form: customer email + paymentNoted (human text)
+            buttons: Issue, Revoke
+          Display publicNumber, status, issuedAt. No invented grades.
+  Step 5  That view calls ONLY
+            https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials
+          Headers:
+            Authorization: Bearer <ADMIN_API_TOKEN stored as admin Pages/Worker secret>
+            X-Admin-Email: <logged-in admin email>
+            Origin: https://admin.cyvra.co.in
+          Do NOT send the Windows cookie to the mobile Worker.
+          Do NOT call api.cyvra.co.in for mobile serials.
+          Do NOT copy Windows licence tables into Neon.
+  Step 6  Gate the section: if email is not ceo@cyvoriq.com (or a list that
+          person approved), hide the section. Mobile Worker also rejects
+          the wrong X-Admin-Email.
+  Step 7  Preview on the EXISTING admin Pages preview. Click path:
+          sign in as Windows admin -> CYVRA Mobile -> create PENDING -> Issue.
+  Step 8  Production admin only after preview is honest.
+
+  Effect: ops issue mobile keys from the place they already work.
+          Windows Erase licences stay in the Erase database.
+          A leaked ADMIN_API_TOKEN is powerful — treat it like a password.
+
+3.4 Erase repo — accounts.cyvra.co.in  (same G7, same SoT)
+
+  Step 1  Confirm accounts is the same frontend family (or a thin twin).
+  Step 2  Add the SAME "CYVRA Mobile" section (reuse the view).
+  Step 3  Same API, same Neon rows, same token, Origin https://accounts.cyvra.co.in
+          CORS already allowlists this host.
+  Step 4  Do not build a second serial table.
+
+  Effect: accounts and admin see one list. No split-brain.
+
+3.5 What G7 does NOT do
+
+  - Payment gateway (Razorpay etc.) — paymentNoted is a human attestation
+  - Customer "I have a serial" redeem screen (later)
+  - Merging Windows and mobile logins
+  - www.cyvra.co.in (that is G8)
+  - Station or Knox
+
+================================================================================
+4. G8 — www.cyvra.co.in  (LAST, Erase website only)
+================================================================================
+
+  When: AFTER a real mobile OTP email is trusted, and mobile.cyvra.co.in
+        registration works. Guideline §7 / G8.
+
+  Where: Erase repo, Pages project cyvra-www ONLY.
+         Live bundle today talks to api.cyvra.co.in. Leave that path alone.
+
+  Steps:
+  1. Open the Erase website nav / hero (Windows Get Started stays).
+  2. Add three equal journeys: Windows | Mobile | Tablet
+  3. Windows  = current page / current OTP / current download. ZERO logic change.
+  4. Mobile   = <a href="https://mobile.cyvra.co.in">  (navigate, not a modal)
+  5. Tablet   = <a href="https://mobile.cyvra.co.in?device=tablet">
+  6. One line: Samsung-compatible, in development.
+     Forbidden copy: Knox, IMEI, SOH, certified perfect, sanitization done.
+  7. Do not add an OTP field on www for mobile.
+  8. Do not point www at cyvra-mobile-api (browser must not hold admin/db secrets).
+  9. Preview cyvra-www. Click Mobile. Land on mobile.cyvra.co.in.
+     Click Windows Get Started. Same Erase OTP as today.
+  10. Ship last.
+
+  Effect: the public site tells one CYVRA story with TWO origins.
+          Windows customers are unaffected.
+          Mobile customers never hit api.cyvra.co.in.
+
+  Do this LAST so we do not advertise a product whose OTP/email is still preview-only.
+
+================================================================================
+5. G9 — CYVRA STATION (audit — blocked)
+================================================================================
+
+  What it is: Windows bench (S2). USB / local pair + allowlisted ADB.
+  Guideline: Decision 5.1.20.2 is NOT approved. Do not start apps/station.
+
+  Dependencies that are NOT ready:
+    - 5.1.20.2 written decision (stack: WinUI / WPF / other)
+    - S1 on a real Samsung (device rows still queued-no-device)
+    - Pair protocol (QR / short code, no EXECUTE_COMMAND)
+    - Authorized ADB registry (read-only first)
+    - Separate sanitization authorization (Report 1 is not wipe)
+
+  Where it will live WHEN approved: CYVRA-Mobile / apps/station
+  (Guideline forbids putting Station folders in Erase.)
+
+  What we do NOW: nothing. No USB command channel. No ADB console.
+  Effect of starting early: compliance risk (lock/FRP/root/arbitrary shell).
+
+  Later first steps (only after 5.1.20.2):
+    1. Write Station freeze (pair session, allowlist, audit log).
+    2. Scaffold apps/station in CYVRA-Mobile.
+    3. Pair to S1 app. Record S2_* evidence. Do not overwrite S1 raw rows.
+    4. No wipe from Station until a later sanitization gate.
+
+================================================================================
+6. G10 — KNOX / UEM / OEM (audit — blocked)
+================================================================================
+
+  What it is: S3 enterprise. Knox attestation, UEM, OEM authority.
+  Guideline: forbidden until S1 reports exist AND a real contract path exists.
+
+  Dependencies that are NOT ready:
+    - Samsung device S1 reports (not just local fixtures)
+    - Commercial / OEM contract
+    - S3 source labels in ingest (Worker today accepts S1_APPLICATION only)
+
+  Where it will live WHEN approved: still CYVRA-Mobile evidence + Worker,
+  never claimed from the S1 APK alone. Not Erase. Not www.
+
+  What we do NOW: nothing. S1 honesty already rejects IMEI / SOH / Knox PASS.
+  Effect of starting early: we would invent OEM authority we do not have.
+
+================================================================================
+7. EFFECT TABLE (what the customer / ops person sees)
+================================================================================
+
+  Action                              Who sees it                         Risk if we skip the rule
+  ----------------------------------  ----------------------------------  --------------------------------
+  Neon 0004 + secret + redeploy       nobody yet (API only)               /admin/serials 503 in production
+  Admin CYVRA Mobile section          ceo@ / approved ops                 Windows cookie on mobile API
+  Accounts same section               accounts staff                      second serial database
+  www Mobile link                     public                              OTP merge with Erase
+  www Tablet link                     public                              fake "tablet product"
+  Station                             technicians                         unauthorized ADB / wipe
+  Knox                                enterprise buyers                   fake Samsung authority
+
+================================================================================
+8. WHAT YOU DO vs WHAT THIS AGENT DOES
+================================================================================
+
+  YOU (human / Erase repo / dashboards)
+    - Open Erase GitHub when we approve G7 UI
+    - Neon 0004 + ADMIN_API_TOKEN secret + preview deploy
+    - Click admin / accounts / www in a browser
+    - Decision 5.1.20.2 before Station
+    - Knox contract before S3
+
+  THIS AGENT (CYVRA-Mobile only, until you say otherwise)
+    - Keep serial API + tests here
+    - Fix local wrangler 503 (token reload)
+    - Write this plan
+    - NOT patch Erase, cyvra-www, cyvoriq-erase-api
+    - NOT start apps/station or Knox
+
+================================================================================
+9. JOINT FREEZE (reply in chat to tick)
+================================================================================
+
+  [ ] F1. Accept this file as the cross-repo map. Do not mix www / admin / accounts buttons.
+  [ ] F2. Next coding after local G7 is green: Neon 0004 + ADMIN_API_TOKEN + preview deploy
+          (still CYVRA-Mobile). Then stop and open Erase for the admin button only.
+  [ ] F3. G7 Erase UI is a thin section on existing admin + accounts. Same login.
+          Calls cyvra-mobile-api. No new host. No Windows licence copy.
+  [ ] F4. G8 www is LAST and is a link only. No OTP on www.
+  [ ] F5. G9 Station and G10 Knox stay blocked. No silo work on those.
+
+Until F1–F5 are ticked, we do not open Erase and we do not start www / Station / Knox.
+Local G7 503 restart is a bugfix in this repo and does not wait for F1–F5.

@@ -1,13 +1,23 @@
-# Freeze audit + main-coding plan (awaiting approval)
+# Freeze audit + main-coding plan
 
-**Status:** SAVE POINT. Do **not** freeze-and-code until this file is approved.  
-**Date:** 9 September 2026  
+**Status:** APPROVED 9 Sep 2026. G4–G6 preview live. Neon `0003` applied 10 Sep 2026. Worker version `38ef01e5-8400-4452-87d1-e1e576e2e27a`, `API_ENV=preview`. Device/APK still queued.  
 **Governing law:** [GUIDELINE.md](../GUIDELINE.md) (also [docs/GUIDELINE.md](./GUIDELINE.md)).  
 **Branch:** `cursor/g0-g3-mobile-slice-7474`
 
-This document is the break save. It restudies the freeze rules, audits what is
-live versus G0–G10, and proposes the first main-coding slices. **No G4+ code
-starts until you say go.**
+## Approvals (9 Sep 2026)
+
+| Item | Decision |
+|---|---|
+| **A** | G0–G3 save accepted. **Change:** `https://mobile.cyvra.co.in/` is live (HTTP 200). `api-mobile.cyvra.co.in` is still NXDOMAIN. Keep `API_ENV=preview`. |
+| **B** | First coding is **G4** in `packages/evidence`. No Android in this slice. |
+| **C** | Skip Neon evidence tables until G5. |
+| **D** | `PERMISSION_DENIED` is a first-class non-failure. |
+| **E** | Do not start G7/G8/G9/G10, www rewrite, or Erase admin in this repo. |
+| Device | No Samsung in hand. Research public docs, write software, test on device last. Keep a text test pool in GitHub. |
+| G0 | GitHub description still needs a human click (`gh` is read-only): [g0-github-description.md](./g0-github-description.md). |
+| G5–G6 | Approved to follow G4. Test procedures queued in [testing/pool.md](./testing/pool.md). |
+
+G4 package: [packages/evidence](../packages/evidence). Research: [research/samsung-s1-sources.md](./research/samsung-s1-sources.md).
 
 ---
 
@@ -18,8 +28,8 @@ Three different freezes. They are not the same action.
 | Freeze | Meaning | When |
 |---|---|---|
 | **Erase freeze** | Do not rebuild Windows Erase, `cyvra-www`, `cyvoriq-erase-api`, Knox, Station, or Approvals. | Always |
-| **G0–G3 save** | Lock the current pipe (Pages + Worker + Neon auth) as the baseline. Resume dashboard DNS later. | Now |
-| **Main-coding freeze** | After approval, lock the evidence contract (G4) **before** Android / Report PDF / admin / www. | After you approve §7 |
+| **G0–G3 save** | Lock the current pipe (Pages + Worker + Neon auth) as the baseline. Custom domain `mobile.cyvra.co.in` is live; Worker API host still `workers.dev`. | Saved |
+| **Main-coding freeze** | Lock the evidence contract (G4) **before** Android / Report PDF / admin / www. | In progress |
 
 Guideline §9 and §5 are the compliance freeze. Software must not offer lock/FRP
 bypass, root, unrestricted ADB, or invented grades.
@@ -51,31 +61,30 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 
 | Gate | Guideline deliverable | Audit |
 |---|---|---|
-| **G0** | Guideline in `docs/`. Repo private. GitHub description fixed. | Guideline is in repo root and `docs/`. Repo is private. Description is still `Mobile hardware scanner & reporting` (`gh` is read-only here). |
+| **G0** | Guideline in `docs/`. Repo private. GitHub description fixed. | Guideline is in repo root and `docs/`. Repo is private. Description is still the old one-liner — human click: [g0-github-description.md](./g0-github-description.md). |
 | **G1** | Pages `cyvra-mobile`, Worker `cyvra-mobile-api`, Hyperdrive `cyvra-mobile-neon` → Neon, Resend verified | **Live.** Pages, Worker, Hyperdrive id `db31fc8dafca49b29172da7046b97175`, Neon `floral-art-02749206`. Resend `cyvra.co.in` Verified. Pages Git **not** connected (API `8000069`). Hyperdrive origin still uses Neon `-pooler` (works; Workers guide prefers **direct**). |
-| **G2** | `users` / `email_otp_challenges` / `sessions`. `/health`, `POST /auth/request`, `POST /auth/verify` | **Live.** Neon tables exist. Worker `/health` = `status=ok`, `env=preview`, `database=connected`. Preview may still return `devCode` until `API_ENV=production`. Full guideline tables (`device_lifecycles`, `evidence_records`, …) are **not** created yet — by design. |
-| **G3** | Registration on Pages preview, then `mobile.cyvra.co.in`. Honest empty home. Name + pincode mandatory. | **Preview live.** Signed-in on `https://cyvra-mobile.pages.dev`. Custom domain **DNS not created**. Copy says logins are separate from Windows. No fake grades. |
-| **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` | **Not started.** Package is enums only (`PASS`/`FAIL`/…, sources, coverage). No JSON Schema, no test catalog, no digest, no profile snapshot. |
-| **G5** | S1 Android on **one** owned Samsung | **Not started.** No `apps/android`. |
-| **G6** | Render Report 1 from a frozen manifest | **Not started.** No report engine, no PDF, no manifest freeze. |
-| **G7** | Mobile section on existing admin/accounts | **Spec only** (`docs/admin-mobile-section.md`). Erase `admin-frontend` is another repo. CORS already allowlists those hosts. |
-| **G8** | Thin `cyvra-www` tab → `mobile.cyvra.co.in` | **Plan only** (`docs/www-mobile-button.md`). **Last.** Do not do this before custom domains exist. |
+| **G2** | `users` / `email_otp_challenges` / `sessions`. `/health`, `POST /auth/request`, `POST /auth/verify` | **Live.** Neon auth tables exist. Worker `/health` = `status=ok`, `env=preview`, `database=connected`. Preview may still return `devCode` until `API_ENV=production`. |
+| **G3** | Registration on Pages preview, then `mobile.cyvra.co.in`. Honest empty home. Name + pincode mandatory. | **Custom domain live.** `https://mobile.cyvra.co.in/` HTTP 200 (same bundle as pages.dev). Worker still `*.workers.dev`. `api-mobile.cyvra.co.in` NXDOMAIN. |
+| **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` | **This slice.** Schemas + S1 catalog + digest + `PERMISSION_DENIED`. |
+| **G5** | S1 Android on **one** owned Samsung | **Core + ingest live.** JVM `:core` in `apps/android`. Worker `POST /evidence/batches` + `GET /evidence/records`. Neon has evidence tables (`0002_sturdy_salo`, 10 Sep 2026). `/health` `database=connected`. APK/device tests queued. |
+| **G6** | Render Report 1 from a frozen manifest | **Live on preview.** `POST /reports/freeze` + signed-in HTML print view. Neon `0003` applied. Worker `/health` `ok` / `preview` / `connected`. Pages UI waits for a rebuild from this branch. |
+| **G7** | Ops on admin.cyvoriq.co.in / accounts.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages in this repo. Not Erase admin. Same Neon. |
+| **G8** | Public www.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages. Not a tab on www.cyvra.co.in. |
 | **G9** | Decision 5.1.20.2 then Station | **Forbidden until decision.** No `apps/station`. |
 | **G10** | S3 Knox / UEM | **Forbidden until S1 reports + real contract.** |
 
 ### Code vs guideline gaps (not bugs)
 
-- `packages/evidence` stub omits `PERMISSION_DENIED` as a result, while §5 lists it as not-FAIL. G4 must resolve: result enum vs limitation code.
-- Schema has auth tables only. Guideline §6.3 lists organizations, device lifecycles, evidence, reports, sanitization events. Those belong with G4 types then G5 ingest — not all at once.
-- README still says Resend is pending / `devCode`. Resend domain is Verified; Worker has `RESEND_API_KEY`. `API_ENV` is still `preview`.
-- GitHub description not updated (G0 leftover).
-- Neon password was pasted in an earlier chat; rotation may still be pending (dashboard, not this repo).
+- Neon evidence tables applied 10 Sep 2026 (`0002_sturdy_salo`). Live `/health` is `database=connected`.
+- GitHub description not updated (G0 leftover; `gh` is read-only).
+- Neon password rotation may still be pending (dashboard, not this repo).
+- `APP_ORIGIN` is still `https://cyvra-mobile.pages.dev`. CORS already allowlists `mobile.cyvra.co.in`.
 
 ### Bound live IDs (no secrets)
 
 | Resource | Value |
 |---|---|
-| Pages | `cyvra-mobile` → `https://cyvra-mobile.pages.dev` |
+| Pages | `cyvra-mobile` → `https://cyvra-mobile.pages.dev` and `https://mobile.cyvra.co.in/` |
 | Worker | `cyvra-mobile-api` → `https://cyvra-mobile-api.mukpswar.workers.dev` |
 | Hyperdrive | `cyvra-mobile-neon` → `db31fc8dafca49b29172da7046b97175` |
 | Neon | `floral-art-02749206` / `neondb` / `neondb_owner` |
@@ -84,18 +93,18 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 
 ---
 
-## 4. Dashboard leftover (human clicks, not main coding)
+## 4. Dashboard leftover (human clicks, not G4)
 
-Resume this **when you are back**, still before or in parallel with G4. Order:
+`mobile.cyvra.co.in` is **done**. Remaining:
 
-1. Pages project **`cyvra-mobile` only** → Custom domains → `mobile.cyvra.co.in`. Do **not** add that name on the Worker.
-2. Worker `cyvra-mobile-api` → Custom domain `api-mobile.cyvra.co.in`.
-3. Pages `VITE_API_URL=https://api-mobile.cyvra.co.in` and **rebuild** (Vite bakes at build).
-4. Keep `API_ENV=preview` until a real OTP email arrives with no `devCode` needed.
-5. Then `API_ENV=production` and `APP_ORIGIN=https://mobile.cyvra.co.in`. Production never returns `devCode`.
-6. Connect Pages Git in the dashboard (`8000069` blocks API attach).
-7. Optional: Hyperdrive origin host **without** `-pooler`. Rotate leaked Neon password, then confirm `/health` is still `database=connected`.
-8. **Last (G8):** thin www nav Windows \| Mobile \| Tablet **links**. Erase repo, not this one.
+1. Worker `cyvra-mobile-api` → Custom domain `api-mobile.cyvra.co.in`.
+2. Pages `VITE_API_URL=https://api-mobile.cyvra.co.in` and **rebuild**.
+3. Keep `API_ENV=preview` until a real OTP email arrives.
+4. Then `API_ENV=production` and `APP_ORIGIN=https://mobile.cyvra.co.in`. Production never returns `devCode`.
+5. Connect Pages Git (`8000069`).
+6. Optional: Hyperdrive origin without `-pooler`; rotate leaked Neon password.
+7. GitHub description (G0): [g0-github-description.md](./g0-github-description.md).
+8. **Last (G8):** www nav links. Erase repo.
 
 Click-paths: [dashboard-configure.md](./dashboard-configure.md), [neon-cloudflare.md](./neon-cloudflare.md).
 
@@ -183,10 +192,10 @@ Station after 5.1.20.2. Knox after S1 reports + a real enterprise path.
 
 Reply with go / change, then we freeze G4 and start coding **only** that slice.
 
-- [ ] **A.** G0–G3 save is accepted. Dashboard DNS stays paused until you return to it.
-- [ ] **B.** First coding slice is **G4** in `packages/evidence` (schema + contract + S1 test catalog + digest + tests). No Android in that slice.
-- [ ] **C.** Skip Neon evidence tables until G5 (**recommended**) — or do G4.5 tables immediately after G4.
-- [ ] **D.** `PERMISSION_DENIED` is a first-class non-failure (limitation or result — decide in G4, do not map to FAIL).
-- [ ] **E.** Do **not** start G7/G8/G9/G10, www rewrite, or Erase admin in this repo.
+- [x] **A.** G0–G3 save accepted. `mobile.cyvra.co.in` is live; `api-mobile` still paused.
+- [x] **B.** First coding slice is **G4** in `packages/evidence`. No Android in that slice.
+- [x] **C.** Skip Neon evidence tables until G5.
+- [x] **D.** `PERMISSION_DENIED` is a first-class non-failure.
+- [x] **E.** Do **not** start G7/G8/G9/G10, www rewrite, or Erase admin in this repo.
 
-Until those boxes are ticked in chat, this agent waits.
+Until those boxes are ticked in chat, this agent waits. **Ticked 9 Sep 2026.** G4 is the coding slice. G5 waits for a Samsung device for execution tests; procedures are already in the pool.

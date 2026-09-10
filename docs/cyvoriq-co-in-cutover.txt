@@ -1,0 +1,242 @@
+CYVORIQ / CYVRA MOBILE — DOMAIN CUTOVER MASTER PLAN
+Decision: D-2026-09-10-CYVORIQ-DOMAIN
+Status: ZONE ON CLOUDFLARE (NS guy/sloan). Phase B done. Next: Phase C (G7 live).
+        Do not delete old hosts.
+Date: 10 September 2026
+Governing file: GUIDELINE.md (amended by this decision)
+
+================================================================================
+0. THE DECISION
+================================================================================
+
+  CYVRA Mobile Evidence moves to its own domain family:
+
+      cyvoriq.co.in
+
+  Not a subdomain of cyvra.co.in.
+  No code changes in mukpswar-prog/Erase.
+  Windows Erase stays on cyvra.co.in (www, admin, accounts, api).
+  Same Cloudflare account. Same Neon. Same GitHub CYVRA-Mobile.
+  Same CYVORIQ Solutions logo.
+
+  "Entire new" means a new public origin and new ops hosts.
+  It does NOT mean a second Neon, a second GitHub, or deleting
+  mobile.cyvra.co.in on day one.
+
+================================================================================
+1. CAN WE ADD THIS DOMAIN ON THE SAME CLOUDFLARE ACCOUNT?
+================================================================================
+
+  YES. Account 5a3eeb2b3d42726a8ba08732464a0eda already has zone cyvra.co.in
+  (nameservers guy / sloan.ns.cloudflare.com). Cloudflare allows many zones
+  per account. Adding cyvoriq.co.in does not remove cyvra.co.in.
+
+  Today (checked 10 Sep 2026, after NS update):
+
+    cyvoriq.co.in NS  = guy.ns.cloudflare.com / sloan.ns.cloudflare.com
+    cyvoriq.co.in SOA = dns.cloudflare.com
+    cyvoriq.co.in A   = (none yet — parking IPs gone)
+    cyvoriq.co.in MX  = (none)
+    cyvoriq.co.in TXT = (none)
+    cyvra.co.in NS    = guy / sloan (UNCHANGED — Erase safe)
+
+  Zone is on Cloudflare. Apex has no address yet. That is expected until we
+  attach Pages. No MX found — if this domain must receive mail, add MX/TXT
+  in this zone before people send to it. Do not copy Erase mail records.
+
+  Human steps to add the zone (you, dashboard):
+
+    1. https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda/home
+    2. Add a site / Add a domain: cyvoriq.co.in
+       Plan: the same account plan you already use for cyvra.co.in.
+    3. Cloudflare will list existing DNS from GoDaddy (A parking, maybe MX).
+       Screenshot it. Do not delete MX/email records if this domain already
+       receives company mail.
+    4. Cloudflare shows two nameservers (will NOT be domaincontrol.com).
+    5. At GoDaddy (registrar for cyvoriq.co.in): change nameservers to
+       Cloudflare's pair. Do not change cyvra.co.in nameservers.
+    6. Wait until the zone is Active. Keep parking A records until we attach
+       Pages, or replace them when www is ready.
+
+  Effect of NS change:
+    - Cloudflare becomes DNS for cyvoriq.co.in only.
+    - cyvra.co.in and Erase are untouched.
+    - If cyvoriq.co.in currently has email at GoDaddy/Microsoft, copy those
+      MX/TXT records into the new Cloudflare zone BEFORE switching NS, or
+      mail breaks. Inventory first.
+
+================================================================================
+2. TARGET HOSTS (new) vs KEEP (old)
+================================================================================
+
+  NEW (cyvoriq.co.in) — all created as new CF resources, not Erase resources
+
+    www.cyvoriq.co.in          Public site + customer entry
+                               NEW Pages project  cyvoriq-www
+                               (or reuse Pages cyvra-mobile with this domain
+                               after a dedicated www later — see 3.1)
+
+    admin.cyvoriq.co.in        Ops (serials). NEW Pages  cyvoriq-admin
+    accounts.cyvoriq.co.in     Accounts. NEW Pages  cyvoriq-accounts
+                               (or one Pages project bound to both hostnames)
+
+    api.cyvoriq.co.in          Public API hostname
+                               Custom domain on EXISTING Worker cyvra-mobile-api
+                               (same Neon, same Hyperdrive, same routes)
+
+  KEEP until cutover is proven (do not delete)
+
+    mobile.cyvra.co.in
+    cyvra-mobile.pages.dev
+    cyvra-mobile-api.mukpswar.workers.dev
+    Neon floral-art-02749206
+    Hyperdrive cyvra-mobile-neon
+
+  NEVER TOUCH
+
+    www.cyvra.co.in
+    admin.cyvra.co.in
+    accounts.cyvra.co.in
+    api.cyvra.co.in
+    Pages cyvra-www
+    Worker cyvoriq-erase-api
+    mukpswar-prog/Erase
+    Erase Neon / Windows licence tables
+    cyvra-erase-* API tokens
+
+  Note: admin.cyvoriq.co.in and admin.cyvra.co.in can both exist. They are
+  different hostnames. That is the point of this decision.
+
+================================================================================
+3. "COMPLETE NEW API" — WHAT WE CREATE VS WHAT WE REUSE
+================================================================================
+
+  Recommended (migrate, do not duplicate):
+
+    Keep Worker name        cyvra-mobile-api
+    Keep Hyperdrive         cyvra-mobile-neon → floral-art-02749206
+    Keep secrets            RESEND_*, SESSION_SECRET, then ADMIN_API_TOKEN
+    Add custom domain       api.cyvoriq.co.in  (Worker custom domains)
+    CORS allowlist          www / admin / accounts .cyvoriq.co.in
+
+  Why not a second Worker on day one:
+    Two Workers = two Hyperdrive bindings, two secret sets, split /health,
+    split G6/G7 routes. High chance of writing evidence to the wrong place.
+    A new HOSTNAME is what customers and admin see. That is the "new API".
+
+  Optional later rename of the Worker is cosmetic. Not required for launch.
+
+  Do not point anything at api.cyvra.co.in.
+
+================================================================================
+4. SAME NEON — "TRANSFER" MEANS LINK, NOT COPY
+================================================================================
+
+  Project floral-art-02749206 stays the one SoT.
+  Do not create a second production Neon.
+  Do not dump/restore into a new project (that splits users and evidence).
+
+  "Link here" = api.cyvoriq.co.in → same Worker → same Hyperdrive → same DB.
+
+  Apply pending migrations on that same DB (0004 mobile_serials) before
+  admin.cyvoriq.co.in goes live.
+
+  Leave leftover books_to_read. Leave mobile.cyvra.co.in talking to the
+  same DB until we redirect it.
+
+================================================================================
+5. RESEND / EMAIL
+================================================================================
+
+  Today: domain cyvra.co.in is Verified. From:
+         CYVRA Mobile <noreply@cyvra.co.in>
+
+  For a clean cyvoriq.co.in product:
+    1. Resend → add domain cyvoriq.co.in
+    2. Add the SPF / DKIM / DMARC records in the NEW Cloudflare zone
+    3. When Verified, set Worker RESEND_FROM to
+         CYVRA Mobile <noreply@cyvoriq.co.in>
+    4. Keep API_ENV=preview until a real OTP arrives at a real inbox
+    5. Do not remove cyvra.co.in from Resend until after cutover
+
+  OTP from cyvra.co.in still works during migration. Do not break it.
+
+================================================================================
+6. GATES AFTER THIS DECISION
+================================================================================
+
+  G7  CHANGED. Not a section of admin.cyvra.co.in.
+      Build admin.cyvoriq.co.in + accounts.cyvoriq.co.in in CYVRA-Mobile.
+      Super admin still ceo@cyvoriq.com.
+      Serials still in this Neon via /admin/serials.
+
+  G8  CANCELLED as an Erase www patch.
+      Public story is www.cyvoriq.co.in (new Pages), not a tab on
+      www.cyvra.co.in. Windows site stays as it is.
+
+  G9 / G10  Unchanged (Station / Knox still later).
+
+  Old hosts: after www.cyvoriq.co.in is healthy, optional 301 from
+  mobile.cyvra.co.in → www.cyvoriq.co.in. Do that last. Do not 301 yet.
+
+================================================================================
+7. BUILD ORDER (DO NOT SKIP)
+================================================================================
+
+  Phase A — paper (this file + GUIDELINE amendment)          DONE
+  Phase B — add zone cyvoriq.co.in, switch NS, inventory MX  DONE 10 Sep 2026
+            Public DNS: Cloudflare NS, empty A/MX/TXT.
+            Dashboard: confirm Active when you return (NS already match).
+  Phase C — Neon 0004 + ADMIN_API_TOKEN + deploy G7 API      NEXT AFTER BREAK
+            still on workers.dev (prove 401 not 404)
+  Phase D — attach api.cyvoriq.co.in to cyvra-mobile-api
+  Phase E — apps in THIS repo:
+              www     (logo, honest home, register)
+              admin   (serials #ops promoted to a real host)
+              accounts (same serial SoT)
+            NEW Pages projects. CORS + APP_ORIGIN updated.
+  Phase F — Resend cyvoriq.co.in verified, OTP test
+  Phase G — keep mobile.cyvra.co.in up; announce new URL
+  Phase H — optional redirect old mobile host. Never delete Erase.
+
+  No Phase edits mukpswar-prog/Erase.
+
+================================================================================
+8. LOGO
+================================================================================
+
+  File: apps/web/public/brand/cyvoriq-logo.png
+  Use on www.cyvoriq.co.in, admin, accounts.
+  Do not put BidX or Erase download art here.
+
+================================================================================
+9. EFFECT / RISK
+================================================================================
+
+  Add zone only           DNS for cyvoriq.co.in moves to CF. Erase unchanged.
+  Wrong NS on cyvra.co.in WOULD break Erase. Do not change those NS.
+  Second Neon             Split brain. Forbidden.
+  Second Worker now       Duplicate secrets. Avoid.
+  Delete mobile.cyvra.co.in too soon
+                          Loses the working OTP/report preview. Forbidden
+                          until www.cyvoriq.co.in is proven.
+  Touch Erase admin       Contradicts this decision. Forbidden.
+
+================================================================================
+10. YOU vs AGENT
+================================================================================
+
+  You (dashboard) — already done this session
+    - Add site cyvoriq.co.in on the same account          DONE
+    - Change nameservers at registrar for cyvoriq.co.in   DONE
+    - Public MX/TXT: none found
+    After the break: confirm zone status is Active.
+    Do not change cyvra.co.in nameservers.
+
+  Agent (this repo)
+    - Master plan + GUIDELINE amendment + resume-after-break.md (saved)
+    - After the break: CORS, APP_ORIGIN, www/admin/accounts apps, Pages wiring
+    - First live move: Phase C (G7 on existing Worker), then Phase D
+    - Will not edit Erase, will not delete old CF resources
+
+  Handoff file: docs/resume-after-break.md

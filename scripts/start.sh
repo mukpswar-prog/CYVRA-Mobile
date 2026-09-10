@@ -20,6 +20,9 @@ pnpm --filter @cyvra/database migrate
 if [ ! -f services/api/.dev.vars ]; then
   cp services/api/.dev.vars.example services/api/.dev.vars
   echo "[start] created services/api/.dev.vars from example"
+elif ! grep -q '^ADMIN_API_TOKEN=' services/api/.dev.vars; then
+  echo 'ADMIN_API_TOKEN=local-admin-token-change-me' >> services/api/.dev.vars
+  echo "[start] appended local ADMIN_API_TOKEN to services/api/.dev.vars"
 fi
 if [ ! -f database/.env ]; then
   cp database/.env.example database/.env

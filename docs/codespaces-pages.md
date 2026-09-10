@@ -18,10 +18,12 @@ Never commit `.env`, `.dev.vars`, or connection strings.
 | Neon `floral-art-02749206` | Migrations from Codespaces (`pnpm db:migrate`) using **direct** URL |
 | Resend | Worker secret only; optional for preview OTP |
 
-## 1. In Codespaces — get the G0–G3 branch
+## 1. In Codespaces — switch off `main` first
 
-You opened Codespaces on **`main`**. The preview-ready web/API work is on
-`cursor/g0-g3-mobile-slice-7474` (PR #2). Pull it first:
+You opened Codespaces on **`main`**. All current work is on
+`cursor/g0-g3-mobile-slice-7474`. **Do this before any test:**
+
+Full copy-paste: [codespaces-g5.md](./codespaces-g5.md).
 
 ```bash
 cd /workspaces/CYVRA-Mobile
@@ -62,7 +64,8 @@ curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
 
 Expect `"database":"connected"`. That curl is a test, not a secret to save.
 
-Then local wrangler (uses local Postgres via `localConnectionString`):
+Then local wrangler (uses local Postgres via `localConnectionString`).
+Or one shot for G5 ingest: `bash scripts/run-local-evidence.sh`.
 
 ```bash
 export DATABASE_URL_DIRECT='…direct…'   # or rely on database/.env
