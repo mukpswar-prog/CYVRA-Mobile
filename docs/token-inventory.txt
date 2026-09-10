@@ -183,14 +183,36 @@ Never paste token values into chat or Git.
 
   Step 1  Create Token (user token, dashboard)
 
-          https://dash.cloudflare.com/profile/api-tokens
-          Create Token → Edit Cloudflare Workers (template)
-          Token name: cyvoriq-mobile
-          Account resources: Include → Mukpswar@gmail.com's Account
-          Zone resources: Include → cyvoriq.co.in only
-          Continue to summary → Create Token
-          Copy the value ONCE into a password manager.
-          Confirm the summary shows Workers Scripts Edit, not only Observability.
+          Easiest: Create Token → template **Edit Cloudflare Workers**,
+          then name it cyvoriq-mobile and set Zone resources to
+          cyvoriq.co.in only.
+
+          If you stay on Create Custom Token (current screen):
+
+          Token name: cyvoriq-mobile   (already filled — keep it)
+
+          Permissions — click + Add more until you have ALL of these
+          (the unfinished Zone | Select | Select… row is not enough):
+
+            Account → Workers Scripts     → Edit
+            Account → Account Settings    → Read
+            Account → Hyperdrive          → Edit
+            Zone    → Zone                → Read
+            Zone    → DNS                 → Edit
+            Zone    → Workers Routes      → Edit
+
+          Account Resources (appears after the Account rows):
+            Include → Specific account → Mukpswar@gmail.com's Account
+            Do not choose All accounts.
+
+          Zone Resources (already correct on your screenshot):
+            Include → Specific zone → cyvoriq.co.in
+            Do not add cyvra.co.in.
+
+          Client IP Address Filtering: leave empty (all addresses).
+
+          Continue to summary. You must see Workers Scripts Edit.
+          Create Token → copy once into the password manager.
 
   Step 2  ADMIN_API_TOKEN is NOT on that page.
           Invent a second long random string. Password manager name:
