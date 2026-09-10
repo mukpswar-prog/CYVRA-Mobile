@@ -462,6 +462,10 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
               (2) a NEW invented ADMIN_API_TOKEN. Not the same string.
            3. bash scripts/deploy-api-preview.sh   keep API_ENV=preview
            4. Prove: GET /admin/serials unauth → 401 (not 404/503/500)
+              DONE 10 Sep 2026. Worker version 00f142ba-d4a9-41e4-bdd0-2f3bc721ec8b
+              /health ok preview database=connected.
+              Immediate post-deploy curl was 404 (edge lag); recheck is 401
+              {"error":"Admin token required."}.
            Tick: "G7 401 on workers.dev".
 
   Phase 2  Code: separate origin policy  (agent, then you deploy)

@@ -92,8 +92,19 @@ bash scripts/deploy-api-preview.sh
 
 echo
 echo "[g7] prove live /admin/serials is 401 (not 404/503/500)"
-CODE="$(curl -sS -o /tmp/cyvra-g7-live.body -w "%{http_code}" --max-time 20 \
-  https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials || true)"
+echo "[g7] workers.dev can 404 for a few seconds after upload — retrying"
+CODE=""
+i=0
+while [ "$i" -lt 12 ]; do
+  CODE="$(curl -sS -o /tmp/cyvra-g7-live.body -w "%{http_code}" --max-time 20 \
+    https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials || true)"
+  echo "[g7] try $((i + 1))/12 HTTP $CODE"
+  if [ "$CODE" != "404" ]; then
+    break
+  fi
+  i=$((i + 1))
+  sleep 2
+done
 echo "[g7] HTTP $CODE"
 head -c 300 /tmp/cyvra-g7-live.body 2>/dev/null || true
 echo
