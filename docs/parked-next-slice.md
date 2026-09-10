@@ -4,9 +4,9 @@ Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
 freeze plan: CYVRA Mobile ops is a **section** of existing
 `admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
 
-**Save point (10 Sep 2026):** Live Neon evidence tables applied (`0002_sturdy_salo`).
-Worker `/health` is `status=ok`, `env=preview`, `database=connected`.
-Next coding when you say **go**: **G6 Report 1**. Optional leftovers below.
+**Save point (10 Sep 2026):** G6 Report 1 freeze is in this branch (local
+Postgres). Live Neon still needs migration `0003` (`reports`,
+`report_manifests`) before the Worker is redeployed. Do **not** start G7.
 
 ## Live G0–G3
 

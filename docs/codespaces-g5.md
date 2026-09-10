@@ -1,4 +1,4 @@
-# Codespaces — what you run (G4 + G5 core + ingest)
+# Codespaces — what you run (G4 + G5 core + ingest + G6 local freeze)
 
 You opened Codespaces on **`main`**. Work is on
 `cursor/g0-g3-mobile-slice-7474`. Switch first, then verify. Do **not** force-push.
@@ -26,7 +26,7 @@ pnpm --filter @cyvra/evidence test
 pnpm typecheck
 ```
 
-Expected: G4 + parse tests pass (19); typecheck clean.
+Expected: G4 + parse + G6 report tests pass; typecheck clean.
 
 ## 3. G5 Android **core** (no phone, no Android SDK)
 
@@ -81,9 +81,29 @@ pnpm db:migrate
 Do **not** deploy ingest routes to the live Worker until that Neon migrate
 succeeds. `/health` does not need the new tables; `POST /evidence/batches` does.
 
-**Paused 10 Sep 2026.** Neon evidence tables are on production. Worker `/health`
-is `database=connected`. Next coding when you say **go**: G6. See
-[resume-neon-migrate.md](./resume-neon-migrate.md) (historical steps).
+### 5.1 G6 Report 1 freeze (Codespaces)
+
+```bash
+cd /workspaces/CYVRA-Mobile
+git pull --rebase origin cursor/g0-g3-mobile-slice-7474
+bash scripts/run-local-report.sh
+```
+
+Expected: 401 without a session; withheld IMEI / camera / cellular ingest
+is 200; freeze is PARTIAL; replay keeps `frozenAt`; GET report has
+`Camera Check` + footer non-goals.
+
+Do **not** deploy report routes to the live Worker until Neon has `0003`
+(`reports`, `report_manifests`):
+
+```bash
+bash scripts/open-db-env.sh    # DATABASE_URL_DIRECT = Neon **direct** host
+bash scripts/migrate-neon.sh
+bash scripts/deploy-api-preview.sh   # needs CLOUDFLARE_API_TOKEN; keep API_ENV=preview
+```
+
+See [resume-neon-migrate.md](./resume-neon-migrate.md) (historical Neon steps).
+Do not start G7, www, Station, or Knox.
 
 ## 6. Live Neon migrate + Worker deploy (Codespaces)
 

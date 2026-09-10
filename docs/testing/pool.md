@@ -120,14 +120,19 @@ All G5 rows: status `queued-no-device`.
 
 ---
 
-## G6 — Report 1 (queued)
+## G6 — Report 1 (frozen manifest)
+
+Run units: `pnpm --filter @cyvra/evidence test`. Local freeze: `bash scripts/run-local-report.sh`.
 
 | ID | How | Expected | Status |
 |---|---|---|---|
-| T-G6-FREEZE | Freeze manifest after S1 session | `frozenAt` set; later edits do not rewrite it | `queued-no-device` |
-| T-G6-WITHHOLD | Session with denied camera + no telephony | Report shows LIMITED/NOT_SUPPORTED, no invented grade | `queued-no-device` |
-| T-G6-NAMES | PDF/web | User name + objective name per test (`Camera Check` / `Camera Functional Verification`) | `queued-no-device` |
-| T-G6-NONGOALS | Read report footer | No sanitization-done, OEM authority, ownership, warranty, “certified perfect” | `queued-no-device` |
+| T-G6-COVERAGE | Unit: missing catalog test / withheld / all PASS\|FAIL | PARTIAL / LIMITED / COMPLETE | `automated` |
+| T-G6-FREEZE | Codespaces: `bash scripts/run-local-report.sh` | `POST /reports/freeze` 200, `frozenAt` set; replay returns the same `frozenAt` | `automated` (local Postgres) |
+| T-G6-WITHHOLD | Same script: IMEI `NOT_AVAILABLE` + camera `PERMISSION_DENIED` + cellular `NOT_SUPPORTED` | Coverage PARTIAL (catalog incomplete). No invented PASS/FAIL | `automated` (local Postgres) |
+| T-G6-NAMES | GET `/reports/:id` | User name + objective name (`Camera Check` / `Camera Functional Verification`) | `automated` |
+| T-G6-NONGOALS | GET report footer | No sanitization-done, OEM authority, ownership, warranty, “certified perfect” | `automated` |
+| T-G6-NEON | `bash scripts/migrate-neon.sh` after `0003` exists | Tables `reports`, `report_manifests` on Neon. Do this **before** live Worker deploy | `queued-dashboard` |
+| T-G6-PRINT | Signed-in web → Freeze / View → Print / Save as PDF | HTML print view; PDF is a view, not a second SoT | `queued-dashboard` |
 
 ---
 

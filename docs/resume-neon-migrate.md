@@ -1,12 +1,9 @@
 # Resume here — live Neon evidence migrate (DONE 10 Sep 2026)
 
-**Completed.** Neon production has the five evidence tables. Worker `/health` is
-`database=connected`, `env=preview`. Do not repeat this playbook unless you
-are setting up a new Codespace `.env`.
-
-Historical steps remain below. Next coding when you say **go**: **G6 Report 1**.
-
-**Stop point (9 Sep 2026 evening).** Do not start G6, G7–G10, www, Station, or Knox.  
+**Completed for G5.** Neon production has the five evidence tables. Worker
+`/health` is `database=connected`, `env=preview`. G6 adds `0003` (`reports`,
+`report_manifests`) — run this playbook again **only** after `0003` is in Git
+and before live Worker deploy. Do not start G7–G10, www, Station, or Knox.  
 **Branch:** `cursor/g0-g3-mobile-slice-7474`  
 **Codespace path:** `/workspaces/CYVRA-Mobile`
 
