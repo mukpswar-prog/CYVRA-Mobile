@@ -1,7 +1,8 @@
 # G7 freeze — mobile serials in this repo
 
-Cross-repo map (admin / accounts / www / Station / Knox):
-[cross-repo-next-gates.txt](./cross-repo-next-gates.txt). Plan only until F1–F5.
+Build/test first, then live hosts: [pre-live-runbook.txt](./pre-live-runbook.txt).
+Map: [cross-repo-next-gates.txt](./cross-repo-next-gates.txt).
+Hidden browser bench: `/#ops` (not admin.cyvra.co.in).
 
 **Started 10 Sep 2026** after G6 preview went live.  
 **Governing law:** [GUIDELINE.md](../GUIDELINE.md). Hosts: [admin-mobile-section.md](./admin-mobile-section.md).

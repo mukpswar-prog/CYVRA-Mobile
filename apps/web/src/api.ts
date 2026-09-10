@@ -148,6 +148,97 @@ export interface ReportDetail {
   nongoals: string[];
 }
 
+const ADMIN_TOKEN_KEY = "cyvra_mobile_admin_token";
+const ADMIN_EMAIL_KEY = "cyvra_mobile_admin_email";
+
+export function readAdminToken(): string {
+  try {
+    return sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function writeAdminToken(token: string) {
+  try {
+    if (token) sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // ignore locked storage
+  }
+}
+
+export function readAdminEmail(): string {
+  try {
+    return sessionStorage.getItem(ADMIN_EMAIL_KEY) ?? "ceo@cyvoriq.com";
+  } catch {
+    return "ceo@cyvoriq.com";
+  }
+}
+
+export function writeAdminEmail(email: string) {
+  try {
+    sessionStorage.setItem(ADMIN_EMAIL_KEY, email);
+  } catch {
+    // ignore
+  }
+}
+
+async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = readAdminToken();
+  const email = readAdminEmail();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Admin-Email": email,
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    credentials: "include",
+    headers,
+  });
+  const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  }
+  return data as T;
+}
+
+export interface MobileSerial {
+  serialId: string;
+  publicNumber: string;
+  status: string;
+  customerEmail: string;
+  paymentNoted: string;
+  issuedBy: string;
+  issuedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string | null;
+}
+
+export const adminApi = {
+  listSerials: () =>
+    adminRequest<{ superAdmin: string; actor: string; serials: MobileSerial[] }>(
+      "/admin/serials",
+    ),
+  createSerial: (customerEmail: string, paymentNoted: string) =>
+    adminRequest<{ serial: MobileSerial }>("/admin/serials", {
+      method: "POST",
+      body: JSON.stringify({ customerEmail, paymentNoted }),
+    }),
+  issueSerial: (serialId: string) =>
+    adminRequest<{ serial: MobileSerial; replayed: boolean }>(
+      `/admin/serials/${serialId}/issue`,
+      { method: "POST" },
+    ),
+  revokeSerial: (serialId: string) =>
+    adminRequest<{ serial: MobileSerial; replayed: boolean }>(
+      `/admin/serials/${serialId}/revoke`,
+      { method: "POST" },
+    ),
+};
+
 export interface FreezeResult {
   title: string;
   reportId: string;

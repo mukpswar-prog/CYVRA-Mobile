@@ -1,0 +1,227 @@
+CYVRA — BUILD / TEST FIRST, THEN LIVE HOSTS
+Date: 10 September 2026
+Status: APPROVED TO BUILD AND TEST. Live www / admin / accounts wait until
+        the checklist in section 6 is ticked after a successful preview test.
+Governing: GUIDELINE.md. Map: cross-repo-next-gates.txt.
+
+Your revision (10 Sep 2026): authorization and public opening come AFTER we
+build and test. Previous "do not touch live hosts" is replaced by: we MAY
+update www / admin / accounts with caution, but ONLY after this runbook and a
+passing preview test. Station / Knox stay build-prep only (no USB wipe, no
+OEM claim) until their own checklists.
+
+================================================================================
+0. WHAT THE 404 WAS
+================================================================================
+
+  Local G7 script: PASSED (401, PENDING, ISSUED, replay, REVOKED).
+  That is not a 404.
+
+  Live Worker today:
+    POST https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials
+    -> HTTP 404
+
+  Cause: G7 routes are in Git. They are NOT on the live Worker yet.
+         Last live deploy was G6 Report 1 (version 38ef01e5-…).
+         Neon 0004 (mobile_serials) is also not applied on floral-art-02749206
+         until you run migrate-neon.sh.
+
+  Erase GitHub: this Codespaces token only sees CYVRA-Mobile. Opening
+  mukpswar-prog/Erase from here is 404. You open Erase on a machine that
+  already has that repo.
+
+================================================================================
+1. WHAT WE BUILD AND TEST FIRST (this repo) — START NOW
+================================================================================
+
+  Product under test (the actual application):
+    1. Customer register / OTP on mobile.cyvra.co.in (already live)
+    2. Report 1 freeze (API live; Pages UI after rebuild)
+    3. Ops serial create / issue / revoke
+         - local:   bash scripts/run-local-admin-serials.sh
+         - browser: http://localhost:5173/#ops   (hidden, not in the hero)
+         - after deploy: https://mobile.cyvra.co.in/#ops  or pages.dev/#ops
+           (still hidden; not the Erase admin button)
+
+  #ops is a TEST bench. Token stays in the browser. It is not
+  admin.cyvra.co.in. We use it to prove the API works before any Erase nav.
+
+  Station: not a Windows app in this slice. Prep notes only.
+  Knox: not an attestation in this slice. Honesty rules already reject S1 Knox PASS.
+
+================================================================================
+2. YOU — MAKE G7 API LIVE (preview Worker, not www)
+================================================================================
+
+  Do this in Codespaces /workspaces/CYVRA-Mobile. Do not paste secrets in chat.
+
+  Step 1  Pull
+            git pull --rebase origin cursor/g0-g3-mobile-slice-7474
+
+  Step 2  Local proof
+            bash scripts/run-local-admin-serials.sh
+          Expect 401, then CYVRA-M-… PENDING / ISSUED / REVOKED.
+          If 503: the script restarts :8787. If 404: wrangler is an old
+          process without /admin — stop that pid and run the script again.
+
+  Step 3  Neon 0004 (direct host, no -pooler)
+            bash scripts/open-db-env.sh
+            bash scripts/migrate-neon.sh
+          Neon SQL Editor must list mobile_serials.
+          Leave books_to_read.
+
+  Step 4  Ops secret (NOT the Cloudflare deploy token named cyvra-mobile)
+            Create a long random string. Store it in a password manager.
+            pnpm --filter @cyvra/api exec wrangler secret put ADMIN_API_TOKEN
+          Paste once at the wrangler prompt. Never Git. Never chat.
+
+          If wrangler asks for login, use the same hidden deploy token:
+            unset CLOUDFLARE_API_TOKEN
+            read -r -s CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
+          then secret put.
+
+  Step 5  Preview deploy (keeps API_ENV=preview)
+            bash scripts/deploy-api-preview.sh
+          Health must stay: status=ok  env=preview  database=connected
+
+  Step 6  Prove live API (not www)
+            curl -sS -w '\nHTTP:%{http_code}\n' \
+              -X POST https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials \
+              -H 'content-type: application/json' -d '{}'
+          Expect HTTP 401  {"error":"Admin token required."}
+          404 means deploy did not include G7. 503 means secret missing.
+          500 means Neon 0004 was not applied.
+
+  Step 7  Browser test (hidden)
+            Local:  pnpm --filter @cyvra/web dev
+                    open http://localhost:5173/#ops
+            Or after Pages rebuild: https://cyvra-mobile.pages.dev/#ops
+            Paste ADMIN_API_TOKEN, email ceo@cyvoriq.com.
+            Create PENDING, Issue, Revoke.
+            Do not send the token in chat. Send only publicNumber + status.
+
+  Effect: the application is testable. Public www / admin / accounts are unchanged.
+
+================================================================================
+3. LIVE admin.cyvra.co.in  — DO NOT START UNTIL SECTION 2 STEP 7 PASSES
+================================================================================
+
+  Where: Erase repo (you open it). Existing admin Pages. No new host.
+
+  Written steps (do in this order):
+
+  A1  Confirm Pages project for admin.cyvra.co.in (existing).
+  A2  Branch off Erase main. Do not add a CYVRA-Mobile folder tree.
+  A3  Add nav label "CYVRA Mobile" next to the existing Windows ops items.
+  A4  Same Windows login (cyvoriq_admin_session stays on admin only).
+  A5  New view: list / create (email + paymentNoted) / Issue / Revoke.
+  A6  View calls ONLY
+        https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials
+      Headers:
+        Authorization: Bearer <ADMIN_API_TOKEN from Erase secret store>
+        X-Admin-Email: <signed-in admin email>
+        Origin: https://admin.cyvra.co.in
+      Never forward cyvoriq_admin_session to the mobile Worker.
+      Never call api.cyvra.co.in for these rows.
+  A7  Hide the section unless email is ceo@cyvoriq.com (or an allow-list
+      that person owns). Mobile Worker also rejects the wrong email.
+  A8  Preview URL of EXISTING admin Pages. You sign in. You create one
+      PENDING and Issue. Compare with Neon mobile_serials.
+  A9  Only then promote that Erase branch to production admin.
+
+  Effect: ops use the place they already work. Windows licences untouched.
+  Rollback: remove the nav item. Serial rows remain in mobile Neon (safe).
+
+================================================================================
+4. LIVE accounts.cyvra.co.in  — AFTER ADMIN PREVIEW PASSES
+================================================================================
+
+  B1  Same Erase frontend family (or twin). Reuse the G7 view.
+  B2  Same API, same Neon, Origin https://accounts.cyvra.co.in
+  B3  No second table. No second token if you can share the secret store.
+  B4  Preview, then production.
+
+  Effect: accounts and admin see one list.
+
+================================================================================
+5. LIVE www.cyvra.co.in  — LAST PUBLIC CHANGE
+================================================================================
+
+  When: a real mobile OTP email has arrived (API_ENV still preview until
+        you trust that). Registration on mobile.cyvra.co.in works.
+
+  C1  Erase repo, Pages cyvra-www only.
+  C2  Nav / hero: Windows | Mobile | Tablet
+  C3  Windows = current Get Started / OTP / download. Zero logic change.
+  C4  Mobile = link https://mobile.cyvra.co.in   (not a modal, not OTP)
+  C5  Tablet = link https://mobile.cyvra.co.in?device=tablet
+  C6  Copy: Samsung-compatible, in development.
+      Forbidden: Knox, IMEI, SOH, certified perfect, wipe done.
+  C7  Preview cyvra-www. Click Mobile -> land on mobile.cyvra.co.in.
+      Click Windows Get Started -> same Erase OTP as today.
+  C8  Then production www.
+
+  Effect: one public story, two origins. Windows customers unchanged.
+  Rollback: revert the three links. Erase OTP path never moved.
+
+================================================================================
+6. LIVE-HOST GO CHECKLIST (tick before A1 / B1 / C1)
+================================================================================
+
+  [ ] Local run-local-admin-serials.sh green
+  [ ] Neon SQL shows mobile_serials
+  [ ] Live unauth /admin/serials is 401 (not 404 / 503 / 500)
+  [ ] #ops (or curl with token) created a real CYVRA-M-… row
+  [ ] API_ENV is still preview
+  [ ] Erase repo is open on YOUR machine (this agent cannot see it)
+  [ ] You have a rollback: remove nav / revert Pages, leave Neon rows
+
+================================================================================
+7. STATION (G9) — PREP ONLY
+================================================================================
+
+  Allowed now: write Decision 5.1.20.2 draft; list allowlisted read-only
+  operations; plan pair QR. No apps/station UI. No ADB shell. No wipe.
+
+  Blocked until you sign 5.1.20.2 in chat:
+    Windows bench app, USB command channel, authorized ADB writes.
+
+  First test when approved: pair to S1 on one owned Samsung. Record S2
+  evidence. Do not overwrite S1 raw rows. Report 1 still not a wipe.
+
+================================================================================
+8. KNOX (G10) — PREP ONLY
+================================================================================
+
+  Allowed now: keep S1 honesty (IMEI / SOH / Knox cannot PASS from the app).
+
+  Blocked until: at least one real S1 device report AND a written OEM /
+  enterprise path. No Knox attestation claim in the APK or www copy.
+
+================================================================================
+9. EFFECT IF WE SKIP A STEP
+================================================================================
+
+  Skip Neon 0004, deploy G7     -> live 500
+  Skip secret, deploy G7        -> live 503
+  Skip deploy, call live        -> 404  (what you saw)
+  Put www Mobile OTP on Erase   -> Windows/mobile login merge (forbidden)
+  Send admin cookie to mobile   -> session confused / security hole
+  Start Station ADB now         -> unauthorized operations
+  Claim Knox on S1              -> dishonest report
+
+================================================================================
+10. THIS AGENT vs YOU
+================================================================================
+
+  Agent (CYVRA-Mobile only)
+    - Hidden #ops test page
+    - Serial API + local tests
+    - This runbook
+    - Will not edit live www / admin / accounts (no Erase repo here)
+
+  You
+    - Section 2 steps 3–7 (Neon, secret, deploy, #ops)
+    - Open Erase when section 6 is ticked
+    - Click-test admin / accounts / www previews
+    - Sign 5.1.20.2 before Station UI

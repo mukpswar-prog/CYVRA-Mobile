@@ -7,6 +7,7 @@ import {
   type ReportSummary,
 } from "./api";
 import { IN_STATES } from "./in-states";
+import { OpsTest } from "./OpsTest";
 import { ReportView } from "./ReportView";
 import { SignedInHome } from "./SignedInHome";
 
@@ -37,6 +38,12 @@ export function App() {
   const [sessions, setSessions] = useState<ReportSession[]>([]);
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [reportDetail, setReportDetail] = useState<ReportDetail | null>(null);
+  const [showOps, setShowOps] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      (window.location.hash === "#ops" ||
+        new URLSearchParams(window.location.search).has("ops")),
+  );
 
   useEffect(() => {
     api
@@ -44,6 +51,17 @@ export function App() {
       .then((r) => setUser(r.user))
       .catch(() => setUser(null))
       .finally(() => setLoadingSession(false));
+  }, []);
+
+  useEffect(() => {
+    function syncOps() {
+      setShowOps(
+        window.location.hash === "#ops" ||
+          new URLSearchParams(window.location.search).has("ops"),
+      );
+    }
+    window.addEventListener("hashchange", syncOps);
+    return () => window.removeEventListener("hashchange", syncOps);
   }, []);
 
   useEffect(() => {
@@ -179,7 +197,9 @@ export function App() {
         )}
 
         <section className={reportDetail ? "card report-card" : "card"}>
-          {loadingSession ? (
+          {showOps ? (
+            <OpsTest />
+          ) : loadingSession ? (
             <p className="muted">Checking your session…</p>
           ) : user && reportDetail ? (
             <ReportView report={reportDetail} onBack={() => setReportDetail(null)} />

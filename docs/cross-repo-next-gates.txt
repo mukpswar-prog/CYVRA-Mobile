@@ -1,6 +1,7 @@
 CYVRA — CROSS-REPO NEXT GATES (PLAN ONLY)
 Date: 10 September 2026
-Status: DRAFT FOR JOINT APPROVAL. Do not code Erase / www / Station / Knox until the boxes at the end are ticked in chat.
+Status: BUILD/TEST APPROVED 10 Sep 2026. Live www/admin/accounts wait for
+docs/pre-live-runbook.txt section 6. Station/Knox remain prep-only.
 Governing law: GUIDELINE.md
 This file: one plan so we do not work in silos.
 

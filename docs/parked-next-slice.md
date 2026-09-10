@@ -4,9 +4,10 @@ Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
 freeze plan: CYVRA Mobile ops is a **section** of existing
 `admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
 
-**Save point (10 Sep 2026):** G6 is live on preview. G7 **this-repo** serial
-API is in the branch (local). Neon `0004` / Worker secret / Erase button
-are not live. Do **not** start G8 / G9 / G10.
+**Save point (10 Sep 2026):** G6 preview live. G7 local API green. Live
+`/admin/serials` is still **404** until Neon `0004` + secret + deploy.
+Build/test first (`/#ops`). Live www/admin/accounts only after
+[pre-live-runbook.txt](./pre-live-runbook.txt) section 6.
 
 ## Live G0–G3
 
