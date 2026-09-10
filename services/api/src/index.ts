@@ -16,6 +16,7 @@ import {
 } from "./crypto";
 import { sendOtpEmail } from "./email";
 import { evidenceRoutes } from "./evidence";
+import { reportRoutes } from "./reports";
 import type { Env } from "./env";
 import {
   parseRegistration,
@@ -232,6 +233,7 @@ app.get("/me", async (c) => {
 });
 
 app.route("/evidence", evidenceRoutes);
+app.route("/reports", reportRoutes);
 
 app.post("/auth/logout", async (c) => {
   const db = c.get("db");
