@@ -17,7 +17,8 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 > `mobile.cyvra.co.in` until that zone is proven. Same Neon. Do not patch Erase.
 > Zone `cyvoriq.co.in` is on Cloudflare (NS checked 10 Sep 2026). After-break
 > handoff: [docs/resume-after-break.md](docs/resume-after-break.md). Plan:
-> [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt).
+> [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt). Follow-along
+> audit: [docs/cyvoriq-migration-audit.txt](docs/cyvoriq-migration-audit.txt).
 
 ---
 

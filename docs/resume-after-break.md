@@ -52,6 +52,7 @@ cyvoriq hosts until CORS is deployed.
 - G7 **this-repo** serial API: `services/api/src/admin.ts`, schema `0004`,
   local `bash scripts/run-local-admin-serials.sh`, hidden `/#ops`.
 - Cutover plan: `docs/cyvoriq-co-in-cutover.txt`.
+- Follow-along migration audit: `docs/cyvoriq-migration-audit.txt`.
 - G7 freeze: `docs/g7-freeze.md`.
 - Cross-repo map: `docs/cross-repo-next-gates.txt` (Erase-host G7 section is
   **superseded** by the cyvoriq.co.in decision).
