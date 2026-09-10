@@ -1,0 +1,203 @@
+CYVRA — TOKEN INVENTORY (FIND ONLY, DO NOT ROLL ALL)
+Date: 10 September 2026
+Never paste token values into chat or Git.
+
+================================================================================
+0. THE TWO LINES YOU ASKED ABOUT
+================================================================================
+
+  read -r -s CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
+  pnpm --filter @cyvra/api exec wrangler secret put ADMIN_API_TOKEN
+
+  These are NOT the same kind of secret.
+
+  1) CLOUDFLARE_API_TOKEN
+     What: a Cloudflare **user API token** from
+           https://dash.cloudflare.com/profile/api-tokens
+     Name you already have: cyvra-mobile (you rolled this)
+     Job: lets wrangler in Codespaces talk to Cloudflare
+          (whoami, deploy, secret put).
+     Used by: your terminal / GitHub Codespaces. NOT read by phones or browsers.
+     If missing: deploy fails with 6111 / invalid Authorization header.
+     Live sites keep running if this token is wrong — you just cannot deploy.
+
+  2) ADMIN_API_TOKEN
+     What: a **Worker application secret** we invented for G7.
+           It is NOT created on the API Tokens page.
+           It is NOT a Cloudflare Pages token.
+     Job: Bearer token for POST /admin/serials (ops only).
+     Created: you make a long random string (password manager).
+     Stored: wrangler secret put ADMIN_API_TOKEN
+             on Worker cyvra-mobile-api only.
+     If missing after G7 deploy: live /admin/serials returns 503.
+     If you never put it: live /admin/serials stays 404 (old Worker) or 503.
+
+  Command order meaning:
+    First line  = unlock wrangler (use existing cyvra-mobile token).
+    Second line = wrangler, now unlocked, uploads a NEW random ops password
+                  into the Worker. You type that NEW string at the secret prompt,
+                  not the Cloudflare token again.
+
+================================================================================
+1. FIND EVERY CLOUDFLARE *USER* API TOKEN (the list you already opened)
+================================================================================
+
+  Open: https://dash.cloudflare.com/profile/api-tokens
+
+  You do not need to Roll. Click the name. Write down only:
+    name, permissions, which account, last used.
+  Never copy the secret into chat (you cannot see it again anyway unless you Roll).
+
+  From your last screenshot:
+
+  A. cyvra-mobile
+     For: CYVRA-Mobile Worker deploy + secret put (this repo).
+     Need: Account → Workers Scripts → Edit
+           on Mukpswar@gmail.com's Account (5a3eeb2b3d42726a8ba08732464a0eda).
+     USE THIS for the first line (CLOUDFLARE_API_TOKEN).
+     Rolling THIS again: Codespaces deploys of cyvra-mobile-api need the new
+     value. Live https://cyvra-mobile-api.mukpswar.workers.dev keeps running.
+     Erase is not affected.
+
+  B. cyvra-erase-workers-build
+     For: Erase / Windows build pipeline (Workers Scripts).
+     DO NOT roll for Mobile. Rolling this can block future Erase Worker deploys.
+     Live www / api.cyvra.co.in keep serving until someone needs to redeploy.
+
+  C. cyvra-erase-production-deploy
+     For: Erase production deploy.
+     DO NOT roll for Mobile. Same as B — Erase future deploys break, live
+     site stays up until the next deploy attempt.
+
+  D. Cloudflare Agent (conversation) … and Cloudflare Agent Token …
+     For: Cursor / Cloudflare agent dashboards (Security Center, many scopes).
+     DO NOT roll for Mobile. Rolling can break agent/MCP access, not the
+     public websites.
+
+  E. Workers Buildings …
+     For: AI Search / directory — not Mobile, not Erase product traffic.
+     Leave it.
+
+  If you "Roll all":
+    - Running Erase (www, admin, accounts, api.cyvra.co.in) does NOT go down
+      at the moment you click Roll.
+    - The next Erase deploy / GitHub Action / wrangler that still has the OLD
+      erase token WILL fail until you paste the new values into THAT pipeline.
+    - That is a real challenge. Do not roll B or C unless you are at the
+      Erase repo and ready to update its CI secrets the same hour.
+    - Rolling A only is safe for Erase.
+
+================================================================================
+2. FIND WORKER SECRETS (not the API Tokens page)
+================================================================================
+
+  These live ON a Worker. Pages is a different screen.
+
+  2.1 Mobile Worker  cyvra-mobile-api
+
+    Dashboard:
+      https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda/workers/services/view/cyvra-mobile-api/production/settings
+      Settings → Variables and Secrets
+
+    Or Codespaces (prints NAMES only if you do not echo values):
+      unset CLOUDFLARE_API_TOKEN
+      read -r -s CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
+      pnpm --filter @cyvra/api exec wrangler secret list
+
+    Expected names (values stay hidden):
+
+      RESEND_API_KEY      already there (OTP email)
+      RESEND_FROM         already there
+      SESSION_SECRET      already there (do not rotate unless you want all
+                          mobile users signed out)
+      ADMIN_API_TOKEN     NOT there yet — this is the new G7 secret
+      HYPERDRIVE          binding, not a typed secret
+      API_ENV / APP_ORIGIN  vars (preview / pages.dev), not API tokens
+
+    Also confirm you are on Worker **cyvra-mobile-api**.
+    Do not open cyvoriq-erase-api.
+
+  2.2 Erase Worker  cyvoriq-erase-api   (LOOK, DO NOT CHANGE)
+
+    Same Cloudflare account → Workers → cyvoriq-erase-api → Settings → Secrets.
+    Those secrets belong to mukpswar-prog/Erase. Do not edit for G7.
+    Rolling Cloudflare user tokens B/C does not delete these Worker secrets.
+
+================================================================================
+3. FIND PAGES ENVIRONMENT VARIABLES (also not API Tokens)
+================================================================================
+
+  Cloudflare Pages does not use the API Tokens page at runtime.
+
+  3.1 Mobile Pages  cyvra-mobile
+
+    Workers & Pages → Pages → cyvra-mobile → Settings → Environment variables
+
+    Expected:
+      VITE_API_URL = https://cyvra-mobile-api.mukpswar.workers.dev
+    Must NOT exist:
+      DATABASE_URL, RESEND_API_KEY, ADMIN_API_TOKEN, CLOUDFLARE_API_TOKEN
+
+    ADMIN_API_TOKEN must never go on Pages. The browser would leak it.
+
+  3.2 Erase Pages (LOOK, DO NOT CHANGE)
+
+    cyvra-www          → www.cyvra.co.in
+    (admin / accounts Pages projects — whatever names they already have)
+
+    Their VITE_/NEXT_ vars point at api.cyvra.co.in. Leave them.
+    Rolling Mobile tokens does not change Pages.
+
+================================================================================
+4. SHOULD YOU ROLL EVERYTHING?
+================================================================================
+
+  No.
+
+  Roll / create ONLY if you no longer have the cyvra-mobile user token value.
+  You already rolled that once. Use the value you copied. Do not roll again
+  unless it is lost.
+
+  Never roll cyvra-erase-* for this Mobile task.
+
+  Live Erase challenge if you roll erase tokens anyway:
+    1. www.cyvra.co.in and admin / accounts stay online.
+    2. Next Erase wrangler deploy or CI job fails auth until you update
+       the secret in Erase's GitHub Actions / Codespaces / laptop wrangler.
+    3. You must be ready in the Erase repo the same day.
+    4. OTP / licences / Windows download are not rewritten by a token roll,
+       but you can strand yourself unable to hotfix Erase.
+
+================================================================================
+5. WHAT TO DO NOW (ONE BY ONE)
+================================================================================
+
+  Step 1  API Tokens page: confirm cyvra-mobile has Workers Scripts Edit.
+          Do not click Roll.
+
+  Step 2  If you still have that secret in the password manager, use it.
+          Codespaces:
+            unset CLOUDFLARE_API_TOKEN
+            read -r -s CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
+            pnpm --filter @cyvra/api exec wrangler whoami
+          Expect account 5a3eeb2b3d42726a8ba08732464a0eda.
+
+  Step 3  Make a SECOND random string (32+ characters). Name it in your
+          notes "mobile ADMIN_API_TOKEN". This is not from Cloudflare's
+          Create Token form.
+
+  Step 4  Upload it onto the Mobile Worker only:
+            pnpm --filter @cyvra/api exec wrangler secret put ADMIN_API_TOKEN
+          Paste the SECOND string. Cloudflare deploy token stays in the
+          environment; it is not the value you paste here.
+
+  Step 5  After Neon 0004:
+            bash scripts/deploy-api-preview.sh
+
+  Step 6  Prove:
+            curl live /admin/serials without a Bearer → 401
+            (404 = old Worker; 503 = secret missing; 500 = Neon 0004 missing)
+
+  Do not put ADMIN_API_TOKEN on Pages.
+  Do not put it on cyvoriq-erase-api.
+  Do not roll erase API tokens.
