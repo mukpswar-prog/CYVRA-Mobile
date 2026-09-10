@@ -4,10 +4,9 @@ Governing law: [GUIDELINE.md](./GUIDELINE.md). G7 was **amended** to match the
 freeze plan: CYVRA Mobile ops is a **section** of existing
 `admin.cyvra.co.in` / `accounts.cyvra.co.in`, not a new host.
 
-**Save point (10 Sep 2026):** G6 is live on preview. Neon has `0003`
-(`reports`, `report_manifests`). Worker `cyvra-mobile-api` `/health` is
-`status=ok`, `env=preview`, `database=connected`. Version
-`38ef01e5-8400-4452-87d1-e1e576e2e27a`. Do **not** start G7.
+**Save point (10 Sep 2026):** G6 is live on preview. G7 **this-repo** serial
+API is in the branch (local). Neon `0004` / Worker secret / Erase button
+are not live. Do **not** start G8 / G9 / G10.
 
 ## Live G0–G3
 
@@ -33,8 +32,8 @@ OTP: [www-mobile-button.md](./www-mobile-button.md).
 
 ## Serial keys / admin UI
 
-Tracked in [admin-mobile-section.md](./admin-mobile-section.md). Not built in
-the Erase admin frontend yet. Payment-then-issue still pending.
+This repo: [g7-freeze.md](./g7-freeze.md), `POST /admin/serials`.
+Erase `admin-frontend` button is not built. Payment stays a human note.
 
 ## Codespaces leftover
 

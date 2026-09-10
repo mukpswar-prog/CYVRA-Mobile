@@ -14,7 +14,8 @@ Android phone and tablet verification, evidence, and reports for the CYVRA platf
 > (local: `pnpm test:local-evidence`). Report 1 freeze is `POST /reports/freeze`
 > (local: `pnpm test:local-report`). Device/APK tests wait for a Samsung phone.
 > Live Neon evidence + `0003` report tables are applied (10 Sep 2026). Worker
-> `cyvra-mobile-api` is preview with Report 1 routes. Do not start G7.
+> `cyvra-mobile-api` is preview with Report 1 routes. G7 serial API is local
+> until Neon `0004` + `ADMIN_API_TOKEN`. Do not start G8.
 > See [docs/codespaces-g5.md](docs/codespaces-g5.md) and [docs/testing/pool.md](docs/testing/pool.md).
 
 ---
@@ -102,5 +103,6 @@ Open http://localhost:5173 and sign in.
 | `pnpm test:local-auth` | Curl the local Worker health + OTP + session slice |
 | `pnpm test:local-evidence` | Start local Postgres + wrangler if needed, then ingest honesty/`collectedAt` tests |
 | `pnpm test:local-report` | Start local Postgres + wrangler if needed, then freeze Report 1 (PARTIAL + replay) |
+| `pnpm test:local-admin-serials` | Local G7 serial create / issue / replay / revoke (no Erase UI) |
 | Tooling pins | Node 24, npm 12.0.2, pnpm 12, Python 3.14 — [docs/tooling.md](docs/tooling.md) |
 | `bash scripts/g1-cloud-preview.sh` | Create Hyperdrive / Worker / Pages **after** Cloudflare+Neon login |

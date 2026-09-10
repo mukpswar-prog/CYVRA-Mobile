@@ -137,9 +137,21 @@ Run units: `pnpm --filter @cyvra/evidence test`. Local freeze: `bash scripts/run
 
 ---
 
+## G7 — mobile serials (this repo)
+
+Run: `bash scripts/run-local-admin-serials.sh`. Erase admin button is later.
+
+| ID | How | Expected | Status |
+|---|---|---|---|
+| T-G7-UNAUTH | POST `/admin/serials` without token | 401 | `automated` |
+| T-G7-EMAIL | Token + wrong `X-Admin-Email` | 401 | `automated` |
+| T-G7-CREATE | Super admin + `paymentNoted` | 201 `PENDING`, `CYVRA-M-<YEAR>-<UNIQUE>` | `automated` |
+| T-G7-ISSUE | POST issue then replay | `ISSUED`; replay keeps `issuedAt` | `automated` |
+| T-G7-NEON | `bash scripts/migrate-neon.sh` after `0004` | Table `mobile_serials` | `queued-dashboard` |
+| T-G7-ERASE-UI | Erase `admin-frontend` CYVRA Mobile button | Same Windows login; calls `cyvra-mobile-api` | `queued-dashboard` |
+
 ## Out of pool until later gates
 
-- G7 admin Mobile section (Erase repo)
 - G8 www nav link (last)
 - G9 Station / authorized ADB
 - G10 Knox / UEM

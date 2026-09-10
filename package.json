@@ -22,6 +22,7 @@
     "deploy:api-preview": "bash scripts/deploy-api-preview.sh",
     "test:local-auth": "bash scripts/test-local-auth.sh",
     "test:local-evidence": "bash scripts/run-local-evidence.sh",
-    "test:local-report": "bash scripts/run-local-report.sh"
+    "test:local-report": "bash scripts/run-local-report.sh",
+    "test:local-admin-serials": "bash scripts/run-local-admin-serials.sh"
   }
 }

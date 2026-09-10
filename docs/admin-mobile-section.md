@@ -21,3 +21,12 @@ The Erase `admin-frontend` change is a thin nav + views that call
 `admin.cyvra.co.in` and `accounts.cyvra.co.in`.
 
 Customer registration stays on `mobile.cyvra.co.in` / `cyvra-mobile.pages.dev`.
+
+## This repo (10 Sep 2026)
+
+`GET/POST /admin/serials` and issue/revoke live on `cyvra-mobile-api`.
+Auth is `ADMIN_API_TOKEN` + `X-Admin-Email: ceo@cyvoriq.com`.
+Contract: [g7-freeze.md](./g7-freeze.md). Local: `bash scripts/run-local-admin-serials.sh`.
+
+Do not deploy until Neon has `0004` and `wrangler secret put ADMIN_API_TOKEN`.
+The Erase `admin-frontend` button is still a later change in that repo.
