@@ -454,13 +454,12 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
   Phase 1  G7 live on existing Worker  (you + agent)
            Why first: new hostnames are useless while /admin/serials is 404.
            1. migrate-neon.sh          0004
-              BLOCKED here: database/.env DATABASE_URL_DIRECT is 127.0.0.1.
-              You: bash scripts/open-db-env.sh  then set the Neon DIRECT host
-                   (no -pooler). Leave DATABASE_URL as 127.0.0.1.
-           2. wrangler secret put ADMIN_API_TOKEN
-              BLOCKED here: CLOUDFLARE_API_TOKEN in this environment is invalid
-              (9109). You: read -r -s CLOUDFLARE_API_TOKEN && export ...
-              using the user token named cyvra-mobile (not an erase token).
+              DONE in Codespaces 10 Sep 2026 (host ep-round-sound-b3maswpk,
+              no -pooler). Confirm table mobile_serials in Neon SQL Editor.
+           2. wrangler secret put ADMIN_API_TOKEN + deploy
+              NEXT: in Codespaces run  bash scripts/live-g7-deploy.sh
+              Two blank prompts: (1) Cloudflare token named cyvra-mobile
+              (2) a NEW invented ADMIN_API_TOKEN. Not the same string.
            3. bash scripts/deploy-api-preview.sh   keep API_ENV=preview
            4. Prove: GET /admin/serials unauth → 401 (not 404/503/500)
            Tick: "G7 401 on workers.dev".
