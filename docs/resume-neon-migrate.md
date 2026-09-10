@@ -1,4 +1,10 @@
-# Resume here — live Neon evidence migrate (10 Sep 2026)
+# Resume here — live Neon evidence migrate (DONE 10 Sep 2026)
+
+**Completed.** Neon production has the five evidence tables. Worker `/health` is
+`database=connected`, `env=preview`. Do not repeat this playbook unless you
+are setting up a new Codespace `.env`.
+
+Historical steps remain below. Next coding when you say **go**: **G6 Report 1**.
 
 **Stop point (9 Sep 2026 evening).** Do not start G6, G7–G10, www, Station, or Knox.  
 **Branch:** `cursor/g0-g3-mobile-slice-7474`  

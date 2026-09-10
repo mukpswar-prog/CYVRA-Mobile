@@ -60,7 +60,7 @@ Codespaces can verify the JVM core and local ingest. APK install waits for a pho
 | T-G5-CATALOG-SYNC | `pnpm --filter @cyvra/evidence test` | `s1-catalog.v1.json` IDs match TypeScript catalog | `automated` |
 | T-G5-PARSE | Unit: `parseEvidenceIngest` on honest IMEI `NOT_AVAILABLE` | Parses; honesty is a later gate | `automated` |
 | T-G5-INGEST | Codespaces: `bash scripts/run-local-evidence.sh` | Starts local Postgres + wrangler if needed. 401 without session; honest IMEI 200; IMEI PASS 400; replay keeps `collectedAt` | `automated` (local Postgres) |
-| T-G5-NEON | Codespaces: `bash scripts/migrate-neon.sh` then Neon SQL table list | Tables `device_lifecycles`, `processing_sessions`, `capability_profiles`, `evidence_records`, `evidence_batches`. Script refuses local/`-pooler`. | `queued-dashboard` |
+| T-G5-NEON | Codespaces: `bash scripts/migrate-neon.sh` then Neon SQL table list | Tables `device_lifecycles`, `processing_sessions`, `capability_profiles`, `evidence_records`, `evidence_batches`. Script refuses local/`-pooler`. | `automated` (10 Sep 2026) |
 | T-G5-APP-SDK | Android Studio: open `apps/android` with SDK, `local.properties` sdk.dir | `:app` module appears; assembleDebug | `queued-dashboard` (needs Android SDK) |
 
 Device rows below stay `queued-no-device`. Unlock with the **owner’s** credentials. If lock is unknown: **stop**. No bypass. No Knox enrollment. USB debugging off unless a later S2 session needs it.
