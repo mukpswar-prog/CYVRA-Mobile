@@ -42,11 +42,15 @@ jobs:
           # shellcheck disable=SC1091
           . scripts/sanitize-cf-token.sh
           pnpm --filter @cyvra/api exec wrangler whoami
-          cd services/api
-          pnpm exec wrangler pages project create cyvoriq-www --production-branch=main || true
-          pnpm exec wrangler pages deploy ../../apps/web/dist \
+          # Run from repo root so Worker wrangler.jsonc is not picked up.
+          # Needs Account → Cloudflare Pages → Edit on token cyvoriq-mobile.
+          if ! pnpm --filter @cyvra/api exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/dist" \
             --project-name=cyvoriq-www \
-            --commit-dirty=true
+            --commit-dirty=true; then
+            echo "[www] Pages API 10000 = token cyvoriq-mobile is missing Account → Cloudflare Pages → Edit."
+            echo "[www] Edit that token (do not Roll erase tokens). Same GitHub secret. Re-run this workflow."
+            exit 1
+          fi
       - name: Remind custom domains
         run: |
           echo "After first deploy: Pages → cyvoriq-www → Custom domains"
