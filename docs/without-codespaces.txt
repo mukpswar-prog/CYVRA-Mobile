@@ -72,17 +72,36 @@ Cloudflare dashboard + (optional) GitHub Actions.
   B. Cloudflare dashboard
      Custom domains, Pages projects, Resend DNS, zone records.
 
-  C. GitHub Actions  (when we need another Worker deploy)
-     Workflow: .github/workflows/deploy-api-preview.yml
-     You add ONE repo secret (Actions, not Codespaces):
+  C. GitHub Actions  (when we need another Worker / Pages deploy)
+     Workflows already on main (11 Sep 2026):
+       Deploy mobile API preview   → Worker cyvra-mobile-api
+       Deploy cyvoriq-www Pages    → www + admin.cyvoriq.co.in
+     Secret (Actions, not Codespaces): CLOUDFLARE_API_TOKEN
+       = Cloudflare user token named cyvoriq-mobile
+       NOT ADMIN_API_TOKEN, not the account id
 
-       GitHub → CYVRA-Mobile → Settings → Secrets and variables → Actions
-       New repository secret
-       Name:  CLOUDFLARE_API_TOKEN
-       Value: the cyvoriq-mobile user token (password manager)
+     Run workflow from branch cursor/g0-g3-mobile-slice-7474 (not main).
+     That uses ubuntu-latest Direct Upload. Codespaces is not required.
 
-     Then Actions → Deploy mobile API preview → Run workflow.
-     That uses ubuntu-latest, not your Codespaces minutes.
+  C2. DO NOT attach GitHub to Cloudflare Pages Git / Builds (11 Sep 2026)
+
+     We did **not** miss this. Pages Git connect is optional and currently
+     unused (Cloudflare API 8000069). Deploy is wrangler Direct Upload
+     from GitHub Actions.
+
+     Wrong screen (leave it, do not Save / Connect):
+       Workers & Pages → cyvra-mobile → Builds
+       dash .../workers/services/view/cyvra-mobile/production/builds/...
+
+     `cyvra-mobile` is the **preview** Pages project (mobile.cyvra.co.in).
+     It is not the Worker (`cyvra-mobile-api`) and not www/admin
+     (`cyvoriq-www`). Connecting Git here can overwrite the preview site.
+
+     Do not Connect to Git on:
+       cyvra-mobile
+       cyvra-www              (Erase)
+       cyvoriq-admin.pages.dev (wrong Fraunces app)
+     Leave existing custom domains on cyvoriq-www as they are.
 
   D. Laptop Cursor later (optional)
      Clone CYVRA-Mobile, pnpm install, same scripts as before.

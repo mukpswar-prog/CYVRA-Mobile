@@ -109,6 +109,19 @@ Hidden ops on the public bundle also exists at `/#ops` — prefer the admin host
 
 ---
 
+## GitHub is not attached to Cloudflare Pages (by design)
+
+Saved 11 Sep 2026. Do **not** Connect to Git on Pages `cyvra-mobile` Builds.
+That project is preview (`mobile.cyvra.co.in` / `cyvra-mobile.pages.dev`).
+Worker deploys are GitHub Actions **Direct Upload** using repo secret
+`CLOUDFLARE_API_TOKEN` (user token named `cyvoriq-mobile`).
+Workflows live on `main` so **Run workflow** appears; pick branch
+`cursor/g0-g3-mobile-slice-7474` so the licence engine ships.
+Do not create a blank `.github/workflows/main.yml`.
+Do not attach `admin.cyvoriq.co.in` to `cyvoriq-admin.pages.dev`.
+
+---
+
 ## After the break — start here
 
 Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8.
