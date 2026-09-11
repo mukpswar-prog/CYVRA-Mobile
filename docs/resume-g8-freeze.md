@@ -3,7 +3,7 @@
 **Start the next session from this file.**  
 Governing law: [GUIDELINE.md](../GUIDELINE.md) (also `docs/GUIDELINE.md`).  
 Branch: `cursor/g0-g3-mobile-slice-7474`.  
-Save commit at freeze: `0f25370` (nav + stacked homepage). Live Pages bundle after rebuild is newer hashed assets (see below).
+Public-site freeze commit: `0f25370`. This audit file: `807e991`. Live Pages bundle after rebuild uses hashed assets `index-5y20CkGP.js` / `index-CDj2zkGN.css` (see below).
 
 Public `www.cyvoriq.co.in` / apex is **frozen**. Do not polish marketing next.  
 Next work: **G7 browser proof**, then **G5 S1 on one owned Samsung**.
