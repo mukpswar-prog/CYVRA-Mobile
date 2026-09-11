@@ -9,7 +9,7 @@ import {
 } from "./api";
 
 /**
- * Hidden ops test (#ops). Not the public Erase admin button.
+ * Serials console for admin.cyvoriq.co.in.
  * Token stays in sessionStorage. Never commit it.
  */
 export function OpsTest() {
@@ -45,10 +45,11 @@ export function OpsTest() {
     <div className="signed-in">
       <h2>Mobile serials</h2>
       <p className="muted small">
-        Super admin is <code>ceo@cyvoriq.com</code>. Paste{" "}
-        <code>ADMIN_API_TOKEN</code> from the Worker secret (browser only —
-        never Pages env, never chat). Create is PENDING after you note that
-        payment transferred. Issue once. Revoke if needed.
+        Super admin is <code>ceo@cyvoriq.com</code>. Type{" "}
+        <code>ADMIN_API_TOKEN</code> from Worker <code>cyvra-mobile-api</code>{" "}
+        (browser only — never Pages, never chat). Refresh the list first.
+        Create PENDING only after a real payment note. Issue once. Revoke if
+        needed. This is not a payment gateway.
       </p>
 
       <label htmlFor="adminToken">ADMIN_API_TOKEN</label>
@@ -68,6 +69,23 @@ export function OpsTest() {
         onChange={(e) => setEmail(e.target.value)}
       />
 
+      <div className="admin-actions">
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() =>
+            run(async () => {
+              const list = await adminApi.listSerials();
+              setSerials(list.serials);
+              setNotice(`Listed ${list.serials.length} serials`);
+            })
+          }
+        >
+          Refresh list
+        </button>
+      </div>
+
       <label htmlFor="customerEmail">Customer email</label>
       <input
         id="customerEmail"
@@ -76,43 +94,31 @@ export function OpsTest() {
         onChange={(e) => setCustomerEmail(e.target.value)}
       />
 
-      <label htmlFor="paymentNoted">Payment noted (human text)</label>
+      <label htmlFor="paymentNoted">Payment noted (human text, not a gateway)</label>
       <input
         id="paymentNoted"
         value={paymentNoted}
         onChange={(e) => setPaymentNoted(e.target.value)}
-        placeholder="UPI transferred 2026-09-10"
+        placeholder="e.g. UPI transferred 2026-09-11"
       />
 
-      <button
-        type="button"
-        className="btn"
-        disabled={busy}
-        onClick={() =>
-          run(async () => {
-            const created = await adminApi.createSerial(customerEmail, paymentNoted);
-            setNotice(`Created ${created.serial.publicNumber} (${created.serial.status})`);
-            const list = await adminApi.listSerials();
-            setSerials(list.serials);
-          })
-        }
-      >
-        Create PENDING
-      </button>
-      <button
-        type="button"
-        className="btn ghost"
-        disabled={busy}
-        onClick={() =>
-          run(async () => {
-            const list = await adminApi.listSerials();
-            setSerials(list.serials);
-            setNotice(`Listed ${list.serials.length} serials`);
-          })
-        }
-      >
-        Refresh list
-      </button>
+      <div className="admin-actions">
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={busy}
+          onClick={() =>
+            run(async () => {
+              const created = await adminApi.createSerial(customerEmail, paymentNoted);
+              setNotice(`Created ${created.serial.publicNumber} (${created.serial.status})`);
+              const list = await adminApi.listSerials();
+              setSerials(list.serials);
+            })
+          }
+        >
+          Create PENDING
+        </button>
+      </div>
 
       {notice && <p className="dev-code">{notice}</p>}
       {error && <p className="error">{error}</p>}
@@ -129,7 +135,7 @@ export function OpsTest() {
             {serial.status === "PENDING" ? (
               <button
                 type="button"
-                className="btn compact"
+                className="btn btn-primary compact"
                 disabled={busy}
                 onClick={() =>
                   run(async () => {
@@ -147,7 +153,7 @@ export function OpsTest() {
             ) : serial.status === "ISSUED" ? (
               <button
                 type="button"
-                className="btn ghost compact"
+                className="btn btn-ghost compact"
                 disabled={busy}
                 onClick={() =>
                   run(async () => {

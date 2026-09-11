@@ -1,12 +1,17 @@
+import { useEffect } from "react";
 import { OpsTest } from "../OpsTest";
 
 /**
- * Real ops host UI. Token is typed in the browser (sessionStorage).
+ * Ops host only (admin.cyvoriq.co.in). Token is typed in the browser.
  * Never put ADMIN_API_TOKEN on Pages or in Git.
  */
 export function AdminApp() {
+  useEffect(() => {
+    document.title = "CYVRA Mobile ops | Serials";
+  }, []);
+
   return (
-    <div className="site admin-shell">
+    <div className="admin-shell">
       <header className="admin-bar">
         <img
           src="/brand/cyvoriq-logo.png"
@@ -21,7 +26,7 @@ export function AdminApp() {
         </div>
       </header>
       <main className="app-wrap">
-        <section className="card app-card admin-card">
+        <section className="admin-card">
           <OpsTest />
         </section>
       </main>

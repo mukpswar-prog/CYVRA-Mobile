@@ -22,15 +22,6 @@ import { isAdminHost } from "./site/hosts";
 import { usePath } from "./site/router";
 import { WorkspaceApp } from "./site/WorkspaceApp";
 
-function isOpsPath(path: string): boolean {
-  if (path === "/ops") return true;
-  if (typeof window === "undefined") return false;
-  return (
-    window.location.hash === "#ops" ||
-    new URLSearchParams(window.location.search).has("ops")
-  );
-}
-
 const TITLES: Record<string, string> = {
   "/": "CYVRA Mobile | Mobile Device Verification, Sanitization & Evidence",
   "/platform": "CYVRA Mobile Platform | Evidence-Led Device Lifecycle",
@@ -62,7 +53,6 @@ export function App() {
   }, [path]);
 
   if (isAdminHost()) return <AdminApp />;
-  if (isOpsPath(path)) return <AdminApp />;
   if (path === "/create-account") return <WorkspaceApp mode="register" />;
   if (path === "/sign-in" || path === "/verify-email") {
     return <WorkspaceApp mode="signin" />;
