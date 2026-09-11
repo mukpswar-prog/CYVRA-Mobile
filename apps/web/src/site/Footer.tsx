@@ -7,33 +7,32 @@ export function Footer() {
         <div>
           <img
             src="/brand/cyvoriq-logo.png"
-            alt="CYVORIQ Solutions"
+            alt="CYVRA Mobile"
             className="site-logo site-logo-footer"
           />
-          <p className="site-markline">Know Every Device. Prove Every Decision.</p>
-          <p className="muted small">
-            CYVRA is developed by CYVORIQ Solutions Pvt. Ltd.
-          </p>
+          <p className="site-markline">CYVRA Mobile</p>
+          <p>Know the Device. Prove the Result.</p>
+          <p className="muted small">CYVORIQ Solutions Pvt. Ltd. · India</p>
         </div>
         <div>
-          <h3>Platform</h3>
-          <Link href="/platform">CYVRA Mobile Evidence</Link>
-          <Link href="/station">CYVRA Station</Link>
-          <Link href="/enterprise">CYVRA Enterprise</Link>
-        </div>
-        <div>
-          <h3>Solutions</h3>
+          <h3>Product</h3>
+          <Link href="/platform">Platform</Link>
           <Link href="/device-verification">Device Verification</Link>
           <Link href="/sanitization">Sanitization</Link>
-          <Link href="/reports">Evidence &amp; Reporting</Link>
-          <Link href="/how-it-works">Device Lifecycle</Link>
+          <Link href="/reports">Reports</Link>
+          <Link href="/station">CYVRA Station</Link>
         </div>
         <div>
           <h3>Company</h3>
-          <Link href="/about">About CYVORIQ</Link>
-          <Link href="/contact">Contact</Link>
+          <Link href="/industries">Industries</Link>
           <Link href="/resources">Resources</Link>
-          <Link href="/faq">FAQ</Link>
+          <Link href="/company">Company</Link>
+          <Link href="/contact">Contact</Link>
+        </div>
+        <div>
+          <h3>Account</h3>
+          <Link href="/create-account">Create Account</Link>
+          <Link href="/sign-in">Sign In</Link>
         </div>
         <div>
           <h3>Legal</h3>
@@ -44,9 +43,9 @@ export function Footer() {
         </div>
       </div>
       <p className="site-legal-note">
-        CYVRA is a technology and evidence platform. Use of CYVRA does not by
-        itself constitute government certification, legal advice or a guarantee
-        of compliance with any specific law or regulation.
+        CYVRA Mobile is technology and evidence software. Use of CYVRA does not
+        constitute government certification, legal advice or a guarantee of
+        compliance with any particular law or regulation.
       </p>
       <p className="muted small">© 2026 CYVORIQ Solutions Pvt. Ltd. All rights reserved.</p>
     </footer>

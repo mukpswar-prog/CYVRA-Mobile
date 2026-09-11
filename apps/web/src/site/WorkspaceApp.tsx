@@ -154,12 +154,12 @@ export function WorkspaceApp(props: {
     }
   }
 
-  const heading =
-    props.mode === "signin" ? "Welcome Back to CYVRA" : "Create Your CYVRA Account";
+    const heading =
+    props.mode === "signin" ? "Welcome Back to CYVRA Mobile" : "Create Your CYVRA Mobile Account";
   const copy =
     props.mode === "signin"
       ? "Sign in with the same name, pincode and work email. We email a 6-digit code — there is no password."
-      : "Start building an evidence-led device workflow. We email a 6-digit sign-in code. There is no password.";
+      : "Start building a more structured, evidence-led mobile device lifecycle. We email a 6-digit sign-in code. There is no password.";
 
   return (
     <Layout signedIn={Boolean(user)}>

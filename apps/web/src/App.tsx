@@ -31,9 +31,28 @@ function isOpsPath(path: string): boolean {
   );
 }
 
+const TITLES: Record<string, string> = {
+  "/": "CYVRA Mobile | Mobile Device Verification, Sanitization & Evidence",
+  "/platform": "CYVRA Mobile Platform | Evidence-Led Device Lifecycle",
+  "/device-verification": "Mobile Device Verification & Diagnostics | CYVRA Mobile",
+  "/sanitization": "Mobile Device Sanitization | Controlled & Evidence-Led | CYVRA",
+  "/reports": "Mobile Device Evidence Reports | CYVRA Mobile",
+  "/station": "CYVRA Station | Professional Mobile Device Processing",
+  "/industries": "Mobile Device Lifecycle Solutions | ITAD, Refurbishment & Enterprise",
+  "/company": "CYVORIQ Solutions | Building Evidence-Led Technology",
+  "/about": "CYVORIQ Solutions | Building Evidence-Led Technology",
+  "/contact": "Contact CYVORIQ | CYVRA Mobile",
+  "/create-account": "Create Your CYVRA Mobile Account",
+  "/sign-in": "Sign In | CYVRA Mobile",
+};
+
 export function App() {
   const path = usePath();
   const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    document.title = TITLES[path] ?? "CYVRA Mobile";
+  }, [path]);
 
   useEffect(() => {
     api

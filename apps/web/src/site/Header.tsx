@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { Link } from "./router";
 
-const platform = [
-  { href: "/platform", label: "CYVRA Mobile Evidence" },
+const links = [
+  { href: "/platform", label: "Platform" },
+  { href: "/how-it-works", label: "How It Works" },
+  { href: "/device-verification", label: "Device Verification" },
+  { href: "/sanitization", label: "Sanitization" },
+  { href: "/reports", label: "Reports" },
   { href: "/station", label: "CYVRA Station" },
-  { href: "/enterprise", label: "CYVRA Enterprise" },
-];
-
-const resources = [
+  { href: "/industries", label: "Industries" },
   { href: "/resources", label: "Resources" },
-  { href: "/faq", label: "FAQs" },
-  { href: "/contact", label: "Contact" },
 ];
 
 export function Header(props: { signedIn?: boolean }) {
@@ -22,11 +21,11 @@ export function Header(props: { signedIn?: boolean }) {
         <Link href="/" className="site-brand" onClick={() => setOpen(false)}>
           <img
             src="/brand/cyvoriq-logo.png"
-            alt="CYVORIQ Solutions"
+            alt="CYVRA Mobile"
             className="site-logo"
           />
           <span className="site-brand-text">
-            <strong>CYVRA</strong>
+            <strong>CYVRA Mobile</strong>
             <small>CYVORIQ Solutions Pvt. Ltd.</small>
           </span>
         </Link>
@@ -42,41 +41,11 @@ export function Header(props: { signedIn?: boolean }) {
         </button>
 
         <nav className={open ? "site-nav is-open" : "site-nav"} aria-label="Primary">
-          <div className="site-drop">
-            <span>Platform</span>
-            <div className="site-drop-panel">
-              {platform.map((item) => (
-                <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-          <Link href="/how-it-works" onClick={() => setOpen(false)}>
-            How CYVRA Works
-          </Link>
-          <Link href="/device-verification" onClick={() => setOpen(false)}>
-            Device Verification
-          </Link>
-          <Link href="/sanitization" onClick={() => setOpen(false)}>
-            Sanitization
-          </Link>
-          <Link href="/reports" onClick={() => setOpen(false)}>
-            Reports &amp; Evidence
-          </Link>
-          <Link href="/industries" onClick={() => setOpen(false)}>
-            Industries
-          </Link>
-          <div className="site-drop">
-            <span>Resources</span>
-            <div className="site-drop-panel">
-              {resources.map((item) => (
-                <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
+          {links.map((item) => (
+            <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="site-actions">

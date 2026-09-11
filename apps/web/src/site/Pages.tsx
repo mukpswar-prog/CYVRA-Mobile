@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "./router";
+import { Photo } from "./Photo";
 
 function Page(props: {
   kicker?: string;
@@ -22,9 +23,9 @@ function Page(props: {
 export function PlatformPage() {
   return (
     <Page
-      kicker="CYVRA MOBILE EVIDENCE"
-      title="From device check to provable outcome."
-      lead="Verify the Device. Protect the Data. Prove the Outcome."
+      kicker="CYVRA MOBILE"
+      title="One Platform for the Mobile Device Lifecycle"
+      lead="Verify the device. Protect the data. Prove the outcome."
     >
       <p>
         CYVRA Mobile is a professional device verification and data-sanitization
@@ -60,9 +61,9 @@ export function PlatformPage() {
 export function HowItWorksPage() {
   return (
     <Page
-      kicker="HOW CYVRA WORKS"
-      title="One device. One evidence-led lifecycle."
-      lead="DEVICE → VERIFY → REPORT 1 → SANITIZE → VERIFY SANITIZATION → FINAL REPORT"
+      kicker="HOW IT WORKS"
+      title="One Device. One Structured Lifecycle."
+      lead="Device Verification → Report 1 → Separate Sanitization Authorization → Sanitization → Post-Sanitization Verification → Final Report"
     >
       <p>
         CYVRA turns device processing into an evidence-led lifecycle. Every
@@ -80,9 +81,14 @@ export function DeviceVerificationPage() {
   return (
     <Page
       kicker="DEVICE VERIFICATION"
-      title="Understand the device before you decide its future."
-      lead="A device should not move into resale, refurbishment, redeployment, return or retirement based only on appearance."
+      title="Mobile Device Verification & Diagnostics"
+      lead="Verify smartphones and tablets using a structured, evidence-led workflow designed for professional device lifecycle operations."
     >
+      <Photo
+        src="/media/02-cyvra-mobile-device-verification.webp"
+        alt="Structured mobile device verification on a professional bench"
+        className="photo"
+      />
       <div className="card-grid three">
         <article className="soft-card">
           <h3>Device Identity</h3>
@@ -130,11 +136,15 @@ export function SanitizationPage() {
   return (
     <Page
       kicker="SANITIZATION"
-      title="Protect the data. Preserve the evidence."
-      lead="Device sanitization is not an afterthought. It is a separate controlled lifecycle event."
+      title="Controlled Mobile Device Sanitization"
+      lead="Sanitization should be a controlled lifecycle event with clear authorization, process evidence and post-sanitization verification."
     >
+      <Photo
+        src="/media/04-cyvra-mobile-sanitization.webp"
+        alt="Controlled sanitization as a separate lifecycle event"
+        className="photo"
+      />
       <p>
-        Before sanitization, the device verification record is established.
         Then, only through an authorized workflow and supported method,
         sanitization is performed and its outcome is recorded.
       </p>
@@ -157,12 +167,16 @@ export function SanitizationPage() {
 export function ReportsPage() {
   return (
     <Page
-      kicker="REPORTS & EVIDENCE"
-      title="The first report starts before the wipe."
-      lead="Report 1 is the pre-sanitization Device Verification Report. The Final Report is the lifecycle record after authorized sanitization."
+      kicker="REPORTS"
+      title="Device Evidence Reports Built for Real Decisions"
+      lead="CYVRA reports convert structured device evidence into professional documentation that can be reviewed, shared and used in downstream lifecycle decisions."
     >
+      <Photo
+        src="/media/06-cyvra-mobile-device-verification-report.webp"
+        alt="CYVRA Device Verification Report"
+        className="photo"
+      />
       <p>
-        A public sample PDF will be published after the first production Report
         1 is frozen from real evidence. We do not show a decorative certificate
         that the product cannot yet issue.
       </p>
@@ -183,11 +197,15 @@ export function StationPage() {
   return (
     <Page
       kicker="CYVRA STATION"
-      title="Professional workstation support"
-      lead="CYVRA Station is the planned Windows workstation for structured, USB-connected verification. It is not available to download in this launch."
+      title="CYVRA Station"
+      lead="A professional workspace for structured mobile device processing. Station is planned and is not available to download in this public launch."
     >
+      <Photo
+        src="/media/07-cyvra-mobile-station-workflow.webp"
+        alt="CYVRA Station professional device-processing floor"
+        className="photo"
+      />
       <p>
-        Station will connect the professional workstation experience with CYVRA
         Mobile Evidence for controlled device sessions, authorized ADB
         capabilities where legitimately available, evidence synchronization and
         technician workflow. We do not use the name “CYVRA Bench”.
@@ -220,8 +238,13 @@ export function IndustriesPage() {
   return (
     <Page
       kicker="INDUSTRIES"
-      title="Built for the device lifecycle."
+      title="Evidence-Led Technology for Every Device Lifecycle"
     >
+      <Photo
+        src="/media/08-cyvra-mobile-enterprise-device-lifecycle.webp"
+        alt="Enterprise and ITAD device lifecycle operations"
+        className="photo"
+      />
       <div className="card-grid four">
         {[
           ["Refurbishment", "Verify devices before they enter the resale workflow."],
@@ -247,8 +270,8 @@ export function AboutPage() {
   return (
     <Page
       kicker="COMPANY"
-      title="CYVORIQ Solutions Pvt. Ltd."
-      lead="An Indian technology company developing CYVRA — an evidence-led platform for modern technology lifecycle operations."
+      title="Building Better Evidence for the Technology Lifecycle"
+      lead="CYVRA Mobile is developed by CYVORIQ Solutions Pvt. Ltd. Make every important device decision easier to understand and easier to prove."
     >
       <p>
         Our focus is simple: make device decisions more structured, more
@@ -340,8 +363,8 @@ export function ContactPage() {
   return (
     <Page
       kicker="CONTACT"
-      title="Talk to CYVRA"
-      lead="A public sales inbox is not published on this page until privacy terms are approved."
+      title="Talk to CYVORIQ"
+      lead="Interested in CYVRA Mobile for your organization? A public sales inbox is not published until privacy terms are approved."
     >
       <p>
         Create an account to start the workspace. Operational access is gated
