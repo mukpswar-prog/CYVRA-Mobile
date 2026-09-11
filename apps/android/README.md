@@ -6,7 +6,7 @@ G4 contract is loaded from `packages/evidence/schema/s1-catalog.v1.json`.
 Gradle **9.1.0** is required so Codespaces Java 25 can run the wrapper.
 Gradle 8.13 fails on Java 25 with `What went wrong: 25.0.4.1`.
 
-- **`:core`** — JVM. Catalog, plan, honesty, offline queue. Runs in Codespaces.
+- **`:core`** — JVM. Catalog, plan, honesty, offline queue, planned-batch collect. Runs without a phone.
 - **`:app`** — Android UI. Included only when `ANDROID_HOME` or `local.properties` exists.
 
 No Knox. No IMEI collection. No lock bypass. USB ≠ authorization.

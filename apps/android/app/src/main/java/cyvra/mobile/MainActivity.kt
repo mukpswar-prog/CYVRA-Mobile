@@ -11,10 +11,12 @@ import androidx.appcompat.app.AppCompatActivity
 import cyvra.mobile.core.CapabilityProfile
 import cyvra.mobile.core.FeatureFact
 import cyvra.mobile.core.PermissionFact
+import cyvra.mobile.core.newEvidenceId
 import cyvra.mobile.core.planEvidence
+import cyvra.mobile.core.queuePlannedBatch
 
 /**
- * S1 home: capability plan only. No IMEI, no Knox, no grades.
+ * S1 home: capability plan + honest queued batch. No IMEI, no Knox, no grades.
  * Permissions are requested when a test starts (later slice), not on launch.
  */
 class MainActivity : AppCompatActivity() {
@@ -22,13 +24,22 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val profile = snapshot()
         val planned = planEvidence(profile)
+        val collectedAt = java.time.Instant.now().toString()
+        val batch = queuePlannedBatch(
+            profile = profile,
+            deviceLifecycleId = newEvidenceId(),
+            processingSessionId = newEvidenceId(),
+            batchId = newEvidenceId(),
+            collectedAt = collectedAt,
+        )
         val text = buildString {
             appendLine("CYVRA Mobile Evidence")
-            appendLine("S1 scaffold — not a sanitization report.")
+            appendLine("S1 planned batch — not a sanitization report.")
             appendLine("Logins are separate from Windows Erase.")
             appendLine()
             appendLine("Build: ${profile.manufacturer} ${profile.model} / SDK ${profile.sdkInt}")
             appendLine("Android ID (not IMEI): ${Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)}")
+            appendLine("Queued ${batch.records.size} records. PASS count: ${batch.records.count { it.result == "PASS" }} (must be 0).")
             appendLine()
             for (row in planned) {
                 appendLine("${row.testId}  ${row.uiStatus}  (${row.plannedResult})")

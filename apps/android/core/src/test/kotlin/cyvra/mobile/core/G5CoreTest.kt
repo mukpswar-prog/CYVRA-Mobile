@@ -167,4 +167,34 @@ class G5CoreTest {
             queue.enqueue(bad, queuedAt = "2026-09-09T12:01:00.000Z")
         }
     }
+
+    @Test
+    fun plannedBatchIsHonestAndNeverPass() {
+        var n = 0
+        val batch = queuePlannedBatch(
+            profile = samsungPhone(cameraGranted = false),
+            deviceLifecycleId = "11111111-1111-4111-8111-111111111111",
+            processingSessionId = "22222222-2222-4222-8222-222222222222",
+            batchId = "33333333-3333-4333-8333-333333333333",
+            collectedAt = "2026-09-11T11:00:00.000Z",
+            idFactory = {
+                n += 1
+                "44444444-4444-4444-8444-${n.toString().padStart(12, '0')}"
+            },
+        )
+        assertEquals(41, batch.records.size)
+        assertTrue(batch.records.none { it.result == "PASS" })
+        assertTrue(batch.records.all { recordIsHonest(it) })
+        assertEquals(
+            "NOT_AVAILABLE",
+            batch.records.first { it.testId == "IDN.IMEI_SERIAL" }.result,
+        )
+        assertEquals(
+            "PERMISSION_DENIED",
+            batch.records.first { it.testId == "FN.CAMERA_BACK_CAPTURE" }.result,
+        )
+        val readyOrUntested = batch.records.first { it.testId == "IDN.BUILD_IDENTITY" }
+        assertTrue(readyOrUntested.result in NON_FAILURE)
+        assertTrue("PASS" !in readyOrUntested.result)
+    }
 }
