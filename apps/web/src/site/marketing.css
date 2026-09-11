@@ -86,54 +86,95 @@ body {
 .site-nav {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex: 1;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .site-nav a,
 .site-nav span,
+.site-nav .site-drop-btn,
 .site-footer a {
   color: var(--steel);
   text-decoration: none;
 }
 
 .site-nav a:hover,
+.site-nav .site-drop-btn:hover,
 .site-footer a:hover {
   color: var(--orange);
 }
 
 .site-drop {
   position: relative;
+  padding: 16px 0;
+  margin: -16px 0;
 }
 
-.site-drop > span {
-  cursor: default;
+.site-drop-btn {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--steel);
+  cursor: pointer;
+}
+
+.site-drop-btn::after {
+  content: " ▾";
+  font-size: 10px;
+  color: inherit;
+}
+
+.site-drop:hover .site-drop-btn,
+.site-drop:focus-within .site-drop-btn {
+  color: var(--orange);
+}
+
+.site-nav.is-open .site-drop-panel {
+  display: grid;
+  gap: 2px;
+  position: static;
+  box-shadow: none;
+  border: 0;
+  padding: 6px 0 6px 12px;
+  background: transparent;
 }
 
 .site-drop-panel {
   display: none;
   position: absolute;
-  top: 100%;
+  top: calc(100% - 6px);
   left: 0;
-  min-width: 220px;
-  padding: 10px;
+  min-width: 230px;
+  padding: 8px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(26, 29, 35, 0.08);
+  box-shadow: 0 16px 40px rgba(21, 24, 28, 0.1);
+  z-index: 30;
 }
 
 .site-drop-panel a {
   display: block;
   padding: 8px 10px;
   border-radius: 8px;
+  white-space: nowrap;
+}
+
+.site-drop-panel a:hover {
+  background: var(--orange-soft);
+  color: var(--graphite);
 }
 
 .site-drop:hover .site-drop-panel,
 .site-drop:focus-within .site-drop-panel {
-  display: block;
+  display: grid;
+  gap: 2px;
 }
 
 .site-actions {
@@ -252,6 +293,73 @@ body {
   min-height: 340px;
   max-height: 520px;
   object-position: center;
+}
+
+.feature-frame {
+  margin: 4px 0 28px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #101318;
+  box-shadow: 0 18px 40px rgba(21, 24, 28, 0.12);
+}
+
+.feature-frame .photo,
+.feature-photo {
+  width: 100%;
+  height: 340px;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  object-fit: cover;
+  object-position: center;
+}
+
+.stack-head {
+  max-width: 760px;
+  margin-bottom: 8px;
+}
+
+.stack-head h2 {
+  margin-bottom: 10px;
+}
+
+.stack-head .lead {
+  margin-bottom: 0;
+}
+
+.center-band {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.center-band h2 {
+  max-width: 18em;
+}
+
+.center-band .lead,
+.center-band .lead.narrow {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.center-band .btn {
+  margin-top: 8px;
+}
+
+.card-grid.domain-grid {
+  margin-top: 4px;
+  grid-template-columns: repeat(12, 1fr);
+}
+
+.domain-grid .soft-card {
+  grid-column: span 4;
+}
+
+.domain-grid .soft-card:nth-child(-n + 4) {
+  grid-column: span 3;
 }
 
 .trust-strip {
@@ -389,6 +497,10 @@ body {
 
 .card-grid.two {
   grid-template-columns: 1fr 1fr;
+}
+
+.card-grid.four {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .life-grid.seven-life {
@@ -642,6 +754,19 @@ body {
   max-width: 720px;
 }
 
+@media (max-width: 1100px) {
+  .card-grid.four {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .card-grid.domain-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .domain-grid .soft-card,
+  .domain-grid .soft-card:nth-child(-n + 4) {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 960px) {
   .hero-block,
   .split,
@@ -649,6 +774,7 @@ body {
   .compare,
   .life-grid,
   .life-grid.seven-life,
+  .domain-grid,
   .card-grid.two,
   .card-grid.three,
   .card-grid.four,
@@ -658,8 +784,17 @@ body {
   .site-footer-grid {
     grid-template-columns: 1fr;
   }
+  .domain-grid .soft-card,
+  .domain-grid .soft-card:nth-child(-n + 4) {
+    grid-column: auto;
+  }
+  .feature-frame .photo,
+  .feature-photo {
+    height: 220px;
+  }
   .site-nav {
     display: none;
+    white-space: normal;
   }
   .site-nav.is-open {
     display: flex;
@@ -681,9 +816,14 @@ body {
     border-radius: 10px;
     padding: 8px 12px;
   }
+  .site-drop {
+    padding: 0;
+    margin: 0;
+  }
   .site-drop-panel {
     position: static;
-    display: block;
+    display: grid;
+    gap: 2px;
     box-shadow: none;
     border: 0;
     padding: 4px 0 4px 8px;

@@ -216,33 +216,35 @@ export function Home() {
         </div>
       </section>
 
-      <section className="band alt split">
-        <div>
+      <section className="band alt">
+        <header className="stack-head">
           <h2>Evidence Across the Device</h2>
-          <p>
+          <p className="lead narrow">
             CYVRA Mobile organizes Device Verification into seven evidence
             domains.
           </p>
-          <div className="card-grid two">
-            {domains.map(([n, title, copy]) => (
-              <article key={n} className="soft-card">
-                <span>{n}</span>
-                <h3>{title}</h3>
-                <p>{copy}</p>
-              </article>
-            ))}
-          </div>
-          <p className="callout">
-            If evidence is unavailable, CYVRA Mobile makes the limitation
-            visible. It does not silently convert missing evidence into a pass
-            or failure.
-          </p>
+        </header>
+        <figure className="feature-frame">
+          <Photo
+            src="/media/03-cyvra-mobile-diagnostics-workspace.webp"
+            alt="Device hardware domains used in CYVRA Mobile verification: camera, chip, battery, connectivity and storage"
+            className="photo feature-photo"
+          />
+        </figure>
+        <div className="card-grid domain-grid">
+          {domains.map(([n, title, copy]) => (
+            <article key={n} className="soft-card">
+              <span>{n}</span>
+              <h3>{title}</h3>
+              <p>{copy}</p>
+            </article>
+          ))}
         </div>
-        <Photo
-          src="/media/03-cyvra-mobile-diagnostics-workspace.webp"
-          alt="Device hardware domains used in CYVRA Mobile verification: camera, chip, battery, connectivity and storage"
-          className="photo"
-        />
+        <p className="callout">
+          If evidence is unavailable, CYVRA Mobile makes the limitation
+          visible. It does not silently convert missing evidence into a pass
+          or failure.
+        </p>
       </section>
 
       <section className="band split">
@@ -367,7 +369,7 @@ export function Home() {
         </p>
       </section>
 
-      <section className="band alt">
+      <section className="band alt center-band">
         <h2>Designed for Real-World Android Device Diversity</h2>
         <p className="lead narrow">
           Android devices differ by manufacturer, model, operating system,
@@ -380,31 +382,33 @@ export function Home() {
         </Link>
       </section>
 
-      <section className="band split">
-        <Photo
-          src="/media/08-cyvra-mobile-enterprise-device-lifecycle.webp"
-          alt="Professional device-processing floor in India supporting refurbishment, ITAD and enterprise lifecycle operations"
-          className="photo"
-        />
-        <div>
+      <section className="band">
+        <header className="stack-head">
           <h2>Built for the Modern Device Lifecycle</h2>
-          <p>
+          <p className="lead narrow">
             CYVRA Mobile is designed for organizations that process devices at
             scale and need consistent evidence across people, locations and
             workflows.
           </p>
-          <div className="card-grid two">
-            {industries.map(([title, copy]) => (
-              <article key={title} className="soft-card">
-                <h3>{title}</h3>
-                <p>{copy}</p>
-              </article>
-            ))}
-          </div>
-          <Link href="/industries" className="btn btn-ghost">
-            Explore industries
-          </Link>
+        </header>
+        <figure className="feature-frame">
+          <Photo
+            src="/media/08-cyvra-mobile-enterprise-device-lifecycle.webp"
+            alt="Professional device-processing floor in India supporting refurbishment, ITAD and enterprise lifecycle operations"
+            className="photo feature-photo"
+          />
+        </figure>
+        <div className="card-grid four">
+          {industries.map(([title, copy]) => (
+            <article key={title} className="soft-card">
+              <h3>{title}</h3>
+              <p>{copy}</p>
+            </article>
+          ))}
         </div>
+        <Link href="/industries" className="btn btn-ghost">
+          Explore industries
+        </Link>
       </section>
 
       <section className="band alt">

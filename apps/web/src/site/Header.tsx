@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { Link } from "./router";
 
-const links = [
-  { href: "/platform", label: "Platform" },
+const howItWorks = [
   { href: "/how-it-works", label: "How It Works" },
   { href: "/device-verification", label: "Device Verification" },
   { href: "/sanitization", label: "Sanitization" },
   { href: "/reports", label: "Reports" },
-  { href: "/station", label: "CYVRA Station" },
-  { href: "/industries", label: "Industries" },
-  { href: "/resources", label: "Resources" },
 ];
 
 export function Header(props: { signedIn?: boolean }) {
@@ -41,27 +37,44 @@ export function Header(props: { signedIn?: boolean }) {
         </button>
 
         <nav className={open ? "site-nav is-open" : "site-nav"} aria-label="Primary">
-          {links.map((item) => (
-            <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
-              {item.label}
-            </Link>
-          ))}
+          <Link href="/" onClick={() => setOpen(false)}>
+            Home
+          </Link>
+          <Link href="/platform" onClick={() => setOpen(false)}>
+            Platform
+          </Link>
+          <div className="site-drop">
+            <button type="button" className="site-drop-btn" aria-haspopup="true">
+              How It Works
+            </button>
+            <div className="site-drop-panel">
+              {howItWorks.map((item) => (
+                <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <Link href="/station" onClick={() => setOpen(false)}>
+            CYVRA Station
+          </Link>
+          <Link href="/industries" onClick={() => setOpen(false)}>
+            Industries
+          </Link>
+          <Link href="/resources" onClick={() => setOpen(false)}>
+            Resources
+          </Link>
         </nav>
 
         <div className="site-actions">
           {props.signedIn ? (
-            <Link href="/dashboard" className="btn btn-ghost" onClick={() => setOpen(false)}>
+            <Link href="/dashboard" className="btn btn-primary" onClick={() => setOpen(false)}>
               Workspace
             </Link>
           ) : (
-            <>
-              <Link href="/sign-in" className="btn btn-ghost" onClick={() => setOpen(false)}>
-                Sign In
-              </Link>
-              <Link href="/create-account" className="btn btn-primary" onClick={() => setOpen(false)}>
-                Get Started
-              </Link>
-            </>
+            <Link href="/create-account" className="btn btn-primary" onClick={() => setOpen(false)}>
+              Get Started
+            </Link>
           )}
         </div>
       </div>
