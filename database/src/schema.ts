@@ -251,8 +251,8 @@ export type CapabilityProfileRow = typeof capabilityProfiles.$inferSelect;
 export type EvidenceRecordRow = typeof evidenceRecords.$inferSelect;
 export type EvidenceBatchRow = typeof evidenceBatches.$inferSelect;
 /**
- * G7 mobile serials. Not Windows licence rows. Issue happens after a human
- * notes that payment transferred. `issued_at` is write-once.
+ * G7 mobile licences. Not Windows Erase licence rows.
+ * public_number is the parseable licence key (CYVRAddmmyyyyKhhhh-1-N).
  */
 export const mobileSerials = pgTable(
   "mobile_serials",
@@ -269,14 +269,82 @@ export const mobileSerials = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    customerKind: text("customer_kind").notNull().default("SINGLE"),
+    deviceMax: integer("device_max").notNull().default(3),
+    brandScope: text("brand_scope").notNull().default("UNSPECIFIED"),
+    customerFullName: text("customer_full_name"),
+    companyName: text("company_name"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    pincode: text("pincode"),
+    state: text("state"),
+    devicesBound: integer("devices_bound").notNull().default(0),
+    emailedAt: timestamp("emailed_at", { withTimezone: true }),
+    emailMessageId: text("email_message_id"),
+    emailError: text("email_error"),
   },
   (table) => [
     uniqueIndex("mobile_serials_public_number_unique").on(table.publicNumber),
     index("mobile_serials_customer_email_idx").on(table.customerEmail),
     index("mobile_serials_status_idx").on(table.status),
+    index("mobile_serials_created_at_idx").on(table.createdAt),
+  ],
+);
+
+/** @cyvoriq.com operators nominated by ceo@cyvoriq.com. Not customer users. */
+export const staffOperators = pgTable(
+  "staff_operators",
+  {
+    id: uuid("id").primaryKey(),
+    email: text("email").notNull(),
+    status: text("status").notNull(),
+    nominatedBy: text("nominated_by").notNull(),
+    nominatedAt: timestamp("nominated_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("staff_operators_email_unique").on(sql`lower(${table.email})`),
+    index("staff_operators_status_idx").on(table.status),
+  ],
+);
+
+export const staffOtpChallenges = pgTable(
+  "staff_otp_challenges",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    email: text("email").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("staff_otp_challenges_email_idx").on(table.email)],
+);
+
+export const staffSessions = pgTable(
+  "staff_sessions",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    email: text("email").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("staff_sessions_token_hash_unique").on(table.tokenHash),
+    index("staff_sessions_email_idx").on(table.email),
   ],
 );
 
 export type ReportRow = typeof reports.$inferSelect;
 export type ReportManifestRow = typeof reportManifests.$inferSelect;
 export type MobileSerialRow = typeof mobileSerials.$inferSelect;
+export type StaffOperatorRow = typeof staffOperators.$inferSelect;

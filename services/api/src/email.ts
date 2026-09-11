@@ -6,6 +6,7 @@ export interface SendOtpResult {
   /** Present when email was not sent (local / unverified-domain preview). */
   devCode?: string;
   error?: string;
+  id?: string;
 }
 
 function previewFallback(env: Env): boolean {
@@ -24,9 +25,10 @@ function previewFallback(env: Env): boolean {
  */
 export async function sendOtpEmail(
   env: Env,
-  params: { email: string; code: string; challengeId: string },
+  params: { email: string; code: string; challengeId: string; purpose?: "customer" | "staff" },
 ): Promise<SendOtpResult> {
   const { email, code, challengeId } = params;
+  const staff = params.purpose === "staff";
 
   if (!env.RESEND_API_KEY) {
     console.log(
@@ -42,14 +44,17 @@ export async function sendOtpEmail(
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
-      // Guideline §6.4: otp/<email-hash>/<challenge-id>, 24h window (Resend default).
-      "Idempotency-Key": `otp/${emailHash}/${challengeId}`,
+      "Idempotency-Key": `otp/${staff ? "staff/" : ""}${emailHash}/${challengeId}`,
     },
     body: JSON.stringify({
       from,
       to: [email],
-      subject: "Your CYVRA Mobile sign-in code",
-      text: `Your CYVRA Mobile Evidence sign-in code is ${code}. It expires in 10 minutes.`,
+      subject: staff
+        ? "Your CYVRA Mobile ops sign-in code"
+        : "Your CYVRA Mobile sign-in code",
+      text: staff
+        ? `Your CYVRA Mobile ops sign-in code is ${code}. It expires in 10 minutes. This is not a customer login.`
+        : `Your CYVRA Mobile Evidence sign-in code is ${code}. It expires in 10 minutes.`,
     }),
   });
 
@@ -67,5 +72,55 @@ export async function sendOtpEmail(
     return { sent: false, error };
   }
 
-  return { sent: true };
+  return { sent: true, id: payload?.id };
+}
+
+export async function sendLicenceEmail(
+  env: Env,
+  params: {
+    email: string;
+    licenceKey: string;
+    slabLabel: string;
+    kind: string;
+    brandScope: string;
+    serialId: string;
+  },
+): Promise<SendOtpResult & { id?: string }> {
+  const from = env.RESEND_FROM ?? "CYVRA Mobile <noreply@cyvoriq.co.in>";
+  if (!env.RESEND_API_KEY) {
+    return { sent: false, devCode: previewFallback(env) ? params.licenceKey : undefined };
+  }
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `licence/${params.serialId}`,
+    },
+    body: JSON.stringify({
+      from,
+      to: [params.email],
+      subject: `Your CYVRA Mobile licence ${params.licenceKey}`,
+      text: [
+        `Your CYVRA Mobile licence key is:`,
+        params.licenceKey,
+        ``,
+        `Type: ${params.kind}`,
+        `Devices: ${params.slabLabel} of brand ${params.brandScope}`,
+        `The same key may be used on devices of that brand up to the slab.`,
+        `This is not a sanitization certificate and not a Windows Erase licence.`,
+        ``,
+        `CYVORIQ Solutions Pvt. Ltd.`,
+      ].join("\n"),
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { id?: string; message?: string }
+    | null;
+  if (!response.ok) {
+    const error = payload?.message ?? `Resend responded ${response.status}`;
+    if (previewFallback(env)) return { sent: false, error, devCode: params.licenceKey };
+    return { sent: false, error };
+  }
+  return { sent: true, id: payload?.id };
 }
