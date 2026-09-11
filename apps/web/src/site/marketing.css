@@ -534,6 +534,24 @@ body {
   margin-top: 14px;
 }
 
+.admin-shell {
+  min-height: 100%;
+  background: var(--paper);
+}
+
+.admin-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.admin-card {
+  max-width: 720px;
+}
+
 @media (max-width: 960px) {
   .hero-block,
   .split,

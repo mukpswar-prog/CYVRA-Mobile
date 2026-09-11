@@ -1,0 +1,75 @@
+ADMIN.CYVORIQ.CO.IN — FIRST CLICKS
+After www.cyvoriq.co.in is HTTP 200.
+Sister: docs/www-cyvoriq-start.txt  docs/resume-after-break.md
+
+Same GitHub repo and same Vite bundle as www. The app shows the serials
+UI only when the hostname is admin.cyvoriq.co.in (or *.cyvoriq-admin.pages.dev).
+
+Do not bind admin to Worker cyvra-mobile-api.
+Do not put ADMIN_API_TOKEN on Pages.
+Do not open Pages cyvra-www or admin.cyvra.co.in.
+
+
+================================================================================
+1. CREATE PAGES PROJECT  cyvoriq-admin
+================================================================================
+
+  Cloudflare → Workers & Pages → Create → Pages → Connect to Git
+    Repo:            mukpswar-prog/CYVRA-Mobile
+    Project name:    cyvoriq-admin        (not cyvoriq-www, not cyvra-mobile)
+    Production branch:
+      cursor/g0-g3-mobile-slice-7474
+    Framework:       React (Vite)
+    Root directory:  (empty — repo root)
+    Build command:   pnpm install && pnpm --filter @cyvra/web build
+    Build output:    /apps/web/dist
+    Environment variables (Production AND Preview), BUILD-TIME only:
+      VITE_API_URL = https://api.cyvoriq.co.in
+      NODE_VERSION = 24
+
+  If Cloudflare says the repo is already used by cyvoriq-www or
+  cyvra-mobile: still create a THIRD/SECOND project named cyvoriq-admin.
+
+  Never add ADMIN_API_TOKEN, DATABASE_URL, RESEND_*, or SESSION_SECRET.
+
+
+================================================================================
+2. CUSTOM DOMAIN
+================================================================================
+
+  After cyvoriq-admin.pages.dev is HTTP 200:
+
+    Pages → cyvoriq-admin → Custom domains → admin.cyvoriq.co.in
+
+  Zone must be cyvoriq.co.in. If it offers cyvra.co.in, STOP.
+  Do not add a manual CNAME first.
+
+
+================================================================================
+3. PROVE
+================================================================================
+
+  Browser:  https://admin.cyvoriq.co.in/
+            CYVORIQ logo, "CYVRA Mobile ops", serials form.
+
+  PowerShell:
+
+    curl.exe -sS -I https://admin.cyvoriq.co.in/
+    curl.exe -sS -I https://www.cyvoriq.co.in/
+
+  Pass: both HTTP 200. www still shows the public site (not serials).
+
+  In the admin form (do not paste the token in chat):
+    X-Admin-Email = ceo@cyvoriq.com
+    ADMIN_API_TOKEN = the Worker secret (type it; do not screenshot it)
+    Refresh list  → should list serials or an empty list, not 401 if token is right
+
+
+================================================================================
+4. STOP AFTER ADMIN IS 200
+================================================================================
+
+  Do not create cyvoriq-accounts yet.
+  Do not 301 mobile.cyvra.co.in.
+  Do not set API_ENV=production.
+  Do not remove Erase admin from CORS until you have used this host once.

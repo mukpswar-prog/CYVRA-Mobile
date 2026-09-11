@@ -1,0 +1,8 @@
+{
+  // Cloudflare Pages project `cyvoriq-admin`.
+  // Host: admin.cyvoriq.co.in. Same apps/web bundle as cyvoriq-www.
+  // Never deploy this to cyvra-www or admin.cyvra.co.in.
+  "name": "cyvoriq-admin",
+  "compatibility_date": "2024-11-27",
+  "pages_build_output_dir": "./dist"
+}

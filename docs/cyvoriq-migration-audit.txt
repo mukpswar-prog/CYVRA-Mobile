@@ -486,12 +486,11 @@ Different public site. Different policies (legal + CORS + cookies + ops gate).
            OTP inbox proof still OPEN. Keep API_ENV=preview.
            Tick pending: "OTP From noreply@cyvoriq.co.in received".
 
-  Phase 5  New websites  (agent build, you attach Pages)   NEXT = www only
-           www.cyvoriq.co.in      public + register   ← tomorrow first
-           admin.cyvoriq.co.in    serials (after www is 200)
-           accounts.cyvoriq.co.in account / serial status
+  Phase 5  New websites
+           www.cyvoriq.co.in      DONE 11 Sep 2026  HTTP 200 (www + apex)
+           admin.cyvoriq.co.in    NEXT  docs/admin-cyvoriq-start.txt
+           accounts.cyvoriq.co.in after admin is 200
            Then REMOVE CORS for admin.cyvra.co.in and accounts.cyvra.co.in
-           Clicks: docs/www-cyvoriq-start.txt
            Tick: "three hosts 200; Erase admin CORS gone".
 
   Phase 6  Keep old preview, then optional 301

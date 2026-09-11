@@ -1,14 +1,9 @@
-# Resume here — 11 Sep 2026 (www.cyvoriq.co.in)
+# Resume here — 11 Sep 2026 (admin.cyvoriq.co.in)
 
-You stopped the evening of **10 Sep 2026**. This file is the single handoff.
 Branch: `cursor/g0-g3-mobile-slice-7474`.
 
-**First thing tomorrow:** create Pages **`cyvoriq-www`** and attach
-**`www.cyvoriq.co.in`** (+ apex). Clicks: [www-cyvoriq-start.txt](./www-cyvoriq-start.txt).
-
-The browser error `DNS_PROBE_FINISHED_NXDOMAIN` on `https://cyvoriq.co.in` is
-**expected**. Only `api.cyvoriq.co.in` exists on this zone. www / apex are not
-created yet.
+**www is live.** Next: Pages **`cyvoriq-admin`** + **`admin.cyvoriq.co.in`**.
+Clicks: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
 
 ---
 
@@ -25,6 +20,7 @@ created yet.
 | Resend domain `cyvoriq.co.in` | **Verified** (Tokyo). Keep `cyvra.co.in` for Erase. |
 | Worker secret `RESEND_FROM` | Added. Same existing `RESEND_API_KEY` (do not rotate). |
 | `API_ENV` | Still **`preview`**. Do not flip to production yet. |
+| Pages **`cyvoriq-www`** | https://www.cyvoriq.co.in/ and apex **HTTP 200** (11 Sep 2026). |
 
 Worker variables (10 Sep 2026, names only):
 
@@ -46,35 +42,26 @@ stop. Keep `API_ENV=preview`. After www is 200, register on
 | Resource | Value |
 |---|---|
 | Pages preview (keep) | `cyvra-mobile` → https://cyvra-mobile.pages.dev and https://mobile.cyvra.co.in/ |
-| New Pages (create tomorrow) | `cyvoriq-www` → `www.cyvoriq.co.in` + apex |
+| Pages public | `cyvoriq-www` → https://www.cyvoriq.co.in/ + apex |
+| New Pages (next) | `cyvoriq-admin` → `admin.cyvoriq.co.in` |
 | Worker | `cyvra-mobile-api` → https://api.cyvoriq.co.in and workers.dev |
 | Hyperdrive | `cyvra-mobile-neon` `db31fc8dafca49b29172da7046b97175` |
 | Neon | `floral-art-02749206` / `neondb` / production `br-empty-silence-b3a7hhss` |
 | Cloudflare account | `5a3eeb2b3d42726a8ba08732464a0eda` |
 | Super admin | `ceo@cyvoriq.com` |
 
-## Tomorrow — only www (not admin / accounts)
+## Next — admin only (not accounts)
 
-You (dashboard), in order:
+You (dashboard): [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
 
-1. Create **new** Pages project **`cyvoriq-www`**. Never reuse `cyvra-www` or
-   `cyvra-mobile`.
-2. Build env: `VITE_API_URL=https://api.cyvoriq.co.in` (build-time only).
-   No `DATABASE_URL`. No `ADMIN_API_TOKEN`.
-3. Custom domains: **`www.cyvoriq.co.in`** and apex **`cyvoriq.co.in`**.
-   Zone must be `cyvoriq.co.in`. Cloudflare writes DNS. Do not add a manual
-   CNAME first (that blocked Add Domain on the Worker).
-4. Prove `https://www.cyvoriq.co.in/` HTTP 200 (logo + register).
-5. Optional: one OTP to your inbox. Resend → Emails From =
-   `noreply@cyvoriq.co.in`. Do not paste the code in chat.
+1. Create **new** Pages **`cyvoriq-admin`** from the same GitHub repo.
+2. Same build as www. Same `VITE_API_URL`. **No** `ADMIN_API_TOKEN` on Pages.
+3. Custom domain: **`admin.cyvoriq.co.in`** only.
+4. Prove HTTP 200 and the serials form. Token stays in the browser.
 
-Agent already: CORS allowlists `*.cyvoriq.co.in` and `*.cyvoriq-www.pages.dev`.
-Same `apps/web` bundle is the public site (logo, honest home, register).
-Deploy helper: `scripts/deploy-www-cyvoriq.sh` and
-`.github/workflows/deploy-www-cyvoriq.yml`.
-
-Leave `mobile.cyvra.co.in` up. Do not start `cyvoriq-admin` /
-`cyvoriq-accounts` until www is 200.
+Leave `mobile.cyvra.co.in` up. Do not create `cyvoriq-accounts` yet.
+Optional in parallel: one OTP on https://www.cyvoriq.co.in/create-account
+(keep `API_ENV=preview`; do not paste the code in chat).
 
 ## Still forbidden
 
@@ -92,13 +79,13 @@ Leave `mobile.cyvra.co.in` up. Do not start `cyvoriq-admin` /
 ```bash
 git checkout cursor/g0-g3-mobile-slice-7474
 git pull
-# first clicks are dashboard — docs/www-cyvoriq-start.txt
+# first clicks are dashboard — docs/admin-cyvoriq-start.txt
 ```
 
-Windows checks after www is attached:
+Windows checks:
 
 ```powershell
 curl.exe -sS https://api.cyvoriq.co.in/health
 curl.exe -sS -I https://www.cyvoriq.co.in/
-curl.exe -sS -I https://cyvoriq.co.in/
+curl.exe -sS -I https://admin.cyvoriq.co.in/
 ```

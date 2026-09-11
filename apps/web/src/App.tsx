@@ -17,6 +17,8 @@ import {
   SanitizationPage,
   StationPage,
 } from "./site/Pages";
+import { AdminApp } from "./site/AdminApp";
+import { isAdminHost } from "./site/hosts";
 import { usePath } from "./site/router";
 import { WorkspaceApp } from "./site/WorkspaceApp";
 
@@ -40,7 +42,8 @@ export function App() {
       .catch(() => setSignedIn(false));
   }, [path]);
 
-  if (isOpsPath(path)) return <WorkspaceApp mode="ops" />;
+  if (isAdminHost()) return <AdminApp />;
+  if (isOpsPath(path)) return <AdminApp />;
   if (path === "/create-account") return <WorkspaceApp mode="register" />;
   if (path === "/sign-in" || path === "/verify-email") {
     return <WorkspaceApp mode="signin" />;

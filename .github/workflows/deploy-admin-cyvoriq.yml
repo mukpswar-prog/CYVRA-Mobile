@@ -1,0 +1,41 @@
+# Deploy Pages cyvoriq-admin (no Codespaces)
+# Secret: CLOUDFLARE_API_TOKEN = cyvoriq-mobile (Pages Edit)
+# Never put ADMIN_API_TOKEN here.
+
+name: Deploy cyvoriq-admin Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build web for api.cyvoriq.co.in
+        env:
+          VITE_API_URL: https://api.cyvoriq.co.in
+        run: pnpm --filter @cyvra/web build
+      - name: Deploy Pages cyvoriq-admin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 5a3eeb2b3d42726a8ba08732464a0eda
+        run: |
+          set -euo pipefail
+          cd services/api
+          pnpm exec wrangler pages project create cyvoriq-admin --production-branch=main || true
+          pnpm exec wrangler pages deploy ../../apps/web/dist \
+            --project-name=cyvoriq-admin \
+            --commit-dirty=true

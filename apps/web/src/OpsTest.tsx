@@ -43,11 +43,12 @@ export function OpsTest() {
 
   return (
     <div className="signed-in">
-      <h2>Ops test — mobile serials</h2>
+      <h2>Mobile serials</h2>
       <p className="muted small">
-        Hidden page (<code>#ops</code>). This is not admin.cyvoriq.co.in. Use it
-        to prove create / issue / revoke before the real admin Pages host. The
-        token is kept in this browser only.
+        Super admin is <code>ceo@cyvoriq.com</code>. Paste{" "}
+        <code>ADMIN_API_TOKEN</code> from the Worker secret (browser only —
+        never Pages env, never chat). Create is PENDING after you note that
+        payment transferred. Issue once. Revoke if needed.
       </p>
 
       <label htmlFor="adminToken">ADMIN_API_TOKEN</label>

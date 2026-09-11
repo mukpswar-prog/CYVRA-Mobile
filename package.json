@@ -22,6 +22,7 @@
     "db:migrate:neon": "bash scripts/migrate-neon.sh",
     "deploy:api-preview": "bash scripts/deploy-api-preview.sh",
     "deploy:www-cyvoriq": "bash scripts/deploy-www-cyvoriq.sh",
+    "deploy:admin-cyvoriq": "bash scripts/deploy-admin-cyvoriq.sh",
     "test:local-auth": "bash scripts/test-local-auth.sh",
     "test:local-evidence": "bash scripts/run-local-evidence.sh",
     "test:local-report": "bash scripts/run-local-report.sh",
