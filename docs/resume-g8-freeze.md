@@ -1,16 +1,43 @@
-# Resume here — 11 Sep 2026 (public site frozen)
+# Resume here — morning of 12 Sep 2026
 
-**Start the next session from this file.**  
+**Start the next session from this file.** Saved 11 Sep 2026 ~16:25 UTC.  
 Governing law: [GUIDELINE.md](../GUIDELINE.md) (also `docs/GUIDELINE.md`).  
-Branch: `cursor/g0-g3-mobile-slice-7474`.  
-Public-site freeze commit: `0f25370`. This audit file: `807e991`. Live Pages bundle after rebuild uses hashed assets `index-5y20CkGP.js` / `index-CDj2zkGN.css` (see below).
+Branch: `cursor/g0-g3-mobile-slice-7474` at `2703f98` (merged `origin/main`).  
+Public www is **frozen**. Ops freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).  
+Older files ([resume-after-break.md](./resume-after-break.md), the 11 Sep morning notes below) are history. This header wins.
 
-Public `www.cyvoriq.co.in` / apex is **frozen**. Do not polish marketing next.  
-Next work: **G7 browser proof**, then **G5 S1 on one owned Samsung**.
+Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md), [codespaces-g5.md](./codespaces-g5.md).
 
-Sister files: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt), [g7-freeze.md](./g7-freeze.md), [codespaces-g5.md](./codespaces-g5.md).  
-Older resume ([resume-after-break.md](./resume-after-break.md)) is history. This file wins.  
-Ops host freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
+---
+
+## Tomorrow morning — do this, in this order
+
+Stay on `cursor/g0-g3-mobile-slice-7474`. `git pull`. Do not reopen G8. Do not start Station or Knox.
+
+| # | What | Who |
+|---|---|---|
+| 1 | **G7 human proof.** Open `https://admin.cyvoriq.co.in/`. Sign in as `ceo@cyvoriq.com`. If the card still shows an on-screen code, that is Resend failing — read the red error, check Inbox/Spam, do not paste the code in chat. Slab **1 device (single user)** is the default. Do not Create PENDING with dummy payment on live. | You |
+| 2 | If the live admin form still lacks **1 device** or the exact mail error, GitHub → Actions, this branch: **Deploy mobile API preview**, then **Deploy cyvoriq-www Pages**. | You |
+| 3 | **G5.** APK `co.in.cyvra.mobile` on **one owned Samsung**. First evidence batch `POST /evidence/batches` to `https://api.cyvoriq.co.in`. Laptop + phone. USB ≠ authorization. No IMEI, no Knox claim. | Laptop + phone |
+| 4 | Wire that batch to Report 1. | Coding, after step 3 |
+| 5 | `API_ENV=production` only after a real OTP is trusted in `ceo@cyvoriq.com`. | Later |
+| 6 | Station / Knox. | Blocked until you approve |
+
+Inbox still unproven. Keep `API_ENV=preview` until a real code lands.
+
+---
+
+## Saved at stop (do not redo)
+
+| Item | State |
+|---|---|
+| `origin/main` merged | `2703f98`. Kept this branch’s later ops/licence work. Dropped www `/#ops` token bench (`OpsTest.tsx`). Do not put it back. |
+| Licence keys | `CYVRA{dd}{mm}{yyyy}{S\|B}{hex4}-1-{1\|3\|5\|7\|25}`. `1-1` is single-user only. |
+| Ops login in git | Staff OTP. Failed send shows Resend error + on-screen preview code. `/health` has `mailConfigured`. |
+| Local proof | `pnpm --filter @cyvra/api test` 22 pass. `bash scripts/run-local-admin-serials.sh` created `…-1-1` and rejected bulk 1-device. |
+| Live Worker / Pages | May still be the **previous** bundle until both Actions run. Live `/health` did not yet show `mailConfigured`. |
+| OTP mailbox | Not trusted. On-screen preview means Resend did not deliver. |
+| Public www | Frozen. Do not polish. |
 
 ---
 
@@ -104,8 +131,8 @@ CORS allows `*.cyvoriq.co.in`. Cookie path is first-party on that zone.
 | `https://admin.cyvoriq.co.in/` | HTTP 200. **Same asset hash as www** (`index-5y20CkGP.js`). The Vite bundle hostname-gates to `AdminApp` when host is `admin.cyvoriq.co.in`. Browser should show **CYVRA Mobile ops** + serials form, not the marketing homepage. |
 | `https://cyvoriq-admin.pages.dev/` | HTTP 200. **Wrong app.** Title `CYVRA Admin \| CYVORIQ SOLUTIONS PVT LTD`, Fraunces / IBM Plex. **Not this repo.** Do **not** attach `admin.cyvoriq.co.in` to that project. |
 
-Token is typed in the browser (`sessionStorage`). **Never** put `ADMIN_API_TOKEN` on Pages.  
-Hidden ops on the public bundle also exists at `/#ops` — prefer the admin host once the form is proven.
+Staff OTP is the ops login. `ADMIN_API_TOKEN` is scripts-only. **Never** put it on Pages.  
+Do **not** restore www `/#ops` / `OpsTest.tsx` (removed when `main` was merged).
 
 ---
 
@@ -122,21 +149,9 @@ Do not attach `admin.cyvoriq.co.in` to `cyvoriq-admin.pages.dev`.
 
 ---
 
-## After the break — start here
+## After the break — 11 Sep evening (history)
 
-Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8. Do not start Station or Knox.
-
-Approved order (11 Sep 2026, CEO):
-
-1. **G7 human proof** — `https://admin.cyvoriq.co.in/` staff OTP. Inbox delivery is still unproven; keep `API_ENV=preview`. The sign-in card shows the Resend error plus an on-screen code until a real mail lands. Slab `1-1` is single-user, one device.
-2. **G5** — APK `co.in.cyvra.mobile` on **one owned Samsung**, first evidence batch to `https://api.cyvoriq.co.in`. Laptop + phone. Not today unless the CEO says so.
-3. **Wire that batch to Report 1** — coding, after the first real ingest.
-4. **`API_ENV=production` only after a real OTP is trusted** in `ceo@cyvoriq.com`.
-5. **Station / Knox** — blocked until separately approved.
-
-Do not paste OTP codes in chat. Do not Create PENDING with dummy payment text on the live Worker.
-
-Ops contents freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
+The morning-of-12-Sep header at the top of this file is the start point. The CEO order is unchanged. Do not paste OTP codes in chat. Do not Create PENDING with dummy payment text on the live Worker.
 
 ---
 

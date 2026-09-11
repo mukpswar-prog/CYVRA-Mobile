@@ -25,7 +25,7 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 
 **Amendment 11 Sep 2026 (ops licences):** Mobile licence keys are parseable: `CYVRA{dd}{mm}{yyyy}{S|B}{hex4}-1-{1|3|5|7|25}` (example `CYVRA11092026SA3F1-1-1` for single-user, one device). Super admin is `ceo@cyvoriq.com`. Only `@cyvoriq.com` operators nominated by the CEO can sign in. The key is emailed to the customer’s verified inbox only. Same key, same brand, up to the slab. Ops UI: [docs/admin-scope-freeze.md](docs/admin-scope-freeze.md).
 
-**Amendment 11 Sep 2026:** Public `www.cyvoriq.co.in` is frozen. Resume: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Next is G7 browser proof, then G5 on one owned Samsung. Do not start Station or Knox.
+**Amendment 11 Sep 2026:** Public `www.cyvoriq.co.in` is frozen. Overnight save / morning start: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Next is G7 inbox proof, then G5 on one owned Samsung. Do not start Station or Knox.
 
 **Amendment 10 Sep 2026 (management):** Mobile Evidence’s public and ops hosts move to **`cyvoriq.co.in`** (new Cloudflare zone on the same account). Not a subdomain of `cyvra.co.in`. No Erase repo changes. Same Neon `floral-art-02749206`. Do not delete `mobile.cyvra.co.in` until the new origin is proven. Detail: [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt).
 

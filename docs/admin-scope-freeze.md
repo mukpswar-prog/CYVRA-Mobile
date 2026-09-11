@@ -1,6 +1,6 @@
 # admin.cyvoriq.co.in — scope freeze (11 Sep 2026)
 
-Governing law: [GUIDELINE.md](../GUIDELINE.md). Resume: [resume-g8-freeze.md](./resume-g8-freeze.md).  
+Governing law: [GUIDELINE.md](../GUIDELINE.md). Morning start: [resume-g8-freeze.md](./resume-g8-freeze.md).  
 API history: [g7-freeze.md](./g7-freeze.md).
 
 This file freezes **what lives on the ops host**. Public www stays frozen separately.
