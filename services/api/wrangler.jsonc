@@ -9,6 +9,9 @@
   "observability": {
     "enabled": true
   },
+  // Keep workers.dev so CI can health-check without the custom-domain
+  // bot challenge. Product traffic is api.cyvoriq.co.in.
+  "workers_dev": true,
   "hyperdrive": [
     {
       // Bind Neon project floral-art-02749206 (pooled URL) via Hyperdrive

@@ -40,12 +40,4 @@ jobs:
             --var API_ENV:preview \
             --var APP_ORIGIN:https://cyvra-mobile.pages.dev
       - name: Prove health and G7 gate
-        run: |
-          set -euo pipefail
-          curl -fsS https://cyvra-mobile-api.mukpswar.workers.dev/health
-          echo
-          code="$(curl -sS -o /tmp/admin.body -w "%{http_code}" https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials)"
-          echo "GET /admin/serials HTTP $code"
-          cat /tmp/admin.body
-          echo
-          test "$code" = "401"
+        run: bash scripts/prove-live-api.sh
