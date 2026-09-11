@@ -7,7 +7,6 @@ import {
   type ReportSummary,
 } from "../api";
 import { IN_STATES } from "../in-states";
-import { OpsTest } from "../OpsTest";
 import { ReportView } from "../ReportView";
 import { SignedInHome } from "../SignedInHome";
 import { Layout } from "./Layout";
@@ -26,7 +25,7 @@ const emptyForm = {
 };
 
 export function WorkspaceApp(props: {
-  mode: "register" | "signin" | "dashboard" | "ops";
+  mode: "register" | "signin" | "dashboard";
 }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
@@ -165,9 +164,7 @@ export function WorkspaceApp(props: {
     <Layout signedIn={Boolean(user)}>
       <div className="app-wrap">
         <section className="card app-card">
-          {props.mode === "ops" ? (
-            <OpsTest />
-          ) : loadingSession ? (
+          {loadingSession ? (
             <p className="muted">Checking your session…</p>
           ) : user && reportDetail ? (
             <ReportView report={reportDetail} onBack={() => setReportDetail(null)} />
