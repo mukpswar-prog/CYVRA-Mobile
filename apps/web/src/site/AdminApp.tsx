@@ -21,7 +21,7 @@ const EMPTY_DRAFT: LicenceDraft = {
   customerEmail: "",
   paymentNoted: "",
   customerKind: "SINGLE",
-  deviceMax: 3,
+  deviceMax: 1,
   brandScope: "",
   customerFullName: "",
   companyName: "",
@@ -159,6 +159,8 @@ export function AdminApp() {
   const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState("");
+  const [mailError, setMailError] = useState("");
+  const [mailSent, setMailSent] = useState(false);
   const [loginEmail, setLoginEmail] = useState("ceo@cyvoriq.com");
   const [tab, setTab] = useState<Tab>("licences");
   const [draft, setDraft] = useState<LicenceDraft>(EMPTY_DRAFT);
@@ -255,6 +257,8 @@ export function AdminApp() {
                   const requested = await adminApi.requestStaffCode(loginEmail);
                   setChallengeId(requested.challengeId);
                   setDevCode(requested.devCode ?? "");
+                  setMailError(requested.mailError ?? "");
+                  setMailSent(requested.delivery === "email");
                   setNotice(requested.message);
                   return;
                 }
@@ -291,14 +295,43 @@ export function AdminApp() {
                 />
               </>
             ) : null}
-            {devCode ? (
-              <p className="dev-code">Preview code {devCode}</p>
+            {mailSent ? (
+              <p className="ops-mail-ok">
+                Code emailed to {loginEmail}. Check Inbox, Spam, and Promotions.
+              </p>
             ) : null}
-            {notice ? <p className="dev-code">{notice}</p> : null}
+            {mailError ? <p className="error">{mailError}</p> : null}
+            {devCode ? (
+              <>
+                <p className="dev-code">On-screen code {devCode}</p>
+                <p className="muted small">
+                  Inbox delivery is not live yet. This code is valid for 10
+                  minutes. Do not paste it in chat.
+                </p>
+              </>
+            ) : null}
+            {notice && !mailError ? <p className="muted small">{notice}</p> : null}
             {error ? <p className="error">{error}</p> : null}
             <button className="btn btn-primary" type="submit" disabled={busy}>
               {challengeId ? "Verify and enter" : "Email sign-in code"}
             </button>
+            {challengeId ? (
+              <button
+                className="btn btn-ghost"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setChallengeId("");
+                  setCode("");
+                  setDevCode("");
+                  setMailError("");
+                  setMailSent(false);
+                  setNotice("");
+                }}
+              >
+                Email a new code
+              </button>
+            ) : null}
           </form>
         </section>
       </div>
@@ -342,6 +375,9 @@ export function AdminApp() {
                 setSuperAdmin(false);
                 setChallengeId("");
                 setCode("");
+                setDevCode("");
+                setMailError("");
+                setMailSent(false);
               })
             }
           >
@@ -355,10 +391,11 @@ export function AdminApp() {
             <h2>Generate and approve licences</h2>
             <p className="muted small">
               Key policy: <code>CYVRAddmmyyyy</code> + S/B + 4 hex + slab (
-              <code>1-3</code>, <code>1-5</code>, <code>1-7</code>,{" "}
-              <code>1-25</code>). Same key, same brand, up to the slab. Approve
-              emails the key to the customer inbox only. Payment noted is a
-              human attestation, not a gateway.
+              <code>1-1</code>, <code>1-3</code>, <code>1-5</code>, <code>1-7</code>,{" "}
+              <code>1-25</code>). <code>1-1</code> is single-user, one device.
+              Same key, same brand, up to the slab. Approve emails the key to
+              the customer inbox only. Payment noted is a human attestation,
+              not a gateway.
             </p>
             <section className="ops-card">
               <p className="muted small">
@@ -412,12 +449,17 @@ export function AdminApp() {
                   <select
                     id="customerKind"
                     value={draft.customerKind}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const customerKind = event.target.value as LicenceDraft["customerKind"];
                       setDraft({
                         ...draft,
-                        customerKind: event.target.value as LicenceDraft["customerKind"],
-                      })
-                    }
+                        customerKind,
+                        deviceMax:
+                          customerKind === "BULK" && draft.deviceMax === 1
+                            ? 3
+                            : draft.deviceMax,
+                      });
+                    }}
                   >
                     <option value="SINGLE">Single user</option>
                     <option value="BULK">Bulk licence</option>
@@ -428,13 +470,20 @@ export function AdminApp() {
                   <select
                     id="deviceMax"
                     value={draft.deviceMax}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const deviceMax = Number(
+                        event.target.value,
+                      ) as LicenceDraft["deviceMax"];
                       setDraft({
                         ...draft,
-                        deviceMax: Number(event.target.value) as LicenceDraft["deviceMax"],
-                      })
-                    }
+                        deviceMax,
+                        customerKind: deviceMax === 1 ? "SINGLE" : draft.customerKind,
+                      });
+                    }}
                   >
+                    <option value={1} disabled={draft.customerKind === "BULK"}>
+                      1 device (single user)
+                    </option>
                     <option value={3}>1-3 devices</option>
                     <option value={5}>1-5 devices</option>
                     <option value={7}>1-7 devices</option>

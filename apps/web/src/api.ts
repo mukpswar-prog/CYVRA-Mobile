@@ -262,7 +262,7 @@ export interface LicenceDraft {
   customerEmail: string;
   paymentNoted: string;
   customerKind: "SINGLE" | "BULK";
-  deviceMax: 3 | 5 | 7 | 25;
+  deviceMax: 1 | 3 | 5 | 7 | 25;
   brandScope: string;
   customerFullName: string;
   companyName: string;
@@ -274,7 +274,14 @@ export interface LicenceDraft {
 
 export const adminApi = {
   requestStaffCode: (email: string) =>
-    adminRequest<{ challengeId: string; delivery: string; devCode?: string; message: string }>(
+    adminRequest<{
+      challengeId: string;
+      delivery: string;
+      mailConfigured?: boolean;
+      mailError?: string | null;
+      devCode?: string;
+      message: string;
+    }>(
       "/admin/auth/request",
       { method: "POST", body: JSON.stringify({ email }) },
     ),

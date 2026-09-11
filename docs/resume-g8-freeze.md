@@ -60,7 +60,7 @@ Header on the frozen public site:
 | **G4** | Evidence schema + capability contract | Done in `packages/evidence`. |
 | **G5** | S1 Android on **one owned Samsung** | **Core collect-from-plan added.** `:core` tests pass. No phone ingest yet. |
 | **G6** | Report 1 from frozen manifest | **API + web exist.** No real phone ingest yet. |
-| **G7** | Ops serials / licences on `admin.cyvoriq.co.in` | **API + console implemented.** Staff OTP, parseable keys, reports. Live Pages rebuild still needed. |
+| **G7** | Ops serials / licences on `admin.cyvoriq.co.in` | **Console live.** Staff OTP preview works. Inbox delivery still unproven. `1-1` slab added. |
 | **G8** | Public `www.cyvoriq.co.in` | **Done. Frozen.** |
 | **G9** | Station (Decision 5.1.20.2) | Blocked. |
 | **G10** | Knox / UEM / OEM | Blocked. |
@@ -124,42 +124,19 @@ Do not attach `admin.cyvoriq.co.in` to `cyvoriq-admin.pages.dev`.
 
 ## After the break — start here
 
-Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8.
+Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8. Do not start Station or Knox.
 
-### 1. G7 proof — 11 Sep 2026 ~10:57 UTC
+Approved order (11 Sep 2026, CEO):
 
-**Form is proven.** Browser on https://admin.cyvoriq.co.in/ shows **CYVRA Mobile ops** + Mobile serials (ADMIN_API_TOKEN empty, X-Admin-Email `ceo@cyvoriq.com`, Create PENDING, Refresh list). Not the marketing homepage. Not Fraunces `cyvoriq-admin.pages.dev`. www still frozen (`Know the Device`, Get Started only).
+1. **G7 human proof** — `https://admin.cyvoriq.co.in/` staff OTP. Inbox delivery is still unproven; keep `API_ENV=preview`. The sign-in card shows the Resend error plus an on-screen code until a real mail lands. Slab `1-1` is single-user, one device.
+2. **G5** — APK `co.in.cyvra.mobile` on **one owned Samsung**, first evidence batch to `https://api.cyvoriq.co.in`. Laptop + phone. Not today unless the CEO says so.
+3. **Wire that batch to Report 1** — coding, after the first real ingest.
+4. **`API_ENV=production` only after a real OTP is trusted** in `ceo@cyvoriq.com`.
+5. **Station / Knox** — blocked until separately approved.
 
-**Still you (token, do not paste in chat):**
+Do not paste OTP codes in chat. Do not Create PENDING with dummy payment text on the live Worker.
 
-1. On https://admin.cyvoriq.co.in/ type Worker `ADMIN_API_TOKEN`
-2. Refresh list. Empty list is a pass. 401 means the token is wrong
-3. Optional: one OTP at https://cyvoriq.co.in/create-account. Keep `API_ENV=preview`
-
-Clicks if the dedicated admin Pages project must be rebuilt from this repo: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt). Do not point the custom domain at `cyvoriq-admin.pages.dev` until that project is this repo.
-
-Ops contents freeze: [admin-scope-freeze.md](./admin-scope-freeze.md). Serials only. No marketing, no OTP, no Erase licences, no `/#ops` on www.
-
-### 2. G5 coding — started 11 Sep 2026
-
-Local checks **passed** this session:
-
-```
-pnpm --filter @cyvra/evidence test     26 pass
-apps/android ./gradlew :core:test      BUILD SUCCESSFUL (planned batch never PASS)
-```
-
-New in `:core`: `queuePlannedBatch` turns the capability plan into an honest offline batch (IMEI/SOH/Knox = NOT_AVAILABLE, missing permission = PERMISSION_DENIED, ready tests stay NOT_TESTED). S1 scaffold `MainActivity` now queues that batch and prints PASS count (must be 0).
-
-**Next coding:** install `:app` (`co.in.cyvra.mobile`) on **one owned Samsung**, then upload `POST /evidence/batches` to `https://api.cyvoriq.co.in` after a signed-in session. USB ≠ authorization. No IMEI, no Knox claim, no lock bypass.
-
-`:app` needs Android SDK / JDK on a machine that can install to the phone. Detail: [codespaces-g5.md](./codespaces-g5.md).
-
-Say in chat if the token list passed: **Continue G5: APK on one Samsung and upload the first evidence batch.**
-
-### 3. After first real ingest
-
-Wire the signed-in workspace to that Report 1. Then `cyvoriq-accounts` if needed. Merge to `main` only when this branch is the production source of truth.
+Ops contents freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
 
 ---
 

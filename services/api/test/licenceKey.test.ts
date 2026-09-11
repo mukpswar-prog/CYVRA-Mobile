@@ -22,7 +22,7 @@ describe("licence key policy", () => {
     assert.equal(parsed?.yyyy, "2026");
   });
 
-  it("supports bulk 1-25 and single 1-3 / 1-7", () => {
+  it("supports bulk 1-25 and single 1-1 / 1-3 / 1-7", () => {
     const bulk = formatLicenceKey({
       at: new Date("2026-01-02T00:00:00.000Z"),
       kind: "BULK",
@@ -31,8 +31,31 @@ describe("licence key policy", () => {
     });
     assert.equal(bulk, "CYVRA02012026B00AB-1-25");
     assert.equal(parseLicenceKey(bulk)?.kind, "BULK");
+    const one = formatLicenceKey({
+      at: new Date("2026-09-11T08:00:00.000Z"),
+      kind: "SINGLE",
+      slabMax: 1,
+      hex4: "A3F1",
+    });
+    assert.equal(one, "CYVRA11092026SA3F1-1-1");
+    assert.equal(parseLicenceKey(one)?.slabMax, 1);
+    assert.equal(parseLicenceKey(one)?.kind, "SINGLE");
     assert.equal(parseLicenceKey("CYVRA11092026SA3F1-1-3")?.slabMax, 3);
     assert.equal(parseLicenceKey("CYVRA11092026SA3F1-1-7")?.slabMax, 7);
+  });
+
+  it("rejects bulk 1-device keys", () => {
+    assert.throws(
+      () =>
+        formatLicenceKey({
+          at: new Date("2026-09-11T08:00:00.000Z"),
+          kind: "BULK",
+          slabMax: 1,
+          hex4: "A3F1",
+        }),
+      /single-user only/,
+    );
+    assert.equal(parseLicenceKey("CYVRA11092026BA3F1-1-1"), null);
   });
 
   it("rejects unknown slabs and lowercase hex in parse via normalize", () => {

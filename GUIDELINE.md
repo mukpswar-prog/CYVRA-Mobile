@@ -23,7 +23,7 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 
 **Do not rename** `cyvra-approvals` into this product. **Do not put folders in** `mukpswar-prog/Erase`. **Do not point mobile login at** `api.cyvra.co.in`.
 
-**Amendment 11 Sep 2026 (ops licences):** Mobile licence keys are parseable: `CYVRA{dd}{mm}{yyyy}{S|B}{hex4}-1-{3|5|7|25}` (example `CYVRA11092026SA3F1-1-5`). Super admin is `ceo@cyvoriq.com`. Only `@cyvoriq.com` operators nominated by the CEO can sign in. The key is emailed to the customer’s verified inbox only. Same key, same brand, up to the slab. Ops UI: [docs/admin-scope-freeze.md](docs/admin-scope-freeze.md).
+**Amendment 11 Sep 2026 (ops licences):** Mobile licence keys are parseable: `CYVRA{dd}{mm}{yyyy}{S|B}{hex4}-1-{1|3|5|7|25}` (example `CYVRA11092026SA3F1-1-1` for single-user, one device). Super admin is `ceo@cyvoriq.com`. Only `@cyvoriq.com` operators nominated by the CEO can sign in. The key is emailed to the customer’s verified inbox only. Same key, same brand, up to the slab. Ops UI: [docs/admin-scope-freeze.md](docs/admin-scope-freeze.md).
 
 **Amendment 11 Sep 2026:** Public `www.cyvoriq.co.in` is frozen. Resume: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Next is G7 browser proof, then G5 on one owned Samsung. Do not start Station or Knox.
 

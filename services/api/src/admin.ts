@@ -14,12 +14,13 @@ import {
   sha256Hex,
   timingSafeEqualHex,
 } from "./crypto";
-import { sendLicenceEmail, sendOtpEmail } from "./email";
+import { mailConfigured, sendLicenceEmail, sendOtpEmail } from "./email";
 import type { Database } from "./db";
 import type { Env } from "./env";
 import {
   generateLicenceKey,
   isLicenceSlab,
+  licenceDraftError,
   parseLicenceKey,
   type LicenceKind,
   type LicenceSlabMax,
@@ -246,16 +247,18 @@ adminRoutes.post("/auth/request", async (c) => {
     challengeId: challenge.id,
     purpose: "staff",
   });
-  if (result.error) {
-    return c.json({ error: `Could not send ops code: ${result.error}` }, 502);
+  if (!result.sent && c.env.API_ENV === "production") {
+    return c.json({ error: `Could not send ops code: ${result.error ?? "email failed"}` }, 502);
   }
   return c.json({
     challengeId: challenge.id,
     delivery: result.sent ? "email" : "dev-log",
+    mailConfigured: mailConfigured(c.env),
     devCode: result.devCode,
+    mailError: result.error ?? null,
     message: result.sent
-      ? "We emailed a 6-digit ops sign-in code."
-      : "Preview mode: use the code shown below.",
+      ? "We emailed a 6-digit ops sign-in code. Check Inbox, Spam, and Promotions."
+      : `Email was not sent (${result.error ?? "preview"}). API_ENV is still preview, so the on-screen code works until Resend delivers.`,
   });
 });
 
@@ -479,30 +482,24 @@ adminRoutes.post("/serials", async (c) => {
   const customerEmail = normalizeEmail(String(body.customerEmail ?? ""));
   const paymentNoted = String(body.paymentNoted ?? "").trim();
   const customerKind = String(body.customerKind ?? "SINGLE").toUpperCase();
-  const deviceMax = Number(body.deviceMax ?? body.slabMax ?? 3);
+  const deviceMax = Number(body.deviceMax ?? body.slabMax ?? 1);
   const brandScope = String(body.brandScope ?? "").trim().toUpperCase();
-  if (!customerEmail || !customerEmail.includes("@")) {
-    return c.json({ error: "customerEmail is required." }, 400);
+  const customerFullName = String(body.customerFullName ?? "").trim();
+  const draftError = licenceDraftError({
+    customerEmail,
+    paymentNoted,
+    customerKind,
+    deviceMax,
+    brandScope,
+    customerFullName,
+  });
+  if (draftError) {
+    return c.json({ error: draftError }, 400);
   }
-  if (paymentNoted.length < 4) {
-    return c.json(
-      {
-        error:
-          "paymentNoted is required. This is a human note that payment transferred, not a gateway proof.",
-      },
-      400,
-    );
-  }
-  if (customerKind !== "SINGLE" && customerKind !== "BULK") {
-    return c.json({ error: "customerKind must be SINGLE or BULK." }, 400);
+  if (!isLicenceSlab(deviceMax)) {
+    return c.json({ error: "deviceMax slab must be 1, 3, 5, 7 or 25 (1-1 / 1-3 / 1-5 / 1-7 / 1-25)." }, 400);
   }
   const kind: LicenceKind = customerKind === "BULK" ? "BULK" : "SINGLE";
-  if (!isLicenceSlab(deviceMax)) {
-    return c.json({ error: "deviceMax slab must be 3, 5, 7 or 25 (1-3 / 1-5 / 1-7 / 1-25)." }, 400);
-  }
-  if (brandScope.length < 2) {
-    return c.json({ error: "brandScope is required (same key, same brand, up to the slab)." }, 400);
-  }
 
   const createdAt = new Date();
   const db = c.get("db");
@@ -527,7 +524,7 @@ adminRoutes.post("/serials", async (c) => {
     customerKind: kind,
     deviceMax,
     brandScope,
-    customerFullName: String(body.customerFullName ?? "").trim() || null,
+    customerFullName: customerFullName || null,
     companyName: String(body.companyName ?? "").trim() || null,
     addressLine1: String(body.addressLine1 ?? "").trim() || null,
     addressLine2: String(body.addressLine2 ?? "").trim() || null,

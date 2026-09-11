@@ -25,6 +25,7 @@ import json, os
 h = json.loads(os.environ["HEALTH"])
 assert h.get("status") == "ok", h
 assert h.get("database") == "connected", h
+assert "mailConfigured" in h, h
 print("[test] health ok")
 PY
 
@@ -102,6 +103,8 @@ d = json.loads(body)
 assert status.strip() == "200", raw
 assert d.get("challengeId"), d
 assert d.get("devCode") and len(d["devCode"]) == 6, d
+assert d.get("mailError"), d
+assert d.get("mailConfigured") is False, d
 open("/tmp/cyvra-staff-otp.json","w").write(json.dumps(d))
 print("[test] staff otp challenge", d["challengeId"])
 PY
@@ -162,6 +165,39 @@ assert re.match(r"^CYVRA\d{8}S[0-9A-F]{4}-1-5$", s["publicNumber"]), s
 open("/tmp/cyvra-g7-serial.json","w").write(json.dumps(s))
 print("[test] create PENDING", s["publicNumber"])
 PY
+
+echo "[test] POST /admin/serials 1-device single-user key"
+ONE="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
+  -H "content-type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "X-Admin-Email: $ADMIN_EMAIL" \
+  -H "Origin: https://admin.cyvoriq.co.in" \
+  -d '{"customerEmail":"one@example.com","paymentNoted":"UPI transferred 2026-09-11","customerKind":"SINGLE","deviceMax":1,"brandScope":"SAMSUNG","customerFullName":"One Device Buyer"}')"
+echo "$ONE"
+ONE="$ONE" "$PY" - << 'PY'
+import json, os, re
+raw = os.environ["ONE"]
+body, _, status = raw.rpartition("\nHTTP:")
+d = json.loads(body)
+assert status.strip() == "201", raw
+s = d["serial"]
+assert s["customerKind"] == "SINGLE", s
+assert s["deviceMax"] == 1, s
+assert s["slabLabel"] == "1-1", s
+assert re.match(r"^CYVRA\d{8}S[0-9A-F]{4}-1-1$", s["publicNumber"]), s
+print("[test] create 1-device", s["publicNumber"])
+PY
+
+echo "[test] POST /admin/serials rejects bulk 1-device"
+BULK1="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
+  -H "content-type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "X-Admin-Email: $ADMIN_EMAIL" \
+  -H "Origin: https://admin.cyvoriq.co.in" \
+  -d '{"customerEmail":"bulk@example.com","paymentNoted":"UPI transferred 2026-09-11","customerKind":"BULK","deviceMax":1,"brandScope":"SAMSUNG","customerFullName":"Bulk Buyer"}')"
+echo "$BULK1"
+echo "$BULK1" | grep -q "HTTP:400"
+echo "$BULK1" | grep -q "single-user only"
 
 SERIAL_ID="$("$PY" - << 'PY'
 import json

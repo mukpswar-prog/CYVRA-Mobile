@@ -70,9 +70,19 @@
   margin: 0 0 6px;
 }
 
-.ops-login-card .btn-primary {
+.ops-login-card .btn-ghost {
   width: 100%;
-  margin-top: 18px;
+  margin-top: 8px;
+}
+
+.ops-mail-ok {
+  margin-top: 14px;
+  color: #176b3a;
+  font-size: 14px;
+  background: #e8f6ee;
+  border: 1px solid #b7e4c7;
+  padding: 10px 12px;
+  border-radius: 10px;
 }
 
 .ops-shell {

@@ -9,19 +9,19 @@
  *   11092026  issue/create date UTC (ddmmyyyy)
  *   S         SINGLE user  (B = BULK)
  *   A3F1      4-digit hex uniqueness
- *   1-5       device slab (allowed: 1-3, 1-5, 1-7, 1-25)
+ *   1-1       device slab (allowed: 1-1, 1-3, 1-5, 1-7, 1-25)
  *
  * Same key may be used on devices of the same brand up to `max`.
- * Email only. Not a Windows Erase licence. Not IMEI.
+ * 1-1 is single-user, single-device only (not BULK). Email only. Not a Windows Erase licence.
  */
 
 export const LICENCE_PREFIX = "CYVRA";
-export const LICENCE_SLABS = [3, 5, 7, 25] as const;
+export const LICENCE_SLABS = [1, 3, 5, 7, 25] as const;
 export type LicenceSlabMax = (typeof LICENCE_SLABS)[number];
 export type LicenceKind = "SINGLE" | "BULK";
 
 export const LICENCE_KEY_RE =
-  /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(3|5|7|25)$/;
+  /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(1|3|5|7|25)$/;
 
 export function kindCode(kind: LicenceKind): "S" | "B" {
   return kind === "BULK" ? "B" : "S";
@@ -64,7 +64,10 @@ export function formatLicenceKey(params: {
     throw new Error("hex4 must be 4 hexadecimal digits.");
   }
   if (!isLicenceSlab(params.slabMax)) {
-    throw new Error("slab must be 1-3, 1-5, 1-7 or 1-25.");
+    throw new Error("slab must be 1-1, 1-3, 1-5, 1-7 or 1-25.");
+  }
+  if (params.slabMax === 1 && params.kind !== "SINGLE") {
+    throw new Error("1-device keys are single-user only.");
   }
   const { dd, mm, yyyy } = utcDateParts(params.at);
   return `${LICENCE_PREFIX}${dd}${mm}${yyyy}${kindCode(params.kind)}${hex}-1-${params.slabMax}`;
@@ -84,6 +87,7 @@ export function parseLicenceKey(key: string): {
   const kind = kindFromCode(match[4]);
   const slabMax = Number(match[6]);
   if (!kind || !isLicenceSlab(slabMax)) return null;
+  if (slabMax === 1 && kind !== "SINGLE") return null;
   return {
     dd: match[1],
     mm: match[2],
@@ -101,4 +105,36 @@ export function generateLicenceKey(params: {
   slabMax: LicenceSlabMax;
 }): string {
   return formatLicenceKey({ ...params, hex4: randomHex4() });
+}
+
+export function licenceDraftError(input: {
+  customerEmail: string;
+  paymentNoted: string;
+  customerKind: string;
+  deviceMax: number;
+  brandScope: string;
+  customerFullName?: string;
+}): string | null {
+  const email = input.customerEmail.trim().toLowerCase();
+  if (!email || !email.includes("@")) return "customerEmail is required.";
+  if (input.paymentNoted.trim().length < 4) {
+    return "paymentNoted is required. This is a human note that payment transferred, not a gateway proof.";
+  }
+  const kind = input.customerKind.trim().toUpperCase();
+  if (kind !== "SINGLE" && kind !== "BULK") {
+    return "customerKind must be SINGLE or BULK.";
+  }
+  if (!isLicenceSlab(input.deviceMax)) {
+    return "deviceMax slab must be 1, 3, 5, 7 or 25 (1-1 / 1-3 / 1-5 / 1-7 / 1-25).";
+  }
+  if (input.deviceMax === 1 && kind !== "SINGLE") {
+    return "1-device keys are single-user only.";
+  }
+  if (input.brandScope.trim().length < 2) {
+    return "brandScope is required (same key, same brand, up to the slab).";
+  }
+  if ((input.customerFullName ?? "").trim().length < 2) {
+    return "customerFullName is required.";
+  }
+  return null;
 }
