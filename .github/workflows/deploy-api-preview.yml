@@ -1,0 +1,44 @@
+# Deploy API preview (no Codespaces)
+
+# Manual run: GitHub → Actions → Deploy mobile API preview → Run workflow
+# Secret: repo Settings → Secrets and variables → Actions →
+#   CLOUDFLARE_API_TOKEN = the user token named cyvoriq-mobile
+# Never put ADMIN_API_TOKEN or Neon URLs here.
+
+name: Deploy mobile API preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Deploy Worker preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 5a3eeb2b3d42726a8ba08732464a0eda
+        run: pnpm --filter @cyvra/api exec wrangler deploy --var API_ENV:preview --var APP_ORIGIN:https://cyvra-mobile.pages.dev
+      - name: Prove health and G7 gate
+        run: |
+          set -euo pipefail
+          curl -fsS https://cyvra-mobile-api.mukpswar.workers.dev/health
+          echo
+          code="$(curl -sS -o /tmp/admin.body -w "%{http_code}" https://cyvra-mobile-api.mukpswar.workers.dev/admin/serials)"
+          echo "GET /admin/serials HTTP $code"
+          cat /tmp/admin.body
+          echo
+          test "$code" = "401"
