@@ -60,7 +60,7 @@ Header on the frozen public site:
 | **G4** | Evidence schema + capability contract | Done in `packages/evidence`. |
 | **G5** | S1 Android on **one owned Samsung** | **Core collect-from-plan added.** `:core` tests pass. No phone ingest yet. |
 | **G6** | Report 1 from frozen manifest | **API + web exist.** No real phone ingest yet. |
-| **G7** | Ops serials on `admin.cyvoriq.co.in` | **API live (401 without token).** **Ops form proven in browser 11 Sep 2026.** Token Refresh list still a human click. |
+| **G7** | Ops serials / licences on `admin.cyvoriq.co.in` | **API + console implemented.** Staff OTP, parseable keys, reports. Live Pages rebuild still needed. |
 | **G8** | Public `www.cyvoriq.co.in` | **Done. Frozen.** |
 | **G9** | Station (Decision 5.1.20.2) | Blocked. |
 | **G10** | Knox / UEM / OEM | Blocked. |
