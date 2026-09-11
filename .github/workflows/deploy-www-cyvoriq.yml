@@ -39,6 +39,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: 5a3eeb2b3d42726a8ba08732464a0eda
         run: |
           set -euo pipefail
+          # shellcheck disable=SC1091
+          . scripts/sanitize-cf-token.sh
+          pnpm --filter @cyvra/api exec wrangler whoami
           cd services/api
           pnpm exec wrangler pages project create cyvoriq-www --production-branch=main || true
           pnpm exec wrangler pages deploy ../../apps/web/dist \
