@@ -9,7 +9,8 @@ Public `www.cyvoriq.co.in` / apex is **frozen**. Do not polish marketing next.
 Next work: **G7 browser proof**, then **G5 S1 on one owned Samsung**.
 
 Sister files: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt), [g7-freeze.md](./g7-freeze.md), [codespaces-g5.md](./codespaces-g5.md).  
-Older resume ([resume-after-break.md](./resume-after-break.md)) is history. This file wins.
+Older resume ([resume-after-break.md](./resume-after-break.md)) is history. This file wins.  
+Ops host freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
 
 ---
 
@@ -123,6 +124,8 @@ Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8.
 3. Optional: one OTP at https://cyvoriq.co.in/create-account. Keep `API_ENV=preview`
 
 Clicks if the dedicated admin Pages project must be rebuilt from this repo: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt). Do not point the custom domain at `cyvoriq-admin.pages.dev` until that project is this repo.
+
+Ops contents freeze: [admin-scope-freeze.md](./admin-scope-freeze.md). Serials only. No marketing, no OTP, no Erase licences, no `/#ops` on www.
 
 ### 2. G5 coding — started 11 Sep 2026
 
