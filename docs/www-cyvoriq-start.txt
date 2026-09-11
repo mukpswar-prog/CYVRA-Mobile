@@ -13,17 +13,19 @@ Do not open or edit Pages cyvra-www / Worker cyvoriq-erase-api.
 
   Cloudflare → Workers & Pages → Create → Pages
 
-  Preferred: Connect to Git
-    Account / repo:  mukpswar-prog/CYVRA-Mobile
+  You are on: Select a repository. CYVRA-Mobile is the correct repo.
+  Click Begin setup. Then set:
+
     Project name:    cyvoriq-www          (exact. not cyvra-mobile, not cyvra-www)
     Production branch:
       cursor/g0-g3-mobile-slice-7474      until this branch is merged to main
-    Framework:       Vite
-    Root directory:  /                    (monorepo root)
+    Framework preset: Vite
+    Root directory:  /                    (leave blank / monorepo root)
     Build command:   pnpm install && pnpm --filter @cyvra/web build
-    Build output:    apps/web/dist
-    Environment variables (Production + Preview), BUILD-TIME:
+    Build output directory: apps/web/dist
+    Environment variables (Production AND Preview), BUILD-TIME only:
       VITE_API_URL = https://api.cyvoriq.co.in
+      NODE_VERSION = 24
 
   If Cloudflare says this repo is already used by cyvra-mobile:
     still create a SECOND project named cyvoriq-www. Do not rename
