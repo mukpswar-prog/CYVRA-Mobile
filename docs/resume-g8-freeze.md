@@ -57,9 +57,9 @@ Header on the frozen public site:
 | **G2** | Users / OTP / sessions | Done. |
 | **G3** | Register / sign-in on Pages | Done on `www.cyvoriq.co.in` and `mobile.cyvra.co.in`. |
 | **G4** | Evidence schema + capability contract | Done in `packages/evidence`. |
-| **G5** | S1 Android on **one owned Samsung** | **Scaffold only.** `apps/android` `:core` + plan screen. No real device report. |
+| **G5** | S1 Android on **one owned Samsung** | **Core collect-from-plan added.** `:core` tests pass. No phone ingest yet. |
 | **G6** | Report 1 from frozen manifest | **API + web exist.** No real phone ingest yet. |
-| **G7** | Ops serials on `admin.cyvoriq.co.in` | **API live (401 without token).** Browser proof of the serials form is the first click after the break. |
+| **G7** | Ops serials on `admin.cyvoriq.co.in` | **API live (401 without token).** **Ops form proven in browser 11 Sep 2026.** Token Refresh list still a human click. |
 | **G8** | Public `www.cyvoriq.co.in` | **Done. Frozen.** |
 | **G9** | Station (Decision 5.1.20.2) | Blocked. |
 | **G10** | Knox / UEM / OEM | Blocked. |
@@ -112,47 +112,34 @@ Hidden ops on the public bundle also exists at `/#ops` — prefer the admin host
 
 Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8.
 
-### 1. You (browser, ~15 min) — G7 proof
+### 1. G7 proof — 11 Sep 2026 ~10:57 UTC
 
-1. Open https://admin.cyvoriq.co.in/
-2. Pass: **CYVRA Mobile ops** + serials form. Fail: marketing homepage, or Fraunces “CYVRA Admin”.
-3. `X-Admin-Email` = `ceo@cyvoriq.com`. Token = Worker `ADMIN_API_TOKEN` (type it; no screenshot; no chat).
-4. Refresh list. Empty list is a pass. 401 means the token is wrong.
-5. Optional: one OTP at https://cyvoriq.co.in/create-account with a real inbox. Keep `API_ENV=preview`. Do not paste the code in chat.
+**Form is proven.** Browser on https://admin.cyvoriq.co.in/ shows **CYVRA Mobile ops** + Mobile serials (ADMIN_API_TOKEN empty, X-Admin-Email `ceo@cyvoriq.com`, Create PENDING, Refresh list). Not the marketing homepage. Not Fraunces `cyvoriq-admin.pages.dev`. www still frozen (`Know the Device`, Get Started only).
 
-Clicks if the admin project must be rebuilt from this repo: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
+**Still you (token, do not paste in chat):**
 
-### 2. Next coding slice — G5 (core product)
+1. On https://admin.cyvoriq.co.in/ type Worker `ADMIN_API_TOKEN`
+2. Refresh list. Empty list is a pass. 401 means the token is wrong
+3. Optional: one OTP at https://cyvoriq.co.in/create-account. Keep `API_ENV=preview`
 
-Say in the next chat: **Start G5: install S1 on one owned Samsung and upload the first evidence batch.**
+Clicks if the dedicated admin Pages project must be rebuilt from this repo: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt). Do not point the custom domain at `cyvoriq-admin.pages.dev` until that project is this repo.
 
-What already exists:
+### 2. G5 coding — started 11 Sep 2026
 
-- `packages/evidence` — schema, honesty, Report 1 freeze
-- `apps/android` — `:core` JVM tests + scaffold `MainActivity` (capability plan only)
-- Worker `POST /evidence`, ` /reports`
-- Web `/dashboard` lists sessions/reports once evidence exists
+Local checks **passed** this session:
 
-What G5 must do:
-
-- One owned Samsung
-- Capability recorded separately from test result
-- No IMEI, no Knox claim, no lock bypass
-- USB ≠ authorization
-- Offline queue, then upload to `https://api.cyvoriq.co.in`
-- Report 1 LIMITED / NOT AVAILABLE where evidence is missing — never a guessed grade
-
-Local checks before the phone:
-
-```powershell
-git checkout cursor/g0-g3-mobile-slice-7474
-git pull
-pnpm --filter @cyvra/evidence test
-cd apps\android
-.\gradlew :core:test --no-daemon
+```
+pnpm --filter @cyvra/evidence test     26 pass
+apps/android ./gradlew :core:test      BUILD SUCCESSFUL (planned batch never PASS)
 ```
 
-`:app` (`co.in.cyvra.mobile`) needs Android SDK / JDK on a machine that can install to the phone. Detail: [codespaces-g5.md](./codespaces-g5.md).
+New in `:core`: `queuePlannedBatch` turns the capability plan into an honest offline batch (IMEI/SOH/Knox = NOT_AVAILABLE, missing permission = PERMISSION_DENIED, ready tests stay NOT_TESTED). S1 scaffold `MainActivity` now queues that batch and prints PASS count (must be 0).
+
+**Next coding:** install `:app` (`co.in.cyvra.mobile`) on **one owned Samsung**, then upload `POST /evidence/batches` to `https://api.cyvoriq.co.in` after a signed-in session. USB ≠ authorization. No IMEI, no Knox claim, no lock bypass.
+
+`:app` needs Android SDK / JDK on a machine that can install to the phone. Detail: [codespaces-g5.md](./codespaces-g5.md).
+
+Say in chat if the token list passed: **Continue G5: APK on one Samsung and upload the first evidence batch.**
 
 ### 3. After first real ingest
 
