@@ -1,9 +1,12 @@
-# Resume here — 11 Sep 2026 (admin.cyvoriq.co.in)
+# Resume here — superseded 11 Sep 2026
+
+**Current start file:** [resume-g8-freeze.md](./resume-g8-freeze.md).
+
+Public `www.cyvoriq.co.in` is frozen. Next is G7 browser proof, then G5 on one Samsung. This file is the 11 Sep morning handoff (admin Pages). Keep it as history.
 
 Branch: `cursor/g0-g3-mobile-slice-7474`.
 
-**www is live.** Next: Pages **`cyvoriq-admin`** + **`admin.cyvoriq.co.in`**.
-Clicks: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
+Clicks if admin must be rebuilt: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
 
 ---
 

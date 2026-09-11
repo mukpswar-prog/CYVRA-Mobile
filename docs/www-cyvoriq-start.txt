@@ -1,6 +1,6 @@
 WWW.CYVORIQ.CO.IN — FIRST CLICKS (11 Sep 2026)
 Repo: mukpswar-prog/CYVRA-Mobile  branch cursor/g0-g3-mobile-slice-7474
-Sister: docs/resume-after-break.md
+Sister: docs/resume-g8-freeze.md
 
 Apex NXDOMAIN is expected until this file is finished.
 Do not bind www to Worker cyvra-mobile-api.

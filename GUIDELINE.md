@@ -23,7 +23,9 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 
 **Do not rename** `cyvra-approvals` into this product. **Do not put folders in** `mukpswar-prog/Erase`. **Do not point mobile login at** `api.cyvra.co.in`.
 
-**Amendment 10 Sep 2026 (management):** Mobile Evidence’s public and ops hosts move to **`cyvoriq.co.in`** (new Cloudflare zone on the same account). Not a subdomain of `cyvra.co.in`. No Erase repo changes. Same Neon `floral-art-02749206`. Do not delete `mobile.cyvra.co.in` until the new origin is proven. Detail: [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt). Resume (www next): [docs/resume-after-break.md](docs/resume-after-break.md) and [docs/www-cyvoriq-start.txt](docs/www-cyvoriq-start.txt).
+**Amendment 11 Sep 2026:** Public `www.cyvoriq.co.in` is frozen. Resume: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Next is G7 browser proof, then G5 on one owned Samsung. Do not start Station or Knox.
+
+**Amendment 10 Sep 2026 (management):** Mobile Evidence’s public and ops hosts move to **`cyvoriq.co.in`** (new Cloudflare zone on the same account). Not a subdomain of `cyvra.co.in`. No Erase repo changes. Same Neon `floral-art-02749206`. Do not delete `mobile.cyvra.co.in` until the new origin is proven. Detail: [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt).
 
 **First code (when you say go), in this order:**
 
@@ -461,4 +463,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** accept this guideline, make `CYVRA-Mobile` private, open the following Cursor session **on that GitHub**, authenticate Cloudflare + Neon + Resend there, then execute G0–G3.
+**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Public www is frozen. Prove admin.cyvoriq.co.in serials UI, then G5 on one owned Samsung. Do not start Station or Knox.

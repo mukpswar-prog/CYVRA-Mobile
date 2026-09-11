@@ -1,6 +1,6 @@
 ADMIN.CYVORIQ.CO.IN — FIRST CLICKS
 After www.cyvoriq.co.in is HTTP 200.
-Sister: docs/www-cyvoriq-start.txt  docs/resume-after-break.md
+Sister: docs/www-cyvoriq-start.txt  docs/resume-g8-freeze.md
 
 Same GitHub repo and same Vite bundle as www. The app shows the serials
 UI only when the hostname is admin.cyvoriq.co.in (or *.cyvoriq-admin.pages.dev).
