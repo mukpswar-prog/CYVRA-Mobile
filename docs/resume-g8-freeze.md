@@ -9,16 +9,14 @@ Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md), [codespaces-g5.m
 
 ---
 
-## Status at 12 Sep 2026 ~05:25 UTC
+## Status at 12 Sep 2026 ~06:05 UTC
 
 | Item | State |
 |---|---|
-| Pages `cyvoriq-www` | Ops card already shows on-screen code + mailError. Create-account mailError ships after the next Pages Action. |
-| Worker `cyvra-mobile-api` | **Stale.** `workers.dev` `/health` has no `mailConfigured`. Last API Action was 11 Sep 14:25 UTC. |
-| OTP mailbox | Resend key `235c5518-…` returned **200** on 9 Sep, then **403** after From moved to `noreply@cyvoriq.co.in`. Key is still Erase-scoped. |
-| G5 / Report / production / Station | Parked. Do later. |
-
-Runbook: [resend-mobile-otp.md](./resend-mobile-otp.md).
+| G7 OTP | **Trusted.** Ops `admin.cyvoriq.co.in` and customer `cyvoriq.co.in` both landed in real inboxes. |
+| Worker `/health` | `mailConfigured: true`, `mailFromHost: "cyvoriq.co.in"`, `env: preview` |
+| G5 | Next. One owned Samsung. Runbook: [g5-owned-samsung.md](./g5-owned-samsung.md). |
+| Report 1 / `API_ENV=production` / Station / Knox | After G5 ingest 200. |
 
 ---
 
@@ -28,15 +26,14 @@ Stay on `cursor/g0-g3-mobile-slice-7474`. `git pull`. Do not reopen G8. Do not s
 
 | # | What | Who |
 |---|---|---|
-| 1 | **G7 Resend key.** Follow [resend-mobile-otp.md](./resend-mobile-otp.md): new sending key named `cyvra-mobile-otp` with Domain `cyvoriq.co.in`; put it only on Worker `cyvra-mobile-api`; keep `RESEND_FROM` on `noreply@cyvoriq.co.in`; keep `API_ENV=preview`. Do not rotate Erase keys. | You |
-| 2 | GitHub → Actions, this branch: **Deploy mobile API preview**, then **Deploy cyvoriq-www Pages**. Expect `/health` `mailConfigured: true` and `mailFromHost: "cyvoriq.co.in"`. | You |
-| 3 | Prove **both** OTPs: `https://admin.cyvoriq.co.in/` and `https://cyvoriq.co.in/create-account`. Success = Resend 200 + inbox, no on-screen code. On-screen code means send still failed — read the red `mailError`. Do not paste codes in chat. Do not Create PENDING with dummy payment on live. | You |
-| 4 | **G5** (later). One owned Samsung. USB copy ≠ authorization. | Later |
-| 5 | Wire that batch to Report 1. | Later |
-| 6 | `API_ENV=production` only after a real OTP is trusted. | Later |
-| 7 | Station / Knox. | Later |
+| 1–3 | G7 Resend key + both deploys + both OTP inbox proofs | **Done 12 Sep** |
+| 4 | **G5.** Follow [g5-owned-samsung.md](./g5-owned-samsung.md): Android Studio on the laptop, debug APK `co.in.cyvra.mobile` on **one owned Samsung**, share `cyvra-g5-batch.json`, POST with the **customer** session (not `ADMIN_API_TOKEN`). USB copy ≠ authorization. | You + laptop + phone |
+| 5 | After ingest HTTP 200, refresh `/dashboard` and confirm a processing session row. Do not Freeze Report 1 until that next slice. | You |
+| 6 | Wire that batch to Report 1. | Later |
+| 7 | `API_ENV=production` (OTP is now trusted; flip only after G5 ingest is trusted). | Later |
+| 8 | Station / Knox. | Later |
 
-Inbox still unproven. Keep `API_ENV=preview` until a real code lands.
+Keep `API_ENV=preview` through G5.
 
 ---
 
@@ -48,8 +45,8 @@ Inbox still unproven. Keep `API_ENV=preview` until a real code lands.
 | Licence keys | `CYVRA{dd}{mm}{yyyy}{S\|B}{hex4}-1-{1\|3\|5\|7\|25}`. `1-1` is single-user only. |
 | Ops login in git | Staff OTP. Failed send shows Resend error + on-screen preview code. `/health` has `mailConfigured`. |
 | Local proof | `pnpm --filter @cyvra/api test` 22 pass. `bash scripts/run-local-admin-serials.sh` created `…-1-1` and rejected bulk 1-device. |
-| Live Worker / Pages | May still be the **previous** bundle until both Actions run. Live `/health` did not yet show `mailConfigured`. |
-| OTP mailbox | Not trusted. On-screen preview means Resend did not deliver. |
+| Live Worker / Pages | API Action #5 + Pages Action #3 on this branch. `/health` has `mailConfigured: true` and `mailFromHost: "cyvoriq.co.in"`. |
+| OTP mailbox | **Trusted 12 Sep.** Ops and customer codes landed in real inboxes. |
 | Public www | Frozen. Do not polish. |
 
 ---
@@ -98,9 +95,9 @@ Header on the frozen public site:
 | **G2** | Users / OTP / sessions | Done. |
 | **G3** | Register / sign-in on Pages | Done on `www.cyvoriq.co.in` and `mobile.cyvra.co.in`. |
 | **G4** | Evidence schema + capability contract | Done in `packages/evidence`. |
-| **G5** | S1 Android on **one owned Samsung** | **Core collect-from-plan added.** `:core` tests pass. No phone ingest yet. |
-| **G6** | Report 1 from frozen manifest | **API + web exist.** No real phone ingest yet. |
-| **G7** | Ops serials / licences on `admin.cyvoriq.co.in` | **Console live.** Staff OTP preview works. Inbox delivery still unproven. `1-1` slab added. |
+| **G5** | S1 Android on **one owned Samsung** | **Next.** Core + planned JSON ready. Phone ingest not run yet. |
+| **G6** | Report 1 from frozen manifest | **API + web exist.** Wait for a real G5 batch. |
+| **G7** | Ops serials / licences on `admin.cyvoriq.co.in` | **Inbox trusted 12 Sep.** Keep `API_ENV=preview`. |
 | **G8** | Public `www.cyvoriq.co.in` | **Done. Frozen.** |
 | **G9** | Station (Decision 5.1.20.2) | Blocked. |
 | **G10** | Knox / UEM / OEM | Blocked. |
@@ -177,7 +174,7 @@ The morning-of-12-Sep header at the top of this file is the start point. The CEO
 - Point `admin.cyvoriq.co.in` at `cyvoriq-admin.pages.dev` until that project is rebuilt from **this** repo
 - Delete `mobile.cyvra.co.in` or Pages `cyvra-mobile`
 - Delete Resend domain `cyvra.co.in` or rotate **Erase** `RESEND_API_KEY` values. Replacing the Mobile Worker key with a `cyvoriq.co.in` sending key is required — see [resend-mobile-otp.md](./resend-mobile-otp.md).
-- Flip `API_ENV` to production until an OTP lands in a real inbox
+- Flip `API_ENV` to production until a G5 live ingest is trusted (OTP inbox is already trusted)
 - Create `cyvoriq-accounts` yet
 - Start G9 Station or G10 Knox
 - Secrets in Git. `git add database/.env`
