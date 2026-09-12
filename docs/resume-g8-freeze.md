@@ -2,7 +2,7 @@
 
 **Start the next session from this file.**  
 Governing law: [GUIDELINE.md](../GUIDELINE.md) (also `docs/GUIDELINE.md`).  
-Branch: `cursor/g0-g3-mobile-slice-7474`. Cursor Desktop on `main` is wrong — switch first.  
+Branch: `cursor/g0-g3-mobile-slice-7474`.  
 Public www is **frozen**. Ops freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
 
 Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md),
@@ -11,14 +11,15 @@ Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md),
 
 ---
 
-## Status at 12 Sep 2026 ~07:00 UTC (break)
+## Status at 12 Sep 2026 ~07:35 UTC (break — laptop checked)
 
 | Item | State |
 |---|---|
 | G7 OTP | **Trusted.** Ops and customer codes landed in real inboxes. |
 | Worker `/health` | `mailConfigured: true`, `mailFromHost: "cyvoriq.co.in"`, `env: preview` |
-| Android Studio | Installed on the Windows laptop (**Otter 2 / 2026.1.4**). SDK not configured yet. |
-| Samsung | **Not in hand.** Configure Studio now; G5 install waits for the owned phone. |
+| Cursor Desktop | **Correct.** Branch `cursor/g0-g3-mobile-slice-7474`, 0 local changes, fetched origin. |
+| Android Studio | **Wrong folder.** Opened repo root `StudioProjects\CYVRA-Mobile` (banner: Gradle script found in `apps/android`). VCS dropdown still shows `main`. Close it. After the break: File → Open → `apps\android` on the slice branch. |
+| Samsung | **Not in hand.** |
 | Report 1 / production / Station / Knox | After G5 ingest 200. |
 
 ---
@@ -29,8 +30,8 @@ Stay on `cursor/g0-g3-mobile-slice-7474`. `git pull`. Do not reopen G8. Do not s
 
 | # | What | Who |
 |---|---|---|
-| 0 | Switch Cursor + Git off `main` onto `cursor/g0-g3-mobile-slice-7474`. | You |
-| 1 | **Configure Android Studio** now (phone not required). Follow [android-studio-laptop.md](./android-studio-laptop.md): SDK Platform **35**, JDK **21**, open `apps/android`, prove `:app:assembleDebug`. | You + laptop |
+| 0 | Cursor is already on `cursor/g0-g3-mobile-slice-7474`. `git pull`. | You |
+| 1 | **Re-open Android Studio on `apps\\android`**, not the repo root. Finish [android-studio-laptop.md](./android-studio-laptop.md): SDK Platform **35**, JDK **21**, prove `:app:assembleDebug`. | You + laptop |
 | 2 | When the **owned Samsung** arrives: [g5-owned-samsung.md](./g5-owned-samsung.md) from Step 4. Owner unlock only. USB copy ≠ authorization. | You + phone |
 | 3 | POST `cyvra-g5-batch.json` with the **customer** session. Refresh `/dashboard`. Do not Freeze Report 1 yet. | You |
 | 4 | Wire that batch to Report 1. | Later |

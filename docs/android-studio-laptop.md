@@ -119,9 +119,16 @@ Do not download Gradle 8.x. The wrapper already pins **9.1.0**.
 
 ## Step 5 — Open `apps/android` (not the repo root)
 
+**Wrong (12 Sep laptop check):** Android Studio opened
+`C:\Users\…\StudioProjects\CYVRA-Mobile` (the whole repo). The yellow
+banner “Android Gradle Plugin build script found apps/android” means
+Studio is not in the Android project. The top git dropdown still said
+`main`. **File → Close Project**, then open the inner folder below.
+
 1. Welcome → **Open**.
 2. Browse to the clone, then **`apps\android`**.
-3. Select that folder → OK.
+3. Select that folder → OK. The window title should end in `android`,
+   and the tree should show `:app` / `:core`, not `apps/web`.
 4. If it asks to trust the project: **Trust**.
 5. If it asks to use Gradle wrapper: **Yes** (use the project wrapper).
 6. Let it sync. First sync downloads Gradle 9.1.0 and dependencies.
