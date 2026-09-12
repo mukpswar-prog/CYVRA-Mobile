@@ -157,17 +157,18 @@ Resend is **Worker-only**. The browser never calls Resend. Production from-addre
 ### 2.1 Add the domain
 
 1. https://resend.com/domains → **Add Domain**.
-2. Domain: `cyvra.co.in` (send as `noreply@cyvra.co.in`).  
-   Alternative later: `mobile.cyvra.co.in` if you prefer `noreply@mobile.cyvra.co.in`. The From domain must **exactly** match the verified domain.
+2. Domain: `cyvoriq.co.in` (send as `noreply@cyvoriq.co.in`). Already **Verified** as of Sep 2026.  
+   Keep `cyvra.co.in` verified for Erase. Do not send Mobile OTP from the Erase domain.
 3. Region: pick the closest Resend region you are offered. Note it.
 
-### 2.2 Put Resend’s DNS records on Cloudflare (zone `cyvra.co.in`)
+### 2.2 Put Resend’s DNS records on Cloudflare (zone `cyvoriq.co.in`)
 
 Resend shows TXT / CNAME (DKIM) / maybe MX. Copy **those** values; do not invent records.
+Do not edit zone `cyvra.co.in` for Mobile — that zone is Erase.
 
 DNS editor:
 
-https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda/cyvra.co.in/dns/records
+https://dash.cloudflare.com/5a3eeb2b3d42726a8ba08732464a0eda/cyvoriq.co.in/dns/records
 
 For each Resend row:
 
@@ -185,13 +186,15 @@ Save. Back in Resend, click **Verify**. Wait until status is **Verified**.
 1. https://resend.com/api-keys → **Create API Key**.
 2. Name: `cyvra-mobile-otp`.
 3. Permission: **Sending access** only (not full access).
-4. Domain: restrict to `cyvra.co.in` if the UI allows.
+4. Domain: restrict to `cyvoriq.co.in` (Mobile). Never lock this key to Erase domain `cyvra.co.in`.
 5. Copy the key once into a password manager. It will not be shown again.
+
+If an older Mobile key is Domain=`cyvra.co.in`, create a new key. Do not edit or delete Erase keys. See [resend-mobile-otp.md](./resend-mobile-otp.md).
 
 ### 2.4 From address we will use
 
 ```text
-CYVRA Mobile <noreply@cyvra.co.in>
+CYVRA Mobile <noreply@cyvoriq.co.in>
 ```
 
 **Stop here and reply:** domain Verified / not yet; SPF merged or created; key created (do **not** paste the key).
@@ -223,7 +226,7 @@ Settings → **Variables and Secrets** → **Add** / **Encrypt**.
 | Name | Type | Value |
 | --- | --- | --- |
 | `RESEND_API_KEY` | Secret | the sending key from Phase 2 |
-| `RESEND_FROM` | Secret or text | `CYVRA Mobile <noreply@cyvra.co.in>` |
+| `RESEND_FROM` | Secret or text | `CYVRA Mobile <noreply@cyvoriq.co.in>` |
 | `SESSION_SECRET` | Secret | new random string (32+ bytes). If one already exists, **leave it** unless you are rotating sessions. |
 
 ### 3.3 Plaintext variables — keep preview until email works

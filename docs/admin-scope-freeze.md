@@ -55,9 +55,9 @@ On-screen preview codes mean Resend did **not** deliver. Keep `API_ENV=preview` 
 
 | Check | Why |
 |---|---|
-| Worker `cyvra-mobile-api` has secret `RESEND_API_KEY` | Empty key → no send. `/health` shows `mailConfigured: true` when the secret is present. Do not rotate Erase keys. |
-| Secret `RESEND_FROM` is `CYVRA Mobile <noreply@cyvoriq.co.in>` | From domain must match a **Verified** Resend domain. |
-| Resend domain `cyvoriq.co.in` is **Verified** (SPF/DKIM) | Unverified domain is rejected. Keep `cyvra.co.in` verified for Erase. |
+| Worker `cyvra-mobile-api` has a **Mobile** sending key | `/health` shows `mailConfigured: true`. The key Domain must be `cyvoriq.co.in` (or all domains). An Erase-restricted `cyvra.co.in` key 403s. Do not rotate Erase keys. Runbook: [resend-mobile-otp.md](./resend-mobile-otp.md). |
+| Secret `RESEND_FROM` is `CYVRA Mobile <noreply@cyvoriq.co.in>` | `/health` shows `mailFromHost: "cyvoriq.co.in"`. Do not fall back to `noreply@cyvra.co.in`. |
+| Resend domain `cyvoriq.co.in` is **Verified** (SPF/DKIM) | Already Verified. Keep `cyvra.co.in` verified for Erase. |
 | Resend is not stuck in testing mode | Testing mode only delivers to the Resend account inbox. Add `ceo@cyvoriq.com` there, or enable production sending after the domain is Verified. |
 | Inbox, Spam, Promotions | Delivery can succeed and still miss the primary inbox. |
 

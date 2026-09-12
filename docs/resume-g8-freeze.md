@@ -9,14 +9,16 @@ Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md), [codespaces-g5.m
 
 ---
 
-## Status at 12 Sep 2026 ~05:10 UTC
+## Status at 12 Sep 2026 ~05:25 UTC
 
 | Item | State |
 |---|---|
-| Pages `cyvoriq-www` | **Has** 1-device + On-screen code + mailError (`index-BPlElTFV.js`). Hard-refresh `admin.cyvoriq.co.in`. |
+| Pages `cyvoriq-www` | Ops card already shows on-screen code + mailError. Create-account mailError ships after the next Pages Action. |
 | Worker `cyvra-mobile-api` | **Stale.** `workers.dev` `/health` has no `mailConfigured`. Last API Action was 11 Sep 14:25 UTC. |
-| OTP mailbox | Still unproven. Keep `API_ENV=preview`. |
-| G5 | `:core` can emit G4 ingest JSON. Phone APK still needs Android Studio on the laptop. |
+| OTP mailbox | Resend key `235c5518-…` returned **200** on 9 Sep, then **403** after From moved to `noreply@cyvoriq.co.in`. Key is still Erase-scoped. |
+| G5 / Report / production / Station | Parked. Do later. |
+
+Runbook: [resend-mobile-otp.md](./resend-mobile-otp.md).
 
 ---
 
@@ -26,12 +28,13 @@ Stay on `cursor/g0-g3-mobile-slice-7474`. `git pull`. Do not reopen G8. Do not s
 
 | # | What | Who |
 |---|---|---|
-| 1 | **G7 human proof.** Open `https://admin.cyvoriq.co.in/`. Sign in as `ceo@cyvoriq.com`. If the card still shows an on-screen code, that is Resend failing — read the red error, check Inbox/Spam, do not paste the code in chat. Slab **1 device (single user)** is the default. Do not Create PENDING with dummy payment on live. | You |
-| 2 | GitHub → Actions, this branch: **Deploy mobile API preview** (required — Worker is stale). Pages already has the new ops UI; re-run **Deploy cyvoriq-www Pages** only if `admin.cyvoriq.co.in` looks old after `Ctrl+Shift+R`. | You |
-| 3 | **G5.** On the laptop with Android SDK: `apps/android` `:app` (`co.in.cyvra.mobile`) on **one owned Samsung**. Share `cyvra-g5-batch.json`. Sign in as a customer on www (preview code is fine). Then `API_URL=https://api.cyvoriq.co.in CYVRA_SESSION_TOKEN=… bash scripts/post-g5-batch.sh --live ./cyvra-g5-batch.json`. USB file copy ≠ authorization. No IMEI, no Knox. Do not paste the token in chat. | Laptop + phone |
-| 4 | Wire that batch to Report 1. | Coding, after step 3 |
-| 5 | `API_ENV=production` only after a real OTP is trusted in `ceo@cyvoriq.com`. | Later |
-| 6 | Station / Knox. | Blocked until you approve |
+| 1 | **G7 Resend key.** Follow [resend-mobile-otp.md](./resend-mobile-otp.md): new sending key named `cyvra-mobile-otp` with Domain `cyvoriq.co.in`; put it only on Worker `cyvra-mobile-api`; keep `RESEND_FROM` on `noreply@cyvoriq.co.in`; keep `API_ENV=preview`. Do not rotate Erase keys. | You |
+| 2 | GitHub → Actions, this branch: **Deploy mobile API preview**, then **Deploy cyvoriq-www Pages**. Expect `/health` `mailConfigured: true` and `mailFromHost: "cyvoriq.co.in"`. | You |
+| 3 | Prove **both** OTPs: `https://admin.cyvoriq.co.in/` and `https://cyvoriq.co.in/create-account`. Success = Resend 200 + inbox, no on-screen code. On-screen code means send still failed — read the red `mailError`. Do not paste codes in chat. Do not Create PENDING with dummy payment on live. | You |
+| 4 | **G5** (later). One owned Samsung. USB copy ≠ authorization. | Later |
+| 5 | Wire that batch to Report 1. | Later |
+| 6 | `API_ENV=production` only after a real OTP is trusted. | Later |
+| 7 | Station / Knox. | Later |
 
 Inbox still unproven. Keep `API_ENV=preview` until a real code lands.
 
@@ -124,8 +127,8 @@ Worker variables (names only):
 ADMIN_API_TOKEN     Secret
 API_ENV             preview          ← do not flip yet
 APP_ORIGIN          https://cyvra-mobile.pages.dev
-RESEND_API_KEY      Secret           ← do not rotate
-RESEND_FROM         Secret
+RESEND_API_KEY      Secret           ← replace with cyvra-mobile-otp (cyvoriq.co.in). Do not rotate Erase keys.
+RESEND_FROM         Secret           ← CYVRA Mobile <noreply@cyvoriq.co.in>
 SESSION_SECRET      Secret
 ```
 
@@ -173,7 +176,7 @@ The morning-of-12-Sep header at the top of this file is the start point. The CEO
 - Put `ADMIN_API_TOKEN`, `DATABASE_URL`, `RESEND_*`, or `SESSION_SECRET` on Pages
 - Point `admin.cyvoriq.co.in` at `cyvoriq-admin.pages.dev` until that project is rebuilt from **this** repo
 - Delete `mobile.cyvra.co.in` or Pages `cyvra-mobile`
-- Delete Resend domain `cyvra.co.in` or rotate `RESEND_API_KEY`
+- Delete Resend domain `cyvra.co.in` or rotate **Erase** `RESEND_API_KEY` values. Replacing the Mobile Worker key with a `cyvoriq.co.in` sending key is required — see [resend-mobile-otp.md](./resend-mobile-otp.md).
 - Flip `API_ENV` to production until an OTP lands in a real inbox
 - Create `cyvoriq-accounts` yet
 - Start G9 Station or G10 Knox
