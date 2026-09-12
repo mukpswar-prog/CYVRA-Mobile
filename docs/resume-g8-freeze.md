@@ -1,24 +1,34 @@
-# Resume here — morning of 12 Sep 2026
+# Resume here — 12 Sep 2026 morning (in progress)
 
-**Start the next session from this file.** Saved 11 Sep 2026 ~16:25 UTC.  
+**Start the next session from this file.**  
 Governing law: [GUIDELINE.md](../GUIDELINE.md) (also `docs/GUIDELINE.md`).  
-Branch: `cursor/g0-g3-mobile-slice-7474` at `2703f98` (merged `origin/main`).  
-Public www is **frozen**. Ops freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).  
-Older files ([resume-after-break.md](./resume-after-break.md), the 11 Sep morning notes below) are history. This header wins.
+Branch: `cursor/g0-g3-mobile-slice-7474`.  
+Public www is **frozen**. Ops freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
 
 Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md), [codespaces-g5.md](./codespaces-g5.md).
 
 ---
 
-## Tomorrow morning — do this, in this order
+## Status at 12 Sep 2026 ~05:10 UTC
+
+| Item | State |
+|---|---|
+| Pages `cyvoriq-www` | **Has** 1-device + On-screen code + mailError (`index-BPlElTFV.js`). Hard-refresh `admin.cyvoriq.co.in`. |
+| Worker `cyvra-mobile-api` | **Stale.** `workers.dev` `/health` has no `mailConfigured`. Last API Action was 11 Sep 14:25 UTC. |
+| OTP mailbox | Still unproven. Keep `API_ENV=preview`. |
+| G5 | `:core` can emit G4 ingest JSON. Phone APK still needs Android Studio on the laptop. |
+
+---
+
+## Do this next, in this order
 
 Stay on `cursor/g0-g3-mobile-slice-7474`. `git pull`. Do not reopen G8. Do not start Station or Knox.
 
 | # | What | Who |
 |---|---|---|
 | 1 | **G7 human proof.** Open `https://admin.cyvoriq.co.in/`. Sign in as `ceo@cyvoriq.com`. If the card still shows an on-screen code, that is Resend failing — read the red error, check Inbox/Spam, do not paste the code in chat. Slab **1 device (single user)** is the default. Do not Create PENDING with dummy payment on live. | You |
-| 2 | If the live admin form still lacks **1 device** or the exact mail error, GitHub → Actions, this branch: **Deploy mobile API preview**, then **Deploy cyvoriq-www Pages**. | You |
-| 3 | **G5.** APK `co.in.cyvra.mobile` on **one owned Samsung**. First evidence batch `POST /evidence/batches` to `https://api.cyvoriq.co.in`. Laptop + phone. USB ≠ authorization. No IMEI, no Knox claim. | Laptop + phone |
+| 2 | GitHub → Actions, this branch: **Deploy mobile API preview** (required — Worker is stale). Pages already has the new ops UI; re-run **Deploy cyvoriq-www Pages** only if `admin.cyvoriq.co.in` looks old after `Ctrl+Shift+R`. | You |
+| 3 | **G5.** On the laptop with Android SDK: `apps/android` `:app` (`co.in.cyvra.mobile`) on **one owned Samsung**. Share `cyvra-g5-batch.json`. Sign in as a customer on www (preview code is fine). Then `API_URL=https://api.cyvoriq.co.in CYVRA_SESSION_TOKEN=… bash scripts/post-g5-batch.sh --live ./cyvra-g5-batch.json`. USB file copy ≠ authorization. No IMEI, no Knox. Do not paste the token in chat. | Laptop + phone |
 | 4 | Wire that batch to Report 1. | Coding, after step 3 |
 | 5 | `API_ENV=production` only after a real OTP is trusted in `ceo@cyvoriq.com`. | Later |
 | 6 | Station / Knox. | Blocked until you approve |
