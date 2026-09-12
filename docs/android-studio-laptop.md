@@ -1,7 +1,8 @@
 # Android Studio on the Windows laptop (configure now, phone later)
 
-Android Studio **Otter 2 / 2026.1.4** is enough. Configure the SDK
-**before** the Samsung arrives. Do not wait for the phone to do this.
+Android Studio **Quail 4 / 2026.1.4** is what is installed (reinstall 12 Sep
+evening). AGP stays **8.13.2**. After-break laptop steps:
+[g5-laptop-work.md](./g5-laptop-work.md).
 
 Open **`apps/android`**, not the repo root. Stay on branch
 `cursor/g0-g3-mobile-slice-7474`.

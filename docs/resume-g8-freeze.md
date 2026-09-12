@@ -1,44 +1,42 @@
-# Resume here — 12 Sep 2026 break (saved)
+# Resume here — 12 Sep 2026 evening break (laptop G5)
 
-**Start the next session from this file.**  
+**Start the next session from this file**, then the laptop checklist: [g5-laptop-work.md](./g5-laptop-work.md).  
 Governing law: [GUIDELINE.md](../GUIDELINE.md) (also `docs/GUIDELINE.md`).  
-Branch: `cursor/g0-g3-mobile-slice-7474`.  
+Branch: `cursor/g0-g3-mobile-slice-7474` @ `a59ebbb`.  
 Public www is **frozen**. Ops freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
 
-Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md),
+Sister files: [g5-laptop-work.md](./g5-laptop-work.md),
 [android-studio-laptop.md](./android-studio-laptop.md),
 [g5-owned-samsung.md](./g5-owned-samsung.md).
 
 ---
 
-## Status at 12 Sep 2026 ~07:35 UTC (break — laptop checked)
+## Status at 12 Sep 2026 ~14:40 UTC (saved)
 
 | Item | State |
 |---|---|
-| G7 OTP | **Trusted.** Ops and customer codes landed in real inboxes. |
+| G7 OTP | **Trusted.** Ops and customer inboxes. |
 | Worker `/health` | `mailConfigured: true`, `mailFromHost: "cyvoriq.co.in"`, `env: preview` |
-| Cursor Desktop | **Correct.** Branch `cursor/g0-g3-mobile-slice-7474`, 0 local changes, fetched origin. |
-| Android Studio | **Wrong folder.** Opened repo root `StudioProjects\CYVRA-Mobile` (banner: Gradle script found in `apps/android`). VCS dropdown still shows `main`. Close it. After the break: File → Open → `apps\android` on the slice branch. |
-| Samsung | **Not in hand.** |
+| Git Bash | **Works.** Fresh Git 2.55 + Credential Manager. `git pull` fast-forward to `a59ebbb`. |
+| AGP | **8.13.2** in `apps/android/settings.gradle.kts`. Do not use 9.0.1 (`BaseVariant` crash). |
+| Android Studio | Reinstalled **Quail 4 / 2026.1.4**, Standard, SDK `AppData\Local\Android\Sdk`. Opened **`apps\android`**, trusted. Import was running. **APK not built yet.** |
+| Samsung | **Not in hand.** Laptop work only until it arrives. |
 | Report 1 / production / Station / Knox | After G5 ingest 200. |
 
 ---
 
-## After the break — in this order
+## After the break — laptop first
 
-Stay on `cursor/g0-g3-mobile-slice-7474`. `git pull`. Do not reopen G8. Do not start Station or Knox.
+Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8. Do not start Station or Knox.
 
 | # | What | Who |
 |---|---|---|
-| 0 | Cursor is already on `cursor/g0-g3-mobile-slice-7474`. `git pull`. | You |
-| 1 | **Re-open Android Studio on `apps\\android`**, not the repo root. Finish [android-studio-laptop.md](./android-studio-laptop.md): SDK Platform **35**, JDK **21**, prove `:app:assembleDebug`. | You + laptop |
-| 2 | When the **owned Samsung** arrives: [g5-owned-samsung.md](./g5-owned-samsung.md) from Step 4. Owner unlock only. USB copy ≠ authorization. | You + phone |
-| 3 | POST `cyvra-g5-batch.json` with the **customer** session. Refresh `/dashboard`. Do not Freeze Report 1 yet. | You |
-| 4 | Wire that batch to Report 1. | Later |
-| 5 | `API_ENV=production` only after G5 ingest is trusted. | Later |
-| 6 | Station / Knox. | Later |
+| 1 | **Laptop G5 prep.** Follow [g5-laptop-work.md](./g5-laptop-work.md): JDK 21, SDK 35, sync `:app`+`:core`, **Build APK**. Stop when `app-debug.apk` exists. | You + laptop |
+| 2 | When the **owned Samsung** arrives: [g5-owned-samsung.md](./g5-owned-samsung.md) from Step 4. | Later |
+| 3 | Customer `POST` + dashboard session row. Do not Freeze Report 1 yet. | Later |
+| 4 | Wire Report 1 / `API_ENV=production` / Station / Knox. | Later |
 
-Keep `API_ENV=preview` through G5. You may finish Studio SDK + APK during the break. Do not install on a phone you do not own.
+Keep `API_ENV=preview`. Do not install the APK on a phone you do not own.
 
 ---
 
@@ -53,7 +51,7 @@ Keep `API_ENV=preview` through G5. You may finish Studio SDK + APK during the br
 | Live Worker / Pages | API Action #5 + Pages Action #3 on this branch. `/health` has `mailConfigured: true` and `mailFromHost: "cyvoriq.co.in"`. |
 | OTP mailbox | **Trusted 12 Sep.** Ops and customer codes landed in real inboxes. |
 | Public www | Frozen. Do not polish. |
-| Android Studio laptop | Otter 2 / 2026.1.4 installed. Configure via [android-studio-laptop.md](./android-studio-laptop.md) before the phone arrives. |
+| Android Studio laptop | Quail 4 / 2026.1.4, `apps/android` open, AGP 8.13.2 pulled. APK not built. After-break: [g5-laptop-work.md](./g5-laptop-work.md). |
 
 ---
 
