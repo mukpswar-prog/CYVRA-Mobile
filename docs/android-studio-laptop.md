@@ -4,8 +4,13 @@ Android Studio **Otter 2 / 2026.1.4** is enough. Configure the SDK
 **before** the Samsung arrives. Do not wait for the phone to do this.
 
 Open **`apps/android`**, not the repo root. Stay on branch
-`cursor/g0-g3-mobile-slice-7474`. Cursor Desktop on `main` is the wrong
-branch — switch first (Step 1).
+`cursor/g0-g3-mobile-slice-7474`.
+
+**12 Sep afternoon check:** Android Studio still had
+`C:\Users\User\StudioProjects\CYVRA-Mobile` open (whole repo, git `main`).
+Expanding `apps/android` in that tree is not enough. Close the project,
+put that clone on the slice branch, then File → Open `apps\android`.
+Skip the Gemini “Confirm your product tier” panel — we do not use it.
 
 Do not start Station or Knox. Do not flip `API_ENV`. Do not commit
 `apps/android/local.properties`.
