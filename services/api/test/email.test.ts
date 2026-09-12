@@ -3,6 +3,7 @@ import { afterEach, describe, it } from "node:test";
 import {
   explainMailFailure,
   mailConfigured,
+  mailFromHost,
   parseResendError,
   sendOtpEmail,
 } from "../src/email.ts";
@@ -50,6 +51,46 @@ describe("ops mail", () => {
     );
     assert.equal(mailConfigured(env()), false);
     assert.equal(mailConfigured(env({ RESEND_API_KEY: "re_test" })), true);
+    assert.equal(mailFromHost(env()), "unset");
+    assert.equal(
+      mailFromHost(env({ RESEND_FROM: "CYVRA Mobile <noreply@cyvoriq.co.in>" })),
+      "cyvoriq.co.in",
+    );
+    assert.equal(
+      mailFromHost(env({ RESEND_FROM: "CYVRA Mobile <noreply@cyvra.co.in>" })),
+      "cyvra.co.in",
+    );
+    assert.equal(mailFromHost(env({ RESEND_FROM: "noreply@example.com" })), "other");
+    assert.match(
+      explainMailFailure("This API key is restricted to cyvra.co.in"),
+      /locked to Erase domain/,
+    );
+    assert.match(explainMailFailure("Resend responded 403"), /docs\/resend-mobile-otp\.md/);
+  });
+
+  it("explains a restricted-key 403 and still returns a preview code", async () => {
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          message: "This API key is restricted to only send emails from cyvra.co.in",
+        }),
+        { status: 403 },
+      )) as typeof fetch;
+    const result = await sendOtpEmail(
+      env({
+        RESEND_API_KEY: "re_test",
+        RESEND_FROM: "CYVRA Mobile <noreply@cyvoriq.co.in>",
+      }),
+      {
+        email: "ceo@cyvoriq.com",
+        code: "246810",
+        challengeId: "44444444-4444-4444-8444-444444444444",
+        purpose: "customer",
+      },
+    );
+    assert.equal(result.sent, false);
+    assert.equal(result.devCode, "246810");
+    assert.match(result.error ?? "", /locked to Erase domain/);
   });
 
   it("returns an on-screen code when the Worker has no Resend key", async () => {

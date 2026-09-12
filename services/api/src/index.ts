@@ -14,7 +14,7 @@ import {
   sha256Hex,
   timingSafeEqualHex,
 } from "./crypto";
-import { mailConfigured, sendOtpEmail } from "./email";
+import { mailConfigured, mailFromHost, sendOtpEmail } from "./email";
 import { adminRoutes } from "./admin";
 import { evidenceRoutes } from "./evidence";
 import { reportRoutes } from "./reports";
@@ -70,6 +70,7 @@ app.get("/health", async (c) => {
     env: c.env.API_ENV,
     database: ok ? "connected" : "unreachable",
     mailConfigured: mailConfigured(c.env),
+    mailFromHost: mailFromHost(c.env),
     time: new Date().toISOString(),
   });
 });

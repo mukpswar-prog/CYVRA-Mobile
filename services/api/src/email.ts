@@ -21,6 +21,20 @@ export function mailConfigured(env: Pick<Env, "RESEND_API_KEY">): boolean {
   return Boolean((env.RESEND_API_KEY ?? "").trim());
 }
 
+/** Host of RESEND_FROM only. Never the full address or the key. */
+export function mailFromHost(
+  env: Pick<Env, "RESEND_FROM">,
+): "cyvoriq.co.in" | "cyvra.co.in" | "other" | "unset" {
+  const raw = (env.RESEND_FROM ?? "").trim();
+  if (!raw) return "unset";
+  const match = raw.match(/<([^>]+)>/) ?? raw.match(/([^\s]+@[^\s]+)/);
+  const address = (match?.[1] ?? raw).toLowerCase();
+  const host = address.split("@")[1] ?? "";
+  if (host === "cyvoriq.co.in") return "cyvoriq.co.in";
+  if (host === "cyvra.co.in") return "cyvra.co.in";
+  return "other";
+}
+
 export function parseResendError(payload: unknown, status: number): string {
   if (payload && typeof payload === "object") {
     const record = payload as {
@@ -68,6 +82,17 @@ export function explainMailFailure(error: string): string {
     lower.includes("you can only send")
   ) {
     return `${error} Resend testing mode only delivers to the Resend account inbox. Add ceo@cyvoriq.com there, or enable production sending after cyvoriq.co.in is Verified.`;
+  }
+  if (
+    lower.includes("not authorized") ||
+    lower.includes("restricted") ||
+    lower.includes("does not have access") ||
+    lower.includes("domain mismatch")
+  ) {
+    return `${error} The Worker sending key is probably still locked to Erase domain cyvra.co.in. Create a new sending key for cyvoriq.co.in and put it only on Worker cyvra-mobile-api. Do not rotate Erase keys.`;
+  }
+  if (lower.includes("resend responded 403")) {
+    return `${error} Typical cause: API key Domain is still cyvra.co.in while From is noreply@cyvoriq.co.in. See docs/resend-mobile-otp.md.`;
   }
   return error;
 }
