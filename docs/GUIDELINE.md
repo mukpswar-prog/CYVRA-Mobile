@@ -472,4 +472,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Public www is frozen. Ops licences live on `admin.cyvoriq.co.in`. Then G5 on one owned Samsung. Do not start Station or Knox.
+**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). G7 inbox is trusted. Configure Android Studio now ([docs/android-studio-laptop.md](docs/android-studio-laptop.md)); G5 install waits for one owned Samsung. Do not start Station or Knox.
