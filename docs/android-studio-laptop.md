@@ -183,12 +183,24 @@ That APK waits on the laptop until the owned Samsung arrives. You do
 If assembleDebug fails with “SDK location not found”, return to Step 5.
 If it fails with Java / 21, return to Step 4.
 
-If sync says `Unable to load class com.android.build.gradle.api.BaseVariant`:
-AGP 9 already includes Kotlin. The old `kotlin-android` plugin was
-removed from `:app` for that reason. `git pull` on
-`cursor/g0-g3-mobile-slice-7474`, then **File → Sync Project with Gradle
-Files**. Do not add `kotlin-android` back. Do not pick “Re-download
-dependencies” as the first fix.
+If sync says `Unable to load class … BaseVariant` or
+`Could not create … KotlinAndroidTarget`: Android Studio **Otter 2**
+cannot use AGP 9 built-in Kotlin (that needs Otter 3). The project now
+opts out in `apps/android/gradle.properties`:
+
+```
+android.builtInKotlin=false
+android.newDsl=false
+```
+
+Git Bash `git pull` will keep saying **Repository not found** until that
+terminal is signed in. **Do not use Git Bash to pull.** In **Cursor**
+(already logged in): Source Control → Pull. Then in Studio:
+**File → Sync Project with Gradle Files**.
+
+If Cursor pull is slow, type those two lines into
+`apps/android/gradle.properties` yourself, Save, then Sync. Do not click
+“Re-download dependencies” first.
 
 ---
 
