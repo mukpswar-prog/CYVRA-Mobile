@@ -1,39 +1,43 @@
-# Resume here — 12 Sep 2026 morning (in progress)
+# Resume here — 12 Sep 2026 break (saved)
 
 **Start the next session from this file.**  
 Governing law: [GUIDELINE.md](../GUIDELINE.md) (also `docs/GUIDELINE.md`).  
-Branch: `cursor/g0-g3-mobile-slice-7474`.  
+Branch: `cursor/g0-g3-mobile-slice-7474`. Cursor Desktop on `main` is wrong — switch first.  
 Public www is **frozen**. Ops freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
 
-Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md), [codespaces-g5.md](./codespaces-g5.md).
+Sister files: [admin-scope-freeze.md](./admin-scope-freeze.md),
+[android-studio-laptop.md](./android-studio-laptop.md),
+[g5-owned-samsung.md](./g5-owned-samsung.md).
 
 ---
 
-## Status at 12 Sep 2026 ~06:05 UTC
+## Status at 12 Sep 2026 ~07:00 UTC (break)
 
 | Item | State |
 |---|---|
-| G7 OTP | **Trusted.** Ops `admin.cyvoriq.co.in` and customer `cyvoriq.co.in` both landed in real inboxes. |
+| G7 OTP | **Trusted.** Ops and customer codes landed in real inboxes. |
 | Worker `/health` | `mailConfigured: true`, `mailFromHost: "cyvoriq.co.in"`, `env: preview` |
-| G5 | Next. One owned Samsung. Runbook: [g5-owned-samsung.md](./g5-owned-samsung.md). |
-| Report 1 / `API_ENV=production` / Station / Knox | After G5 ingest 200. |
+| Android Studio | Installed on the Windows laptop (**Otter 2 / 2026.1.4**). SDK not configured yet. |
+| Samsung | **Not in hand.** Configure Studio now; G5 install waits for the owned phone. |
+| Report 1 / production / Station / Knox | After G5 ingest 200. |
 
 ---
 
-## Do this next, in this order
+## After the break — in this order
 
 Stay on `cursor/g0-g3-mobile-slice-7474`. `git pull`. Do not reopen G8. Do not start Station or Knox.
 
 | # | What | Who |
 |---|---|---|
-| 1–3 | G7 Resend key + both deploys + both OTP inbox proofs | **Done 12 Sep** |
-| 4 | **G5.** Follow [g5-owned-samsung.md](./g5-owned-samsung.md): Android Studio on the laptop, debug APK `co.in.cyvra.mobile` on **one owned Samsung**, share `cyvra-g5-batch.json`, POST with the **customer** session (not `ADMIN_API_TOKEN`). USB copy ≠ authorization. | You + laptop + phone |
-| 5 | After ingest HTTP 200, refresh `/dashboard` and confirm a processing session row. Do not Freeze Report 1 until that next slice. | You |
-| 6 | Wire that batch to Report 1. | Later |
-| 7 | `API_ENV=production` (OTP is now trusted; flip only after G5 ingest is trusted). | Later |
-| 8 | Station / Knox. | Later |
+| 0 | Switch Cursor + Git off `main` onto `cursor/g0-g3-mobile-slice-7474`. | You |
+| 1 | **Configure Android Studio** now (phone not required). Follow [android-studio-laptop.md](./android-studio-laptop.md): SDK Platform **35**, JDK **21**, open `apps/android`, prove `:app:assembleDebug`. | You + laptop |
+| 2 | When the **owned Samsung** arrives: [g5-owned-samsung.md](./g5-owned-samsung.md) from Step 4. Owner unlock only. USB copy ≠ authorization. | You + phone |
+| 3 | POST `cyvra-g5-batch.json` with the **customer** session. Refresh `/dashboard`. Do not Freeze Report 1 yet. | You |
+| 4 | Wire that batch to Report 1. | Later |
+| 5 | `API_ENV=production` only after G5 ingest is trusted. | Later |
+| 6 | Station / Knox. | Later |
 
-Keep `API_ENV=preview` through G5.
+Keep `API_ENV=preview` through G5. You may finish Studio SDK + APK during the break. Do not install on a phone you do not own.
 
 ---
 
@@ -48,6 +52,7 @@ Keep `API_ENV=preview` through G5.
 | Live Worker / Pages | API Action #5 + Pages Action #3 on this branch. `/health` has `mailConfigured: true` and `mailFromHost: "cyvoriq.co.in"`. |
 | OTP mailbox | **Trusted 12 Sep.** Ops and customer codes landed in real inboxes. |
 | Public www | Frozen. Do not polish. |
+| Android Studio laptop | Otter 2 / 2026.1.4 installed. Configure via [android-studio-laptop.md](./android-studio-laptop.md) before the phone arrives. |
 
 ---
 

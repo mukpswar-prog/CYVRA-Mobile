@@ -18,7 +18,7 @@ Do not paste the session token, the JSON, or OTP codes in chat.
 
 | Item | Why |
 |---|---|
-| Windows laptop with **Android Studio** (SDK installed) | Codespaces cannot build `:app` |
+| Windows laptop with **Android Studio** configured | First-run: [android-studio-laptop.md](./android-studio-laptop.md). Codespaces cannot build `:app` |
 | This repo on the laptop, branch `cursor/g0-g3-mobile-slice-7474` | Same code that just deployed |
 | **One Samsung you own** and can unlock | Owner PIN/password/biometric only |
 | Git Bash (ships with Git for Windows) | Runs `scripts/post-g5-batch.sh` |
@@ -43,16 +43,15 @@ You should see recent commits including the Resend runbook.
 
 ## Step 2 — Open the Android project in Android Studio
 
-1. Install Android Studio if it is missing. Accept the default Android SDK
-   (API 35).
-2. **File → Open** → folder `apps/android` (not the monorepo root).
-3. Let Gradle sync. First sync downloads the SDK / NDK pieces it asks for.
-4. Confirm `local.properties` exists and has an `sdk.dir=` line. Android
-   Studio writes this. Do not commit that file.
-5. In the Gradle tool window you must see **`:app`**. If you only see
-   `:core`, the SDK path is missing — fix `local.properties` and sync again.
+If Studio is newly installed, do the full first-run in
+[android-studio-laptop.md](./android-studio-laptop.md) (SDK Platform 35,
+JDK 21, open `apps/android`, prove `:app:assembleDebug`). Then return here.
 
-`:app` is included only when `ANDROID_HOME` or `local.properties` exists.
+If that is already done:
+
+1. **File → Open** → folder `apps/android` (not the monorepo root).
+2. Confirm Gradle shows **`:app`** and `local.properties` has `sdk.dir=`.
+   Do not commit that file.
 
 ---
 
