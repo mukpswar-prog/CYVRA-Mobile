@@ -45,6 +45,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface RequestOtpResponse {
   challengeId: string;
   delivery: "email" | "dev-log";
+  mailConfigured?: boolean;
+  mailError?: string | null;
   devCode?: string;
   message: string;
 }
@@ -71,7 +73,13 @@ export interface AuthUser {
 }
 
 export const api = {
-  health: () => request<{ status: string; database: string }>("/health"),
+  health: () =>
+    request<{
+      status: string;
+      database: string;
+      mailConfigured?: boolean;
+      mailFromHost?: "cyvoriq.co.in" | "cyvra.co.in" | "other" | "unset";
+    }>("/health"),
   requestOtp: (profile: RegistrationInput) =>
     request<RequestOtpResponse>("/auth/request", {
       method: "POST",

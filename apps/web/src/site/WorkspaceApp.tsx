@@ -34,6 +34,7 @@ export function WorkspaceApp(props: {
   const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | undefined>();
+  const [mailError, setMailError] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,16 +79,34 @@ export function WorkspaceApp(props: {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
+  async function requestCustomerCode() {
+    const r = await api.requestOtp(form);
+    setChallengeId(r.challengeId);
+    setDevCode(r.devCode);
+    setMailError(r.mailError ?? "");
+    setNotice(r.message);
+    setCode("");
+    setStep("code");
+  }
+
   async function submitRegister(e: FormEvent) {
     e.preventDefault();
     setError("");
     setBusy(true);
     try {
-      const r = await api.requestOtp(form);
-      setChallengeId(r.challengeId);
-      setDevCode(r.devCode);
-      setNotice(r.message);
-      setStep("code");
+      await requestCustomerCode();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function emailNewCode() {
+    setError("");
+    setBusy(true);
+    try {
+      await requestCustomerCode();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -118,6 +137,7 @@ export function WorkspaceApp(props: {
     setCode("");
     setChallengeId("");
     setDevCode(undefined);
+    setMailError("");
     setNotice("");
     navigate("/");
   }
@@ -278,12 +298,19 @@ export function WorkspaceApp(props: {
           ) : (
             <form onSubmit={submitCode}>
               <h1>Verify your email</h1>
-              <p className="muted">{notice}</p>
+              {mailError ? <p className="error">{mailError}</p> : null}
               {devCode ? (
-                <p className="dev-code" aria-label="preview code">
-                  Preview code: <strong>{devCode}</strong>
-                </p>
+                <>
+                  <p className="dev-code" aria-label="preview code">
+                    On-screen code {devCode}
+                  </p>
+                  <p className="muted small">
+                    Inbox delivery is not live yet. This code is valid for 10
+                    minutes. Do not paste it in chat.
+                  </p>
+                </>
               ) : null}
+              {notice && !mailError ? <p className="muted">{notice}</p> : null}
               <label htmlFor="code">6-digit code</label>
               <input
                 id="code"
@@ -300,10 +327,20 @@ export function WorkspaceApp(props: {
               <button
                 type="button"
                 className="btn btn-ghost"
+                onClick={() => void emailNewCode()}
+                disabled={busy}
+              >
+                Email a new code
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
                 onClick={() => {
                   setStep("register");
                   setCode("");
                   setError("");
+                  setMailError("");
+                  setDevCode(undefined);
                 }}
               >
                 Edit details
