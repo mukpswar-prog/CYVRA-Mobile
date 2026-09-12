@@ -1,6 +1,7 @@
 plugins {
+    // AGP 9 has built-in Kotlin. Do not apply org.jetbrains.kotlin.android —
+    // that plugin loads the removed BaseVariant API and Studio sync fails.
     id("com.android.application")
-    kotlin("android")
 }
 
 android {

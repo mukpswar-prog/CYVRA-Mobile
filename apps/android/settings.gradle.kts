@@ -5,9 +5,8 @@ pluginManagement {
         gradlePluginPortal()
     }
     plugins {
-        kotlin("jvm") version "2.1.20"
-        kotlin("plugin.serialization") version "2.1.20"
-        kotlin("android") version "2.1.20"
+        kotlin("jvm") version "2.2.10"
+        kotlin("plugin.serialization") version "2.2.10"
         id("com.android.application") version "9.0.1"
     }
 }

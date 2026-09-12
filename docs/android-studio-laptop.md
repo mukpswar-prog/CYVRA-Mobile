@@ -87,7 +87,7 @@ against.
 
 Tick:
 
-- **Android SDK Build-Tools** (35.x is enough)
+- **Android SDK Build-Tools** (35.x or **36.x** — AGP 9 may ask for 36)
 - **Android SDK Platform-Tools**
 - **Android SDK Command-line Tools (latest)**
 
@@ -182,6 +182,13 @@ That APK waits on the laptop until the owned Samsung arrives. You do
 
 If assembleDebug fails with “SDK location not found”, return to Step 5.
 If it fails with Java / 21, return to Step 4.
+
+If sync says `Unable to load class com.android.build.gradle.api.BaseVariant`:
+AGP 9 already includes Kotlin. The old `kotlin-android` plugin was
+removed from `:app` for that reason. `git pull` on
+`cursor/g0-g3-mobile-slice-7474`, then **File → Sync Project with Gradle
+Files**. Do not add `kotlin-android` back. Do not pick “Re-download
+dependencies” as the first fix.
 
 ---
 
