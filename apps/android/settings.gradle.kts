@@ -8,7 +8,9 @@ pluginManagement {
         kotlin("jvm") version "2.2.10"
         kotlin("plugin.serialization") version "2.2.10"
         kotlin("android") version "2.2.10"
-        id("com.android.application") version "9.0.1"
+        // Otter 2 supports AGP 4.1–8.13 only. 9.0.1 removes BaseVariant and
+        // Studio's KotlinAndroidTarget then crashes on sync.
+        id("com.android.application") version "8.13.2"
     }
 }
 

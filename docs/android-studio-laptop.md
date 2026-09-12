@@ -26,7 +26,8 @@ Do not start Station or Knox. Do not flip `API_ENV`. Do not commit
 | Application id | `co.in.cyvra.mobile` |
 | compileSdk / targetSdk | **35** |
 | minSdk | **29** |
-| Gradle wrapper | **9.1.0** (do not downgrade) |
+| Gradle wrapper | **9.1.0** (Java 25 Gradle daemon needs this) |
+| Android Gradle Plugin | **8.13.2** (Otter 2 max is 8.13. Do not use 9.0.1) |
 | JVM / Kotlin target | **21** |
 | NDK / CMake / Play App Signing | Not needed |
 | Emulator | Optional. G5 proof is one **owned Samsung**, not an AVD |
@@ -183,24 +184,12 @@ That APK waits on the laptop until the owned Samsung arrives. You do
 If assembleDebug fails with “SDK location not found”, return to Step 5.
 If it fails with Java / 21, return to Step 4.
 
-If sync says `Unable to load class … BaseVariant` or
-`Could not create … KotlinAndroidTarget`: Android Studio **Otter 2**
-cannot use AGP 9 built-in Kotlin (that needs Otter 3). The project now
-opts out in `apps/android/gradle.properties`:
-
-```
-android.builtInKotlin=false
-android.newDsl=false
-```
-
-Git Bash `git pull` will keep saying **Repository not found** until that
-terminal is signed in. **Do not use Git Bash to pull.** In **Cursor**
-(already logged in): Source Control → Pull. Then in Studio:
-**File → Sync Project with Gradle Files**.
-
-If Cursor pull is slow, type those two lines into
-`apps/android/gradle.properties` yourself, Save, then Sync. Do not click
-“Re-download dependencies” first.
+If sync says `Unable to load class … BaseVariant`: the laptop is still on
+AGP **9.0.1**. Otter 2 only supports AGP **4.1–8.13**. Git Bash cannot
+`git pull` (unsigned-in). Open `apps/android/settings.gradle.kts` and
+change the application plugin version to `8.13.2`, Save, then
+**File → Sync Project with Gradle Files**. Do not click “Re-download
+dependencies” first. Set Gradle JDK to **jbr-21**.
 
 ---
 
