@@ -54,8 +54,8 @@ An emulator is not a substitute. USB copy of a made-up JSON is not authorization
 | Latest commits | Git Bash: `git pull` (now works) | Includes `settings.gradle.kts` **8.13.2** |
 | Open folder `apps\android` | Studio Welcome → **Open** (not New, not Clone) | Title `android`. No `apps/web` in the tree |
 | Gradle JDK **21** | Studio **File → Settings → Build Tools → Gradle → Gradle JDK = jbr-21** | Field shows 21, not 17 |
-| SDK Platform **35** | **Settings → Android SDK → SDK Platforms** | Android 15.0 API 35 ticked |
-| Build-Tools 35.x | **SDK Tools** | Ticked. Accept if Studio prompts |
+| SDK Platform **36** | **Settings → Android SDK → SDK Platforms** | Android 16.0 API 36 ticked |
+| Build-Tools 35.x or 36.x | **SDK Tools** | Ticked. Accept if Studio prompts |
 | Command-line Tools + Platform-Tools | **SDK Tools** | Ticked. No NDK, no CMake, no emulator |
 | `local.properties` `sdk.dir=` | Studio writes this under `apps\android` | File exists. **Do not commit** |
 | AGP **8.13.2** | `apps/android/settings.gradle.kts` | `id("com.android.application") version "8.13.2"` |

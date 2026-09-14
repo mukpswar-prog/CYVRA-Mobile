@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
             collectedAt = collectedAt,
         )
         filesDir.resolve("cyvra-g5-batch.json").writeText(ingest)
-        val text = buildString {
+        val summaryText = buildString {
             appendLine("CYVRA Mobile Evidence")
             appendLine("S1 planned batch — not a sanitization report.")
             appendLine("POST https://api.cyvoriq.co.in/evidence/batches")
@@ -67,10 +67,10 @@ class MainActivity : AppCompatActivity() {
         val view = TextView(this).apply {
             textSize = 14f
             setPadding(32, 32, 32, 32)
-            setText(text)
+            setText(summaryText)
         }
         val share = Button(this).apply {
-            text = "Share batch JSON"
+            setText("Share batch JSON")
             setOnClickListener {
                 startActivity(
                     Intent.createChooser(
