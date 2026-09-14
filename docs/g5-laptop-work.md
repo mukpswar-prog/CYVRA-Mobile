@@ -73,6 +73,8 @@ cd /c/Users/User/StudioProjects/CYVRA-Mobile/apps/android
 
 If the error is `com/android/build/gradle/BaseExtension`, root `build.gradle.kts` must list AGP **8.13.2** and `kotlin("android")` **2.3.21** with `apply false` (same classpath as `:app`). Then `--stop` and re-run. Do not bump to AGP 9.
 
+If the error is `Unable to download toolchain ... languageVersion=25 ... vendor=JetBrains`, delete `apps/android/gradle/gradle-daemon-jvm.properties` (Studio `updateDaemonJvm` pin). Use Gradle JDK **jbr-21**. Do not install JDK 25. Do not run Upgrade Assistant.
+
 ---
 
 ## After the break — laptop only, in this order
