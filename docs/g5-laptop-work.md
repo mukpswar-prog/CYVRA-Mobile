@@ -24,8 +24,8 @@ Do not start Station or Knox. Do not commit `.idea/` or `local.properties`.
 | Git signed in, branch pulled, AGP **8.13.2** on disk | Install `app-debug.apk` |
 | Android Studio **Quail 4 / 2026.1.4** opened on `apps\android` | Real `MANUFACTURER` / `MODEL` / Android ID |
 | Gradle import started | Share `cyvra-g5-batch.json` |
-| Build `:app:assembleDebug` (this session) | Customer `POST /evidence/batches` |
-| `:core:test` (optional) | Dashboard processing-session row |
+| Build `:app:assembleDebug` with JDK 21 (Done) | Customer `POST /evidence/batches` |
+| `:core:test` and `:host:test` pass (Done) | Dashboard processing-session row |
 
 An emulator is not a substitute. USB copy of a made-up JSON is not authorization.
 
@@ -79,15 +79,12 @@ If the error is `Unable to download toolchain ... languageVersion=25 ... vendor=
 
 ## After the break — laptop only, in this order
 
-1. Open Android Studio. If Welcome: **Open** → `C:\Users\User\StudioProjects\CYVRA-Mobile\apps\android`.
-2. Confirm title `android`, branch `cursor/g0-g3-mobile-slice-7474`, tree `app` + `core`.
-3. Git Bash (optional): `cd /c/Users/User/StudioProjects/CYVRA-Mobile` then `git pull`.
-4. Settings → Gradle JDK = **jbr-21**.
-5. Settings → Android SDK: **API 36** Installed. Do not run Upgrade Assistant.
-6. Open `settings.gradle.kts`. Must say **8.13.2**. If it says `9.0.1`, stop.
-7. **File → Sync Project with Gradle Files.** Wait. Expected: `:app` + `:core`, no `BaseVariant`.
-8. **Build → Build APK(s).** Expected: `app-debug.apk` path above.
-9. **Stop.** Leave the APK on disk. Do not install. Do not make an AVD.
+1. Open Android Studio with `apps\android` open.
+2. Confirm Gradle JDK is **Oracle OpenJDK 21.0.8** (`C:\Program Files\Java\jdk-21`).
+3. In Git Bash: `cd /c/Users/User/StudioProjects/CYVRA-Mobile` then `git pull`.
+4. Run `cd apps/android && ./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" test`.
+5. Expected: `BUILD SUCCESSFUL` for `:core:test` and `:host:test`.
+6. To resume next slice, say **execute A5 approved**.
 
 When the owned Samsung arrives, switch to [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4.
 
