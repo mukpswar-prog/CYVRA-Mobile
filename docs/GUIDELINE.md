@@ -472,4 +472,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md), then [docs/g5-laptop-work.md](docs/g5-laptop-work.md). Build `app-debug.apk` on the laptop. Samsung later. Do not start Station or Knox.
+**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Version guidebook in progress — do not upgrade the Android stack or Build APK until that book is accepted.
