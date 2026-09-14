@@ -115,10 +115,10 @@ Copy that path. You will see it again in `local.properties`.
 
 **File → Settings → Build, Execution, Deployment → Build Tools → Gradle**.
 
-**Gradle JDK:** pick **jbr-21** (JetBrains Runtime bundled with Android
-Studio) or any **JDK 21**.
+**Gradle JDK:** pick **C:\Program Files\Java\jdk-21 Oracle OpenJDK 21.0.8** (or **jbr-21** if bundled).
+In Android Studio 2026.1+ where bundled JBR is version 25, select the detected **`jdk-21 Oracle OpenJDK 21.0.8`** from the dropdown list.
 
-Do not pick JDK 17. This project targets JVM 21.  
+Do not pick JDK 17 or JDK 25. This project targets JVM 21.  
 Do not download Gradle 8.x. The wrapper already pins **9.1.0**.
 
 ---

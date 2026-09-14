@@ -22,19 +22,19 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 cd /c/Users/User/StudioProjects/CYVRA-Mobile
 git pull
 cd apps/android
-export JAVA_HOME="C:/Program Files/Android/Android Studio/jbr"
+export JAVA_HOME="C:/Program Files/Java/jdk-21"
 ./gradlew.bat --stop
-./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Android/Android Studio/jbr" :core:test :app:assembleDebug
+./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :app:assembleDebug
 ```
 
-Note on paths: use Windows-style `C:/Program Files/...` (not `/c/...`) so Windows Java/Gradle detects the JDK path.
+Note on paths: use Windows JDK 21 (`C:/Program Files/Java/jdk-21`) because Android Studio 2026 bundled JBR is version 25.
 
 Expected: `cyvra-mobile-android: Java 21...` and `BUILD SUCCESSFUL`.  
 APK: `apps/android/app/build/outputs/apk/debug/app-debug.apk`
 
 ### Alternative: Build directly inside Android Studio (recommended)
 1. Open Android Studio with `apps/android` open.
-2. Confirm **File → Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK** is **jbr-21** (API 21 / version 21.0.8).
+2. Confirm **File → Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK** is set to **`C:\Program Files\Java\jdk-21 Oracle OpenJDK 21.0.8`**.
 3. Confirm **File → Settings → Languages & Frameworks → Android SDK → SDK Platforms** has **Android 16.0 (API 36)** installed.
 4. Click **Build → Make Project** (or **Build → Build Bundle(s) / APK(s) → Build APK(s)**).
 

@@ -53,7 +53,7 @@ An emulator is not a substitute. USB copy of a made-up JSON is not authorization
 | Branch `cursor/g0-g3-mobile-slice-7474` | Git Bash in the clone, or Studio git dropdown | `git branch --show-current` prints that name |
 | Latest commits | Git Bash: `git pull` (now works) | Includes `settings.gradle.kts` **8.13.2** |
 | Open folder `apps\android` | Studio Welcome → **Open** (not New, not Clone) | Title `android`. No `apps/web` in the tree |
-| Gradle JDK **21** | Studio **File → Settings → Build Tools → Gradle → Gradle JDK = jbr-21** | Field shows 21, not 17 |
+| Gradle JDK **21** | Studio **File → Settings → Build Tools → Gradle → Gradle JDK** = **Oracle OpenJDK 21.0.8** (`C:\Program Files\Java\jdk-21`) | Field shows 21, not 25 or 17 |
 | SDK Platform **36** | **Settings → Android SDK → SDK Platforms** | Android 16.0 API 36 ticked |
 | Build-Tools 35.x or 36.x | **SDK Tools** | Ticked. Accept if Studio prompts |
 | Command-line Tools + Platform-Tools | **SDK Tools** | Ticked. No NDK, no CMake, no emulator |
