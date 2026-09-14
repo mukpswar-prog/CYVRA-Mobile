@@ -27,6 +27,9 @@ apps/android/.idea/
 apps/android/.gradle/
 apps/android/.kotlin/
 apps/android/**/build/
+apps/host/.gradle/
+apps/host/.kotlin/
+apps/host/build/
 apps/android/local.properties
 apps/android/.idea/
 # Studio/Gradle 9 "updateDaemonJvm" writes this and can pin JDK 25.
