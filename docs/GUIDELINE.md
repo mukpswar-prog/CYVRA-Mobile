@@ -473,4 +473,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** open [docs/resume-android-freeze.md](docs/resume-android-freeze.md). A2 is complete (debug APK assembled with JDK 21). Then say **execute A3** (Windows USB/ADB host transport `apps/host`). Do not touch frozen www/API. Do not start Station or Knox. Do not run AGP Upgrade Assistant.
+**Next human action:** open [docs/resume-android-freeze.md](docs/resume-android-freeze.md). A3 is complete (`apps/host` transport implemented and tested). Then say **execute A4** (Generic evidence collection). Do not touch frozen www/API. Do not start Station or Knox. Do not run AGP Upgrade Assistant.

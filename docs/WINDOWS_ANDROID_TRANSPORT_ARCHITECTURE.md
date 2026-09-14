@@ -49,14 +49,16 @@ USB file copy is not authorization. ADB visible is not ADB authorized. Never byp
 
 Do not add new enum values to live Worker ingest in A3.
 
-## A3 responsibilities (when that slice runs)
+## Implementation status
 
-- USB detection, ADB discovery, ADB version, device listing
-- authorization / offline / disconnect / reconnect / timeouts / health
-- operator copy for unlock-and-authorize
-- persist operation state before a device reboot (needed later for sanitization)
-
-No sanitization execution in A3.
+Implemented in `apps/host` (slice A3):
+- `AdbBinaryLocator`: Platform-tools discovery with bundled fallback, Studio SDK check, and PATH diagnostic fallback.
+- `AdbClient`: CLI wrapper parsing `devices -l`, device state, and version without crashing.
+- `ConnectionStateMachine`: Full implementation of state flow (§14 & §15).
+- `G4IngestStateMapper`: Mapping of host states to frozen G4 vocabulary.
+- `HostPreflightVerifier`: System preflight (§16) checking OS, 64-bit architecture, JDK 21, and ADB binary presence.
+- `AdbDeviceInspector`: Querying platform properties (`getprop`, `pm list features`) preserving honesty rules.
+- Test coverage in `apps/host/src/test/kotlin/cyvra/mobile/host/transport/HostTransportTest.kt`.
 
 ## Windows baseline
 

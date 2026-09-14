@@ -9,5 +9,5 @@ plugins {
 }
 
 tasks.register("test") {
-    dependsOn(":core:test")
+    dependsOn(":core:test", ":host:test")
 }

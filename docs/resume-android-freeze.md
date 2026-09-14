@@ -1,4 +1,4 @@
-# Resume here — after A2 (14 Sep 2026)
+# Resume here — after A3 (14 Sep 2026)
 
 **Start the next session from this file.**  
 **Governing freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
@@ -12,8 +12,9 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 |---|---|
 | A0 docs | Done |
 | A1 Kotlin 2.3.21 | Done. Laptop `:core:test` passed |
-| A2 SDK 36 / minSdk 26 | **Done.** Laptop `:app:assembleDebug` passed with JDK 21. `app-debug.apk` built. |
-| A3 Windows USB/ADB Host | **Next.** `apps/host` transport layer. |
+| A2 SDK 36 / minSdk 26 | Done. Laptop `:app:assembleDebug` passed with JDK 21. `app-debug.apk` built. |
+| A3 Windows USB/ADB Host | **Done.** `apps/host` transport layer implemented & tested (`:host:test` passes). |
+| A4 Generic evidence in :core | **Next.** Device identity, storage, battery, security collectors. |
 
 `minSdk = 26` is the **APK install floor** (Android 8.0+), not the Windows-host device-service floor.
 
@@ -25,26 +26,20 @@ git pull
 cd apps/android
 export JAVA_HOME="C:/Program Files/Java/jdk-21"
 ./gradlew.bat --stop
-./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :app:assembleDebug
+./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" test
 ```
 
-Note on paths: use Windows JDK 21 (`C:/Program Files/Java/jdk-21`) because Android Studio 2026 bundled JBR is version 25.
+Expected: `cyvra-mobile-android: Java 21...` and `BUILD SUCCESSFUL` running both `:core:test` and `:host:test`.
 
-Expected: `cyvra-mobile-android: Java 21...` and `BUILD SUCCESSFUL`.  
-APK: `apps/android/app/build/outputs/apk/debug/app-debug.apk`
-
-### Alternative: Build directly inside Android Studio (recommended)
+### Alternative: Build / Test directly inside Android Studio
 1. Open Android Studio with `apps/android` open.
 2. Confirm **File → Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK** is set to **`C:\Program Files\Java\jdk-21 Oracle OpenJDK 21.0.8`**.
-3. Confirm **File → Settings → Languages & Frameworks → Android SDK → SDK Platforms** has **Android 16.0 (API 36)** installed.
-4. Click **Build → Make Project** (or **Build → Build Bundle(s) / APK(s) → Build APK(s)**).
+3. **File → Sync Project with Gradle Files**. Both `:core`, `:app`, and `:host` will sync.
+4. Run Gradle task `test` or click **Build → Make Project**.
 
-If `gradle/gradle-daemon-jvm.properties` reappears with `toolchainVersion=25`, delete it and re-run.  
-If Upgrade Assistant offers AGP 9.4: **do not Run selected steps**.
+## Next (A4)
 
-## Next (not A2)
-
-A3 is the CYVRA Mobile Windows host USB/ADB transport (`apps/host`). Not Station. Say **execute A3** when ready. Physical Samsung is G5-A.
+A4 is generic evidence collection in `:core` and integrating evidence models with the host. Physical Samsung is G5-A.
 
 ## Frozen pins
 

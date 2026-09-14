@@ -29,6 +29,8 @@ println(
 )
 
 include(":core")
+include(":host")
+project(":host").projectDir = file("../host")
 
 val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
 val hasLocalSdk = file("local.properties").exists()
