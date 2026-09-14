@@ -40,8 +40,8 @@ git pull
 
 ## Order of work
 
-1. **A0** — architecture docs on GitHub (this commit).
-2. **A1** — Kotlin 2.2.10 → 2.3.21. Do not change minSdk. `./gradlew :core:test`.
+1. **A0** — architecture docs on GitHub.
+2. **A1** — Kotlin 2.2.10 → 2.3.21. Done on this branch (`:core:test` 13 passed). minSdk still 29 until A2.
 3. **A2** — compileSdk/targetSdk 36, minSdk 26. Laptop must install **SDK Platform 36** before `:app:assembleDebug` / lint.
 4. **A3+** — Windows host transport, then generic evidence. Physical Samsung is G5-A, not “APK only”.
 

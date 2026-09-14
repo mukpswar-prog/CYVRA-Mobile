@@ -15,7 +15,7 @@ CYVRA Mobile is **not** a Samsung-first APK. The Windows host is the orchestrato
 
 | Component | Frozen value | On disk until the matching slice |
 |---|---|---|
-| Kotlin / KGP | **2.3.21** | A1 changes `2.2.10` → `2.3.21` |
+| Kotlin / KGP | **2.3.21** | A1 applied |
 | Android Gradle Plugin | **8.13.2** | already frozen; do not move to AGP 9 |
 | Gradle Wrapper | **9.1.0** | already frozen |
 | JDK | **21** | Gradle JDK = jbr-21 |
@@ -48,7 +48,7 @@ This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Kn
 | Slice | What | Status |
 |---|---|---|
 | A0 | Architecture confirmation. No product code. | **Done** (this docs commit) |
-| A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | Next code commit |
+| A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | **Done.** `kotlin-stdlib:2.3.21`. `G5CoreTest` 13 passed. No Android SDK here so `:app:assembleDebug` waits for the laptop. |
 | A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop needs SDK Platform 36. | After A1 |
 | A3 | `apps/host` USB/ADB transport. No sanitization execution. | After A2 |
 | A4–A6 | Generic evidence in `:core`. APK as `ANDROID_COMPONENT`. | After A3 |

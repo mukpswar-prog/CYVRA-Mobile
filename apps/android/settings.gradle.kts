@@ -5,9 +5,9 @@ pluginManagement {
         gradlePluginPortal()
     }
     plugins {
-        kotlin("jvm") version "2.2.10"
-        kotlin("plugin.serialization") version "2.2.10"
-        kotlin("android") version "2.2.10"
+        kotlin("jvm") version "2.3.21"
+        kotlin("plugin.serialization") version "2.3.21"
+        kotlin("android") version "2.3.21"
         // Otter 2 supports AGP 4.1–8.13 only. 9.0.1 removes BaseVariant and
         // Studio's KotlinAndroidTarget then crashes on sync.
         id("com.android.application") version "8.13.2"
