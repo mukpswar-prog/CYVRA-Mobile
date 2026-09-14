@@ -26,8 +26,8 @@ Do not start Station or Knox. Do not flip `API_ENV`. Do not commit
 | Open folder | `apps/android` |
 | Modules | `:core` (always) and `:app` (only after SDK / `local.properties` exist) |
 | Application id | `co.in.cyvra.mobile` |
-| compileSdk / targetSdk | **36** after A2 (still 35 until A2) |
-| minSdk | **26** after A2 (still 29 until A2). APK floor, not host service floor. |
+| compileSdk / targetSdk | **36** |
+| minSdk | **26**. APK floor, not host service floor. |
 | Kotlin / KGP | **2.3.21** (A1) |
 | Gradle wrapper | **9.1.0** (Java 25 Gradle daemon needs this) |
 | Android Gradle Plugin | **8.13.2** (Do not use 9.0.1) |
@@ -74,17 +74,15 @@ First download can take 10–20 minutes. Leave it running.
 
 ---
 
-## Step 3 — SDK Manager (API 35 now; API 36 in A2)
+## Step 3 — SDK Manager (API 36)
 
 On the Welcome screen: **More Actions → SDK Manager**.  
 Or later: **File → Settings → Languages & Frameworks → Android SDK**.
 
 ### SDK Platforms tab
 
-Until A2: tick **Android 15.0 API 35**.  
-For A2 assemble/lint: also tick **Android 16.0 API 36** (SDK Platform 36).
-
-You do **not** need every older API for compile. minSdk 26 (A2) is the APK install floor, not extra SDK platforms.
+Tick **Android 16.0 / API 36.0** (SDK Platform 36). That is the compile SDK.  
+minSdk 26 is the APK install floor, not extra SDK platforms. Do not install Android 17 for A2.
 
 ### SDK Tools tab
 

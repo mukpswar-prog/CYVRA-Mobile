@@ -13,15 +13,15 @@ G4 contract is loaded from `packages/evidence/schema/s1-catalog.v1.json`.
 | AGP | **8.13.2** (do not move to AGP 9) |
 | Gradle wrapper | **9.1.0** (Codespaces Java 25 needs 9.1+) |
 | JDK | **21** |
-| compileSdk / targetSdk | **36** (A2; still 35 until A2) |
-| minSdk | **26** APK floor (A2; still 29 until A2). Not the host service floor. |
+| compileSdk / targetSdk | **36** |
+| minSdk | **26** APK floor (Android 8.0+). Not the host service floor. |
 
 - **`:core`** — JVM. Catalog, plan, honesty, offline queue, planned-batch collect. Runs without a phone. Home for generic evidence interfaces.
 - **`:app`** — Optional Android UI. Included only when `ANDROID_HOME` or `local.properties` exists.
   Shares `files/cyvra-g5-batch.json` for laptop `POST /evidence/batches`.
 
 No Knox. No IMEI collection. No lock bypass. USB file copy is not device authorization.
-Laptop `:app:assembleDebug` after A2 needs **SDK Platform 36**.
+Laptop `:app:assembleDebug` needs **SDK Platform 36** and Gradle JDK **jbr-21**.
 
 Laptop, after a customer sign-in (not `ADMIN_API_TOKEN`):
 

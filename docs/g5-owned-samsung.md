@@ -48,7 +48,7 @@ You should see recent commits including the Resend runbook.
 ## Step 2 — Open the Android project in Android Studio
 
 If Studio is newly installed, do the full first-run in
-[android-studio-laptop.md](./android-studio-laptop.md) (SDK Platform 35,
+[android-studio-laptop.md](./android-studio-laptop.md) (SDK Platform 36,
 JDK 21, open `apps/android`, prove `:app:assembleDebug`). Then return here.
 
 If that is already done:

@@ -19,9 +19,9 @@ CYVRA Mobile is **not** a Samsung-first APK. The Windows host is the orchestrato
 | Android Gradle Plugin | **8.13.2** | already frozen; do not move to AGP 9 |
 | Gradle Wrapper | **9.1.0** | already frozen |
 | JDK | **21** | Gradle JDK = jbr-21 |
-| compileSdk | **36** | A2; still 35 until A2 |
-| targetSdk | **36** | A2; still 35 until A2 |
-| Android **component** minSdk | **26** | A2; still 29 until A2 |
+| compileSdk | **36** | A2 applied |
+| targetSdk | **36** | A2 applied |
+| Android **component** minSdk | **26** | A2 applied. APK floor, not host service floor. |
 
 `minSdk = 26` is the APK install floor (Android 8.0+). It is **not** the Windows-host device-service floor. The host may still detect or inspect a device that cannot install the APK.
 
@@ -49,7 +49,7 @@ This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Kn
 |---|---|---|
 | A0 | Architecture confirmation. No product code. | **Done** (this docs commit) |
 | A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | **Done** on GitHub and laptop (`BUILD SUCCESSFUL`). After break, force jbr-21 so the banner is Java 21, not 25. |
-| A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop SDK Platform 36.0 is installed. | **Next.** Say execute A2. |
+| A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop SDK Platform 36.0 is installed. | **Done** in git. Laptop: `git pull`, jbr-21, then `:core:test :app:assembleDebug`. |
 | A3 | `apps/host` USB/ADB transport. No sanitization execution. | After A2 |
 | A4–A6 | Generic evidence in `:core`. APK as `ANDROID_COMPONENT`. | After A3 |
 | A7 | OEM adapters only when a real device needs them | After first physical devices |

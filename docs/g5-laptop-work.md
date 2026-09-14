@@ -4,8 +4,8 @@
 
 **14 Sep freeze accepted:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md). Start: [resume-android-freeze.md](./resume-android-freeze.md).
 
-- A1 (this code slice): Kotlin **2.3.21**. Keep AGP **8.13.2**, Gradle **9.1.0**, JDK **21**. Do **not** change minSdk in A1.
-- A2 (later): compileSdk/targetSdk **36**, minSdk **26**. Install **SDK Platform 36** before `:app:assembleDebug` / lint.
+- A1: Kotlin **2.3.21**. AGP **8.13.2**, Gradle **9.1.0**, JDK **21**.
+- A2: compileSdk/targetSdk **36**, minSdk **26** (APK floor). SDK Platform 36 required for `:app:assembleDebug`.
 - Do not upgrade to AGP 9.
 
 Governing start: [resume-android-freeze.md](./resume-android-freeze.md).  
@@ -83,7 +83,7 @@ If the error is `Unable to download toolchain ... languageVersion=25 ... vendor=
 2. Confirm title `android`, branch `cursor/g0-g3-mobile-slice-7474`, tree `app` + `core`.
 3. Git Bash (optional): `cd /c/Users/User/StudioProjects/CYVRA-Mobile` then `git pull`.
 4. Settings → Gradle JDK = **jbr-21**.
-5. Settings → Android SDK: keep API **35** until A2. For A2, tick **API 36** + Build-Tools 36. Apply if anything was unchecked.
+5. Settings → Android SDK: **API 36** Installed. Do not run Upgrade Assistant.
 6. Open `settings.gradle.kts`. Must say **8.13.2**. If it says `9.0.1`, stop.
 7. **File → Sync Project with Gradle Files.** Wait. Expected: `:app` + `:core`, no `BaseVariant`.
 8. **Build → Build APK(s).** Expected: `app-debug.apk` path above.
