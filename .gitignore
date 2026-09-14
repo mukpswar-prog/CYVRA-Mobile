@@ -19,12 +19,15 @@ dist/
 # local Postgres data (Neon stand-in for local dev)
 .cyvra-pgdata/
 
+# IDE (never commit; Studio/Cursor create these locally)
+.idea/
+apps/android/.idea/
+
 # Android / Gradle
 apps/android/.gradle/
 apps/android/.kotlin/
 apps/android/**/build/
 apps/android/local.properties
-apps/android/.idea/
 
 # logs / os
 *.log
