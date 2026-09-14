@@ -67,8 +67,11 @@ Optional check: Git Bash
 
 ```bash
 cd /c/Users/User/StudioProjects/CYVRA-Mobile/apps/android
-./gradlew.bat :core:test :app:assembleDebug
+./gradlew.bat --stop
+./gradlew.bat :core:test
 ```
+
+If the error is `com/android/build/gradle/BaseExtension`, root `build.gradle.kts` must list AGP **8.13.2** and `kotlin("android")` **2.3.21** with `apply false` (same classpath as `:app`). Then `--stop` and re-run. Do not bump to AGP 9.
 
 ---
 
