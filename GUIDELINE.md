@@ -468,4 +468,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** open [docs/resume-android-freeze.md](docs/resume-android-freeze.md). Execute A1 (Kotlin 2.3.21) then A2 (SDK 36 / minSdk 26). Do not touch frozen www/API. Do not start Station or Knox.
+**Next human action:** open [docs/resume-android-freeze.md](docs/resume-android-freeze.md). A1 is done. After the 14 Sep evening break: restore laptop `gradle.properties`, `git pull`, force jbr-21, then say **execute A2**. Do not touch frozen www/API. Do not start Station or Knox. Do not run AGP Upgrade Assistant.

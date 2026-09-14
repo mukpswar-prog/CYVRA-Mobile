@@ -48,8 +48,8 @@ This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Kn
 | Slice | What | Status |
 |---|---|---|
 | A0 | Architecture confirmation. No product code. | **Done** (this docs commit) |
-| A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | **Done.** `kotlin-stdlib:2.3.21`. `G5CoreTest` 13 passed. Root `build.gradle.kts` also declares AGP 8.13.2 + `kotlin("android")` `apply false` so laptop `:core:test` does not hit `BaseExtension` when `:app` is included. |
-| A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop needs SDK Platform 36. | After A1 |
+| A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | **Done** on GitHub and laptop (`BUILD SUCCESSFUL`). After break, force jbr-21 so the banner is Java 21, not 25. |
+| A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop SDK Platform 36.0 is installed. | **Next.** Say execute A2. |
 | A3 | `apps/host` USB/ADB transport. No sanitization execution. | After A2 |
 | A4–A6 | Generic evidence in `:core`. APK as `ANDROID_COMPONENT`. | After A3 |
 | A7 | OEM adapters only when a real device needs them | After first physical devices |
