@@ -12,7 +12,8 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 |---|---|
 | A0 docs | Done |
 | A1 Kotlin 2.3.21 | Done. Laptop `:core:test` passed |
-| A2 SDK 36 / minSdk 26 | **In git.** Laptop must `git pull`, use **jbr-21**, then assemble |
+| A2 SDK 36 / minSdk 26 | **Done.** Laptop `:app:assembleDebug` passed with JDK 21. `app-debug.apk` built. |
+| A3 Windows USB/ADB Host | **Next.** `apps/host` transport layer. |
 
 `minSdk = 26` is the **APK install floor** (Android 8.0+), not the Windows-host device-service floor.
 
