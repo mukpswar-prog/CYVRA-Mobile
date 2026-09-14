@@ -4,10 +4,14 @@ G7 inbox proof is done. Customer and ops OTP land in real inboxes.
 Keep `API_ENV=preview`. Do not start Station or Knox.
 Do not Create PENDING with dummy payment on live.
 
-This gate is: build the S1 debug APK, run it on **one owned Samsung**,
-share `cyvra-g5-batch.json`, then `POST` that file to
+This gate is **G5-A**: Windows host + USB + controlled ADB + **one owned Samsung**.
+The APK is a supporting component (install later). Share
+`cyvra-g5-batch.json` only from a real device, then `POST` that file to
 `https://api.cyvoriq.co.in/evidence/batches` as the **customer** you
 already signed in as.
+
+Freeze: [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md).
+Do not treat emulator compile as OEM compatibility.
 
 USB file copy is **not** device authorization. No IMEI. No Knox.
 Do not paste the session token, the JSON, or OTP codes in chat.

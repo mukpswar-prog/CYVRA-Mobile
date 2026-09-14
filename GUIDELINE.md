@@ -25,7 +25,7 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 
 **Amendment 11 Sep 2026 (ops licences):** Mobile licence keys are parseable: `CYVRA{dd}{mm}{yyyy}{S|B}{hex4}-1-{1|3|5|7|25}` (example `CYVRA11092026SA3F1-1-1` for single-user, one device). Super admin is `ceo@cyvoriq.com`. Only `@cyvoriq.com` operators nominated by the CEO can sign in. The key is emailed to the customer’s verified inbox only. Same key, same brand, up to the slab. Ops UI: [docs/admin-scope-freeze.md](docs/admin-scope-freeze.md).
 
-**Amendment 14 Sep 2026:** Version stack is under review. Do not upgrade AGP/Kotlin/minSdk and do not Build APK until the CEO guidebook is accepted. Notes: [docs/android-version-stack-review.md](docs/android-version-stack-review.md). Start: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md).
+**Amendment 14 Sep 2026 (Android freeze accepted):** The CEO freeze is engineering law for the **Android product path** only. It does **not** unfreeze public www, live API, OTP, `API_ENV`, Station, Knox, or Erase. Pins: Kotlin **2.3.21**, AGP **8.13.2**, Gradle **9.1.0**, JDK **21**, compileSdk/targetSdk **36**, Android-component minSdk **26**. Windows host is the orchestrator; USB → controlled ADB; APK is a supporting component. G5 is no longer “Samsung APK only.” Station Decision **5.1.20.2** stays parked — do not create `apps/station`. Start: [docs/resume-android-freeze.md](docs/resume-android-freeze.md). Map: [docs/ANDROID_COMPATIBILITY_FREEZE.md](docs/ANDROID_COMPATIBILITY_FREEZE.md). Full text: [docs/CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md](docs/CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md). Review notes (history): [docs/android-version-stack-review.md](docs/android-version-stack-review.md).
 
 **Amendment 11 Sep 2026:** Public `www.cyvoriq.co.in` is frozen. Overnight save / morning start: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Next is G7 inbox proof, then G5 on one owned Samsung. Do not start Station or Knox.
 
@@ -119,7 +119,7 @@ S3  CYVRA Enterprise              Knox / UEM / OEM only with real authority
 
 One device lifecycle ID, one evidence schema, one report engine. Sources stay labelled. S2 must not overwrite S1. S3 must not be claimed from S1.
 
-**Build S1 first.** USB-first is the Station **thesis** (orchestration when a cable exists). It is not the first customer ship. Decision **5.1.20.2** (Station Windows stack) is **not** approved yet — do not start the desktop app.
+**Build the generic Android core and the CYVRA Mobile Windows host first.** USB-first orchestration belongs to the Mobile host (`apps/host` from slice A3), not CYVRA Station. The Android APK is a supporting device-side component. Decision **5.1.20.2** (Station Windows stack) remains **not** approved — do not start `apps/station` or Knox.
 
 ---
 
@@ -177,8 +177,9 @@ Monorepo **inside this repo** (new, not Erase):
 ```
 CYVRA-Mobile/
   apps/web/                 customer UI → mobile.cyvra.co.in
-  apps/android/             S1 Kotlin (later)
-  apps/station/             CYVRA Station Windows (after 5.1.20.2)
+  apps/android/             Android component (`:core` JVM + optional `:app` APK)
+  apps/host/                CYVRA Mobile Windows host (A3+; not Station)
+  apps/station/             CYVRA Station Windows (after 5.1.20.2; still parked)
   services/api/             Cloudflare Worker cyvra-mobile-api
   packages/evidence/        schema, capability contract, protocol
   packages/cyvra-evidence-protocol/
@@ -404,7 +405,7 @@ Nothing below starts until this guideline is accepted. Then work **only** in `CY
 | **G2** | Drizzle schema: users, OTP challenges, sessions. Worker health + `POST /auth/request` + `POST /auth/verify` | Worker + Neon + Resend |
 | **G3** | `apps/web` registration / sign-in on Pages preview, then custom domain. Honest empty home. Name + pincode mandatory. **Cutover host:** `www.cyvoriq.co.in`. Preview host `mobile.cyvra.co.in` kept until proven. | Pages |
 | **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` (no pretty marketing) | GitHub |
-| **G5** | S1 Android on **one** owned Samsung: profile, core tests, offline store, upload to Worker | App + API + Neon |
+| **G5** | Windows USB/ADB + generic evidence. G5-A is Windows + USB + ADB + one owned Samsung (APK is supporting). Sanitization execution stays non-destructive until transport/evidence gates pass. | Host + App + API + Neon |
 | **G6** | Render Report 1 (LIMITED/withheld where due) from frozen manifest | API + web |
 | **G7** | Ops on **`admin.cyvoriq.co.in` / `accounts.cyvoriq.co.in`** (new Pages in this repo). Serial issue/approval via `cyvra-mobile-api` + Neon. Super admin `ceo@cyvoriq.com`. **Not** Erase admin. | New Pages + mobile Worker/Neon |
 | **G8** | Public `www.cyvoriq.co.in` (new Pages, CYVORIQ logo). **Not** a tab on `www.cyvra.co.in`. Erase www stays frozen. | Pages `cyvoriq-www` |
@@ -467,4 +468,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Version guidebook in progress — do not upgrade the Android stack or Build APK until that book is accepted.
+**Next human action:** open [docs/resume-android-freeze.md](docs/resume-android-freeze.md). Execute A1 (Kotlin 2.3.21) then A2 (SDK 36 / minSdk 26). Do not touch frozen www/API. Do not start Station or Knox.

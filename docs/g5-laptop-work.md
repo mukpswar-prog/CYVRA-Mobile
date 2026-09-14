@@ -1,11 +1,15 @@
 # G5 laptop work — start here after this break
 
-**No Samsung required for this file.** Phone work is [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4+, later.
+**No Samsung required for A1.** Phone work is [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4+, later. G5-A is Windows + USB + ADB + owned Samsung, not APK-only.
 
-**14 Sep pause:** do not Build APK and do not bump AGP until [android-version-stack-review.md](./android-version-stack-review.md) and the CEO guidebook are accepted.
+**14 Sep freeze accepted:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md). Start: [resume-android-freeze.md](./resume-android-freeze.md).
 
-Governing start: [resume-g8-freeze.md](./resume-g8-freeze.md).  
-Branch: `cursor/g0-g3-mobile-slice-7474` at `a59ebbb` (or later on that branch).  
+- A1 (this code slice): Kotlin **2.3.21**. Keep AGP **8.13.2**, Gradle **9.1.0**, JDK **21**. Do **not** change minSdk in A1.
+- A2 (later): compileSdk/targetSdk **36**, minSdk **26**. Install **SDK Platform 36** before `:app:assembleDebug` / lint.
+- Do not upgrade to AGP 9.
+
+Governing start: [resume-android-freeze.md](./resume-android-freeze.md).  
+Branch: `cursor/g0-g3-mobile-slice-7474`.  
 Clone: `C:\Users\User\StudioProjects\CYVRA-Mobile`
 
 Do not reopen G8. Do not flip `API_ENV`. Do not Freeze Report 1.  
@@ -74,7 +78,7 @@ cd /c/Users/User/StudioProjects/CYVRA-Mobile/apps/android
 2. Confirm title `android`, branch `cursor/g0-g3-mobile-slice-7474`, tree `app` + `core`.
 3. Git Bash (optional): `cd /c/Users/User/StudioProjects/CYVRA-Mobile` then `git pull`.
 4. Settings → Gradle JDK = **jbr-21**.
-5. Settings → Android SDK: API **35** + Build-Tools 35. Apply if anything was unchecked.
+5. Settings → Android SDK: keep API **35** until A2. For A2, tick **API 36** + Build-Tools 36. Apply if anything was unchecked.
 6. Open `settings.gradle.kts`. Must say **8.13.2**. If it says `9.0.1`, stop.
 7. **File → Sync Project with Gradle Files.** Wait. Expected: `:app` + `:core`, no `BaseVariant`.
 8. **Build → Build APK(s).** Expected: `app-debug.apk` path above.

@@ -1,12 +1,16 @@
 # Resume here — 14 Sep 2026 pause (version guidebook)
 
-**Start the next session from this file.**  
-**Do not upgrade AGP/Kotlin/SDK and do not Build APK until the CEO guidebook is accepted.**
+**Superseded as the start file.** Android freeze is accepted. Start:
+[resume-android-freeze.md](./resume-android-freeze.md). Map:
+[ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md).
 
-Review (no code changes): [android-version-stack-review.md](./android-version-stack-review.md).  
-Laptop checklist (paused after guidebook): [g5-laptop-work.md](./g5-laptop-work.md).  
+This file remains the www / OTP / G8 history. Public www is still frozen.
+Do not polish `www.cyvoriq.co.in`. Do not flip `API_ENV`. Do not start Station or Knox.
+
+Review (history): [android-version-stack-review.md](./android-version-stack-review.md).  
+Laptop checklist: [g5-laptop-work.md](./g5-laptop-work.md).  
 Governing law: [GUIDELINE.md](../GUIDELINE.md).  
-Branch: `cursor/g0-g3-mobile-slice-7474` @ `1fea313` + this pause commit.
+Branch: `cursor/g0-g3-mobile-slice-7474`.
 
 ---
 
@@ -20,18 +24,7 @@ Branch: `cursor/g0-g3-mobile-slice-7474` @ `1fea313` + this pause commit.
 | Version input | AGP 9 + built-in KGP 2.2.10 is **factually true**. Not applied. See review file. |
 | Parameter table | Kotlin / KGP / AGP / Gradle / compileSdk / targetSdk / minSdk — verified. **minSdk** is the old-Samsung gate (now 29). |
 | Samsung | Not in hand. |
-| This agent | **Wait.** No upgrades, no APK, no Station/Knox. |
-
----
-
-## After the guidebook (not now)
-
-| # | What |
-|---|---|
-| 0 | Accept the guidebook. Then pick **one** AGP: keep 8.13.2 or move to 9.x on Quail 4. |
-| 1 | Laptop: JDK 21, SDK 35, sync, **Build APK** ([g5-laptop-work.md](./g5-laptop-work.md)). |
-| 2 | Owned Samsung: [g5-owned-samsung.md](./g5-owned-samsung.md) from Step 4. |
-| 3 | Report 1 / `API_ENV=production` / Station / Knox later. |
+| This agent | Guidebook **accepted**. Next is A1 Kotlin 2.3.21. |
 
 ---
 
@@ -94,7 +87,7 @@ Header on the frozen public site:
 | **G2** | Users / OTP / sessions | Done. |
 | **G3** | Register / sign-in on Pages | Done on `www.cyvoriq.co.in` and `mobile.cyvra.co.in`. |
 | **G4** | Evidence schema + capability contract | Done in `packages/evidence`. |
-| **G5** | S1 Android on **one owned Samsung** | **Next.** Core + planned JSON ready. Phone ingest not run yet. |
+| **G5** | Windows USB/ADB + generic evidence. G5-A = Windows + USB + ADB + owned Samsung | **Next after A1/A2.** Core + planned JSON ready. Phone ingest not run yet. APK is supporting. |
 | **G6** | Report 1 from frozen manifest | **API + web exist.** Wait for a real G5 batch. |
 | **G7** | Ops serials / licences on `admin.cyvoriq.co.in` | **Inbox trusted 12 Sep.** Keep `API_ENV=preview`. |
 | **G8** | Public `www.cyvoriq.co.in` | **Done. Frozen.** |

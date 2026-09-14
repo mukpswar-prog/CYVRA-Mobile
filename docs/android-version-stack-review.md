@@ -1,8 +1,10 @@
 # Android version stack — review only (14 Sep 2026)
 
-**Do not upgrade. Do not change pins. Do not Build APK until the CEO guidebook is accepted.**
+**History.** The CEO freeze is accepted. Do not use this file as the start ticket.  
+Start: [resume-android-freeze.md](./resume-android-freeze.md).  
+Pins: [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md).
 
-This file records the **input to verify**, what is on disk today, and why we did **not** jump to AGP 9 on 12 Sep. It is not an implementation ticket.
+This file records the **input we verified**, what was on disk **before** A1, and why we did **not** jump to AGP 9 on 12 Sep. AGP stays **8.13.2**. Kotlin moves to **2.3.21** in A1 (not 2.2.10). compileSdk/targetSdk **36** and minSdk **26** wait for A2.
 
 Start file: [resume-g8-freeze.md](./resume-g8-freeze.md).  
 Laptop checklist (paused): [g5-laptop-work.md](./g5-laptop-work.md).
@@ -81,8 +83,10 @@ We have **not** enumerated the live fleet here. When the guidebook lists models,
 
 ## Paused human work
 
-1. CEO guidebook / process book (in progress). This agent waits.
-2. After that book is accepted: decide AGP 8.13.2 vs AGP 9 **once**, then laptop **Build APK**.
-3. Owned Samsung still required for G5 ingest. No emulator substitute.
+1. CEO freeze **accepted** 14 Sep 2026. Start [resume-android-freeze.md](./resume-android-freeze.md).
+2. AGP stays **8.13.2**. Do not take AGP 9 in this freeze.
+3. A1 = Kotlin 2.3.21. A2 = SDK 36 / minSdk 26 (laptop needs Platform 36).
+4. Owned Samsung still required for G5-A. No emulator substitute for USB/ADB.
 
-Do not: bump AGP, drop `kotlin-android`, change `minSdk`, flip `API_ENV`, start Station/Knox, or Build APK in this pause.
+Do not: bump AGP to 9, drop `kotlin-android`, flip `API_ENV`, start Station/Knox.  
+A1 changes Kotlin only. A2 changes SDK/minSdk. Laptop needs SDK Platform **36** before A2 assemble/lint.

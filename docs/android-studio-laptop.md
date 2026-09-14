@@ -1,8 +1,9 @@
 # Android Studio on the Windows laptop (configure now, phone later)
 
 Android Studio **Quail 4 / 2026.1.4** is what is installed (reinstall 12 Sep
-evening). AGP stays **8.13.2**. After-break laptop steps:
-[g5-laptop-work.md](./g5-laptop-work.md).
+evening). AGP stays **8.13.2**. Kotlin freeze is **2.3.21** (A1). After-break:
+[g5-laptop-work.md](./g5-laptop-work.md). Freeze:
+[ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md).
 
 Open **`apps/android`**, not the repo root. Stay on branch
 `cursor/g0-g3-mobile-slice-7474`.
@@ -25,13 +26,14 @@ Do not start Station or Knox. Do not flip `API_ENV`. Do not commit
 | Open folder | `apps/android` |
 | Modules | `:core` (always) and `:app` (only after SDK / `local.properties` exist) |
 | Application id | `co.in.cyvra.mobile` |
-| compileSdk / targetSdk | **35** |
-| minSdk | **29** |
+| compileSdk / targetSdk | **36** after A2 (still 35 until A2) |
+| minSdk | **26** after A2 (still 29 until A2). APK floor, not host service floor. |
+| Kotlin / KGP | **2.3.21** (A1) |
 | Gradle wrapper | **9.1.0** (Java 25 Gradle daemon needs this) |
-| Android Gradle Plugin | **8.13.2** (Otter 2 max is 8.13. Do not use 9.0.1) |
+| Android Gradle Plugin | **8.13.2** (Do not use 9.0.1) |
 | JVM / Kotlin target | **21** |
 | NDK / CMake / Play App Signing | Not needed |
-| Emulator | Optional. G5 proof is one **owned Samsung**, not an AVD |
+| Emulator | Optional. G5-A proof is Windows + USB + ADB + **owned Samsung**, not an AVD |
 
 ---
 
@@ -72,18 +74,17 @@ First download can take 10–20 minutes. Leave it running.
 
 ---
 
-## Step 3 — SDK Manager (match API 35)
+## Step 3 — SDK Manager (API 35 now; API 36 in A2)
 
 On the Welcome screen: **More Actions → SDK Manager**.  
 Or later: **File → Settings → Languages & Frameworks → Android SDK**.
 
 ### SDK Platforms tab
 
-Tick **Android 15.0 (“VanillaIceCream”) API 35**.  
-Show Package Details → also tick **Android SDK Platform 35**.
+Until A2: tick **Android 15.0 API 35**.  
+For A2 assemble/lint: also tick **Android 16.0 API 36** (SDK Platform 36).
 
-You do **not** need every older API. API 35 is the one `:app` compiles
-against.
+You do **not** need every older API for compile. minSdk 26 (A2) is the APK install floor, not extra SDK platforms.
 
 ### SDK Tools tab
 
