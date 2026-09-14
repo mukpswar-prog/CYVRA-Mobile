@@ -67,7 +67,7 @@ class MainActivity : AppCompatActivity() {
         val view = TextView(this).apply {
             textSize = 14f
             setPadding(32, 32, 32, 32)
-            this.text = text
+            setText(text)
         }
         val share = Button(this).apply {
             text = "Share batch JSON"
