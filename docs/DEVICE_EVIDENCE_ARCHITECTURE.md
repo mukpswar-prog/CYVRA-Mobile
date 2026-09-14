@@ -52,6 +52,12 @@ Do not design around unrestricted `/data`. Use app-private storage on the APK. T
 
 API 26+ guards are mandatory after A2 lowers minSdk. `BLUETOOTH_CONNECT` (API 31) and `NEARBY_WIFI_DEVICES` (API 33) are not universal.
 
-## Android component (A6)
+## Implementation status
 
-`apps/android/app` / `MainActivity.kt` remains the optional device-side component. It must not become the scan engine. USB/ADB connection state on the APK stays unknown unless the host tells it.
+Implemented in `:core` and `apps/host` (slice A4):
+- `EvidenceModels.kt`: `EvidenceStatus`, `EvidenceFieldResult<T>`, `DeviceIdentifierRecord`, `DeviceIdentityEvidence`, `BatteryEvidence`, `StorageEvidence`, `SecurityEvidence`, `GenericDeviceEvidence`.
+- `EvidenceProviders.kt`: `DeviceEvidenceProvider`, `DeviceCapabilityProvider`, `OemCapabilityResolver`, `DefaultOemCapabilityResolver`.
+- `AdbGenericEvidenceProvider.kt` (in `apps/host`): Independent collectors for identity, battery, storage, and security. Source is explicitly labelled (`ADB`).
+- Non-fabrication enforced: Hardware serial and IMEI return `RESTRICTED` status; no dummy values.
+- Scoped storage limitation recorded; no unrestricted filesystem crawling (§22).
+- Unit test coverage in `EvidenceModelsTest.kt` (`:core`) and `AdbGenericEvidenceProviderTest.kt` (`apps/host`).

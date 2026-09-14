@@ -1,26 +1,11 @@
 package cyvra.mobile.host.transport
 
+import cyvra.mobile.core.EvidenceFieldResult
+import cyvra.mobile.core.EvidenceStatus
 import kotlinx.serialization.Serializable
 
-@Serializable
-enum class EvidenceStatus {
-    AVAILABLE,
-    NOT_AVAILABLE,
-    RESTRICTED,
-    PERMISSION_REQUIRED,
-    UNSUPPORTED_API,
-    OEM_UNSUPPORTED,
-    ERROR,
-}
-
-@Serializable
-data class EvidenceFieldResult<T>(
-    val value: T?,
-    val status: EvidenceStatus,
-    val source: String,
-    val reason: String? = null,
-    val timestamp: String = java.time.Instant.now().toString(),
-)
+typealias HostEvidenceStatus = EvidenceStatus
+typealias HostEvidenceFieldResult<T> = EvidenceFieldResult<T>
 
 @Serializable
 data class AdbDeviceDescriptor(

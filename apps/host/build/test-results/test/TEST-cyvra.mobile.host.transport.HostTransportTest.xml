@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="cyvra.mobile.host.transport.HostTransportTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-09-14T15:00:26.616Z" hostname="cursor" time="0.069">
+<testsuite name="cyvra.mobile.host.transport.HostTransportTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-09-14T15:22:02.059Z" hostname="cursor" time="0.045">
   <properties/>
-  <testcase name="g4StateMapperMapsStatesCorrectly()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.019"/>
-  <testcase name="hostPreflightRunsChecks()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.009"/>
-  <testcase name="adbClientParsesDevicesList()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.004"/>
-  <testcase name="connectionStateMachineEvaluatesTransitions()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.002"/>
-  <testcase name="adbDeviceInspectorMapsToCoreCapabilityProfile()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.032"/>
+  <testcase name="g4StateMapperMapsStatesCorrectly()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.002"/>
+  <testcase name="hostPreflightRunsChecks()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.005"/>
+  <testcase name="adbClientParsesDevicesList()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.001"/>
+  <testcase name="connectionStateMachineEvaluatesTransitions()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.001"/>
+  <testcase name="adbDeviceInspectorMapsToCoreCapabilityProfile()" classname="cyvra.mobile.host.transport.HostTransportTest" time="0.035"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>
