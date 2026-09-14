@@ -25,7 +25,7 @@ CYVRA Mobile Evidence is a **new product** on a **new GitHub**, a **new Cloudfla
 
 **Amendment 11 Sep 2026 (ops licences):** Mobile licence keys are parseable: `CYVRA{dd}{mm}{yyyy}{S|B}{hex4}-1-{1|3|5|7|25}` (example `CYVRA11092026SA3F1-1-1` for single-user, one device). Super admin is `ceo@cyvoriq.com`. Only `@cyvoriq.com` operators nominated by the CEO can sign in. The key is emailed to the customer’s verified inbox only. Same key, same brand, up to the slab. Ops UI: [docs/admin-scope-freeze.md](docs/admin-scope-freeze.md).
 
-**Amendment 12 Sep 2026 evening:** G7 trusted. Git Bash works. Studio Quail 4 opened on `apps/android`. Next is laptop APK only: [docs/g5-laptop-work.md](docs/g5-laptop-work.md). Start file: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Samsung later. Do not start Station or Knox.
+**Amendment 14 Sep 2026:** Version stack is under review. Do not upgrade AGP/Kotlin/minSdk and do not Build APK until the CEO guidebook is accepted. Notes: [docs/android-version-stack-review.md](docs/android-version-stack-review.md). Start: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md).
 
 **Amendment 11 Sep 2026:** Public `www.cyvoriq.co.in` is frozen. Overnight save / morning start: [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Next is G7 inbox proof, then G5 on one owned Samsung. Do not start Station or Knox.
 
@@ -467,4 +467,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md), then [docs/g5-laptop-work.md](docs/g5-laptop-work.md). Build `app-debug.apk` on the laptop. Samsung later. Do not start Station or Knox.
+**Next human action:** open [docs/resume-g8-freeze.md](docs/resume-g8-freeze.md). Version guidebook in progress — do not upgrade the Android stack or Build APK until that book is accepted.

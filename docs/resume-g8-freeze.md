@@ -1,42 +1,37 @@
-# Resume here — 12 Sep 2026 evening break (laptop G5)
+# Resume here — 14 Sep 2026 pause (version guidebook)
 
-**Start the next session from this file**, then the laptop checklist: [g5-laptop-work.md](./g5-laptop-work.md).  
-Governing law: [GUIDELINE.md](../GUIDELINE.md) (also `docs/GUIDELINE.md`).  
-Branch: `cursor/g0-g3-mobile-slice-7474` @ `a59ebbb`.  
-Public www is **frozen**. Ops freeze: [admin-scope-freeze.md](./admin-scope-freeze.md).
+**Start the next session from this file.**  
+**Do not upgrade AGP/Kotlin/SDK and do not Build APK until the CEO guidebook is accepted.**
 
-Sister files: [g5-laptop-work.md](./g5-laptop-work.md),
-[android-studio-laptop.md](./android-studio-laptop.md),
-[g5-owned-samsung.md](./g5-owned-samsung.md).
+Review (no code changes): [android-version-stack-review.md](./android-version-stack-review.md).  
+Laptop checklist (paused after guidebook): [g5-laptop-work.md](./g5-laptop-work.md).  
+Governing law: [GUIDELINE.md](../GUIDELINE.md).  
+Branch: `cursor/g0-g3-mobile-slice-7474` @ `1fea313` + this pause commit.
 
 ---
 
-## Status at 12 Sep 2026 ~14:40 UTC (saved)
+## Status at 14 Sep 2026 ~06:05 UTC
 
 | Item | State |
 |---|---|
-| G7 OTP | **Trusted.** Ops and customer inboxes. |
-| Worker `/health` | `mailConfigured: true`, `mailFromHost: "cyvoriq.co.in"`, `env: preview` |
-| Git Bash | **Works.** Fresh Git 2.55 + Credential Manager. `git pull` fast-forward to `a59ebbb`. |
-| AGP | **8.13.2** in `apps/android/settings.gradle.kts`. Do not use 9.0.1 (`BaseVariant` crash). |
-| Android Studio | Reinstalled **Quail 4 / 2026.1.4**, Standard, SDK `AppData\Local\Android\Sdk`. Opened **`apps\android`**, trusted. Import was running. **APK not built yet.** |
-| Samsung | **Not in hand.** Laptop work only until it arrives. |
-| Report 1 / production / Station / Knox | After G5 ingest 200. |
+| G7 OTP | Trusted. |
+| Git | Laptop `git pull` to `1fea313`. Plugin on disk is AGP **8.13.2**. |
+| Studio | Quail 4, `apps/android` open. Sync was still failing before this pause. APK not built. |
+| Version input | AGP 9 + built-in KGP 2.2.10 is **factually true**. Not applied. See review file. |
+| Parameter table | Kotlin / KGP / AGP / Gradle / compileSdk / targetSdk / minSdk — verified. **minSdk** is the old-Samsung gate (now 29). |
+| Samsung | Not in hand. |
+| This agent | **Wait.** No upgrades, no APK, no Station/Knox. |
 
 ---
 
-## After the break — laptop first
+## After the guidebook (not now)
 
-Stay on `cursor/g0-g3-mobile-slice-7474`. Do not reopen G8. Do not start Station or Knox.
-
-| # | What | Who |
-|---|---|---|
-| 1 | **Laptop G5 prep.** Follow [g5-laptop-work.md](./g5-laptop-work.md): JDK 21, SDK 35, sync `:app`+`:core`, **Build APK**. Stop when `app-debug.apk` exists. | You + laptop |
-| 2 | When the **owned Samsung** arrives: [g5-owned-samsung.md](./g5-owned-samsung.md) from Step 4. | Later |
-| 3 | Customer `POST` + dashboard session row. Do not Freeze Report 1 yet. | Later |
-| 4 | Wire Report 1 / `API_ENV=production` / Station / Knox. | Later |
-
-Keep `API_ENV=preview`. Do not install the APK on a phone you do not own.
+| # | What |
+|---|---|
+| 0 | Accept the guidebook. Then pick **one** AGP: keep 8.13.2 or move to 9.x on Quail 4. |
+| 1 | Laptop: JDK 21, SDK 35, sync, **Build APK** ([g5-laptop-work.md](./g5-laptop-work.md)). |
+| 2 | Owned Samsung: [g5-owned-samsung.md](./g5-owned-samsung.md) from Step 4. |
+| 3 | Report 1 / `API_ENV=production` / Station / Knox later. |
 
 ---
 

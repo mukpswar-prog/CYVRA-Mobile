@@ -2,6 +2,8 @@
 
 **No Samsung required for this file.** Phone work is [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4+, later.
 
+**14 Sep pause:** do not Build APK and do not bump AGP until [android-version-stack-review.md](./android-version-stack-review.md) and the CEO guidebook are accepted.
+
 Governing start: [resume-g8-freeze.md](./resume-g8-freeze.md).  
 Branch: `cursor/g0-g3-mobile-slice-7474` at `a59ebbb` (or later on that branch).  
 Clone: `C:\Users\User\StudioProjects\CYVRA-Mobile`
