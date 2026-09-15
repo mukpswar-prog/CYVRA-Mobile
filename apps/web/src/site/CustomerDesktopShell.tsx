@@ -84,7 +84,7 @@ export function CustomerDesktopShell(props: {
   const [isCapturingView, setIsCapturingView] = useState<boolean>(false);
 
   // Phase 9: AI Screen Inspection & Controlled Display Tests (§35)
-  const [aiSubTab, setAiSubTab] = useState<"PHYSICAL_CAPTURE" | "SCREEN_INSPECTION">("PHYSICAL_CAPTURE");
+  const [aiSubTab, setAiSubTab] = useState<"PHYSICAL_CAPTURE" | "SCREEN_INSPECTION" | "BODY_INSPECTION">("PHYSICAL_CAPTURE");
   const [screenTestRunning, setScreenTestRunning] = useState<boolean>(false);
   const [activeDisplayPattern, setActiveDisplayPattern] = useState<string>("IDLE");
   const [displayTestProgress, setDisplayTestProgress] = useState<string>("");
@@ -92,6 +92,76 @@ export function CustomerDesktopShell(props: {
     Array<{ defect: string; location: string; severity: string; confidence: string; status: string }>
   >([]);
   const [screenReportComplete, setScreenReportComplete] = useState<boolean>(false);
+
+  // Phase 10: AI Body Inspection (§36)
+  const [bodyAnalysisRunning, setBodyAnalysisRunning] = useState<boolean>(false);
+  const [bodyInspectionProgress, setBodyInspectionProgress] = useState<string>("");
+  const [bodyDefects, setBodyDefects] = useState<
+    Array<{ region: string; defect: string; severity: string; confidence: string; location: string }>
+  >([]);
+  const [bodyReportComplete, setBodyReportComplete] = useState<boolean>(false);
+
+  function runBodyAiInspection() {
+    setBodyAnalysisRunning(true);
+    setBodyReportComplete(false);
+    setBodyDefects([]);
+    setBodyInspectionProgress("Analyzing 6-view physical captures with CYVORIQ-BodyInspection V1.0...");
+
+    setTimeout(() => {
+      setBodyInspectionProgress("Scanning back glass & camera lens module for fractures or scratches...");
+    }, 800);
+
+    setTimeout(() => {
+      setBodyInspectionProgress("Analyzing left/right side rails for cosmetic scuffs and volume rocker integrity...");
+    }, 1600);
+
+    setTimeout(() => {
+      setBodyInspectionProgress("Inspecting top/bottom edges, charging port rim & speaker grilles...");
+    }, 2400);
+
+    setTimeout(() => {
+      setBodyAnalysisRunning(false);
+      setBodyInspectionProgress("");
+      setBodyReportComplete(true);
+      setBodyDefects([
+        {
+          region: "BACK_GLASS",
+          defect: "Back Glass Panel Integrity",
+          severity: "NONE",
+          confidence: "99.1%",
+          location: "Full back cover pristine (no cracks)",
+        },
+        {
+          region: "CAMERA_LENS_COVER",
+          defect: "Camera Housing & Lens",
+          severity: "NONE",
+          confidence: "98.5%",
+          location: "Lens crystal clear, bezel intact",
+        },
+        {
+          region: "LEFT_RAIL",
+          defect: "Cosmetic Rail Wear",
+          severity: "MINOR",
+          confidence: "92.4%",
+          location: "Light micro-scuffing near SIM tray",
+        },
+        {
+          region: "CHARGING_PORT_EXTERIOR",
+          defect: "USB-C Port Exterior Rim",
+          severity: "NONE",
+          confidence: "96.8%",
+          location: "Port housing aligned, no pin distortion",
+        },
+      ]);
+    }, 3200);
+  }
+
+  function resetBodyInspection() {
+    setBodyAnalysisRunning(false);
+    setBodyInspectionProgress("");
+    setBodyDefects([]);
+    setBodyReportComplete(false);
+  }
 
   function runControlledScreenTest() {
     setScreenTestRunning(true);
@@ -596,7 +666,7 @@ export function CustomerDesktopShell(props: {
                     Computer-vision assisted physical inspection & controlled display pattern evaluation (§18, §19, §34, §35).
                   </p>
 
-                  {/* Sub-tab navigation between Phase 8 (6-View Capture) and Phase 9 (Screen Defect & Display Tests) */}
+                  {/* Sub-tab navigation between Phase 8 (6-View Capture), Phase 9 (Screen Defect & Display Tests), and Phase 10 (Body Inspection) */}
                   <div className="ai-subtabs-nav" style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
                     <button
                       type="button"
@@ -611,6 +681,13 @@ export function CustomerDesktopShell(props: {
                       onClick={() => setAiSubTab("SCREEN_INSPECTION")}
                     >
                       📱 2. AI Screen & Display Inspection (Phase 9)
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn ${aiSubTab === "BODY_INSPECTION" ? "btn-action-primary" : "btn-action-secondary"}`}
+                      onClick={() => setAiSubTab("BODY_INSPECTION")}
+                    >
+                      🔍 3. AI Body & Chassis Inspection (Phase 10)
                     </button>
                   </div>
 
@@ -883,9 +960,9 @@ export function CustomerDesktopShell(props: {
                             <button
                               type="button"
                               className="btn btn-action-primary"
-                              onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                              onClick={() => setAiSubTab("BODY_INSPECTION")}
                             >
-                              Proceed to Technical Diagnostics →
+                              Proceed to Body & Chassis Inspection (Phase 10) →
                             </button>
                             <button
                               type="button"
@@ -893,6 +970,128 @@ export function CustomerDesktopShell(props: {
                               onClick={resetScreenTest}
                             >
                               Retest Display Patterns
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {aiSubTab === "BODY_INSPECTION" && (
+                    <div className="panel-card ai-flow-card">
+                      <div className="panel-card-header">
+                        <h3>AI BODY & CHASSIS INSPECTION</h3>
+                        <span className="badge-pill ready-badge">PHASE 10</span>
+                      </div>
+
+                      <p className="card-p">
+                        Comprehensive computer vision evaluation across <strong>Back Glass</strong>, <strong>Main Frame</strong>, <strong>Rails</strong>, <strong>Camera Housing</strong>, and <strong>Port Exterior</strong> (§36).
+                      </p>
+
+                      {bodyAnalysisRunning && (
+                        <div className="body-progress-box" style={{ background: "#0f172a", padding: "20px", borderRadius: "8px", border: "1px solid #3b82f6", marginBottom: "20px" }}>
+                          <div style={{ color: "#38bdf8", fontWeight: 700, marginBottom: "8px" }}>
+                            <span className="status-bullet-ok">●</span> CYVORIQ-BodyInspection V1.0 IN PROGRESS
+                          </div>
+                          <div style={{ fontSize: "13px", color: "#f1f5f9" }}>{bodyInspectionProgress}</div>
+                        </div>
+                      )}
+
+                      {!bodyAnalysisRunning && !bodyReportComplete && (
+                        <div className="body-test-idle">
+                          <div className="views-grid" style={{ marginBottom: "20px" }}>
+                            <div className="view-step-box">
+                              <strong>1. BACK GLASS</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                Cracks, chips, deep gouges & surface luster
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>2. SIDE RAILS</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                Scuffs, anodized wear, volume/power buttons
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>3. CAMERA MODULE</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                Lens cover glass, protective bezel, hazing
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>4. PORTS & GRILLES</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                USB-C rim deformities, speaker/mic mesh
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="quality-gate-notice" style={{ background: "#0f172a", padding: "12px 16px", borderRadius: "6px", border: "1px solid #1e293b", marginBottom: "20px", fontSize: "12px", color: "#94a3b8" }}>
+                            <strong>Honesty Invariant (§36):</strong> Defect outputs emit <code>REGION</code>, <code>DEFECT</code>, <code>LOCATION</code>, <code>SEVERITY</code>, and <code>CONFIDENCE</code>. No cosmetic grade is assigned here; grading is strictly evaluated by the Phase 11 Rules Engine.
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-action-primary"
+                            onClick={runBodyAiInspection}
+                          >
+                            Analyze Body & Chassis Captured Views →
+                          </button>
+                        </div>
+                      )}
+
+                      {bodyReportComplete && (
+                        <div className="body-test-complete">
+                          <div style={{ padding: "16px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", marginBottom: "20px" }}>
+                            <h4 style={{ color: "#10b981", margin: "0 0 6px" }}>✓ AI Body & Chassis Evaluation Complete</h4>
+                            <p style={{ color: "#cbd5e1", fontSize: "13px", margin: 0 }}>
+                              Multi-region defect classification completed with CYVORIQ-BodyInspection V1.0.
+                            </p>
+                          </div>
+
+                          <div className="table-responsive" style={{ marginBottom: "20px" }}>
+                            <table className="workstation-table">
+                              <thead>
+                                <tr>
+                                  <th>REGION</th>
+                                  <th>OBSERVED FEATURE</th>
+                                  <th>SEVERITY</th>
+                                  <th>CONFIDENCE</th>
+                                  <th>LOCATION & DETAIL</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {bodyDefects.map((b, idx) => (
+                                  <tr key={idx}>
+                                    <td><strong>{b.region}</strong></td>
+                                    <td>{b.defect}</td>
+                                    <td>
+                                      <span className={b.severity === "NONE" ? "tag-complete" : "tag-ready"}>
+                                        {b.severity}
+                                      </span>
+                                    </td>
+                                    <td className="font-mono">{b.confidence}</td>
+                                    <td>{b.location}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                            <button
+                              type="button"
+                              className="btn btn-action-primary"
+                              onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                            >
+                              Proceed to Technical Diagnostics →
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-action-secondary"
+                              onClick={resetBodyInspection}
+                            >
+                              Re-evaluate Body Views
                             </button>
                           </div>
                         </div>

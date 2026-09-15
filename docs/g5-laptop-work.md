@@ -84,9 +84,9 @@ If the error is `Unable to download toolchain ... languageVersion=25 ... vendor=
 3. In Git Bash: `cd /c/Users/User/StudioProjects/CYVRA-Mobile` then `git pull`.
 4. Run `cd apps/android && ./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :host:test`.
 5. Expected: `BUILD SUCCESSFUL` for `:core:test` and `:host:test`. (And `./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :app:assembleDebug` for APK).
-6. Slices A0–A13, Customer Desktop Workstation C1–C4, Phase 8 (AI Physical Inspection V0), and Phase 9 (AI Screen Inspection: Cracks, Scratches, Dead Pixels & Burn-in) are complete. In Git Bash, pull and test with:
+6. Slices A0–A13, Customer Desktop Workstation C1–C4, Phase 8 (AI Physical Inspection V0), Phase 9 (AI Screen Inspection), and Phase 10 (AI Body Inspection: Back Glass, Frame, Rails, Camera Cover, Ports) are complete. In Git Bash, pull and test with:
 `./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :host:test`
-To proceed with Phase 10 (AI Body Inspection: Back Glass, Frame, Rails, Camera Cover, Ports), say **execute Phase 10 approved**.
+To proceed with Phase 11 (Deterministic Grading Rules Engine: Safety, Cosmetic, Functional), say **execute Phase 11 approved**.
 
 When the owned Samsung arrives, switch to [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4.
 

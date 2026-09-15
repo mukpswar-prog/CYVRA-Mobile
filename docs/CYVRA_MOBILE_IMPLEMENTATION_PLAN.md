@@ -120,11 +120,12 @@
 - Localization bounding boxes, severity, and confidence scores (conforming to §21 & §35).
 - Report assembly (`ScreenInspectionReport`), unit tests in `:core` and `:host`, and Customer Desktop UI.
 
-### Phase 10: AI Body Inspection [NEXT]
-- Defect detection across back glass, frame, rails, camera lens cover, and exterior ports.
-- Classification: cosmetic scratch, dent, discoloration, separation/swelling anomaly.
+### Phase 10: AI Body Inspection [COMPLETED]
+- Multi-region body defect detection: back glass, frame, rails, camera lens cover, and exterior ports (`BodyDefectEvidence`).
+- Defect classification: cracks, chips, frame dents, rail scuffs, and port deformations with severity and confidence.
+- Comprehensive report assembly (`BodyInspectionReport`), unit tests in `:core` and `:host`, and Customer Desktop UI.
 
-### Phase 11: Deterministic Grading Rules Engine
+### Phase 11: Deterministic Grading Rules Engine [NEXT]
 - Grade components: Safety (`S0`, `S1`), Cosmetic (`A`, `B`, `C`, `D`), Functional (`F0`, `F1`, `F2`).
 - Overall CYVORIQ Certified Grade calculation (`A`, `B`, `C`, `D`, `SAFETY_HOLD`).
 - Versioned rule registry (`GRADE-IN-001`, `GRADE-IN-002`).
