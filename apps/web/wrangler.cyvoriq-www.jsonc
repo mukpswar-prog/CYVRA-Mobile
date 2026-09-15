@@ -1,0 +1,8 @@
+{
+  // Cloudflare Pages project `cyvoriq-www`.
+  // Public hosts: www.cyvoriq.co.in and apex cyvoriq.co.in.
+  // Never deploy this bundle to cyvra-www (Erase) or overwrite cyvra-mobile.
+  "name": "cyvoriq-www",
+  "compatibility_date": "2024-11-27",
+  "pages_build_output_dir": "./dist"
+}

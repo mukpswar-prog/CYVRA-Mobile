@@ -1,6 +1,8 @@
 CYVORIQ / CYVRA MOBILE — DOMAIN CUTOVER MASTER PLAN
 Decision: D-2026-09-10-CYVORIQ-DOMAIN
-Status: ZONE ON CLOUDFLARE (NS guy/sloan). Phase B done. Next: Phase C (G7 live).
+Status: ZONE ON CLOUDFLARE (NS guy/sloan). Phase B done.
+        Follow-along audit: docs/cyvoriq-migration-audit.txt
+        Next: Phase C (G7 live), then CORS/Resend/new Pages.
         Do not delete old hosts.
 Date: 10 September 2026
 Governing file: GUIDELINE.md (amended by this decision)
@@ -240,3 +242,5 @@ Governing file: GUIDELINE.md (amended by this decision)
     - Will not edit Erase, will not delete old CF resources
 
   Handoff file: docs/resume-after-break.md
+  Follow-along (hosts, Neon, Pages, Resend, CORS, policies):
+    docs/cyvoriq-migration-audit.txt

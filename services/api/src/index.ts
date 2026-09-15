@@ -14,9 +14,10 @@ import {
   sha256Hex,
   timingSafeEqualHex,
 } from "./crypto";
-import { sendOtpEmail } from "./email";
+import { mailConfigured, mailFromHost, sendOtpEmail } from "./email";
 import { adminRoutes } from "./admin";
 import { evidenceRoutes } from "./evidence";
+import { licenseRoutes } from "./license";
 import { reportRoutes } from "./reports";
 import type { Env } from "./env";
 import {
@@ -44,7 +45,7 @@ app.use("*", async (c, next) => {
     origin: (origin) => (isAllowedOrigin(origin, c.env) ? origin : ""),
     credentials: true,
     allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Admin-Email"],
   })(c, next);
 });
 
@@ -69,6 +70,8 @@ app.get("/health", async (c) => {
     service: "cyvra-mobile-api",
     env: c.env.API_ENV,
     database: ok ? "connected" : "unreachable",
+    mailConfigured: mailConfigured(c.env),
+    mailFromHost: mailFromHost(c.env),
     time: new Date().toISOString(),
   });
 });
@@ -102,18 +105,20 @@ app.post("/auth/request", async (c) => {
     challengeId: challenge.id,
   });
 
-  if (result.error) {
-    return c.json({ error: `Could not send sign-in code: ${result.error}` }, 502);
+  if (!result.sent && c.env.API_ENV === "production") {
+    return c.json({ error: `Could not send sign-in code: ${result.error ?? "email failed"}` }, 502);
   }
 
   return c.json({
     challengeId: challenge.id,
     delivery: result.sent ? "email" : "dev-log",
-    // Only present in dev mode (no verified Resend domain configured).
+    mailConfigured: mailConfigured(c.env),
+    mailError: result.error ?? null,
+    // Only present in preview when Resend did not deliver.
     devCode: result.devCode,
     message: result.sent
-      ? "We emailed you a 6-digit sign-in code."
-      : "Preview mode: no email sent (Resend key missing or domain unverified). Use the code shown below.",
+      ? "We emailed you a 6-digit sign-in code. Check Inbox, Spam, and Promotions."
+      : `Email was not sent (${result.error ?? "preview"}). API_ENV is still preview, so the on-screen code works until Resend delivers.`,
   });
 });
 
@@ -235,6 +240,7 @@ app.get("/me", async (c) => {
 
 app.route("/evidence", evidenceRoutes);
 app.route("/reports", reportRoutes);
+app.route("/license", licenseRoutes);
 app.route("/admin", adminRoutes);
 
 app.post("/auth/logout", async (c) => {

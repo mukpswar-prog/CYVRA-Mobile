@@ -8,6 +8,8 @@ ops and public site move to **`cyvoriq.co.in`**, not a section of Erase
 (`guy` / `sloan.ns.cloudflare.com`). `cyvra.co.in` NS unchanged. Apex has no
 A/MX yet. Resume: [resume-after-break.md](./resume-after-break.md).
 Cutover: [cyvoriq-co-in-cutover.txt](./cyvoriq-co-in-cutover.txt).
+Follow-along (Neon / Pages / Resend / CORS / policies):
+[cyvoriq-migration-audit.txt](./cyvoriq-migration-audit.txt).
 
 ## Live G0–G3
 

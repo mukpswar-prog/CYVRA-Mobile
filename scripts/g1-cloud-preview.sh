@@ -91,7 +91,7 @@ echo "[g1] setting Worker secrets (values not printed)"
 printf '%s' "$SESSION_SECRET" | pnpm --filter @cyvra/api exec wrangler secret put SESSION_SECRET
 if [[ -n "${RESEND_API_KEY:-}" ]]; then
   printf '%s' "$RESEND_API_KEY" | pnpm --filter @cyvra/api exec wrangler secret put RESEND_API_KEY
-  printf '%s' "${RESEND_FROM:-CYVRA Mobile <noreply@cyvra.co.in>}" | pnpm --filter @cyvra/api exec wrangler secret put RESEND_FROM
+  printf '%s' "${RESEND_FROM:-CYVRA Mobile <noreply@cyvoriq.co.in>}" | pnpm --filter @cyvra/api exec wrangler secret put RESEND_FROM
 else
   echo "[g1] RESEND_API_KEY unset — preview OTP fallback stays on (code in JSON, no email)"
 fi

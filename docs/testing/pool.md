@@ -50,9 +50,9 @@ Run: `pnpm --filter @cyvra/evidence test` and `pnpm --filter @cyvra/evidence typ
 
 ---
 
-## G5 — S1 Android scaffold + Worker ingest (no Samsung in hand)
+## G5 — Android component + Worker ingest (no Samsung in hand)
 
-Codespaces can verify the JVM core and local ingest. APK install waits for a phone + Android Studio. Live Neon ingest waits for migration `0002_sturdy_salo` on the direct URL.
+Codespaces can verify the JVM core and local ingest. APK install waits for a phone + Android Studio. Live Neon ingest waits for a real device batch. G5-A (later) is Windows + USB + ADB + owned Samsung. Matrix: [TEST_MATRIX.md](../TEST_MATRIX.md). Freeze: [ANDROID_COMPATIBILITY_FREEZE.md](../ANDROID_COMPATIBILITY_FREEZE.md).
 
 | ID | How | Expected | Status |
 |---|---|---|---|

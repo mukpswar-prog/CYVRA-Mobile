@@ -1,0 +1,543 @@
+CYVORIQ.CO.IN — DEEP MIGRATION AUDIT AND FOLLOW-ALONG PLAN
+Decision: D-2026-09-10-CYVORIQ-DOMAIN (confirmed 10 Sep 2026 after NS switch)
+Status:  ZONE ACTIVE. Phases 0–4 Worker/Resend done 10 Sep 2026.
+         Phase 5 NEXT: Pages cyvoriq-www / www.cyvoriq.co.in
+         Resume: docs/resume-after-break.md + docs/www-cyvoriq-start.txt
+Date:    10 September 2026 (audit re-checked live this session)
+Repo:    mukpswar-prog/CYVRA-Mobile  branch cursor/g0-g3-mobile-slice-7474
+Governing: GUIDELINE.md. Sister plan: docs/cyvoriq-co-in-cutover.txt
+
+Goal: two complete separate websites.
+  Windows Erase  = cyvra.co.in     (www / admin / accounts / api)  FROZEN
+  Mobile Evidence = cyvoriq.co.in  (www / admin / accounts / api)  THIS REPO
+
+Do not disturb live cyvra.co.in. Different admin. Different accounts.
+Different public site. Different policies (legal + CORS + cookies + ops gate).
+
+
+================================================================================
+0. HOW TO USE THIS FILE
+================================================================================
+
+  Walk the phases in section 8 in order. Tick in chat when a row is done.
+  "You" = dashboard / registrar / Resend / Neon SQL (secrets stay off Git).
+  "Agent" = this repo (code, CORS, apps, wrangler, docs).
+
+  This file is the playbook. Phase 0 is ticked (zone Active). Code starts at
+  Phase 1 (G7 live) and Phase 2 (CORS / cookies / From).
+
+
+================================================================================
+1. THE IMPORTANT SPLIT  (read before touching Neon or Pages)
+================================================================================
+
+  "Migrate off cyvra.co.in" does NOT mean copy Erase into a new Neon,
+  rename Erase Pages, or delete mobile.cyvra.co.in on day one.
+
+  ALREADY A SEPARATE PRODUCT (do not duplicate, do not steal Erase resources)
+
+    GitHub          CYVRA-Mobile          vs  mukpswar-prog/Erase
+    Neon            floral-art-02749206   vs  Erase Windows DB
+    Worker          cyvra-mobile-api      vs  cyvoriq-erase-api / api.cyvra.co.in
+    Hyperdrive      cyvra-mobile-neon     vs  cyvra-erase-neon-production
+    Pages today     cyvra-mobile          vs  cyvra-www
+    Cookie / OTP    cyvra_session + this  vs  Windows admin session + Erase OTP
+                    Worker                vs  api.cyvra.co.in
+
+    Neon is already mobile-only. There is nothing to "move out of Erase
+    Postgres". Creating a second mobile Neon would split users, evidence,
+    and reports. FORBIDDEN.
+
+  STILL COUPLED TO THE ERASE DOMAIN FAMILY  (this is what we migrate)
+
+    Custom domain   mobile.cyvra.co.in on Pages cyvra-mobile
+    CORS            allowlists mobile / admin / accounts .cyvra.co.in
+    Cookie code     first-party only if Worker host ends with cyvra.co.in
+    Resend From     noreply@cyvra.co.in  (same verified domain as Erase OTP)
+    Copy / schema   footer, JSON Schema $id, tests, docs still say cyvra.co.in
+    Ops story       some docs still say "button on Erase admin"
+
+  CREATE NEW ON cyvoriq.co.in  (do not rebind Erase hosts)
+
+    Zone            cyvoriq.co.in  (already on Cloudflare, empty records)
+    Pages           cyvoriq-www, cyvoriq-admin, cyvoriq-accounts
+    Hosts           www / admin / accounts / api .cyvoriq.co.in
+    Resend domain   cyvoriq.co.in  (add; do not remove cyvra.co.in)
+    Policies        privacy / terms / cookie notice on www.cyvoriq.co.in
+    CORS / cookies  *.cyvoriq.co.in first-party; then drop Erase admin CORS
+
+
+================================================================================
+2. LIVE SNAPSHOT  (checked 10 Sep 2026, this session)
+================================================================================
+
+  DNS
+    cyvoriq.co.in NS  guy.ns.cloudflare.com / sloan.ns.cloudflare.com
+    cyvoriq.co.in A / AAAA / MX / TXT   EMPTY
+    www / api / admin.cyvoriq.co.in     NXDOMAIN (cannot resolve)
+    cyvra.co.in NS    guy / sloan   UNCHANGED  (Erase safe)
+    www.cyvra.co.in   Cloudflare Anycast A records, HTTP 200
+
+  HTTPS
+    https://www.cyvra.co.in/            200   DO NOT TOUCH
+    https://admin.cyvra.co.in/          200   DO NOT TOUCH
+    https://mobile.cyvra.co.in/         200   KEEP until www.cyvoriq proven
+    https://www.cyvoriq.co.in/          fail  (no DNS)
+
+  Worker cyvra-mobile-api
+    https://cyvra-mobile-api.mukpswar.workers.dev/health
+      status=ok  env=preview  database=connected
+    GET /admin/serials                  HTTP 404  (G7 not deployed)
+    CORS Origin https://mobile.cyvra.co.in     ACAO echoed  (preview still works)
+    CORS Origin https://www.cyvoriq.co.in      204, NO ACAO  (blocked today)
+
+  Neon floral-art-02749206
+    Auth + evidence + reports live (migrations 0001–0003 applied).
+    0004 mobile_serials                 NOT applied
+
+  Resend
+    Domain cyvra.co.in                  Verified (Erase + current mobile From)
+    Domain cyvoriq.co.in                NOT added
+
+  Pages
+    cyvra-mobile → cyvra-mobile.pages.dev and mobile.cyvra.co.in
+    cyvoriq-www / cyvoriq-admin / cyvoriq-accounts   DO NOT EXIST
+
+
+================================================================================
+3. WHAT WE HAVE ALREADY DONE
+================================================================================
+
+  Product / law
+    [x] CYVRA-Mobile repo, GUIDELINE G0–G10, 10 Sep domain amendment
+    [x] Decision: Mobile lives on cyvoriq.co.in, Erase stays on cyvra.co.in
+    [x] Do not edit mukpswar-prog/Erase
+
+  DNS
+    [x] Cloudflare site cyvoriq.co.in added (same account
+        5a3eeb2b3d42726a8ba08732464a0eda)
+    [x] Registrar NS → guy / sloan. Parking A records gone
+    [x] Public MX/TXT inventory: none. Safe to add Resend records later
+    [x] cyvra.co.in NS not changed
+
+  App (this repo — not all live)
+    [x] G0–G3  registration + OTP  (preview live on mobile.cyvra.co.in)
+    [x] G4     packages/evidence
+    [x] G5     Android :core JVM + Worker ingest
+    [x] G6     Report 1 freeze  (Worker preview live)
+    [x] G7 API local  /admin/serials + hidden /#ops
+    [x] Logo   apps/web/public/brand/cyvoriq-logo.png
+    [x] Super admin email already ceo@cyvoriq.com (not an Erase Windows login)
+
+  Still missing for a separate cyvoriq website
+    [x] Zone dashboard flag Active (you, 10 Sep 2026)
+    [ ] Neon 0004 + live G7 (401 not 404)
+    [ ] api.cyvoriq.co.in on the Worker
+    [ ] New Pages + www / admin / accounts hosts
+    [ ] CORS + cookies + Resend for cyvoriq.co.in
+    [ ] Public policies on www.cyvoriq.co.in
+    [ ] Drop Erase admin/accounts from mobile CORS (after new admin works)
+
+
+================================================================================
+4. WHERE MIGRATION IS NEEDED  (system by system)
+================================================================================
+
+------------------------------------------------------------------------------
+4.1 Neon  —  DO NOT MIGRATE THE DATABASE
+------------------------------------------------------------------------------
+
+  Fact: floral-art-02749206 / neondb / neondb_owner is already Mobile SoT.
+        Erase does not use this project. Hyperdrive cyvra-mobile-neon
+        (db31fc8dafca49b29172da7046b97175) already points here.
+
+  Do
+    You:  bash scripts/migrate-neon.sh     apply 0004 (mobile_serials)
+    You:  leave leftover table books_to_read
+    You:  keep Hyperdrive on this project (direct host, no -pooler preferred)
+    Agent: no second DATABASE_URL, no dump/restore, no Pages DATABASE_URL
+
+  Do not
+    Create a new Neon "for cyvoriq"
+    Copy Windows licence / OTP tables
+    Point Hyperdrive at Erase
+    Put DATABASE_URL on Pages
+
+  Effect of 0004: new table only. Existing users / evidence / reports stay.
+                  Erase is unaffected.
+
+------------------------------------------------------------------------------
+4.2 Cloudflare Pages  —  CREATE NEW, DO NOT REBIND ERASE
+------------------------------------------------------------------------------
+
+  Today
+    cyvra-mobile  →  https://cyvra-mobile.pages.dev
+                  →  https://mobile.cyvra.co.in/     KEEP as preview
+    cyvra-www     →  https://www.cyvra.co.in/        NEVER TOUCH
+
+  Create (new projects in this account, names locked)
+
+    cyvoriq-www       custom domains  www.cyvoriq.co.in  and apex cyvoriq.co.in
+    cyvoriq-admin     custom domain   admin.cyvoriq.co.in
+    cyvoriq-accounts  custom domain   accounts.cyvoriq.co.in
+
+  Build
+    Agent: apps in THIS repo (see 4.8). VITE_API_URL=https://api.cyvoriq.co.in
+           once that hostname exists; until then workers.dev is fine for preview.
+    You:   dashboard Create Pages, attach Git or Direct Upload to the NEW
+           projects only. Never wrangler pages deploy to cyvra-www.
+           Never put secrets on Pages.
+
+  Keep
+    Pages cyvra-mobile and mobile.cyvra.co.in until www.cyvoriq.co.in is proven.
+    Optional last step: 301 mobile.cyvra.co.in → www.cyvoriq.co.in
+    (zone cyvra.co.in record — only that one CNAME/redirect, no other edits).
+
+  Effect of adding new Pages: Erase www/admin/accounts unchanged.
+
+------------------------------------------------------------------------------
+4.3 Cloudflare Worker / API hostname
+------------------------------------------------------------------------------
+
+  Keep Worker name cyvra-mobile-api. Same Hyperdrive. Same secrets.
+  "New API" = new HOSTNAME, not a second Worker on day one.
+
+  You:  Workers → cyvra-mobile-api → Custom domains → api.cyvoriq.co.in
+        (this writes DNS in the cyvoriq.co.in zone only)
+
+  Agent: deploy G7 first (Phase 1) so /admin/serials is 401 on workers.dev
+         before the pretty hostname exists.
+
+  Do not
+    Attach mobile.cyvra.co.in to the Worker
+    Attach api.cyvra.co.in to this Worker
+    Duplicate the Worker / second Hyperdrive
+    Flip API_ENV=production until a real OTP arrives from noreply@cyvoriq.co.in
+
+  Cookie code today (services/api/src/session.ts)
+    firstParty = host.endsWith("cyvra.co.in")
+    Live host is workers.dev → cookies are SameSite=None + Bearer fallback.
+    When api.cyvoriq.co.in is attached, Agent MUST treat cyvoriq.co.in as
+    first-party or browsers will keep treating the cookie as third-party.
+
+------------------------------------------------------------------------------
+4.4 DNS zone cyvoriq.co.in  (empty — we fill it, never cyvra.co.in)
+------------------------------------------------------------------------------
+
+  Add only in this zone, after the matching Cloudflare resource exists:
+
+    www.cyvoriq.co.in        Pages cyvoriq-www
+    cyvoriq.co.in (apex)     Pages cyvoriq-www  (CNAME flatten)
+    admin.cyvoriq.co.in      Pages cyvoriq-admin
+    accounts.cyvoriq.co.in   Pages cyvoriq-accounts
+    api.cyvoriq.co.in        Worker cyvra-mobile-api
+    Resend TXT/CNAME/MX      only the records Resend shows for cyvoriq.co.in
+
+  Do not copy Erase MX/SPF/DKIM from cyvra.co.in. Those belong to Erase mail.
+  Do not change NS for cyvra.co.in.
+
+------------------------------------------------------------------------------
+4.5 Resend  —  ADD cyvoriq.co.in, KEEP cyvra.co.in FOR ERASE
+------------------------------------------------------------------------------
+
+  Today
+    Verified domain     cyvra.co.in     (Erase OTP + current mobile default From)
+    Worker secret       RESEND_API_KEY  present
+    Default From        CYVRA Mobile <noreply@cyvra.co.in>
+                        (services/api/src/email.ts and .dev.vars.example)
+    API_ENV             preview  (devCode still allowed)
+
+  You (dashboard https://resend.com)
+    1. Add domain cyvoriq.co.in
+    2. Put SPF / DKIM / DMARC (and any CNAMEs Resend prints) in zone
+       cyvoriq.co.in only
+    3. Wait until Verified
+    4. Do not delete domain cyvra.co.in  (Erase keeps sending from it)
+
+  Agent, after Verified
+    wrangler secret put RESEND_FROM
+      CYVRA Mobile <noreply@cyvoriq.co.in>
+    Keep API_ENV=preview until one real inbox receives that From
+    Then (later) API_ENV=production — production never returns devCode
+
+  Effect: Erase OTP still uses noreply@cyvra.co.in. Mobile OTP moves.
+          Same Resend account is fine. Different From domain = separate mail
+          identity.
+
+------------------------------------------------------------------------------
+4.6 CORS, cookies, admin gate  —  SEPARATE POLICIES
+------------------------------------------------------------------------------
+
+  CORS today (services/api/src/origins.ts)
+    ALLOW:  localhost, APP_ORIGIN, *.cyvra-mobile.pages.dev,
+            mobile.cyvra.co.in, admin.cyvra.co.in, accounts.cyvra.co.in
+    DENY:   www.cyvoriq.co.in  (live preflight 204, no ACAO — confirmed)
+
+  Agent must
+    1. Allow https://www.cyvoriq.co.in
+            https://admin.cyvoriq.co.in
+            https://accounts.cyvoriq.co.in
+            *.cyvoriq-www.pages.dev / *.cyvoriq-admin.pages.dev
+            *.cyvoriq-accounts.pages.dev  (once those projects exist)
+    2. Keep mobile.cyvra.co.in + *.cyvra-mobile.pages.dev until cutover proven
+    3. REMOVE admin.cyvra.co.in and accounts.cyvra.co.in from the mobile
+       allowlist once admin.cyvoriq.co.in works. That is how the two admins
+       stay separate: Erase admin browser must not call this Worker.
+    4. APP_ORIGIN production target: https://www.cyvoriq.co.in
+       Deploy script today still sets APP_ORIGIN=https://cyvra-mobile.pages.dev
+
+  Cookies (session.ts)
+    Treat host.endsWith("cyvoriq.co.in") as first-party.
+    Keep cyvra.co.in first-party only while mobile.cyvra.co.in is still a
+    preview on the old zone (if we ever attach a Worker host there — we
+    should not). Cookie name cyvra_session can stay for now; renaming
+    logs everyone out — do that only after cutover, optional.
+
+  Ops gate (already separate from Windows)
+    ADMIN_API_TOKEN  Worker secret  (not cyvoriq_admin_session)
+    X-Admin-Email    ceo@cyvoriq.com
+    Hidden /#ops is a bench, not production admin.
+    Production admin UI = new Pages admin.cyvoriq.co.in
+
+  Tests that still send Origin: https://admin.cyvra.co.in
+    scripts/test-local-admin-serials.sh  → switch to admin.cyvoriq.co.in
+
+------------------------------------------------------------------------------
+4.7 Public policies  (legal + product — new, not Erase pages)
+------------------------------------------------------------------------------
+
+  Erase privacy/terms on www.cyvra.co.in stay Erase's.
+  Mobile needs its own, served from www.cyvoriq.co.in, for example:
+
+    /privacy     CYVRA Mobile Evidence privacy
+    /terms       customer terms
+    /cookies     cookie notice (OTP session cookie)
+
+  These are new copy in this repo. Do not iframe or link Erase legal as
+  if it covered Mobile. Agent drafts placeholders; you approve wording.
+
+------------------------------------------------------------------------------
+4.8 Apps to build in THIS repo  (actual development)
+------------------------------------------------------------------------------
+
+  Today: one Vite app  apps/web  (register / report / hidden #ops)
+         Pages project name in wrangler: cyvra-mobile
+
+  Need three public surfaces (can share packages, not hosts):
+
+    www.cyvoriq.co.in       customer: logo, honest home, register, Report 1
+    admin.cyvoriq.co.in     ops: serial create / issue / revoke
+                            (promote /#ops; never Erase admin-frontend)
+    accounts.cyvoriq.co.in  customer account / serial status
+                            (same Neon serial SoT, not Windows licences)
+
+  Implementation choice (decide at Phase 2, default A):
+    A. Three Pages projects, three small apps (or one app, three wrangler
+       names / routes). Cleanest isolation.
+    B. One Pages project bound to all three hostnames with path routing.
+       Faster, slightly easier to leak ops UI onto www.
+
+  Default: A. Matches GUIDELINE G7/G8 names cyvoriq-www / cyvoriq-admin /
+           cyvoriq-accounts.
+
+------------------------------------------------------------------------------
+4.9 Evidence JSON Schema $id  —  DO NOT REWRITE ON DAY ONE
+------------------------------------------------------------------------------
+
+  packages/evidence/schema/*.json  $id is
+    https://mobile.cyvra.co.in/schema/...
+
+  That string is an identifier. Frozen reports may already cite it.
+  Changing $id is a schema version bump, not a DNS rename.
+
+  Do: later, new schema versions may use https://www.cyvoriq.co.in/schema/...
+  Do not: rewrite v1 $id just because the website moved.
+
+
+================================================================================
+5. CODE AND DOC FILES THAT STILL SAY cyvra.co.in
+================================================================================
+
+  Must change when development starts (behaviour)
+
+    services/api/src/origins.ts          CORS hosts
+    services/api/src/session.ts          first-party cookie domain
+    services/api/src/email.ts            default RESEND_FROM
+    services/api/.dev.vars.example       example From
+    scripts/deploy-api-preview.sh        APP_ORIGIN
+    scripts/g1-cloud-preview.sh          RESEND_FROM default
+    scripts/test-local-admin-serials.sh  Origin header
+    apps/web/src/App.tsx                 footer host copy
+    apps/web/wrangler.jsonc              Pages project name for new www
+    GUIDELINE.md §9                      still FORBIDS a second admin host
+                                         (contradicts G7 10 Sep — paper fix)
+
+  Docs still describing the cancelled Erase-admin plan (update, do not
+  implement that plan)
+
+    docs/admin-mobile-section.md
+    docs/g7-freeze.md                    "Erase admin-frontend later"
+    docs/www-mobile-button.md            G8 tab on cyvra-www  CANCELLED
+    docs/pre-live-runbook.txt            still talks about live Erase hosts
+    docs/freeze-audit.md                 §2 rule 6 still old G7
+    docs/GUIDELINE.md                    keep in sync with root GUIDELINE.md
+
+  Copy-only / keep as history of the preview host
+
+    README.md, docs/g0-g3.md, docs/dashboard-configure.md
+    Keep "mobile.cyvra.co.in is the preview" until 301.
+
+
+================================================================================
+6. NEVER TOUCH  (live Erase)
+================================================================================
+
+  Zone / hosts
+    cyvra.co.in nameservers
+    www.cyvra.co.in   admin.cyvra.co.in   accounts.cyvra.co.in
+    api.cyvra.co.in   (Windows API)
+
+  Cloudflare resources
+    Pages cyvra-www
+    Worker cyvoriq-erase-api
+    Worker cyvra-approvals
+    Hyperdrive cyvra-erase-neon-production
+    Tokens named cyvra-erase-workers-build / cyvra-erase-production-deploy
+
+  GitHub
+    mukpswar-prog/Erase   (this token cannot even see it — keep it that way)
+
+  Product
+    Station USB/ADB wipe, Knox as S1 claim, Journey B on Erase www
+    Merging Windows OTP into mobile
+    Rolling all Cloudflare tokens
+
+
+================================================================================
+7. YOU vs AGENT  (who clicks what)
+================================================================================
+
+  YOU
+    [x] Cloudflare: cyvoriq.co.in status Active
+    [x] Neon: bash scripts/migrate-neon.sh  (0004)
+    [x] wrangler secret put ADMIN_API_TOKEN   (invented string)
+    [x] Cloudflare: Worker custom domain api.cyvoriq.co.in
+    [x] Resend: add + verify domain cyvoriq.co.in (you, 10 Sep 2026)
+    [x] dashboard: RESEND_FROM on cyvra-mobile-api
+    [ ] Cloudflare: create Pages cyvoriq-www and attach www + apex
+        (docs/www-cyvoriq-start.txt). admin / accounts after www is 200.
+    [ ] OTP From noreply@cyvoriq.co.in received (keep API_ENV=preview)
+    [ ] Approve privacy/terms wording
+    [ ] Never paste secrets in chat. Token named cyvoriq-mobile unlocks wrangler
+        only. It is not ADMIN_API_TOKEN.
+
+  AGENT
+    [ ] This audit file
+    [ ] Fix GUIDELINE §9 (second admin host no longer forbidden)
+    [ ] CORS + cookie first-party for cyvoriq.co.in
+    [ ] Default Resend From example → cyvoriq.co.in
+    [ ] www / admin / accounts apps + logo
+    [ ] Policy placeholder pages
+    [ ] Switch local serial tests to Origin admin.cyvoriq.co.in
+    [ ] Deploy preview Worker after you put ADMIN_API_TOKEN and 0004
+    [ ] Will not edit Erase, will not delete old CF resources, will not
+        create a second Neon or second Worker
+
+
+================================================================================
+8. FOLLOW-ALONG PHASES  (do not skip)
+================================================================================
+
+  Phase 0  Confirm isolation  (2 min, you)                   DONE 10 Sep 2026
+           Cloudflare → cyvoriq.co.in = Active.
+           Do not change cyvra.co.in NS.
+           Tick: "zone Active".
+
+  Phase 1  G7 live on existing Worker  (you + agent)
+           Why first: new hostnames are useless while /admin/serials is 404.
+           1. migrate-neon.sh          0004
+              DONE in Codespaces 10 Sep 2026 (host ep-round-sound-b3maswpk,
+              no -pooler). Confirm table mobile_serials in Neon SQL Editor.
+           2. wrangler secret put ADMIN_API_TOKEN + deploy
+              NEXT: in Codespaces run  bash scripts/live-g7-deploy.sh
+              Two blank prompts: (1) Cloudflare token named cyvra-mobile
+              (2) a NEW invented ADMIN_API_TOKEN. Not the same string.
+           3. bash scripts/deploy-api-preview.sh   keep API_ENV=preview
+           4. Prove: GET /admin/serials unauth → 401 (not 404/503/500)
+              DONE 10 Sep 2026. Worker version 00f142ba-d4a9-41e4-bdd0-2f3bc721ec8b
+              /health ok preview database=connected.
+              Immediate post-deploy curl was 404 (edge lag); recheck is 401
+              {"error":"Admin token required."}.
+           Tick: "G7 401 on workers.dev". DONE (you, Codespaces curl).
+
+  Phase 2  Code: separate origin policy  (agent, then you deploy)
+           origins.ts allow www/admin/accounts.cyvoriq.co.in
+           session.ts first-party for cyvoriq.co.in
+           DEPLOYED with G7 (version 00f142ba). Tick: CORS in Git + live Worker.
+
+  Phase 3  api.cyvoriq.co.in  (dashboard)   DONE 10 Sep 2026
+           Worker cyvra-mobile-api → Domains → api.cyvoriq.co.in
+           Health ok / preview / connected. /admin/serials 401.
+           Apex cyvoriq.co.in still NXDOMAIN (reserved for Pages).
+
+  Phase 4  Resend cyvoriq.co.in  (you)   DNS + secret DONE 10 Sep 2026
+           Domain Verified (Tokyo). Worker RESEND_FROM added.
+           Same RESEND_API_KEY kept (do not rotate).
+           OTP inbox proof still OPEN. Keep API_ENV=preview.
+           Tick pending: "OTP From noreply@cyvoriq.co.in received".
+
+  Phase 5  New websites
+           www.cyvoriq.co.in      DONE 11 Sep 2026  HTTP 200 (www + apex)
+           admin.cyvoriq.co.in    NEXT  docs/admin-cyvoriq-start.txt
+           accounts.cyvoriq.co.in after admin is 200
+           Then REMOVE CORS for admin.cyvra.co.in and accounts.cyvra.co.in
+           Tick: "three hosts 200; Erase admin CORS gone".
+
+  Phase 6  Keep old preview, then optional 301
+           mobile.cyvra.co.in stays until you announce the new URL.
+           Last: one redirect on the cyvra zone, nothing else.
+           Never delete Erase. Never delete Pages cyvra-mobile on day one.
+           Tick: "cutover announced" / later "301 done".
+
+  No phase edits Erase. No phase starts Station or Knox.
+
+
+================================================================================
+9. SUCCESS CRITERIA  (when the two sites are actually separate)
+================================================================================
+
+  [ ] https://www.cyvra.co.in/        still 200, unchanged
+  [ ] https://admin.cyvra.co.in/      still 200, no Mobile serial UI
+  [ ] https://www.cyvoriq.co.in/      200, CYVORIQ logo, register, policies
+  [ ] https://admin.cyvoriq.co.in/    200, serials, ceo@cyvoriq.com gate
+  [ ] https://accounts.cyvoriq.co.in/ 200, mobile account not Windows licences
+  [ ] https://api.cyvoriq.co.in/health  ok, database=connected
+  [ ] CORS: www.cyvoriq.co.in allowed; admin.cyvra.co.in NOT allowed
+  [ ] OTP From: noreply@cyvoriq.co.in  (cyvra.co.in domain still Verified
+      for Erase only)
+  [ ] Neon still floral-art-02749206  (one mobile DB, not two)
+  [ ] mobile.cyvra.co.in still up until you choose the 301
+
+
+================================================================================
+10. RISK  (if we do the wrong "migration")
+================================================================================
+
+  New Neon for cyvoriq              Split users/evidence. Forbidden.
+  Second Worker day one             Split secrets /health. Avoid.
+  Bind cyvra-www to cyvoriq         Would mix Erase UI onto Mobile DNS.
+  Change cyvra.co.in NS             Takes Erase offline. Forbidden.
+  Remove Resend cyvra.co.in         Breaks Erase OTP. Forbidden.
+  Delete mobile.cyvra.co.in early   Loses working preview. Forbidden.
+  Rewrite evidence schema $id       Breaks frozen report identity. Later only.
+  Keep Erase admin in CORS forever  Two admins not actually separate.
+
+
+================================================================================
+11. NEXT MESSAGE
+================================================================================
+
+  Reply: "zone Active" (or Pending) and we start Phase 1 (G7 live) then
+  Phase 2 (CORS / cookies / From / GUIDELINE §9).
+
+  Do not start Phase 5 Pages until Phase 1 is 401 and Phase 2 is in Git.

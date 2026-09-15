@@ -45,6 +45,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface RequestOtpResponse {
   challengeId: string;
   delivery: "email" | "dev-log";
+  mailConfigured?: boolean;
+  mailError?: string | null;
   devCode?: string;
   message: string;
 }
@@ -71,7 +73,13 @@ export interface AuthUser {
 }
 
 export const api = {
-  health: () => request<{ status: string; database: string }>("/health"),
+  health: () =>
+    request<{
+      status: string;
+      database: string;
+      mailConfigured?: boolean;
+      mailFromHost?: "cyvoriq.co.in" | "cyvra.co.in" | "other" | "unset";
+    }>("/health"),
   requestOtp: (profile: RegistrationInput) =>
     request<RequestOtpResponse>("/auth/request", {
       method: "POST",
@@ -104,6 +112,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ processingSessionId }),
     }),
+  getLicense: () =>
+    request<{
+      licenseId: string;
+      serialNumber: string;
+      customerEmail: string;
+      customerName: string | null;
+      companyName: string | null;
+      planName: string;
+      deviceScanEntitlement: number;
+      scansUsed: number;
+      scansRemaining: number;
+      revision: number;
+      status: "ACTIVE" | "EXPIRED" | "REVOKED" | "SUPERSEDED" | "SERVER_UNAVAILABLE";
+      lastVerifiedAt: string;
+    }>("/license"),
 };
 
 export interface ReportSession {
@@ -150,6 +173,7 @@ export interface ReportDetail {
 
 const ADMIN_TOKEN_KEY = "cyvra_mobile_admin_token";
 const ADMIN_EMAIL_KEY = "cyvra_mobile_admin_email";
+const STAFF_SESSION_KEY = "cyvra_mobile_staff_session";
 
 export function readAdminToken(): string {
   try {
@@ -165,6 +189,23 @@ export function writeAdminToken(token: string) {
     else sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   } catch {
     // ignore locked storage
+  }
+}
+
+export function readStaffSession(): string {
+  try {
+    return sessionStorage.getItem(STAFF_SESSION_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function writeStaffSession(token: string) {
+  try {
+    if (token) sessionStorage.setItem(STAFF_SESSION_KEY, token);
+    else sessionStorage.removeItem(STAFF_SESSION_KEY);
+  } catch {
+    // ignore
   }
 }
 
@@ -185,7 +226,8 @@ export function writeAdminEmail(email: string) {
 }
 
 async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = readAdminToken();
+  const staff = readStaffSession();
+  const token = staff || readAdminToken();
   const email = readAdminEmail();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -198,6 +240,13 @@ async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     headers,
   });
+  if ((init?.headers as Record<string, string> | undefined)?.Accept === "text/csv") {
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error ?? `Request failed (${res.status})`);
+    }
+    return (await res.text()) as T;
+  }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
     throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
@@ -208,27 +257,104 @@ async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
 export interface MobileSerial {
   serialId: string;
   publicNumber: string;
+  licenceKey: string;
   status: string;
+  customerKind: string;
+  deviceMax: number;
+  slabLabel: string;
+  brandScope: string;
   customerEmail: string;
+  customerFullName: string | null;
+  companyName: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  pincode: string | null;
+  state: string | null;
   paymentNoted: string;
+  devicesBound: number;
   issuedBy: string;
   issuedAt: string | null;
   revokedAt: string | null;
   createdAt: string | null;
+  emailedAt: string | null;
+  emailMessageId: string | null;
+  emailError: string | null;
+}
+
+export interface LicenceDraft {
+  customerEmail: string;
+  paymentNoted: string;
+  customerKind: "SINGLE" | "BULK";
+  deviceMax: 1 | 3 | 5 | 7 | 25;
+  brandScope: string;
+  customerFullName: string;
+  companyName: string;
+  addressLine1: string;
+  addressLine2: string;
+  pincode: string;
+  state: string;
 }
 
 export const adminApi = {
+  requestStaffCode: (email: string) =>
+    adminRequest<{
+      challengeId: string;
+      delivery: string;
+      mailConfigured?: boolean;
+      mailError?: string | null;
+      devCode?: string;
+      message: string;
+    }>(
+      "/admin/auth/request",
+      { method: "POST", body: JSON.stringify({ email }) },
+    ),
+  verifyStaffCode: async (challengeId: string, code: string) => {
+    const result = await adminRequest<{
+      operator: { email: string; superAdmin: boolean };
+      token: string;
+    }>("/admin/auth/verify", {
+      method: "POST",
+      body: JSON.stringify({ challengeId, code }),
+    });
+    writeStaffSession(result.token);
+    writeAdminEmail(result.operator.email);
+    return result;
+  },
+  logoutStaff: () => {
+    writeStaffSession("");
+    return adminRequest<{ ok: boolean }>("/admin/auth/logout", { method: "POST" });
+  },
+  me: () =>
+    adminRequest<{ email: string; superAdmin: boolean; superAdminEmail: string }>("/admin/me"),
+  listStaff: () =>
+    adminRequest<{
+      operators: {
+        staffId: string;
+        email: string;
+        status: string;
+        nominatedBy: string;
+        nominatedAt: string | null;
+        revokedAt: string | null;
+      }[];
+    }>("/admin/staff"),
+  nominateStaff: (email: string) =>
+    adminRequest<{ operator: { email: string; status: string } }>("/admin/staff", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  revokeStaff: (staffId: string) =>
+    adminRequest(`/admin/staff/${staffId}/revoke`, { method: "POST" }),
   listSerials: () =>
     adminRequest<{ superAdmin: string; actor: string; serials: MobileSerial[] }>(
       "/admin/serials",
     ),
-  createSerial: (customerEmail: string, paymentNoted: string) =>
+  createSerial: (draft: LicenceDraft) =>
     adminRequest<{ serial: MobileSerial }>("/admin/serials", {
       method: "POST",
-      body: JSON.stringify({ customerEmail, paymentNoted }),
+      body: JSON.stringify(draft),
     }),
   issueSerial: (serialId: string) =>
-    adminRequest<{ serial: MobileSerial; replayed: boolean }>(
+    adminRequest<{ serial: MobileSerial; replayed: boolean; emailed?: boolean }>(
       `/admin/serials/${serialId}/issue`,
       { method: "POST" },
     ),
@@ -236,6 +362,15 @@ export const adminApi = {
     adminRequest<{ serial: MobileSerial; replayed: boolean }>(
       `/admin/serials/${serialId}/revoke`,
       { method: "POST" },
+    ),
+  licenceReport: (from: string, to: string) =>
+    adminRequest<{ count: number; rows: MobileSerial[]; from: string; to: string }>(
+      `/admin/reports/licences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  licenceReportCsv: (from: string, to: string) =>
+    adminRequest<string>(
+      `/admin/reports/licences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=csv`,
+      { headers: { Accept: "text/csv" } },
     ),
 };
 

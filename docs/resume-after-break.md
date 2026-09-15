@@ -1,132 +1,94 @@
-# Resume after break — 10 Sep 2026
+# Resume here — superseded 11 Sep 2026
 
-You asked to **save everything** and join after the break. This file is the single
-handoff. The repo is on branch `cursor/g0-g3-mobile-slice-7474`.
+**Current start file:** [resume-g8-freeze.md](./resume-g8-freeze.md) (saved 11 Sep evening for 12 Sep morning).
 
-## What you already did (management + registrar)
+Public `www.cyvoriq.co.in` is frozen. Next is G7 inbox proof, then G5 on one Samsung. This file is older history. Keep it.
 
-- Product **CYVRA Mobile Evidence** lives on **`cyvoriq.co.in`** (new Cloudflare
-  zone). **Not** a subdomain of `cyvra.co.in`.
-- **Do not change** `mukpswar-prog/Erase`. Keep old `mobile.cyvra.co.in` until the
-  new origin is proven.
-- Same Neon. Same Worker. Same CYVORIQ logo.
-- You **added the site** in Cloudflare and **updated nameservers** at the
-  registrar.
+Branch: `cursor/g0-g3-mobile-slice-7474`.
 
-## Nameserver check (this session, 10 Sep 2026)
+Clicks if admin must be rebuilt: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
 
-Public DNS via `1.1.1.1` and `8.8.8.8`:
+---
 
-| Zone | Nameservers | SOA | Notes |
-|---|---|---|---|
-| **cyvoriq.co.in** | `guy.ns.cloudflare.com` / `sloan.ns.cloudflare.com` | Cloudflare (`ns.cloudflare.com`) | **On Cloudflare.** Apex **A empty**, **MX empty**, **TXT empty**. Parking IPs (`13.251.230.115`, `18.139.194.140`) **gone**. |
-| **cyvra.co.in** | `guy.ns.cloudflare.com` / `sloan.ns.cloudflare.com` | Cloudflare | **Unchanged.** Erase still on this zone. **Do not touch.** |
+## Done (do not redo)
 
-Cloudflare assigned the **same pair** (`guy` / `sloan`) to both zones. That is
-normal for one account. It does **not** merge the zones. Records for
-`cyvra.co.in` stay on that zone; records for `cyvoriq.co.in` stay on this one.
-
-If the Cloudflare dashboard still shows **Pending** for `cyvoriq.co.in`, wait
-until it is **Active**. Public NS already match; Active is the dashboard flag.
-
-## What is live today (do not break)
-
-| Resource | Status |
+| Item | Proof |
 |---|---|
-| Pages `cyvra-mobile` | https://cyvra-mobile.pages.dev and https://mobile.cyvra.co.in/ |
-| Worker `cyvra-mobile-api` | https://cyvra-mobile-api.mukpswar.workers.dev — G6 preview. `/health` ok, `database=connected`. Version `38ef01e5-8400-4452-87d1-e1e576e2e27a`. |
-| Hyperdrive `cyvra-mobile-neon` | `db31fc8dafca49b29172da7046b97175` → Neon `floral-art-02749206` |
-| Neon | `neondb` / `neondb_owner`. Migrations **0001–0003** applied. **0004 not applied** (G7 serials). |
-| Worker `/admin/serials` | **HTTP 404** on live (G7 not deployed). Local Codespaces **passed** (`CYVRA-M-2026-76FD83B5`). |
-| `cyvoriq.co.in` DNS | Empty. No www, no api, no MX. Safe to add records. |
-| Erase / `www.cyvra.co.in` / `api.cyvra.co.in` | **Untouched.** |
+| Zone `cyvoriq.co.in` Active | Cloudflare dashboard. NS `guy` / `sloan`. |
+| Neon 0004 `mobile_serials` | Applied on `floral-art-02749206`. |
+| Worker G7 | `GET /admin/serials` **401** `Admin token required.` |
+| Custom domain **`api.cyvoriq.co.in`** | Worker `cyvra-mobile-api` Domains table. |
+| Health | `{"status":"ok","env":"preview","database":"connected"}` |
+| CORS | Allows `*.cyvoriq.co.in`. Blocks `www.cyvra.co.in`. |
+| Resend domain `cyvoriq.co.in` | **Verified** (Tokyo). Keep `cyvra.co.in` for Erase. |
+| Worker secret `RESEND_FROM` | Added. Same existing `RESEND_API_KEY` (do not rotate). |
+| `API_ENV` | Still **`preview`**. Do not flip to production yet. |
+| Pages **`cyvoriq-www`** | https://www.cyvoriq.co.in/ and apex **HTTP 200** (11 Sep 2026). |
 
-CORS on the live Worker still allowlists only `*.cyvra-mobile.pages.dev`,
-`mobile.cyvra.co.in`, `admin.cyvra.co.in`, `accounts.cyvra.co.in`.
-**`*.cyvoriq.co.in` is not allowlisted yet.** Do not point browsers at
-cyvoriq hosts until CORS is deployed.
+Worker variables (10 Sep 2026, names only):
 
-## What is in this repo (not all live)
+```
+ADMIN_API_TOKEN     Secret
+API_ENV             preview
+APP_ORIGIN          https://cyvra-mobile.pages.dev
+RESEND_API_KEY      Secret   (unchanged — do not delete)
+RESEND_FROM         Secret   (CYVRA Mobile <noreply@cyvoriq.co.in>)
+SESSION_SECRET      Secret
+```
 
-- G0–G6: auth, evidence, Report 1 freeze, HTML print.
-- G7 **this-repo** serial API: `services/api/src/admin.ts`, schema `0004`,
-  local `bash scripts/run-local-admin-serials.sh`, hidden `/#ops`.
-- Cutover plan: `docs/cyvoriq-co-in-cutover.txt`.
-- G7 freeze: `docs/g7-freeze.md`.
-- Cross-repo map: `docs/cross-repo-next-gates.txt` (Erase-host G7 section is
-  **superseded** by the cyvoriq.co.in decision).
-- Logo: `apps/web/public/brand/cyvoriq-logo.png`.
+OTP From `noreply@cyvoriq.co.in` was **not** proven in an inbox before the
+stop. Keep `API_ENV=preview`. After www is 200, register on
+`https://www.cyvoriq.co.in` with a real inbox.
 
-## Ordered plan after the break (do not skip)
+## Live IDs (no secrets)
 
-### 0 — Confirm zone Active (2 min)
-
-In Cloudflare → **cyvoriq.co.in** → status **Active**. Inventory MX (none in
-public DNS). Do **not** change `cyvra.co.in` nameservers.
-
-### 1 — G7 live on the **existing** Worker (same as before the domain decision)
-
-This is still required. New hostnames do nothing if `/admin/serials` is 404.
-
-1. `bash scripts/migrate-neon.sh` — apply **0004** (`mobile_serials`).
-2. `wrangler secret put ADMIN_API_TOKEN` — invent a long random string. This is
-   **not** the Cloudflare user token named `cyvra-mobile`.
-3. `bash scripts/deploy-api-preview.sh` — keep `API_ENV=preview`.
-4. Prove live: unauth `GET /admin/serials` → **401**, not 404/503/500.
-5. Optional: `/#ops` create one real `CYVRA-M-…`.
-
-Do **not** attach `mobile.cyvra.co.in` to the Worker.
-
-### 2 — Attach **new zone only** (after G7 API is 401)
-
-| Hostname | Bind to |
+| Resource | Value |
 |---|---|
-| `api.cyvoriq.co.in` | Worker `cyvra-mobile-api` (custom domain). Same Hyperdrive. |
-| `www.cyvoriq.co.in` + apex | **New** Pages `cyvoriq-www` (this repo). |
-| `admin.cyvoriq.co.in` | **New** Pages `cyvoriq-admin` (this repo). |
-| `accounts.cyvoriq.co.in` | **New** Pages `cyvoriq-accounts` (this repo). |
+| Pages preview (keep) | `cyvra-mobile` → https://cyvra-mobile.pages.dev and https://mobile.cyvra.co.in/ |
+| Pages public | `cyvoriq-www` → https://www.cyvoriq.co.in/ + apex |
+| New Pages (next) | `cyvoriq-admin` → `admin.cyvoriq.co.in` |
+| Worker | `cyvra-mobile-api` → https://api.cyvoriq.co.in and workers.dev |
+| Hyperdrive | `cyvra-mobile-neon` `db31fc8dafca49b29172da7046b97175` |
+| Neon | `floral-art-02749206` / `neondb` / production `br-empty-silence-b3a7hhss` |
+| Cloudflare account | `5a3eeb2b3d42726a8ba08732464a0eda` |
+| Super admin | `ceo@cyvoriq.com` |
 
-Never bind Erase Pages (`cyvra-www`) to this zone. Never put `DATABASE_URL` on Pages.
+## Next — admin only (not accounts)
 
-### 3 — Code still needed in this repo
+You (dashboard): [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
 
-- CORS + `APP_ORIGIN` for `https://www.cyvoriq.co.in` (and admin/accounts).
-- Public www (logo, Get Started → OTP on **this** API, not Erase).
-- Real admin UI (replace hidden `/#ops` for production).
-- Verify Resend domain `cyvoriq.co.in` (keep `cyvra.co.in` verified for Erase).
+1. Create **new** Pages **`cyvoriq-admin`** from the same GitHub repo.
+2. Same build as www. Same `VITE_API_URL`. **No** `ADMIN_API_TOKEN` on Pages.
+3. Custom domain: **`admin.cyvoriq.co.in`** only.
+4. Prove HTTP 200 and the serials form. Token stays in the browser.
 
-### 4 — Cutover, not deletion
-
-Keep `mobile.cyvra.co.in` until www is proven. Optional 301 **last**. Do not
-delete old hosts on day one.
+Leave `mobile.cyvra.co.in` up. Do not create `cyvoriq-accounts` yet.
+Optional in parallel: one OTP on https://www.cyvoriq.co.in/create-account
+(keep `API_ENV=preview`; do not paste the code in chat).
 
 ## Still forbidden
 
-- Touch Erase, Station, Knox, S3, live Android, `www.cyvra.co.in` Get Started.
-- Second Neon. Second Worker on day one (new **hostname** only).
-- Roll `cyvra-erase-*` Cloudflare tokens.
-- USB wipe / ADB / Knox as S1 claims.
+- Touch Erase, `cyvra.co.in` NS, `www.cyvra.co.in`, `api.cyvra.co.in`,
+  `cyvra-www`, `cyvoriq-erase-api`, Station, Knox.
+- Second Neon. Second Worker.
+- Bind www / apex to Worker `cyvra-mobile-api`.
+- Delete `mobile.cyvra.co.in` or Pages `cyvra-mobile`.
+- Delete Resend domain `cyvra.co.in` or rotate `RESEND_API_KEY`.
 - Secrets in Git. `git add database/.env`.
-
-## Tokens (two different things)
-
-| Name | What |
-|---|---|
-| `CLOUDFLARE_API_TOKEN` | Your Cloudflare **user** token named `cyvra-mobile`. Unlocks wrangler. Does **not** go in Worker secrets. |
-| `ADMIN_API_TOKEN` | Invented Worker secret. Bearer for `/admin/serials`. `wrangler secret put`. Never on Pages. |
-
-Set the user token with `read -r -s CLOUDFLARE_API_TOKEN` then paste. Do not
-`export CLOUDFLARE_API_TOKEN=...` (that is a placeholder and Cloudflare returns 6111).
+- G9 / G10.
 
 ## After you pull
 
 ```bash
-cd /workspaces/CYVRA-Mobile   # or your clone
+git checkout cursor/g0-g3-mobile-slice-7474
 git pull
-pnpm --filter @cyvra/api typecheck
-pnpm --filter @cyvra/web typecheck
-# local G7 (optional): bash scripts/start.sh then bash scripts/run-local-admin-serials.sh
+# first clicks are dashboard — docs/admin-cyvoriq-start.txt
 ```
 
-Do not start G9/G10. Do not delete old hosts. First live move after the break is
-**G7 on the existing Worker**, then **api.cyvoriq.co.in**.
+Windows checks:
+
+```powershell
+curl.exe -sS https://api.cyvoriq.co.in/health
+curl.exe -sS -I https://www.cyvoriq.co.in/
+curl.exe -sS -I https://admin.cyvoriq.co.in/
+```
