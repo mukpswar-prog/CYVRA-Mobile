@@ -57,16 +57,78 @@ export function CustomerDesktopShell(props: {
   });
 
   // Default initial license state following §2.1 & §6-7
-  const license: LicenseSnapshot = {
+  // Phase 17: Mutable Entitlement Revisions & Scan Accounting Ledger (§11-14)
+  const [activeLicenseState, setActiveLicenseState] = useState<{
+    licenseId: string;
+    serialNumber: string;
+    planName: string;
+    scansTotal: number;
+    scansUsed: number;
+    scansRemaining: number;
+    revision: number;
+    status: string;
+    version: string;
+  }>({
     licenseId: "LIC-MOB-2026-00124",
     serialNumber: "CYVRA15092026SA3F1-1-25",
     planName: "25 Device Scans",
     scansTotal: 25,
     scansUsed: props.reports.length,
     scansRemaining: Math.max(0, 25 - props.reports.length),
+    revision: 1,
     status: "ACTIVE",
     version: "3.2.1-g5",
-  };
+  });
+
+  const [revisionHistory, setRevisionHistory] = useState<Array<{
+    revision: number;
+    serialNumber: string;
+    planName: string;
+    totalScans: number;
+    carriedOverUsage: number;
+    scansRemaining: number;
+    status: "ACTIVE" | "SUPERSEDED";
+    date: string;
+    orderId: string;
+  }>>([
+    {
+      revision: 1,
+      serialNumber: "CYVRA15092026SA3F1-1-25",
+      planName: "25 Device Scans",
+      totalScans: 25,
+      carriedOverUsage: 0,
+      scansRemaining: 25,
+      status: "ACTIVE",
+      date: "2026-09-15 10:00:00 UTC",
+      orderId: "ORD-INITIAL-2026-001",
+    },
+  ]);
+
+  const [scanLedger, setScanLedger] = useState<Array<{
+    txId: string;
+    revision: number;
+    sessionUuid: string;
+    deviceSerial: string;
+    event: "COMMITTED" | "DEBITED" | "CANCELLED";
+    scanNumber: number;
+    timestamp: string;
+  }>>([
+    {
+      txId: "TX-SCAN-90411",
+      revision: 1,
+      sessionUuid: "CYVRA-SESSION-20260915-00124",
+      deviceSerial: "RF8R123456",
+      event: "DEBITED",
+      scanNumber: 1,
+      timestamp: "2026-09-15 11:32:00 UTC",
+    },
+  ]);
+
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<number>(25);
+  const [upgradeHandoffState, setUpgradeHandoffState] = useState<"SELECTING" | "GENERATING_TOKEN" | "AWAITING_APPROVAL" | "UPGRADED">("SELECTING");
+  const [upgradeOrderId, setUpgradeOrderId] = useState<string>("");
+
+  const license = activeLicenseState;
 
   // AI Physical Inspection Station V0 State (§18, §19, §34 / Phase 8)
   const [inspectionStep, setInspectionStep] = useState<number>(0); // 0 = idle, 1..6 views, 7 = complete
@@ -194,6 +256,30 @@ export function CustomerDesktopShell(props: {
         "Biometrics & secure enclave operational",
       ],
     });
+
+    // Debit scan accounting on report generation (§14)
+    setActiveLicenseState((prev) => {
+      const newUsed = prev.scansUsed + 1;
+      const newRemaining = Math.max(0, prev.scansTotal - newUsed);
+      return {
+        ...prev,
+        scansUsed: newUsed,
+        scansRemaining: newRemaining,
+      };
+    });
+
+    setScanLedger((prev) => [
+      ...prev,
+      {
+        txId: `TX-SCAN-${Math.floor(10000 + Math.random() * 90000)}`,
+        revision: license.revision,
+        sessionUuid: `CYVRA-SESSION-20260915-${Math.floor(100000 + Math.random() * 900000)}`,
+        deviceSerial: simulatedDevice.serial,
+        event: "DEBITED",
+        scanNumber: license.scansUsed + 1,
+        timestamp: new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC",
+      },
+    ]);
   }
 
   function handleReviewAction(id: string, action: "ACCEPT" | "REJECT" | "RECAPTURE" | "PHYSICAL_VERIFICATION") {
@@ -2241,33 +2327,152 @@ export function CustomerDesktopShell(props: {
 
               {activeTab === "LICENSE_USAGE" && (
                 <div className="stage-view license-view">
-                  <h2>License & Entitlement Administration</h2>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <h2 style={{ margin: 0 }}>License & Entitlement Administration (Phase 17)</h2>
+                    <button
+                      type="button"
+                      className="btn btn-action-primary"
+                      onClick={() => setUpgradeModalOpen(true)}
+                    >
+                      + Upgrade Plan Entitlement
+                    </button>
+                  </div>
                   <p className="section-desc">
-                    Commercial license credentials and scan accounting.
+                    Commercial license credentials, immutable revision history, and device scan accounting ledger.
                   </p>
-                  <div className="panel-card">
-                    <div className="device-metric-rows">
-                      <div className="metric-row">
-                        <span className="metric-label">Internal License ID:</span>
-                        <span className="metric-value font-mono">{license.licenseId} (Immutable)</span>
+
+                  <div className="workstation-cards-grid">
+                    <div className="panel-card">
+                      <div className="panel-card-header">
+                        <h3>Active License Credentials</h3>
+                        <span className="badge-pill ready-badge">REVISION {license.revision} ACTIVE</span>
                       </div>
-                      <div className="metric-row">
-                        <span className="metric-label">Public Key / Serial:</span>
-                        <span className="metric-value font-mono">{license.serialNumber}</span>
-                      </div>
-                      <div className="metric-row">
-                        <span className="metric-label">Assigned Plan:</span>
-                        <span className="metric-value">{license.planName}</span>
-                      </div>
-                      <div className="metric-row">
-                        <span className="metric-label">Scans Entitlement:</span>
-                        <span className="metric-value">{license.scansTotal} Total | {license.scansUsed} Used | {license.scansRemaining} Remaining</span>
-                      </div>
-                      <div className="metric-row">
-                        <span className="metric-label">Entitlement Status:</span>
-                        <span className="metric-value font-bold text-ok">{license.status}</span>
+                      <div className="device-metric-rows">
+                        <div className="metric-row">
+                          <span className="metric-label">Internal License ID:</span>
+                          <span className="metric-value font-mono text-cyan-400">{license.licenseId} (Immutable)</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Public Key / Serial:</span>
+                          <span className="metric-value font-mono">{license.serialNumber}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Assigned Plan:</span>
+                          <span className="metric-value font-bold">{license.planName}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Scans Entitlement:</span>
+                          <span className="metric-value">{license.scansTotal} Total | {license.scansUsed} Used | {license.scansRemaining} Remaining</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Entitlement Status:</span>
+                          <span className="metric-value font-bold text-ok">{license.status}</span>
+                        </div>
                       </div>
                     </div>
+
+                    <div className="panel-card">
+                      <div className="panel-card-header">
+                        <h3>Scan Balance Summary</h3>
+                        <span className="badge-pill ready-badge">{license.scansRemaining} SCANS READY</span>
+                      </div>
+                      <div style={{ padding: "10px 0" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "13px" }}>
+                          <span>Capacity Utilization:</span>
+                          <strong>{Math.round((license.scansUsed / license.scansTotal) * 100)}% Used</strong>
+                        </div>
+                        <div style={{ width: "100%", height: "12px", background: "#0b1120", borderRadius: "6px", overflow: "hidden", marginBottom: "14px", border: "1px solid #1e293b" }}>
+                          <div
+                            style={{
+                              width: `${Math.min(100, Math.round((license.scansUsed / license.scansTotal) * 100))}%`,
+                              height: "100%",
+                              background: "#38bdf8",
+                            }}
+                          />
+                        </div>
+                        <p className="muted small" style={{ margin: 0 }}>
+                          Scan transactions are committed upon diagnostic start and debited only when a verified condition or purge certificate is generated (§14).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Entitlement Revision History (§13) */}
+                  <div className="panel-card" style={{ marginBottom: "24px" }}>
+                    <div className="panel-card-header">
+                      <h3>Entitlement Revision Ledger (Immutable History)</h3>
+                      <span className="badge-pill ready-badge">{revisionHistory.length} REVISION(S)</span>
+                    </div>
+                    <table className="workstation-data-table">
+                      <thead>
+                        <tr>
+                          <th>Rev #</th>
+                          <th>Serial Number</th>
+                          <th>Plan Tier</th>
+                          <th>Total Scans</th>
+                          <th>Carried Usage</th>
+                          <th>Remaining</th>
+                          <th>Status</th>
+                          <th>Timestamp</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {revisionHistory.map((rev) => (
+                          <tr key={rev.revision}>
+                            <td className="font-mono">Rev {rev.revision}</td>
+                            <td className="font-mono">{rev.serialNumber}</td>
+                            <td>{rev.planName}</td>
+                            <td>{rev.totalScans}</td>
+                            <td>{rev.carriedOverUsage}</td>
+                            <td><strong>{rev.scansRemaining}</strong></td>
+                            <td>
+                              <span className={`badge-pill ${rev.status === "ACTIVE" ? "ready-badge" : "archived-badge"}`}>
+                                {rev.status}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: "11px", color: "#94a3b8" }}>{rev.date}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Device Scan Accounting Ledger (§14) */}
+                  <div className="panel-card">
+                    <div className="panel-card-header">
+                      <h3>Device Scan Consumption Audit Ledger</h3>
+                      <span className="badge-pill ready-badge">{scanLedger.length} TRANSACTION(S)</span>
+                    </div>
+                    <table className="workstation-data-table">
+                      <thead>
+                        <tr>
+                          <th>Tx ID</th>
+                          <th>Rev #</th>
+                          <th>Session UUID</th>
+                          <th>Device Serial</th>
+                          <th>Scan #</th>
+                          <th>Accounting Status</th>
+                          <th>Timestamp</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scanLedger.map((tx) => (
+                          <tr key={tx.txId}>
+                            <td className="font-mono text-cyan-400">{tx.txId}</td>
+                            <td className="font-mono">Rev {tx.revision}</td>
+                            <td className="font-mono" style={{ fontSize: "11px" }}>{tx.sessionUuid}</td>
+                            <td className="font-mono">{tx.deviceSerial}</td>
+                            <td>#{tx.scanNumber}</td>
+                            <td>
+                              <span className="badge-pill ready-badge">
+                                ✓ {tx.event}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: "11px", color: "#94a3b8" }}>{tx.timestamp}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -2538,41 +2743,234 @@ export function CustomerDesktopShell(props: {
         </div>
       )}
 
-      {/* UPGRADE Modal Dialog (§7, §11-13) */}
+      {/* UPGRADE Modal Dialog (§7, §11-13 / Phase 17) */}
       {upgradeModalOpen && (
         <div className="modal-backdrop">
-          <div className="modal-card">
+          <div className="modal-card" style={{ maxWidth: "560px" }}>
             <div className="modal-header">
-              <h3>Upgrade Scan Entitlement Plan</h3>
-              <button type="button" className="close-btn" onClick={() => setUpgradeModalOpen(false)}>×</button>
+              <h3>Upgrade Scan Entitlement Plan (Phase 17)</h3>
+              <button type="button" className="close-btn" onClick={() => { setUpgradeModalOpen(false); setUpgradeHandoffState("SELECTING"); }}>×</button>
             </div>
             <div className="modal-body">
-              <p>Current Plan: <strong>{license.planName}</strong></p>
-              <p className="muted small">
-                Upgrading changes your allowed device scan capacity. Existing scans and usage history are preserved in your immutable license ledger.
-              </p>
-              <div className="plan-options-list">
-                <div className="plan-option-pill">3 Device Scans</div>
-                <div className="plan-option-pill">5 Device Scans</div>
-                <div className="plan-option-pill">7 Device Scans</div>
-                <div className="plan-option-pill is-current">25 Device Scans (Current)</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                <span>Internal License ID: <strong className="font-mono">{license.licenseId}</strong></span>
+                <span className="badge-pill ready-badge">REVISION {license.revision}</span>
               </div>
-              <p className="muted small">
-                To complete an upgrade, you will be directed to the official authenticated CYVORIQ checkout portal.
-              </p>
+
+              {upgradeHandoffState === "SELECTING" && (
+                <div>
+                  <p style={{ margin: "0 0 6px" }}>
+                    Current Active Tier: <strong>{license.planName}</strong> ({license.scansRemaining} remaining of {license.scansTotal})
+                  </p>
+                  <p className="muted small" style={{ marginBottom: "16px" }}>
+                    Upgrading changes your allowed device scan capacity. Previous scan history is preserved in your immutable license ledger and carried over.
+                  </p>
+
+                  <h5 style={{ color: "#cbd5e1", margin: "0 0 10px", fontSize: "12px", textTransform: "uppercase" }}>Select Target Capacity Tier:</h5>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+                    {[
+                      { scans: 3, label: "3 Device Scans", desc: "Small batch" },
+                      { scans: 5, label: "5 Device Scans", desc: "Technician pack" },
+                      { scans: 7, label: "7 Device Scans", desc: "Weekly quota" },
+                      { scans: 25, label: "25 Device Scans", desc: "High-throughput" },
+                      { scans: 50, label: "50 Device Scans", desc: "Enterprise scale" },
+                    ].map((tier) => (
+                      <div
+                        key={tier.scans}
+                        onClick={() => setSelectedUpgradePlan(tier.scans)}
+                        style={{
+                          background: selectedUpgradePlan === tier.scans ? "rgba(56, 189, 248, 0.15)" : "#0b1120",
+                          border: `1px solid ${selectedUpgradePlan === tier.scans ? "#38bdf8" : "#1e293b"}`,
+                          borderRadius: "8px",
+                          padding: "12px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ fontWeight: "bold", color: selectedUpgradePlan === tier.scans ? "#38bdf8" : "#f8fafc", fontSize: "13px" }}>
+                          {tier.label}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#94a3b8" }}>{tier.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ background: "#0b1120", border: "1px solid #1e293b", borderRadius: "6px", padding: "12px", marginBottom: "16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#cbd5e1", marginBottom: "4px" }}>
+                      <span>New Total Capacity:</span>
+                      <strong>{selectedUpgradePlan} Scans</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#cbd5e1", marginBottom: "4px" }}>
+                      <span>Carried-Over Consumed Scans:</span>
+                      <span>{license.scansUsed} Scans</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#38bdf8", fontWeight: "bold" }}>
+                      <span>New Available Balance:</span>
+                      <span>{Math.max(0, selectedUpgradePlan - license.scansUsed)} Scans</span>
+                    </div>
+                  </div>
+
+                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      type="button"
+                      className="btn btn-action-primary"
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        setUpgradeHandoffState("GENERATING_TOKEN");
+                        setTimeout(() => {
+                          const orderId = `ORD-UPG-${Math.floor(100000 + Math.random() * 900000)}`;
+                          setUpgradeOrderId(orderId);
+                          setUpgradeHandoffState("AWAITING_APPROVAL");
+                        }, 1200);
+                      }}
+                    >
+                      Proceed to Authenticated Checkout Handoff →
+                    </button>
+                    <button type="button" className="btn btn-ghost" onClick={() => setUpgradeModalOpen(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {upgradeHandoffState === "GENERATING_TOKEN" && (
+                <div style={{ textAlign: "center", padding: "30px 10px" }}>
+                  <div className="spinner" style={{ margin: "0 auto 16px" }} />
+                  <p style={{ color: "#38bdf8", fontSize: "14px", margin: 0 }}>
+                    Generating cryptographically signed upgrade handoff token for {license.licenseId}...
+                  </p>
+                </div>
+              )}
+
+              {upgradeHandoffState === "AWAITING_APPROVAL" && (
+                <div>
+                  <div style={{ background: "rgba(56, 189, 248, 0.1)", border: "1px solid #38bdf8", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
+                    <h4 style={{ color: "#38bdf8", margin: "0 0 6px", fontSize: "14px" }}>
+                      Upgrade Handoff Token Generated (§12, §30)
+                    </h4>
+                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
+                      The customer checkout window has been dispatched. Order ID: <strong className="font-mono">{upgradeOrderId}</strong>
+                    </p>
+                  </div>
+
+                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
+                    <div className="metric-row">
+                      <span className="metric-label">Handoff Endpoint:</span>
+                      <span className="metric-value font-mono text-cyan-400">https://www.cyvoriq.co.in/checkout/upgrade</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Target Tier:</span>
+                      <span className="metric-value font-bold">{selectedUpgradePlan} Device Scans</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Server Verification:</span>
+                      <span className="metric-value text-amber-400">● WAITING FOR ADMIN APPROVAL</span>
+                    </div>
+                  </div>
+
+                  <p className="muted small" style={{ marginBottom: "16px" }}>
+                    Simulate Server Approval: Once the checkout portal processes payment, the server increments the entitlement revision without altering the internal license_id.
+                  </p>
+
+                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      type="button"
+                      className="btn btn-action-primary"
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        const newSerial = `CYVRA15092026SA3F1-${license.revision + 1}-${selectedUpgradePlan}`;
+                        const newRemaining = Math.max(0, selectedUpgradePlan - license.scansUsed);
+
+                        // Mark current revision SUPERSEDED
+                        setRevisionHistory((prev) => [
+                          ...prev.map((r) => r.status === "ACTIVE" ? { ...r, status: "SUPERSEDED" as const } : r),
+                          {
+                            revision: license.revision + 1,
+                            serialNumber: newSerial,
+                            planName: `${selectedUpgradePlan} Device Scans`,
+                            totalScans: selectedUpgradePlan,
+                            carriedOverUsage: license.scansUsed,
+                            scansRemaining: newRemaining,
+                            status: "ACTIVE" as const,
+                            date: new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC",
+                            orderId: upgradeOrderId,
+                          },
+                        ]);
+
+                        setActiveLicenseState((prev) => ({
+                          ...prev,
+                          serialNumber: newSerial,
+                          planName: `${selectedUpgradePlan} Device Scans`,
+                          scansTotal: selectedUpgradePlan,
+                          scansRemaining: newRemaining,
+                          revision: prev.revision + 1,
+                        }));
+
+                        setUpgradeHandoffState("UPGRADED");
+                      }}
+                    >
+                      Confirm Server Approval & Activate Revision {license.revision + 1}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setUpgradeHandoffState("SELECTING")}
+                    >
+                      Back
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {upgradeHandoffState === "UPGRADED" && (
+                <div>
+                  <div style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
+                    <h4 style={{ color: "#10b981", margin: "0 0 4px", fontSize: "15px" }}>
+                      ✓ Entitlement Revision {license.revision} Activated
+                    </h4>
+                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
+                      Plan upgraded to <strong>{license.planName}</strong>. Internal license ID <strong className="font-mono">{license.licenseId}</strong> preserved with zero usage lost.
+                    </p>
+                  </div>
+
+                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
+                    <div className="metric-row">
+                      <span className="metric-label">New Serial:</span>
+                      <span className="metric-value font-mono text-emerald-400">{license.serialNumber}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Total Entitlement:</span>
+                      <span className="metric-value font-bold text-sky-400">{license.scansTotal} Scans</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Remaining Balance:</span>
+                      <span className="metric-value font-bold text-emerald-400">{license.scansRemaining} Scans</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-action-primary"
+                    style={{ width: "100%" }}
+                    onClick={() => {
+                      setUpgradeModalOpen(false);
+                      setUpgradeHandoffState("SELECTING");
+                    }}
+                  >
+                    Return to Workstation
+                  </button>
+                </div>
+              )}
             </div>
             <div className="modal-footer">
-              <a
-                href="https://www.cyvoriq.co.in/contact"
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-primary"
-                onClick={() => setUpgradeModalOpen(false)}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setUpgradeModalOpen(false);
+                  setUpgradeHandoffState("SELECTING");
+                }}
               >
-                Proceed to Secure Checkout →
-              </a>
-              <button type="button" className="btn btn-ghost" onClick={() => setUpgradeModalOpen(false)}>
-                Cancel
+                Close
               </button>
             </div>
           </div>

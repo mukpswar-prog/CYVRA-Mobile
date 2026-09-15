@@ -47,7 +47,8 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 14:** Data Purge & Verification Flow (2-step operator confirmation barrier, method selection, reconnect & OOBE check) — **Done** (`SanitizationWorkflowModels.kt`, `HostSanitizationWorkflowEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 15:** Final Sanitization & Lifecycle Certificate per NIST SP 800-88 Rev. 2 (`SanitizationCertificateReport`, SHA-256 seal, JSON/PDF download) — **Done** (`ReportModels.kt`, `HostReportEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 16:** Secure Software Update System (Signed manifest, Ed25519 signature & SHA-256 verification, safe staging and rollback) — **Done** (`UpdateModels.kt`, `HostUpdateEngine.kt`, unit tests, and CustomerDesktop UI).
-- **Next Phase:** Phase 17 (Website Upgrade Flow & Scan Accounting Integration).
+- **Phase 17:** Website Upgrade Flow & Scan Accounting Integration (Decoupled plan expansion, immutable `license_id`, carried usage, transactional scan ledger) — **Done** (`UpgradeModels.kt`, `HostUpgradeAccountingEngine.kt`, unit tests, and CustomerDesktop UI).
+- **Next Phase:** Phase 18 (Payment & Staff Approval Workflow).
 
 ## Laptop — type only these lines in Git Bash
 

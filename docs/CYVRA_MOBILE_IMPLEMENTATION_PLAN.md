@@ -164,8 +164,15 @@
 - Comprehensive unit tests covering version comparison, minimum host constraints, hash integrity, signature rejection, and rollback in `:core:test` and `:host:test`.
 - Interactive 10-step secure update flow modal in Customer Desktop Shell with clear separation between software Update and scan capacity Upgrade.
 
-### Phase 17: Website Upgrade Flow & Scan Accounting Integration [NEXT]
-- Scan entitlement capacity upgrades, customer plan selection, secure external checkout portal integration, and immutable scan accounting ledger.
+### Phase 17: Website Upgrade Flow & Scan Accounting Integration [COMPLETED]
+- Decoupled scan entitlement capacity tiers (`ScanEntitlementPlan`: 1, 3, 5, 7, 25 scans) and revision model (`EntitlementRevisionRecord`) in `:core` (`UpgradeModels.kt`).
+- Authenticated external checkout handoff token generation (`UpgradeHandoffRequest`) and transaction point scan ledger (`ScanLedgerEntry`).
+- Host upgrade and accounting engine (`HostUpgradeAccountingEngine.kt`) in `:host` preserving immutable `license_id`, carrying over usage, incrementing revisions (`SUPERSEDED` -> `ACTIVE`), and committing/debiting scan transactions.
+- Comprehensive unit tests in `UpgradeModelsTest.kt` and `HostUpgradeAccountingEngineTest.kt`.
+- Interactive Customer Desktop Shell Upgrade modal, revision ledger, and device scan consumption audit view under "License & Usage".
+
+### Phase 18: Payment & Staff Approval Workflow [NEXT]
+- Order lifecycle (`CREATED` -> `PAYMENT_PENDING` -> `WAITING_ADMIN_APPROVAL` -> `ENTITLEMENT_ISSUED`), server-authoritative payment verification, and admin dashboard approval flow.
 
 ---
 
