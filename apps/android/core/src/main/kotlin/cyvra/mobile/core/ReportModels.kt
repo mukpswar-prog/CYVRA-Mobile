@@ -73,3 +73,29 @@ data class SanitizationCertificateReport(
     val limitations: List<String> = emptyList(),
     val integrity: ReportIntegrityRecord? = null,
 )
+
+/**
+ * Pre-Purge Certified Report: CYVORIQ Certified Device Condition & Diagnostic Report
+ * Adheres strictly to Master Workflow §22, §39 (Phase 13), and §41.
+ * Combines customer identity, operator, session, device diagnostic results,
+ * physical inspection views, AI evidence, human review decisions,
+ * safety status, cosmetic & functional grades, and cryptographic integrity digest.
+ */
+@Serializable
+data class CyvoriqCertifiedConditionReport(
+    val header: ReportHeader,
+    val customerOrganization: String = "CYVORIQ Certified Partner",
+    val licenseKey: String = "CYVRA-LIC-ENTERPRISE-G5",
+    val deviceIdentity: DeviceIdentityEvidence,
+    val diagnosticSummary: List<String> = emptyList(),
+    val physicalInspectionViewsAccepted: Int = 6,
+    val physicalInspectionTotalViews: Int = 6,
+    val physicalFindings: List<String> = emptyList(),
+    val gradingDecision: DeviceGradingDecisionRecord,
+    val humanReviewSession: HumanReviewSessionRecord? = null,
+    val aiModelVersion: String = "CV-MOBILE-001",
+    val rulesVersion: String = "GRADE-IN-001",
+    val methodologyVersion: String = "CYVORIQ Mobile Physical Inspection Standard v1.0",
+    val limitations: List<String> = emptyList(),
+    val integrity: ReportIntegrityRecord? = null,
+)

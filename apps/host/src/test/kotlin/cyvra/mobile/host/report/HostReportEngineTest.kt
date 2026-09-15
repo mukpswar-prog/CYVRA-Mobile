@@ -185,4 +185,86 @@ class HostReportEngineTest {
         assertTrue(md.contains("PURGE-OP-99"), "MD contains OP ID")
         assertTrue(md.contains("PLATFORM_REPORTED_COMPLETE"), "MD contains status")
     }
+
+    @Test
+    fun generatesCertifiedConditionReportWithSha256AndAuditTrail() {
+        val evidence = createSampleEvidence()
+        val gradingDecision = cyvra.mobile.core.DeviceGradingDecisionRecord(
+            gradingId = "GRADE-DEC-2026-001",
+            inspectionId = "INSP-001",
+            sessionUuid = "SESS-REPORT-001",
+            deviceIdentifier = "PIXEL8-TEST-001",
+            safetyGrade = cyvra.mobile.core.SafetyGrade.S0_SAFE_TO_PROCESS,
+            cosmeticGrade = cyvra.mobile.core.CosmeticGrade.B_LIGHT_WEAR,
+            functionalGrade = cyvra.mobile.core.FunctionalGrade.F0_FULLY_VERIFIED,
+            overallGrade = cyvra.mobile.core.OverallCertifiedGrade.GRADE_B,
+            rulesVersion = "GRADE-IN-001",
+            methodology = "CYVORIQ Mobile Physical Inspection Standard v1.0",
+            presentation = cyvra.mobile.core.CountryGradingProfilePresentation(
+                safetyLabel = "S0 — Safe to Process",
+                cosmeticLabel = "Grade B — Light Wear",
+                functionalLabel = "Fully Verified",
+                overallLabel = "Grade B (Certified Good)",
+            ),
+            physicalFindingsSummary = listOf(
+                "2 light frame scratches",
+                "no visible screen crack",
+                "no visible back-glass crack",
+            ),
+            diagnosticFindingsSummary = listOf(
+                "display functional",
+                "cameras functional",
+                "battery healthy",
+            ),
+        )
+
+        val humanReview = cyvra.mobile.core.HumanReviewSessionRecord(
+            reviewSessionId = "REV-SESS-900",
+            sessionUuid = "SESS-REPORT-001",
+            deviceIdentifier = "PIXEL8-TEST-001",
+            allExceptionsResolved = true,
+            reviewerSignature = "TECH-SIGN-992",
+            decisions = listOf(
+                cyvra.mobile.core.DefectReviewDecision(
+                    reviewItemId = "REV-ITEM-1",
+                    defectId = "DEFECT-FRAME-01",
+                    defectDescription = "Light frame micro-scratch",
+                    initialAiConfidence = 0.88,
+                    triggerReason = cyvra.mobile.core.ReviewTriggerReason.LOW_CONFIDENCE_THRESHOLD,
+                    action = cyvra.mobile.core.HumanReviewAction.ACCEPT,
+                    operatorId = "operator@cyvoriq.com",
+                )
+            ),
+        )
+
+        val report = engine.generateCertifiedConditionReport(
+            reportId = "CYVRA-COND-2026-00042",
+            operatorId = "operator@cyvoriq.com",
+            sessionUuid = "SESS-REPORT-001",
+            customerOrganization = "CYVORIQ Global Testing",
+            licenseKey = "CYVRA-LIC-2026-PREVIEW",
+            deviceIdentity = evidence.identity,
+            diagnosticSummary = listOf("Display touch multi-point verified", "Battery health Good"),
+            gradingDecision = gradingDecision,
+            humanReviewSession = humanReview,
+        )
+
+        assertEquals("CYVRA-COND-2026-00042", report.header.reportId)
+        assertEquals("CV-MOBILE-001", report.aiModelVersion)
+        assertEquals("GRADE-IN-001", report.rulesVersion)
+        assertEquals(6, report.physicalInspectionViewsAccepted)
+        assertNotNull(report.integrity)
+        assertEquals(64, report.integrity?.contentDigest?.length)
+        assertTrue(report.integrity?.signatureBlockPresent == true)
+
+        val json = engine.exportToJson(report)
+        assertTrue(json.contains("CYVORIQ Certified Device Condition & Diagnostic Report"))
+        assertTrue(json.contains("CYVRA-COND-2026-00042"))
+
+        val md = engine.renderMarkdown(report)
+        assertTrue(md.contains("# CYVORIQ CERTIFIED DEVICE CONDITION & DIAGNOSTIC REPORT"))
+        assertTrue(md.contains("Grade B (Certified Good)"))
+        assertTrue(md.contains("2 light frame scratches"))
+        assertTrue(md.contains("TECH-SIGN-992"))
+    }
 }

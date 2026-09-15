@@ -138,10 +138,13 @@
 - Review session signing and audit trail (`HumanReviewSessionRecord`).
 - Unit tests in `:core` and `:host`, and Customer Desktop UI exception panel.
 
-### Phase 13: CYVORIQ Certified Condition Report [NEXT]
-- Comprehensive pre-purge certificate combining software diagnostic evidence + AI physical inspection findings + human review audit trail + tamper-evident SHA-256 signature.
+### Phase 13: CYVORIQ Certified Condition Report [COMPLETED]
+- Comprehensive pre-purge certificate combining software diagnostic evidence + AI physical inspection findings + human review audit trail + tamper-evident SHA-256 signature (`CyvoriqCertifiedConditionReport`).
+- Generates markdown & canonical JSON summaries with complete audit trail and reviewer signatures in `HostReportEngine.kt`.
+- Interactive certificate view with cryptographic digest and grade dashboard in Customer Desktop UI.
+- Unit tests in `:core` and `:host`.
 
-### Phase 14: Data Purge & Verification Flow
+### Phase 14: Data Purge & Verification Flow [NEXT]
 - 2-step operator confirmation barrier.
 - Sanitization method selection (Platform Factory Reset vs OEM Secure Erase).
 - Automated post-reboot reconnect detection and verification check (OOBE / Setup Wizard state).

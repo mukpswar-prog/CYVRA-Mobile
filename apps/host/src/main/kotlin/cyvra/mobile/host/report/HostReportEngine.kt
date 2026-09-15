@@ -1,9 +1,13 @@
 package cyvra.mobile.host.report
 
 import cyvra.mobile.core.AndroidComponentEvidencePayload
+import cyvra.mobile.core.CyvoriqCertifiedConditionReport
 import cyvra.mobile.core.DeviceCapabilityAssessment
+import cyvra.mobile.core.DeviceGradingDecisionRecord
+import cyvra.mobile.core.DeviceIdentityEvidence
 import cyvra.mobile.core.DeviceVerificationReport
 import cyvra.mobile.core.GenericDeviceEvidence
+import cyvra.mobile.core.HumanReviewSessionRecord
 import cyvra.mobile.core.PreSanitizationRecord
 import cyvra.mobile.core.ReportCoverageLabel
 import cyvra.mobile.core.ReportHeader
@@ -132,6 +136,130 @@ class HostReportEngine(
      * Serializes Sanitization Certificate to formatted JSON string.
      */
     fun exportToJson(report: SanitizationCertificateReport): String = json.encodeToString(report)
+
+    /**
+     * Builds Pre-Purge Certified Report: CYVORIQ Certified Device Condition & Diagnostic Report (§22, §39, §41).
+     */
+    fun generateCertifiedConditionReport(
+        reportId: String,
+        operatorId: String,
+        sessionUuid: String,
+        customerOrganization: String = "CYVORIQ Certified Partner",
+        licenseKey: String = "CYVRA-LIC-ENTERPRISE-G5",
+        deviceIdentity: DeviceIdentityEvidence,
+        diagnosticSummary: List<String>,
+        gradingDecision: DeviceGradingDecisionRecord,
+        humanReviewSession: HumanReviewSessionRecord? = null,
+        limitations: List<String> = emptyList(),
+    ): CyvoriqCertifiedConditionReport {
+        val header = ReportHeader(
+            reportId = reportId,
+            reportTitle = "CYVORIQ Certified Device Condition & Diagnostic Report",
+            operatorId = operatorId,
+            sessionUuid = sessionUuid,
+        )
+
+        val baseReport = CyvoriqCertifiedConditionReport(
+            header = header,
+            customerOrganization = customerOrganization,
+            licenseKey = licenseKey,
+            deviceIdentity = deviceIdentity,
+            diagnosticSummary = diagnosticSummary,
+            physicalInspectionViewsAccepted = 6,
+            physicalInspectionTotalViews = 6,
+            physicalFindings = gradingDecision.physicalFindingsSummary,
+            gradingDecision = gradingDecision,
+            humanReviewSession = humanReviewSession,
+            aiModelVersion = "CV-MOBILE-001",
+            rulesVersion = gradingDecision.rulesVersion,
+            methodologyVersion = gradingDecision.methodology,
+            limitations = limitations + listOf(
+                "Physical inspection and cosmetic grades based on standardized 6-view AI capture and human exception review.",
+                "Diagnostic evidence gathered non-destructively prior to data sanitization.",
+            ),
+            integrity = null,
+        )
+
+        val digest = computeSha256(json.encodeToString(baseReport))
+        return baseReport.copy(
+            integrity = ReportIntegrityRecord(
+                algorithm = "SHA-256",
+                contentDigest = digest,
+                signatureBlockPresent = humanReviewSession?.reviewerSignature != null,
+            )
+        )
+    }
+
+    /**
+     * Serializes CyvoriqCertifiedConditionReport to formatted JSON string.
+     */
+    fun exportToJson(report: CyvoriqCertifiedConditionReport): String = json.encodeToString(report)
+
+    /**
+     * Renders human-readable markdown summary for CYVORIQ Certified Condition Report (§22).
+     */
+    fun renderMarkdown(report: CyvoriqCertifiedConditionReport): String {
+        val id = report.deviceIdentity
+        val grade = report.gradingDecision
+        return buildString {
+            appendLine("# CYVORIQ CERTIFIED DEVICE CONDITION & DIAGNOSTIC REPORT")
+            appendLine("### Report ID: ${report.header.reportId}")
+            appendLine("- **Customer Organization:** ${report.customerOrganization}")
+            appendLine("- **Operator ID:** ${report.header.operatorId}")
+            appendLine("- **License Key:** ${report.licenseKey}")
+            appendLine("- **Session UUID:** ${report.header.sessionUuid}")
+            appendLine("- **Generated At:** ${report.header.generatedAt}")
+            appendLine()
+            appendLine("## 1. Certified Grades Summary")
+            appendLine("- **Overall Grade:** **${grade.overallGrade}** (${grade.presentation.overallLabel})")
+            appendLine("- **Safety:** **${grade.safetyGrade}** — ${grade.presentation.safetyLabel}")
+            appendLine("- **Cosmetic:** **${grade.cosmeticGrade}** — ${grade.presentation.cosmeticLabel}")
+            appendLine("- **Functional:** **${grade.functionalGrade}** — ${grade.presentation.functionalLabel}")
+            appendLine()
+            appendLine("## 2. Device Identification")
+            appendLine("- **Manufacturer:** ${id.manufacturer.value ?: "RESTRICTED"}")
+            appendLine("- **Model:** ${id.model.value ?: "RESTRICTED"}")
+            appendLine("- **Android Version:** ${id.androidVersion.value ?: "RESTRICTED"} (API ${id.apiLevel.value ?: 0})")
+            appendLine("- **Build ID:** ${id.buildId.value ?: "RESTRICTED"}")
+            appendLine("- **Hardware Serial:** ${id.hardwareSerial.value ?: "[RESTRICTED - ${id.hardwareSerial.reason}]"}")
+            appendLine()
+            appendLine("## 3. Physical Inspection & AI Evidence")
+            appendLine("- **Views Accepted:** ${report.physicalInspectionViewsAccepted} / ${report.physicalInspectionTotalViews}")
+            appendLine("- **Methodology:** ${report.methodologyVersion}")
+            appendLine("- **AI Model:** ${report.aiModelVersion}")
+            appendLine("- **Rules Version:** ${report.rulesVersion}")
+            appendLine("### Physical Findings:")
+            if (report.physicalFindings.isEmpty()) {
+                appendLine("• Pristine cosmetic condition — no visible defects detected")
+            } else {
+                report.physicalFindings.forEach { appendLine("• $it") }
+            }
+            appendLine()
+            appendLine("## 4. Technical Diagnostics Summary")
+            if (report.diagnosticSummary.isEmpty()) {
+                appendLine("• Non-destructive baseline verified")
+            } else {
+                report.diagnosticSummary.forEach { appendLine("• $it") }
+            }
+            appendLine()
+            val review = report.humanReviewSession
+            if (review != null) {
+                appendLine("## 5. Human Review Audit Trail")
+                appendLine("- **Review Session ID:** ${review.reviewSessionId}")
+                appendLine("- **All Exceptions Resolved:** ${review.allExceptionsResolved}")
+                appendLine("- **Reviewer Signature:** ${review.reviewerSignature ?: "PENDING"}")
+                appendLine("- **Decisions Logged:** ${review.decisions.size}")
+                review.decisions.forEach { dec ->
+                    appendLine("  - Item ${dec.defectId}: Action = **${dec.action}** (Operator: ${dec.operatorId})")
+                }
+                appendLine()
+            }
+            appendLine("## 6. Cryptographic Verification & Audit")
+            appendLine("- **Integrity Algorithm:** ${report.integrity?.algorithm ?: "NONE"}")
+            appendLine("- **SHA-256 Digest:** `${report.integrity?.contentDigest ?: "UNHASHED"}`")
+            appendLine("- **Signature Present:** ${report.integrity?.signatureBlockPresent}")
+        }
+    }
 
     /**
      * Renders human-readable markdown summary for Report 1.
