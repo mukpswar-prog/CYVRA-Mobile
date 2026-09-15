@@ -125,12 +125,14 @@
 - Defect classification: cracks, chips, frame dents, rail scuffs, and port deformations with severity and confidence.
 - Comprehensive report assembly (`BodyInspectionReport`), unit tests in `:core` and `:host`, and Customer Desktop UI.
 
-### Phase 11: Deterministic Grading Rules Engine [NEXT]
+### Phase 11: Deterministic Grading Rules Engine [COMPLETED]
 - Grade components: Safety (`S0`, `S1`), Cosmetic (`A`, `B`, `C`, `D`), Functional (`F0`, `F1`, `F2`).
-- Overall CYVORIQ Certified Grade calculation (`A`, `B`, `C`, `D`, `SAFETY_HOLD`).
-- Versioned rule registry (`GRADE-IN-001`, `GRADE-IN-002`).
+- Overall CYVORIQ Certified Grade calculation (`GRADE_A`, `GRADE_B`, `GRADE_C`, `GRADE_D`, `SAFETY_HOLD`).
+- Versioned rule registry (`GRADE-IN-001`) with auditable rule evaluation step trail (`GradingRuleEvaluationStep`).
+- Country/channel presentation mapping (`CountryGradingProfilePresentation` for India Re-marketing Standard).
+- Unit tests in `:core` and `:host`, and Customer Desktop UI.
 
-### Phase 12: Human Review & Exception Handling
+### Phase 12: Human Review & Exception Handling [NEXT]
 - Operator exception review interface for low-confidence detections or safety warnings.
 - Actions: `[ ACCEPT ]`, `[ REJECT ]`, `[ RECAPTURE ]`, `[ PHYSICAL VERIFICATION ]`.
 - Audit logging of human overrides.

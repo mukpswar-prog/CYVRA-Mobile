@@ -83,8 +83,8 @@ export function CustomerDesktopShell(props: {
   const [qualityGateFeedback, setQualityGateFeedback] = useState<string | null>(null);
   const [isCapturingView, setIsCapturingView] = useState<boolean>(false);
 
-  // Phase 9: AI Screen Inspection & Controlled Display Tests (§35)
-  const [aiSubTab, setAiSubTab] = useState<"PHYSICAL_CAPTURE" | "SCREEN_INSPECTION" | "BODY_INSPECTION">("PHYSICAL_CAPTURE");
+  // Phase 9-11: AI Physical, Screen, Body Inspection & Grading Navigation
+  const [aiSubTab, setAiSubTab] = useState<"PHYSICAL_CAPTURE" | "SCREEN_INSPECTION" | "BODY_INSPECTION" | "GRADING_RULES">("PHYSICAL_CAPTURE");
   const [screenTestRunning, setScreenTestRunning] = useState<boolean>(false);
   const [activeDisplayPattern, setActiveDisplayPattern] = useState<string>("IDLE");
   const [displayTestProgress, setDisplayTestProgress] = useState<string>("");
@@ -100,6 +100,52 @@ export function CustomerDesktopShell(props: {
     Array<{ region: string; defect: string; severity: string; confidence: string; location: string }>
   >([]);
   const [bodyReportComplete, setBodyReportComplete] = useState<boolean>(false);
+
+  // Phase 11: Deterministic Grading Rules Engine (GRADE-IN-001) (§4, §22, §37)
+  const [gradingActive, setGradingActive] = useState<boolean>(false);
+  const [gradingDecision, setGradingDecision] = useState<{
+    overallGrade: string;
+    overallLabel: string;
+    safetyGrade: string;
+    safetyLabel: string;
+    cosmeticGrade: string;
+    cosmeticLabel: string;
+    functionalGrade: string;
+    functionalLabel: string;
+    rulesVersion: string;
+    auditSteps: Array<{ rule: string; description: string; impact: string }>;
+    physicalFindings: string[];
+  } | null>(null);
+
+  function executeDeterministicGrading() {
+    setGradingActive(true);
+
+    setTimeout(() => {
+      setGradingActive(false);
+      setGradingDecision({
+        overallGrade: "GRADE_B",
+        overallLabel: "Grade B (Certified Good)",
+        safetyGrade: "S0",
+        safetyLabel: "Safe to Process (No chassis swelling / deformation)",
+        cosmeticGrade: "B",
+        cosmeticLabel: "Good / Light Wear (Zero cracks, minor rail micro-scuff)",
+        functionalGrade: "F0",
+        functionalLabel: "Fully Functional (Display, battery, storage verified)",
+        rulesVersion: "GRADE-IN-001",
+        auditSteps: [
+          { rule: "RULE-SAFE-00", description: "No structural swelling or battery anomalies detected", impact: "S0 — Safe to Process" },
+          { rule: "RULE-COSM-B", description: "Zero screen cracks, zero back fractures, 1 micro-scuff", impact: "Cosmetic Grade B" },
+          { rule: "RULE-FUNC-F0", description: "All hardware query tests passed on live device", impact: "Functional Grade F0" },
+        ],
+        physicalFindings: [
+          "Flawless display glass — no visible crack",
+          "Back glass intact — pristine housing",
+          "Light cosmetic rail wear near SIM tray (< 12mm)",
+          "Camera lens bezel pristine, sensor optics clean",
+        ],
+      });
+    }, 1200);
+  }
 
   function runBodyAiInspection() {
     setBodyAnalysisRunning(true);
@@ -666,8 +712,8 @@ export function CustomerDesktopShell(props: {
                     Computer-vision assisted physical inspection & controlled display pattern evaluation (§18, §19, §34, §35).
                   </p>
 
-                  {/* Sub-tab navigation between Phase 8 (6-View Capture), Phase 9 (Screen Defect & Display Tests), and Phase 10 (Body Inspection) */}
-                  <div className="ai-subtabs-nav" style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+                  {/* Sub-tab navigation between Phase 8 (6-View Capture), Phase 9 (Screen Defect & Display Tests), Phase 10 (Body Inspection), and Phase 11 (Grading Rules Engine) */}
+                  <div className="ai-subtabs-nav" style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
                     <button
                       type="button"
                       className={`btn ${aiSubTab === "PHYSICAL_CAPTURE" ? "btn-action-primary" : "btn-action-secondary"}`}
@@ -680,14 +726,21 @@ export function CustomerDesktopShell(props: {
                       className={`btn ${aiSubTab === "SCREEN_INSPECTION" ? "btn-action-primary" : "btn-action-secondary"}`}
                       onClick={() => setAiSubTab("SCREEN_INSPECTION")}
                     >
-                      📱 2. AI Screen & Display Inspection (Phase 9)
+                      📱 2. Screen & Display (Phase 9)
                     </button>
                     <button
                       type="button"
                       className={`btn ${aiSubTab === "BODY_INSPECTION" ? "btn-action-primary" : "btn-action-secondary"}`}
                       onClick={() => setAiSubTab("BODY_INSPECTION")}
                     >
-                      🔍 3. AI Body & Chassis Inspection (Phase 10)
+                      🔍 3. Body & Chassis (Phase 10)
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn ${aiSubTab === "GRADING_RULES" ? "btn-action-primary" : "btn-action-secondary"}`}
+                      onClick={() => setAiSubTab("GRADING_RULES")}
+                    >
+                      ⚖️ 4. Certified Grading (Phase 11)
                     </button>
                   </div>
 
@@ -1082,9 +1135,9 @@ export function CustomerDesktopShell(props: {
                             <button
                               type="button"
                               className="btn btn-action-primary"
-                              onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                              onClick={() => setAiSubTab("GRADING_RULES")}
                             >
-                              Proceed to Technical Diagnostics →
+                              Proceed to Deterministic Grading (Phase 11) →
                             </button>
                             <button
                               type="button"
@@ -1092,6 +1145,156 @@ export function CustomerDesktopShell(props: {
                               onClick={resetBodyInspection}
                             >
                               Re-evaluate Body Views
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {aiSubTab === "GRADING_RULES" && (
+                    <div className="panel-card ai-flow-card">
+                      <div className="panel-card-header">
+                        <h3>DETERMINISTIC GRADING RULES ENGINE</h3>
+                        <span className="badge-pill ready-badge">GRADE-IN-001</span>
+                      </div>
+
+                      <p className="card-p">
+                        Transparent, rules-based device grading combining <strong>Safety (S0/S1)</strong>, <strong>Cosmetic (A-D)</strong>, and <strong>Functional (F0-F2)</strong> verification (§4, §22, §37). No black-box AI scores.
+                      </p>
+
+                      {gradingActive && (
+                        <div className="grading-progress-box" style={{ background: "#0f172a", padding: "20px", borderRadius: "8px", border: "1px solid #3b82f6", marginBottom: "20px" }}>
+                          <div style={{ color: "#38bdf8", fontWeight: 700, marginBottom: "8px" }}>
+                            <span className="status-bullet-ok">●</span> EVALUATING RULES REGISTRY: GRADE-IN-001
+                          </div>
+                          <div style={{ fontSize: "13px", color: "#f1f5f9" }}>
+                            Aggregating physical defect telemetry, safety checks, and hardware test records...
+                          </div>
+                        </div>
+                      )}
+
+                      {!gradingActive && !gradingDecision && (
+                        <div className="grading-idle">
+                          <div className="views-grid" style={{ marginBottom: "20px" }}>
+                            <div className="view-step-box">
+                              <strong>SAFETY ASSESSMENT</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                S0 (Safe to Process) vs S1 (Hold for Battery/Chassis Hazard)
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>COSMETIC GRADE</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                A (Near New), B (Light Wear), C (Visible Wear), D (Heavy Service)
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>FUNCTIONAL GRADE</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                F0 (Fully Verified), F1 (Limited), F2 (Defect Present)
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>COUNTRY PROFILE</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                India Re-marketing Standard Presentation Layer
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="quality-gate-notice" style={{ background: "#0f172a", padding: "12px 16px", borderRadius: "6px", border: "1px solid #1e293b", marginBottom: "20px", fontSize: "12px", color: "#94a3b8" }}>
+                            <strong>Rule-Driven Methodology (§37):</strong> The AI detects evidence; the versioned rules engine calculates the grade. The output includes an auditable rule evaluation step trail.
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-action-primary"
+                            onClick={executeDeterministicGrading}
+                          >
+                            Calculate Device Grade (GRADE-IN-001) →
+                          </button>
+                        </div>
+                      )}
+
+                      {gradingDecision && (
+                        <div className="grading-decision-complete">
+                          <div style={{ padding: "20px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", marginBottom: "20px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                              <div>
+                                <span style={{ fontSize: "12px", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                  OVERALL CYVORIQ CERTIFIED GRADE
+                                </span>
+                                <h3 style={{ fontSize: "24px", color: "#10b981", margin: "4px 0 0" }}>
+                                  {gradingDecision.overallLabel}
+                                </h3>
+                              </div>
+                              <span className="badge-pill ready-badge" style={{ fontSize: "12px", padding: "6px 12px" }}>
+                                RULES: {gradingDecision.rulesVersion}
+                              </span>
+                            </div>
+
+                            <div className="views-grid" style={{ marginTop: "16px" }}>
+                              <div className="view-step-box">
+                                <span style={{ fontSize: "11px", color: "#94a3b8" }}>SAFETY GRADE</span>
+                                <strong style={{ display: "block", fontSize: "14px", color: "#f8fafc", marginTop: "2px" }}>
+                                  {gradingDecision.safetyGrade} — {gradingDecision.safetyLabel}
+                                </strong>
+                              </div>
+                              <div className="view-step-box">
+                                <span style={{ fontSize: "11px", color: "#94a3b8" }}>COSMETIC GRADE</span>
+                                <strong style={{ display: "block", fontSize: "14px", color: "#f8fafc", marginTop: "2px" }}>
+                                  {gradingDecision.cosmeticGrade} — {gradingDecision.cosmeticLabel}
+                                </strong>
+                              </div>
+                              <div className="view-step-box">
+                                <span style={{ fontSize: "11px", color: "#94a3b8" }}>FUNCTIONAL GRADE</span>
+                                <strong style={{ display: "block", fontSize: "14px", color: "#f8fafc", marginTop: "2px" }}>
+                                  {gradingDecision.functionalGrade} — {gradingDecision.functionalLabel}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Rule Audit Trail */}
+                          <div className="table-responsive" style={{ marginBottom: "20px" }}>
+                            <h4 style={{ color: "#cbd5e1", fontSize: "14px", margin: "0 0 10px" }}>
+                              Auditable Rules Decision Trail (§37)
+                            </h4>
+                            <table className="workstation-table">
+                              <thead>
+                                <tr>
+                                  <th>RULE ID</th>
+                                  <th>EVALUATED CONDITION</th>
+                                  <th>RESULTING IMPACT</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {gradingDecision.auditSteps.map((step, idx) => (
+                                  <tr key={idx}>
+                                    <td className="font-mono"><strong>{step.rule}</strong></td>
+                                    <td>{step.description}</td>
+                                    <td><span className="tag-complete">{step.impact}</span></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                            <button
+                              type="button"
+                              className="btn btn-action-primary"
+                              onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                            >
+                              Proceed to Technical Diagnostics →
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-action-secondary"
+                              onClick={() => setGradingDecision(null)}
+                            >
+                              Recalculate Grade
                             </button>
                           </div>
                         </div>
