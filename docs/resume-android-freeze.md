@@ -28,13 +28,20 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 
 `minSdk = 26` is the **APK install floor** (Android 8.0+), not the Windows-host device-service floor.
 
-## Next Phase: Customer Desktop Windows Application (C0–C10)
+## Next Phase: Customer Desktop Windows Application (C0–C10 & Master AI Workflow)
 
-Next phase executes the customer-side desktop application roadmap per [CUSTOMER_DESKTOP_PRODUCT_SPEC.md](./CUSTOMER_DESKTOP_PRODUCT_SPEC.md) and [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md):
-- **C0:** Repository audit (Read-only check of shell, host, UI).
-- **C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons).
-- **C2:** License service (Scans remaining vs Operator seats, token refresh).
-- **C3:** Device connection UX (USB, ADB, authorization states).
+Master AI & Commercial Workflow Ingested: [CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md](./CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md)  
+Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./CYVRA_MOBILE_IMPLEMENTATION_PLAN.md)  
+- **Phase 0 / C0:** Repository audit (Read-only check of shell, host, UI, reports, and data models) — **Done**.
+- **Phase 1:** Freeze application architecture and dependencies DAG in `CYVRA_MOBILE_IMPLEMENTATION_PLAN.md` — **Done**.
+- **Phase 2 / C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons).
+- **Phase 3 / C2:** License service (Scans remaining vs Operator seats, token refresh).
+- **Phase 4:** Commercial API alignment (Entitlements, order states, admin approval).
+- **Phase 5:** Upgrade handoff.
+- **Phase 6 / C3:** Device connection UX (USB, ADB, authorization states).
+- **Phase 7 / C4:** Advanced diagnostic stabilization.
+- **Phase 8–13:** AI physical inspection station, quality gate, screen/body models, deterministic grading (`GRADE-IN-001`), human review, and CYVORIQ certified report.
+- **Phase 14–15:** Data purge integration, post-reset verification, and NIST SP 800-88 Rev. 2 certification.
 
 ## Laptop — type only these lines in Git Bash
 

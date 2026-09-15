@@ -84,7 +84,7 @@ If the error is `Unable to download toolchain ... languageVersion=25 ... vendor=
 3. In Git Bash: `cd /c/Users/User/StudioProjects/CYVRA-Mobile` then `git pull`.
 4. Run `cd apps/android && ./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :host:test`.
 5. Expected: `BUILD SUCCESSFUL` for `:core:test` and `:host:test`. (And `./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :app:assembleDebug` for APK).
-6. Slices A0–A13 are complete. To proceed with the Customer Desktop Application, say **execute C0 approved**.
+6. Slices A0–A13 are complete. Ingested Master AI & Commercial Workflow and completed Phase 0 audit & Phase 1 implementation plan. To proceed with the Customer Desktop Application, say **execute C1 approved** (Customer Desktop Shell).
 
 When the owned Samsung arrives, switch to [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4.
 
