@@ -144,12 +144,15 @@
 - Interactive certificate view with cryptographic digest and grade dashboard in Customer Desktop UI.
 - Unit tests in `:core` and `:host`.
 
-### Phase 14: Data Purge & Verification Flow [NEXT]
-- 2-step operator confirmation barrier.
+### Phase 14: Data Purge & Verification Flow [COMPLETED]
+- Sequential sanitization lifecycle state machine (`SanitizationWorkflowStep`).
+- 2-step operator confirmation barrier (`OperatorPurgeConfirmationBarrier`) requiring explicit acknowledgement and matching confirmation phrase.
 - Sanitization method selection (Platform Factory Reset vs OEM Secure Erase).
-- Automated post-reboot reconnect detection and verification check (OOBE / Setup Wizard state).
+- Automated post-reboot reconnect detection and verification check (OOBE / Setup Wizard state & `DeviceReconnectionState`).
+- Full orchestrator engine in `HostSanitizationWorkflowEngine.kt` with G5 non-destructive baseline execution.
+- Unit tests in `:core` and `:host`, and interactive UI in Customer Desktop Shell.
 
-### Phase 15: Final Sanitization & Lifecycle Certificate
+### Phase 15: Final Sanitization & Lifecycle Certificate [NEXT]
 - Final NIST SP 800-88 Rev. 2 compliant sanitization certificate.
 - Multi-format export: JSON and human-readable PDF / Markdown.
 

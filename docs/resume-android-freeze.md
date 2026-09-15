@@ -44,8 +44,9 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 11:** Deterministic Grading Rules Engine (`GRADE-IN-001`, Safety S0/S1, Cosmetic A-D, Functional F0-F2, Country presentation mapping) — **Done** (`GradingModels.kt`, `HostGradingRulesEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 12:** Human Review & Exception Handling (`[ ACCEPT ]`, `[ REJECT ]`, `[ RECAPTURE ]`, `[ PHYSICAL VERIFICATION ]`) — **Done** (`HumanReviewModels.kt`, `HostHumanReviewEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 13:** CYVORIQ Certified Device Condition & Diagnostic Report (`CyvoriqCertifiedConditionReport`, SHA-256 seal, audit trail) — **Done** (`ReportModels.kt`, `HostReportEngine.kt`, unit tests, and CustomerDesktop UI).
-- **Next Phase:** Phase 14 (Data Purge & Verification Flow with 2-step operator confirmation barrier).
-- **Phase 14–15:** Data purge integration, post-reset verification, and NIST SP 800-88 Rev. 2 certification.
+- **Phase 14:** Data Purge & Verification Flow (2-step operator confirmation barrier, method selection, reconnect & OOBE check) — **Done** (`SanitizationWorkflowModels.kt`, `HostSanitizationWorkflowEngine.kt`, unit tests, and CustomerDesktop UI).
+- **Next Phase:** Phase 15 (Final Sanitization & Lifecycle Certificate per NIST SP 800-88 Rev. 2).
+- **Phase 15:** Final Sanitization Certificate generation, JSON/Markdown export, and lifecycle report completion.
 
 ## Laptop — type only these lines in Git Bash
 

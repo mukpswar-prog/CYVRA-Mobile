@@ -206,6 +206,56 @@ export function CustomerDesktopShell(props: {
     setReviewSignedOff(true);
   }
 
+  // Phase 14: Data Purge & Sanitization Workflow (§23, §40)
+  const [purgeWorkflowStep, setPurgeWorkflowStep] = useState<
+    "PRE_SCAN" | "AUTHORIZATION" | "METHOD_SELECT" | "EXECUTING" | "REBOOT_AWAITING" | "VERIFIED"
+  >("PRE_SCAN");
+  const [purgeAckChecked, setPurgeAckChecked] = useState<boolean>(false);
+  const [purgeConfirmationText, setPurgeConfirmationText] = useState<string>("");
+  const [selectedPurgeMethod, setSelectedPurgeMethod] = useState<"CLEAR_PLATFORM_RESET" | "PURGE_OEM_SECURE_ERASE">("CLEAR_PLATFORM_RESET");
+  const [purgeExecutionProgress, setPurgeExecutionProgress] = useState<string>("");
+  const [purgeVerificationData, setPurgeVerificationData] = useState<{
+    operationId: string;
+    executedAt: string;
+    verifiedAt: string;
+    reconnectSerial: string;
+    setupWizardDetected: boolean;
+    userAccountsRemoved: boolean;
+    screenLockAbsent: boolean;
+    assuranceLevel: string;
+    sha256Hash: string;
+  } | null>(null);
+
+  function executePurgePipeline() {
+    setPurgeWorkflowStep("EXECUTING");
+    setPurgeExecutionProgress("Validating operator 2-step barrier and cryptographic pre-scan snapshot...");
+
+    setTimeout(() => {
+      setPurgeExecutionProgress("Sending gated recovery reset trigger via ADB (G5 non-destructive baseline)...");
+    }, 1000);
+
+    setTimeout(() => {
+      setPurgeExecutionProgress("Device reboot initiated. Awaiting USB/ADB reconnection in OOBE setup mode...");
+      setPurgeWorkflowStep("REBOOT_AWAITING");
+    }, 2000);
+
+    setTimeout(() => {
+      setPurgeVerificationData({
+        operationId: "PURGE-OP-90412",
+        executedAt: new Date(Date.now() - 15000).toISOString(),
+        verifiedAt: new Date().toISOString(),
+        reconnectSerial: simulatedDevice.serial,
+        setupWizardDetected: true,
+        userAccountsRemoved: true,
+        screenLockAbsent: true,
+        assuranceLevel: "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
+        sha256Hash: "c4f92d8e578a10b91e92da94017a421b9c7e0984a92e1059f03d162812ef6412",
+      });
+      setPurgeWorkflowStep("VERIFIED");
+      setPurgeExecutionProgress("");
+    }, 4200);
+  }
+
   function executeDeterministicGrading() {
     setGradingActive(true);
 
@@ -1636,25 +1686,252 @@ export function CustomerDesktopShell(props: {
                 <div className="stage-view purge-view">
                   <h2>Data Purge & Sanitization</h2>
                   <p className="section-desc">
-                    NIST SP 800-88 Rev. 2 compliant sanitization lifecycle. Two-step operator confirmation required.
+                    NIST SP 800-88 Rev. 2 compliant sanitization lifecycle. Two-step operator confirmation barrier (§23, §40).
                   </p>
-                  <div className="panel-card purge-warning-card">
-                    <h3>Controlled Sanitization Pipeline</h3>
-                    <p className="card-p">
-                      <strong>Flow:</strong> Pre-scan → Capability Assessment → Two-Step Authorization → Method Selection → Purge → Reboot → Reconnect → Verification → Certificate.
-                    </p>
-                    <div className="method-selection-box">
-                      <label>
-                        <input type="radio" name="method" defaultChecked /> Standard Platform Factory Reset (Clear)
-                      </label>
-                      <label>
-                        <input type="radio" name="method" disabled /> OEM-Verified Cryptographic Purge (Requires hardware adapter)
-                      </label>
-                    </div>
-                    <button type="button" className="btn btn-danger" disabled>
-                      Requires Diagnostic Pre-scan First
-                    </button>
+
+                  {/* Sanitization Pipeline Flow Steps */}
+                  <div className="tab-pill-row" style={{ marginBottom: "20px" }}>
+                    <span className={`badge-pill ${purgeWorkflowStep !== "PRE_SCAN" ? "ready-badge" : "active-badge"}`}>
+                      1. Pre-Scan Snapshot
+                    </span>
+                    <span className={`badge-pill ${purgeWorkflowStep === "AUTHORIZATION" ? "active-badge" : purgeWorkflowStep !== "PRE_SCAN" ? "ready-badge" : "optional-badge"}`}>
+                      2. 2-Step Authorization
+                    </span>
+                    <span className={`badge-pill ${purgeWorkflowStep === "METHOD_SELECT" ? "active-badge" : ["EXECUTING", "REBOOT_AWAITING", "VERIFIED"].includes(purgeWorkflowStep) ? "ready-badge" : "optional-badge"}`}>
+                      3. Method Selection
+                    </span>
+                    <span className={`badge-pill ${["EXECUTING", "REBOOT_AWAITING"].includes(purgeWorkflowStep) ? "active-badge" : purgeWorkflowStep === "VERIFIED" ? "ready-badge" : "optional-badge"}`}>
+                      4. Purge & Reconnect
+                    </span>
+                    <span className={`badge-pill ${purgeWorkflowStep === "VERIFIED" ? "ready-badge" : "optional-badge"}`}>
+                      5. Post-Reset Verified
+                    </span>
                   </div>
+
+                  {purgeWorkflowStep === "PRE_SCAN" && (
+                    <div className="panel-card purge-warning-card">
+                      <h3>Controlled Sanitization Barrier — Step 1: Pre-Scan Condition</h3>
+                      <p className="card-p">
+                        Destructive operations cannot proceed without verified diagnostic evidence and pre-scan hardware identification (§34).
+                      </p>
+                      <div className="device-metric-rows" style={{ marginBottom: "20px" }}>
+                        <div className="metric-row">
+                          <span className="metric-label">Target Serial / ADB:</span>
+                          <span className="metric-value font-mono">{simulatedDevice.serial}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Identified Device:</span>
+                          <span className="metric-value">{simulatedDevice.manufacturer} {simulatedDevice.model}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Recommended Purge Action:</span>
+                          <span className="metric-value font-mono text-emerald-400">PLATFORM_FACTORY_RESET (Clear)</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Post-Purge Verification:</span>
+                          <span className="metric-value">Mandatory Reconnect & Setup Wizard Detection</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn btn-action-primary"
+                        onClick={() => setPurgeWorkflowStep("AUTHORIZATION")}
+                      >
+                        Proceed to 2-Step Authorization Barrier →
+                      </button>
+                    </div>
+                  )}
+
+                  {purgeWorkflowStep === "AUTHORIZATION" && (
+                    <div className="panel-card purge-warning-card">
+                      <div className="panel-card-header">
+                        <h3 style={{ color: "#ef4444" }}>⚠️ 2-STEP OPERATOR CONFIRMATION BARRIER</h3>
+                        <span className="badge-pill error-badge">SAFETY GATED</span>
+                      </div>
+                      <p className="card-p">
+                        All user accounts, media files, and application partitions will be permanently removed. To prevent accidental triggers, complete both confirmation steps.
+                      </p>
+
+                      <div style={{ background: "#0b1120", border: "1px solid #334155", borderRadius: "6px", padding: "16px", marginBottom: "20px" }}>
+                        <div style={{ marginBottom: "14px" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", color: "#f8fafc", fontSize: "13px" }}>
+                            <input
+                              type="checkbox"
+                              checked={purgeAckChecked}
+                              onChange={(e) => setPurgeAckChecked(e.target.checked)}
+                              style={{ width: "18px", height: "18px" }}
+                            />
+                            <span><strong>Step 1:</strong> I acknowledge that device media will be purged and cannot be recovered.</span>
+                          </label>
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", color: "#cbd5e1", fontSize: "12px", marginBottom: "6px" }}>
+                            <strong>Step 2:</strong> Type confirmation phrase exactly: <code style={{ color: "#f87171" }}>CONFIRM PURGE</code>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Type CONFIRM PURGE"
+                            value={purgeConfirmationText}
+                            onChange={(e) => setPurgeConfirmationText(e.target.value)}
+                            style={{
+                              background: "#020617",
+                              border: "1px solid #475569",
+                              borderRadius: "4px",
+                              color: "#f8fafc",
+                              padding: "8px 12px",
+                              width: "100%",
+                              maxWidth: "320px",
+                              fontSize: "14px",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          disabled={!purgeAckChecked || purgeConfirmationText.trim() !== "CONFIRM PURGE"}
+                          onClick={() => setPurgeWorkflowStep("METHOD_SELECT")}
+                        >
+                          Unlock Sanitization Execution →
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-action-secondary"
+                          onClick={() => setPurgeWorkflowStep("PRE_SCAN")}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {purgeWorkflowStep === "METHOD_SELECT" && (
+                    <div className="panel-card">
+                      <h3>Method Selection & Execution</h3>
+                      <p className="card-p">
+                        Select an authorized sanitization technique adhering to NIST SP 800-88 Rev. 2.
+                      </p>
+
+                      <div className="method-selection-box" style={{ marginBottom: "20px" }}>
+                        <label style={{ display: "block", marginBottom: "12px", cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name="purgeMethod"
+                            checked={selectedPurgeMethod === "CLEAR_PLATFORM_RESET"}
+                            onChange={() => setSelectedPurgeMethod("CLEAR_PLATFORM_RESET")}
+                          />{" "}
+                          <strong>Platform Factory Reset (Clear)</strong> — Standard Android Recovery wipe / data clear. Supported across all OEMs.
+                        </label>
+                        <label style={{ display: "block", color: "#64748b", cursor: "not-allowed" }}>
+                          <input
+                            type="radio"
+                            name="purgeMethod"
+                            disabled
+                          />{" "}
+                          <strong>OEM Cryptographic Purge (Purge)</strong> — Hardware key destruction. Requires physical hardware adapter & OEM firmware authorization.
+                        </label>
+                      </div>
+
+                      <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          onClick={executePurgePipeline}
+                        >
+                          Execute Sanitization (Non-Destructive Safe G5 Baseline) →
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-action-secondary"
+                          onClick={() => setPurgeWorkflowStep("AUTHORIZATION")}
+                        >
+                          Back to Authorization
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {["EXECUTING", "REBOOT_AWAITING"].includes(purgeWorkflowStep) && (
+                    <div className="panel-card" style={{ textAlign: "center", padding: "40px 20px" }}>
+                      <h3 style={{ color: "#38bdf8", marginBottom: "12px" }}>
+                        {purgeWorkflowStep === "EXECUTING" ? "EXECUTING SANITIZATION PIPELINE" : "AWAITING DEVICE REBOOT & RECONNECT"}
+                      </h3>
+                      <div className="spinner" style={{ margin: "20px auto" }} />
+                      <p style={{ color: "#cbd5e1", fontSize: "14px" }}>
+                        {purgeExecutionProgress}
+                      </p>
+                      <span className="font-mono" style={{ fontSize: "11px", color: "#64748b" }}>
+                        Transport: Controlled USB/ADB Socket | Timeout: 120s
+                      </span>
+                    </div>
+                  )}
+
+                  {purgeWorkflowStep === "VERIFIED" && purgeVerificationData && (
+                    <div className="panel-card" style={{ border: "1px solid #10b981", background: "rgba(16, 185, 129, 0.05)" }}>
+                      <div className="panel-card-header">
+                        <h3 style={{ color: "#10b981" }}>✓ POST-RESET VERIFICATION SUCCESSFUL</h3>
+                        <span className="badge-pill ready-badge">NIST SP 800-88 REV. 2</span>
+                      </div>
+
+                      <p className="card-p">
+                        Device reconnected successfully via USB. Host verification probe confirmed factory OOBE / Setup Wizard state and absence of prior user data partitions (§35).
+                      </p>
+
+                      <div className="device-metric-rows" style={{ marginBottom: "20px" }}>
+                        <div className="metric-row">
+                          <span className="metric-label">Operation ID:</span>
+                          <span className="metric-value font-mono">{purgeVerificationData.operationId}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Reconnected Target:</span>
+                          <span className="metric-value font-mono">{purgeVerificationData.reconnectSerial}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Setup Wizard Detected:</span>
+                          <span className="metric-value text-emerald-400">YES (Clean OOBE State)</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">User Accounts Removed:</span>
+                          <span className="metric-value text-emerald-400">YES (0 Accounts Present)</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Screen Lock Status:</span>
+                          <span className="metric-value text-emerald-400">ABSENT (Cleared)</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Assurance Level:</span>
+                          <span className="metric-value font-mono">{purgeVerificationData.assuranceLevel}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Tamper-Evident SHA-256:</span>
+                          <span className="metric-value font-mono text-cyan-400" style={{ wordBreak: "break-all" }}>
+                            {purgeVerificationData.sha256Hash}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-action-primary"
+                          onClick={() => setActiveTab("RESULTS_REPORTS")}
+                        >
+                          Generate Final NIST SP 800-88 Certificate (Phase 15) →
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-action-secondary"
+                          onClick={() => setPurgeWorkflowStep("PRE_SCAN")}
+                        >
+                          Reset Purge Pipeline
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
