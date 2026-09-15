@@ -50,8 +50,12 @@ Not a substitute: OEM firmware, physical storage, USB drivers, real ADB, hardwar
 
 ## Automated (no phone)
 
-`cd apps/android && ./gradlew :core:test`  
-Existing `G5CoreTest`. Host transport tests with a fake ADB come in A3.
+`cd apps/android && ./gradlew :core:test :host:test`  
+Implemented tests:
+- `:core`: `G5CoreTest`, `EvidenceModelsTest`, `CapabilityAssessmentEngineTest`, `AndroidComponentModelsTest`, `SanitizationModelsTest`, `ReportModelsTest`, `CompatibilityMatrixModelsTest`.
+- `:host`: `HostTransportTest`, `AdbGenericEvidenceProviderTest`, `HostCapabilityCoordinatorTest`, `HostAndroidComponentBridgeTest`, `HostSanitizationProviderTest`, `HostReportEngineTest`, `HostCompatibilityValidatorTest`.
+
+All pass on Java 21 across Windows 10/11 and Linux CI baselines.
 
 ## Existing pool
 

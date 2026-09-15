@@ -57,7 +57,8 @@ This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Kn
 | A7 | OEM adapters only when a real device needs them | Verified physical devices (Samsung G5-A) |
 | A8 | Sanitization **architecture** (NIST SP 800-88 Rev. 2, non-destructive in G5) | **Done** in git (`:core:test` & `:host:test` pass). |
 | A9 | Local host reports (Report 1 Verification + Final Sanitization Certificate with SHA-256 integrity). | **Done** in git (`:core:test` & `:host:test` pass). |
-| A10–A13 | Test matrix, freeze docs, controlled GitHub commits | Ongoing |
+| A10 | Multi-OEM & Compatibility Matrix (Levels A–F, Android 8–16, Windows 10/11 baseline). | **Done** in git (`:core:test` & `:host:test` pass). |
+| A11–A13 | Customer desktop freeze alignment, docs, and final branch verification | Ongoing |
 
 ## Identifier / honesty policy
 
