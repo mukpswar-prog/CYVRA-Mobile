@@ -184,6 +184,8 @@ class HostReportEngineTest {
         assertTrue(md.contains("# CYVRA Data Sanitization & Verification Certificate"), "MD contains title")
         assertTrue(md.contains("PURGE-OP-99"), "MD contains OP ID")
         assertTrue(md.contains("PLATFORM_REPORTED_COMPLETE"), "MD contains status")
+        assertTrue(md.contains("DEVICE_OOBE"), "MD contains OOBE transport state")
+        assertTrue(md.contains("User Accounts Removed"), "MD contains account removal status")
     }
 
     @Test

@@ -114,6 +114,9 @@ class HostReportEngine(
             verificationResult = verificationResult,
             nistStandardReference = "NIST SP 800-88 Rev. 2",
             assuranceDeclaration = verificationResult.assuranceLevel,
+            postResetAdbState = if (verificationResult.postResetStateDetected) "DEVICE_OOBE" else "DISCONNECTED",
+            setupWizardConfirmed = verificationResult.setupWizardDetected,
+            userAccountsRemoved = verificationResult.userDataInaccessible,
             limitations = limitations + verificationResult.limitations,
             integrity = null,
         )
@@ -314,8 +317,10 @@ class HostReportEngine(
             appendLine()
             appendLine("## 2. Post-Reset Verification")
             appendLine("- **Verification Status:** ${report.verificationResult.status}")
+            appendLine("- **Post-Reset Transport State:** ${report.postResetAdbState}")
             appendLine("- **Setup Wizard Detected:** ${report.verificationResult.setupWizardDetected}")
             appendLine("- **User Data Inaccessible:** ${report.verificationResult.userDataInaccessible}")
+            appendLine("- **User Accounts Removed:** ${report.userAccountsRemoved}")
             appendLine()
             appendLine("## 3. Limitations & Disclaimers")
             report.limitations.forEach { appendLine("- $it") }

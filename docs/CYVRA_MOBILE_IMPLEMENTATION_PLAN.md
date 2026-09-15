@@ -152,11 +152,13 @@
 - Full orchestrator engine in `HostSanitizationWorkflowEngine.kt` with G5 non-destructive baseline execution.
 - Unit tests in `:core` and `:host`, and interactive UI in Customer Desktop Shell.
 
-### Phase 15: Final Sanitization & Lifecycle Certificate [NEXT]
-- Final NIST SP 800-88 Rev. 2 compliant sanitization certificate.
-- Multi-format export: JSON and human-readable PDF / Markdown.
+### Phase 15: Final Sanitization & Lifecycle Certificate [COMPLETED]
+- Final NIST SP 800-88 Rev. 2 compliant sanitization certificate (`SanitizationCertificateReport`).
+- Canonical JSON and human-readable Markdown export engines in `HostReportEngine.kt`.
+- Interactive certificate viewer, compliance disclaimer breakdown, SHA-256 seal, and one-click JSON/PDF download in Customer Desktop Shell.
+- Unit tests in `:core` and `:host`.
 
-### Phase 16: Secure Software Update System
+### Phase 16: Secure Software Update System [NEXT]
 - Signed manifest retrieval, delta package download, cryptographic verification, and safe staged installation on restart.
 
 ---

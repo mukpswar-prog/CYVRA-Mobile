@@ -110,4 +110,111 @@ class ReportModelsTest {
         assertEquals(2, decoded.gradingDecision.physicalFindingsSummary.size)
         assertEquals("dummy-sha256-hash", decoded.integrity?.contentDigest)
     }
+
+    @Test
+    fun serializesAndDeserializesSanitizationCertificateReport() {
+        val dummyField = EvidenceFieldResult("test", EvidenceStatus.AVAILABLE, "ADB")
+        val dummyId = DeviceIdentifierRecord("SERIAL", "SERIAL123", "ADB", "DEVICE", EvidenceStatus.AVAILABLE)
+        val identity = DeviceIdentityEvidence(
+            manufacturer = EvidenceFieldResult("samsung", EvidenceStatus.AVAILABLE, "ADB"),
+            brand = EvidenceFieldResult("samsung", EvidenceStatus.AVAILABLE, "ADB"),
+            model = EvidenceFieldResult("SM-G991B", EvidenceStatus.AVAILABLE, "ADB"),
+            device = dummyField,
+            product = dummyField,
+            buildId = dummyField,
+            androidVersion = EvidenceFieldResult("14", EvidenceStatus.AVAILABLE, "ADB"),
+            apiLevel = EvidenceFieldResult(34, EvidenceStatus.AVAILABLE, "ADB"),
+            securityPatch = dummyField,
+            platformIdentifier = dummyField,
+            hardwareSerial = dummyId,
+            imei = dummyId,
+        )
+
+        val storage = StorageEvidence(
+            internalTotalBytes = EvidenceFieldResult(128000000000L, EvidenceStatus.AVAILABLE, "ADB"),
+            internalAvailableBytes = EvidenceFieldResult(120000000000L, EvidenceStatus.AVAILABLE, "ADB"),
+            externalStoragePresent = EvidenceFieldResult(false, EvidenceStatus.AVAILABLE, "ADB"),
+            scopedStorageEnforced = EvidenceFieldResult(true, EvidenceStatus.AVAILABLE, "ADB"),
+        )
+
+        val battery = BatteryEvidence(
+            levelPercent = EvidenceFieldResult(85, EvidenceStatus.AVAILABLE, "ADB"),
+            isCharging = EvidenceFieldResult(true, EvidenceStatus.AVAILABLE, "ADB"),
+            health = EvidenceFieldResult("GOOD", EvidenceStatus.AVAILABLE, "ADB"),
+            stateOfHealthSoh = EvidenceFieldResult(null, EvidenceStatus.RESTRICTED, "ADB"),
+        )
+
+        val preRecord = PreSanitizationRecord(
+            operationId = "PURGE-OP-01",
+            sessionUuid = "SESS-1001",
+            identity = identity,
+            storageSnapshot = storage,
+            batterySnapshot = battery,
+            selectedMethod = SanitizationMethodType.CLEAR_PLATFORM_RESET,
+            capabilityAssessment = DeviceCapabilityAssessment(
+                manufacturer = "samsung",
+                model = "SM-G991B",
+                apiLevel = 34,
+                isOemAdapterAvailable = false,
+                resolvedOemAdapter = null,
+                capabilities = emptyList(),
+                recommendedPurgeAction = "PLATFORM FACTORY RESET",
+            ),
+            authorization = AuthorizationRequirement(
+                operationId = "PURGE-OP-01",
+                requiresOperatorConfirmation = true,
+                confirmationPhrase = "CONFIRM PURGE",
+                isAuthorized = true,
+                authorizedBy = "operator@cyvoriq.com",
+            ),
+            operatorId = "operator@cyvoriq.com",
+        )
+
+        val executionResult = SanitizationExecutionResult(
+            operationId = "PURGE-OP-01",
+            method = SanitizationMethodType.CLEAR_PLATFORM_RESET,
+            isSuccess = true,
+            executionStatus = "SIMULATED_SUCCESS_G5_NON_DESTRUCTIVE",
+        )
+
+        val verificationResult = VerificationResult(
+            operationId = "PURGE-OP-01",
+            sessionUuid = "SESS-1001",
+            status = SanitizationVerificationStatus.VERIFIED,
+            postResetStateDetected = true,
+            userDataInaccessible = true,
+            setupWizardDetected = true,
+            assuranceLevel = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
+        )
+
+        val certReport = SanitizationCertificateReport(
+            header = createSampleHeader().copy(
+                reportId = "CYVRA-CERT-2026-90412",
+                reportTitle = "CYVRA Data Sanitization & Verification Certificate",
+            ),
+            preSanitizationRecord = preRecord,
+            executionResult = executionResult,
+            verificationResult = verificationResult,
+            nistStandardReference = "NIST SP 800-88 Rev. 2",
+            assuranceDeclaration = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
+            postResetAdbState = "DEVICE_OOBE",
+            setupWizardConfirmed = true,
+            userAccountsRemoved = true,
+            integrity = ReportIntegrityRecord(
+                algorithm = "SHA-256",
+                contentDigest = "hash-1234567890",
+            ),
+        )
+
+        val json = Json { prettyPrint = true; encodeDefaults = true }
+        val serialized = json.encodeToString(certReport)
+        val decoded = json.decodeFromString<SanitizationCertificateReport>(serialized)
+
+        assertEquals("CYVRA-CERT-2026-90412", decoded.header.reportId)
+        assertEquals("NIST SP 800-88 Rev. 2", decoded.nistStandardReference)
+        assertEquals("DEVICE_OOBE", decoded.postResetAdbState)
+        assertTrue(decoded.setupWizardConfirmed)
+        assertTrue(decoded.userAccountsRemoved)
+        assertEquals(SanitizationVerificationStatus.VERIFIED, decoded.verificationResult.status)
+    }
 }

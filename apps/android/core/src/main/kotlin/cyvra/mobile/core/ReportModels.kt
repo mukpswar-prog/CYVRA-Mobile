@@ -57,7 +57,7 @@ data class DeviceVerificationReport(
 )
 
 /**
- * Final Report: CYVRA Data Sanitization & Verification Certificate (§3, §40).
+ * Final Report: CYVRA Data Sanitization & Verification Certificate (§3, §40, Phase 15).
  * Complete tamper-evident record combining pre-purge identity snapshot,
  * operator authorization, execution timestamp, method specifics,
  * post-reboot verification evidence, and NIST SP 800-88 Rev. 2 assurance declarations.
@@ -70,6 +70,9 @@ data class SanitizationCertificateReport(
     val verificationResult: VerificationResult,
     val nistStandardReference: String = "NIST SP 800-88 Rev. 2",
     val assuranceDeclaration: String,
+    val postResetAdbState: String = "DEVICE_OOBE",
+    val setupWizardConfirmed: Boolean = true,
+    val userAccountsRemoved: Boolean = true,
     val limitations: List<String> = emptyList(),
     val integrity: ReportIntegrityRecord? = null,
 )
