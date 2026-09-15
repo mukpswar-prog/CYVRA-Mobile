@@ -17,6 +17,7 @@ import {
 import { mailConfigured, mailFromHost, sendOtpEmail } from "./email";
 import { adminRoutes } from "./admin";
 import { evidenceRoutes } from "./evidence";
+import { licenseRoutes } from "./license";
 import { reportRoutes } from "./reports";
 import type { Env } from "./env";
 import {
@@ -239,6 +240,7 @@ app.get("/me", async (c) => {
 
 app.route("/evidence", evidenceRoutes);
 app.route("/reports", reportRoutes);
+app.route("/license", licenseRoutes);
 app.route("/admin", adminRoutes);
 
 app.post("/auth/logout", async (c) => {

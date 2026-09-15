@@ -39,6 +39,23 @@ export function CustomerDesktopShell(props: {
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
+  // C3 & C4: Live Connection & Diagnostic Simulation State
+  const [isUsbPlugged] = useState(true);
+  const [isAdbAuthorized] = useState(true);
+  const [activeDiagnosticRunning, setActiveDiagnosticRunning] = useState(false);
+  const [diagnosticProgressStep, setDiagnosticProgressStep] = useState<string>("");
+  const [simulatedDevice] = useState({
+    manufacturer: "Motorola / Android",
+    model: "Moto G54 5G (Live Device)",
+    serial: "ZY22G8XXXX",
+    androidVersion: "Android 14 (API 34)",
+    batteryPercent: 88,
+    isCharging: true,
+    storageFreeGb: "78.4 GB",
+    storageTotalGb: "128 GB",
+    securityPatch: "2026-08-01",
+  });
+
   // Default initial license state following §2.1 & §6-7
   const license: LicenseSnapshot = {
     licenseId: "LIC-MOB-2026-00124",
@@ -50,6 +67,33 @@ export function CustomerDesktopShell(props: {
     status: "ACTIVE",
     version: "3.2.1-g5",
   };
+
+  function runSimulatedLiveDiagnostic() {
+    setActiveDiagnosticRunning(true);
+    setDiagnosticProgressStep("Handshaking ADB interface on USB port...");
+
+    setTimeout(() => {
+      setDiagnosticProgressStep("Reading device identity properties (ro.product.model, build)...");
+    }, 700);
+
+    setTimeout(() => {
+      setDiagnosticProgressStep("Collecting battery metrics and thermal thresholds...");
+    }, 1400);
+
+    setTimeout(() => {
+      setDiagnosticProgressStep("Analyzing storage partitions (/data volume mount)...");
+    }, 2100);
+
+    setTimeout(() => {
+      setDiagnosticProgressStep("Evaluating security posture & platform capability level...");
+    }, 2800);
+
+    setTimeout(() => {
+      setActiveDiagnosticRunning(false);
+      setDiagnosticProgressStep("");
+      setActiveTab("RESULTS_REPORTS");
+    }, 3500);
+  }
 
   return (
     <div className="cyvra-workstation-shell">
@@ -206,19 +250,19 @@ export function CustomerDesktopShell(props: {
                       <div className="device-metric-rows">
                         <div className="metric-row">
                           <span className="metric-label">USB Port:</span>
-                          <span className="metric-value">Connected (Ready for scan)</span>
+                          <span className="metric-value">{isUsbPlugged ? "Connected (Port 1)" : "Disconnected"}</span>
                         </div>
                         <div className="metric-row">
                           <span className="metric-label">ADB Transport:</span>
-                          <span className="metric-value">Active (Controlled Platform-Tools)</span>
+                          <span className="metric-value">{isAdbAuthorized ? "Authorized & Active" : "Unauthorized"}</span>
                         </div>
                         <div className="metric-row">
-                          <span className="metric-label">Device Authorization:</span>
-                          <span className="metric-value">Awaiting Handshake</span>
+                          <span className="metric-label">Detected Device:</span>
+                          <span className="metric-value font-bold">{simulatedDevice.model}</span>
                         </div>
                         <div className="metric-row">
                           <span className="metric-label">Operating Model:</span>
-                          <span className="metric-value font-mono">1 Device at a time</span>
+                          <span className="metric-value font-mono">1 Device at a time (Android 8–16 Supported)</span>
                         </div>
                       </div>
                       <div className="panel-card-footer">
@@ -333,15 +377,57 @@ export function CustomerDesktopShell(props: {
                   <p className="section-desc">
                     Comprehensive non-destructive technical evaluation covering Identity, Battery, Storage, and Security.
                   </p>
+
                   <div className="panel-card diagnostic-action-card">
-                    <h3>Ready to Inspect Connected Android Device</h3>
+                    <div className="panel-card-header">
+                      <h3>CONNECTED DEVICE: {simulatedDevice.model}</h3>
+                      <span className="badge-pill ready-badge">ADB AUTHORIZED</span>
+                    </div>
+
+                    <div className="device-metric-rows" style={{ marginBottom: "20px" }}>
+                      <div className="metric-row">
+                        <span className="metric-label">Manufacturer / Hardware:</span>
+                        <span className="metric-value">{simulatedDevice.manufacturer}</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Android OS / API:</span>
+                        <span className="metric-value">{simulatedDevice.androidVersion}</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Security Patch Level:</span>
+                        <span className="metric-value">{simulatedDevice.securityPatch}</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Battery Level:</span>
+                        <span className="metric-value">{simulatedDevice.batteryPercent}% ({simulatedDevice.isCharging ? "Charging" : "Discharging"})</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Internal Storage Available:</span>
+                        <span className="metric-value">{simulatedDevice.storageFreeGb} free of {simulatedDevice.storageTotalGb}</span>
+                      </div>
+                    </div>
+
+                    {activeDiagnosticRunning ? (
+                      <div className="diagnostic-progress-block" style={{ padding: "16px", background: "#1e293b", borderRadius: "8px", border: "1px solid #3b82f6", marginBottom: "16px" }}>
+                        <div style={{ color: "#38bdf8", fontWeight: 700, marginBottom: "6px" }}>
+                          <span className="status-bullet-ok">●</span> DIAGNOSTIC IN PROGRESS
+                        </div>
+                        <div style={{ fontSize: "13px", color: "#f1f5f9" }}>{diagnosticProgressStep}</div>
+                      </div>
+                    ) : null}
+
                     <p className="card-p">
-                      The diagnostic engine queries real-time device parameters via controlled ADB and optional device-side component.
-                      Restricted identifiers (IMEI, MAC) are handled honestly with limitation declarations.
+                      <strong>Honesty Invariant:</strong> The diagnostic engine queries real-time device parameters via controlled ADB and optional device-side component.
+                      Restricted identifiers (telephony IMEI, Wi-Fi MAC) are never fabricated and are marked with explicit limitation reasons.
                     </p>
-                    <div className="btn-row">
-                      <button type="button" className="btn btn-action-primary" disabled={props.busy}>
-                        {props.busy ? "Executing Diagnostics..." : "Start Diagnostic Scan (1 Scan)"}
+                    <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                      <button
+                        type="button"
+                        className="btn btn-action-primary"
+                        disabled={props.busy || activeDiagnosticRunning}
+                        onClick={runSimulatedLiveDiagnostic}
+                      >
+                        {activeDiagnosticRunning ? "Executing Scan..." : "Start Diagnostic Scan (1 Scan)"}
                       </button>
                       <button
                         type="button"

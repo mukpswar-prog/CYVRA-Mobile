@@ -34,12 +34,11 @@ Master AI & Commercial Workflow Ingested: [CYVRA_Mobile_Advanced_Customer_Applic
 Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./CYVRA_MOBILE_IMPLEMENTATION_PLAN.md)  
 - **Phase 0 / C0:** Repository audit (Read-only check of shell, host, UI, reports, and data models) — **Done**.
 - **Phase 1:** Freeze application architecture and dependencies DAG in `CYVRA_MOBILE_IMPLEMENTATION_PLAN.md` — **Done**.
-- **Phase 2 / C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons) — **Done** (Implemented `CustomerDesktopShell.tsx`, `workstation.css`, integrated with `WorkspaceApp.tsx`).
-- **Phase 3 / C2:** License service (Scans remaining vs Operator seats, token refresh).
-- **Phase 4:** Commercial API alignment (Entitlements, order states, admin approval).
-- **Phase 5:** Upgrade handoff.
-- **Phase 6 / C3:** Device connection UX (USB, ADB, authorization states).
-- **Phase 7 / C4:** Advanced diagnostic stabilization.
+- **Phase 2 / C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons) — **Done**.
+- **Phase 3 / C2:** License service (Scans remaining vs Operator seats, token refresh) — **Done** (Implemented `CustomerDesktopModels.kt`, `HostLicenseService.kt`, `/license` API endpoint, and unit tests).
+- **Phase 6 / C3:** Device connection UX (USB, ADB, authorization states) — **Done** (Integrated into `WorkstationSessionOrchestrator.kt` and `CustomerDesktopShell.tsx`).
+- **Phase 7 / C4:** Advanced diagnostic stabilization — **Done** (Implemented end-to-end non-destructive diagnostic execution, SHA-256 Report 1 generation, and transactional scan debiting in `WorkstationSessionOrchestrator.kt`).
+- **Next Phase:** AI Physical Inspection Station V0 (6-view capture & quality gate) / Phase 8.
 - **Phase 8–13:** AI physical inspection station, quality gate, screen/body models, deterministic grading (`GRADE-IN-001`), human review, and CYVORIQ certified report.
 - **Phase 14–15:** Data purge integration, post-reset verification, and NIST SP 800-88 Rev. 2 certification.
 

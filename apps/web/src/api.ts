@@ -112,6 +112,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ processingSessionId }),
     }),
+  getLicense: () =>
+    request<{
+      licenseId: string;
+      serialNumber: string;
+      customerEmail: string;
+      customerName: string | null;
+      companyName: string | null;
+      planName: string;
+      deviceScanEntitlement: number;
+      scansUsed: number;
+      scansRemaining: number;
+      revision: number;
+      status: "ACTIVE" | "EXPIRED" | "REVOKED" | "SUPERSEDED" | "SERVER_UNAVAILABLE";
+      lastVerifiedAt: string;
+    }>("/license"),
 };
 
 export interface ReportSession {
