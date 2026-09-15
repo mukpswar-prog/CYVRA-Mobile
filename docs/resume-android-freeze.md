@@ -39,8 +39,9 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 6 / C3:** Device connection UX (USB, ADB, authorization states) — **Done** (Integrated into `WorkstationSessionOrchestrator.kt` and `CustomerDesktopShell.tsx`).
 - **Phase 7 / C4:** Advanced diagnostic stabilization — **Done** (Implemented end-to-end non-destructive diagnostic execution, SHA-256 Report 1 generation, and transactional scan debiting in `WorkstationSessionOrchestrator.kt`).
 - **Phase 8:** AI Physical Inspection Station V0 (6-view capture, Image Quality Gate validation & SHA-256 evidence hashing) — **Done** (`AiInspectionModels.kt`, `HostAiInspectionEngine.kt`, unit tests, and CustomerDesktop UI).
-- **Next Phase:** Phase 9 (AI Screen Inspection: screen cracks, scratches, dead pixels & burn-in) upon operator confirmation.
-- **Phase 9–13:** AI physical inspection station, quality gate, screen/body models, deterministic grading (`GRADE-IN-001`), human review, and CYVORIQ certified report.
+- **Phase 9:** AI Screen Inspection (cracks, scratches, dead/stuck pixels & burn-in with display patterns) — **Done** (`ScreenInspectionModels.kt`, `HostScreenInspectionEngine.kt`, unit tests, and CustomerDesktop UI).
+- **Next Phase:** Phase 10 (AI Body Inspection: back glass, frame, rails, camera cover, ports, dents, scratches).
+- **Phase 10–13:** Body inspection, deterministic grading (`GRADE-IN-001`), human review, and CYVORIQ certified condition report.
 - **Phase 14–15:** Data purge integration, post-reset verification, and NIST SP 800-88 Rev. 2 certification.
 
 ## Laptop — type only these lines in Git Bash

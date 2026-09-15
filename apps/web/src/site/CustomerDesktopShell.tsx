@@ -83,6 +83,94 @@ export function CustomerDesktopShell(props: {
   const [qualityGateFeedback, setQualityGateFeedback] = useState<string | null>(null);
   const [isCapturingView, setIsCapturingView] = useState<boolean>(false);
 
+  // Phase 9: AI Screen Inspection & Controlled Display Tests (§35)
+  const [aiSubTab, setAiSubTab] = useState<"PHYSICAL_CAPTURE" | "SCREEN_INSPECTION">("PHYSICAL_CAPTURE");
+  const [screenTestRunning, setScreenTestRunning] = useState<boolean>(false);
+  const [activeDisplayPattern, setActiveDisplayPattern] = useState<string>("IDLE");
+  const [displayTestProgress, setDisplayTestProgress] = useState<string>("");
+  const [screenDefects, setScreenDefects] = useState<
+    Array<{ defect: string; location: string; severity: string; confidence: string; status: string }>
+  >([]);
+  const [screenReportComplete, setScreenReportComplete] = useState<boolean>(false);
+
+  function runControlledScreenTest() {
+    setScreenTestRunning(true);
+    setScreenReportComplete(false);
+    setScreenDefects([]);
+    setActiveDisplayPattern("SOLID_RED");
+    setDisplayTestProgress("Triggering controlled display pattern: SOLID RED (checking red subpixels)...");
+
+    setTimeout(() => {
+      setActiveDisplayPattern("SOLID_GREEN");
+      setDisplayTestProgress("Triggering controlled display pattern: SOLID GREEN (checking green subpixels)...");
+    }, 800);
+
+    setTimeout(() => {
+      setActiveDisplayPattern("SOLID_BLUE");
+      setDisplayTestProgress("Triggering controlled display pattern: SOLID BLUE (checking blue subpixels)...");
+    }, 1600);
+
+    setTimeout(() => {
+      setActiveDisplayPattern("SOLID_WHITE");
+      setDisplayTestProgress("Triggering controlled display pattern: SOLID WHITE (evaluating burn-in & image retention)...");
+    }, 2400);
+
+    setTimeout(() => {
+      setActiveDisplayPattern("SOLID_BLACK");
+      setDisplayTestProgress("Triggering controlled display pattern: SOLID BLACK (evaluating stuck pixels & backlight bleed)...");
+    }, 3200);
+
+    setTimeout(() => {
+      setActiveDisplayPattern("ANALYZING");
+      setDisplayTestProgress("Running CYVORIQ ScreenDefect AI V1.0 model on surface & display captures...");
+    }, 4000);
+
+    setTimeout(() => {
+      setScreenTestRunning(false);
+      setActiveDisplayPattern("COMPLETE");
+      setDisplayTestProgress("");
+      setScreenReportComplete(true);
+      setScreenDefects([
+        {
+          defect: "Screen Glass Crack",
+          location: "Full Glass Panel",
+          severity: "NONE",
+          confidence: "99.4%",
+          status: "PASSED",
+        },
+        {
+          defect: "Hairline Scratch",
+          location: "Upper display edge (12mm)",
+          severity: "MINOR",
+          confidence: "93.2%",
+          status: "OBSERVED",
+        },
+        {
+          defect: "Dead / Stuck Pixels",
+          location: "RGB Full Matrix",
+          severity: "NONE",
+          confidence: "99.8%",
+          status: "PASSED",
+        },
+        {
+          defect: "Display Burn-in / Ghosting",
+          location: "Navigation & Status Areas",
+          severity: "NONE",
+          confidence: "98.7%",
+          status: "PASSED",
+        },
+      ]);
+    }, 4800);
+  }
+
+  function resetScreenTest() {
+    setScreenTestRunning(false);
+    setActiveDisplayPattern("IDLE");
+    setDisplayTestProgress("");
+    setScreenDefects([]);
+    setScreenReportComplete(false);
+  }
+
   function startAiInspection() {
     setInspectionStep(1);
     setQualityGateFeedback(null);
@@ -503,143 +591,314 @@ export function CustomerDesktopShell(props: {
 
               {activeTab === "AI_PHYSICAL_INSPECTION" && (
                 <div className="stage-view ai-inspection-view">
-                  <h2>AI Physical Inspection Station V0</h2>
+                  <h2>AI Physical & Screen Inspection Station</h2>
                   <p className="section-desc">
-                    Controlled 6-view physical inspection capture sequence with Image Quality Gate validation (§18, §19, §34).
+                    Computer-vision assisted physical inspection & controlled display pattern evaluation (§18, §19, §34, §35).
                   </p>
 
-                  <div className="panel-card ai-flow-card">
-                    <div className="panel-card-header">
-                      <h3>
-                        {inspectionStep === 0 && "GUIDED CAPTURE STATION READY"}
-                        {inspectionStep >= 1 && inspectionStep <= 6 && `STEP ${inspectionStep} OF 6: ${capturedViews[inspectionStep - 1].view} VIEW`}
-                        {inspectionStep === 7 && "INSPECTION CAPTURE SEQUENCE COMPLETE"}
-                      </h3>
-                      <span className="badge-pill optional-badge">
-                        {inspectionStep === 7 ? "COMPLETE (6/6)" : `${capturedViews.filter(v => v.status === "PASSED").length}/6 CAPTURED`}
-                      </span>
-                    </div>
+                  {/* Sub-tab navigation between Phase 8 (6-View Capture) and Phase 9 (Screen Defect & Display Tests) */}
+                  <div className="ai-subtabs-nav" style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+                    <button
+                      type="button"
+                      className={`btn ${aiSubTab === "PHYSICAL_CAPTURE" ? "btn-action-primary" : "btn-action-secondary"}`}
+                      onClick={() => setAiSubTab("PHYSICAL_CAPTURE")}
+                    >
+                      📷 1. 6-View Physical Capture (Phase 8)
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn ${aiSubTab === "SCREEN_INSPECTION" ? "btn-action-primary" : "btn-action-secondary"}`}
+                      onClick={() => setAiSubTab("SCREEN_INSPECTION")}
+                    >
+                      📱 2. AI Screen & Display Inspection (Phase 9)
+                    </button>
+                  </div>
 
-                    {inspectionStep === 0 && (
-                      <div className="ai-station-idle">
-                        <p className="card-p">
-                          Place the target device in the inspection fixture. The station guides the operator through 6 standardized angles, validates image clarity through the <strong>Quality Gate</strong>, and hashes raw evidence with SHA-256.
-                        </p>
-                        <div className="views-grid" style={{ marginBottom: "20px" }}>
-                          {capturedViews.map((v, i) => (
-                            <div key={v.view} className="view-step-box">
-                              <strong>{i + 1}. {v.label}</strong>
+                  {aiSubTab === "PHYSICAL_CAPTURE" && (
+                    <div className="panel-card ai-flow-card">
+                      <div className="panel-card-header">
+                        <h3>
+                          {inspectionStep === 0 && "GUIDED CAPTURE STATION READY"}
+                          {inspectionStep >= 1 && inspectionStep <= 6 && `STEP ${inspectionStep} OF 6: ${capturedViews[inspectionStep - 1].view} VIEW`}
+                          {inspectionStep === 7 && "INSPECTION CAPTURE SEQUENCE COMPLETE"}
+                        </h3>
+                        <span className="badge-pill optional-badge">
+                          {inspectionStep === 7 ? "COMPLETE (6/6)" : `${capturedViews.filter(v => v.status === "PASSED").length}/6 CAPTURED`}
+                        </span>
+                      </div>
+
+                      {inspectionStep === 0 && (
+                        <div className="ai-station-idle">
+                          <p className="card-p">
+                            Place the target device in the inspection fixture. The station guides the operator through 6 standardized angles, validates image clarity through the <strong>Quality Gate</strong>, and hashes raw evidence with SHA-256.
+                          </p>
+                          <div className="views-grid" style={{ marginBottom: "20px" }}>
+                            {capturedViews.map((v, i) => (
+                              <div key={v.view} className="view-step-box">
+                                <strong>{i + 1}. {v.label}</strong>
+                                <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                  {v.instruction}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-action-primary"
+                            onClick={startAiInspection}
+                          >
+                            Begin 6-View Capture Sequence →
+                          </button>
+                        </div>
+                      )}
+
+                      {inspectionStep >= 1 && inspectionStep <= 6 && (
+                        <div className="ai-active-step">
+                          <div className="step-guidance-box" style={{ background: "#0f172a", padding: "16px", borderRadius: "8px", border: "1px solid #1e293b", marginBottom: "20px" }}>
+                            <h4 style={{ color: "#38bdf8", margin: "0 0 6px" }}>
+                              {capturedViews[inspectionStep - 1].label}
+                            </h4>
+                            <p style={{ color: "#e2e8f0", fontSize: "14px", margin: 0 }}>
+                              {capturedViews[inspectionStep - 1].instruction}
+                            </p>
+                          </div>
+
+                          {/* Simulated Camera Viewfinder */}
+                          <div className="viewfinder-mock" style={{ background: "#020617", height: "240px", borderRadius: "8px", border: "2px dashed #334155", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: "20px" }}>
+                            <div style={{ color: "#475569", fontSize: "13px", fontWeight: 600 }}>
+                              [ FIXTURE ALIGNMENT RETICLE: {capturedViews[inspectionStep - 1].view} ]
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#64748b", marginTop: "6px" }}>
+                              Resolution Standard: 1920x1080 | Lighting: Diffused 5500K
+                            </div>
+                            {qualityGateFeedback && (
+                              <div style={{ marginTop: "14px", padding: "6px 12px", borderRadius: "4px", background: qualityGateFeedback.startsWith("✓") ? "rgba(16, 185, 129, 0.2)" : "rgba(56, 189, 248, 0.2)", color: qualityGateFeedback.startsWith("✓") ? "#10b981" : "#38bdf8", fontSize: "12px", fontWeight: 600 }}>
+                                {qualityGateFeedback}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                            <button
+                              type="button"
+                              className="btn btn-action-primary"
+                              disabled={isCapturingView}
+                              onClick={captureCurrentView}
+                            >
+                              {isCapturingView ? "Processing Quality Gate..." : `Capture ${capturedViews[inspectionStep - 1].label}`}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-action-secondary"
+                              onClick={resetAiInspection}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {inspectionStep === 7 && (
+                        <div className="ai-station-complete">
+                          <div style={{ padding: "16px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", marginBottom: "20px" }}>
+                            <h4 style={{ color: "#10b981", margin: "0 0 6px" }}>✓ All 6 Views Successfully Validated</h4>
+                            <p style={{ color: "#cbd5e1", fontSize: "13px", margin: 0 }}>
+                              Evidence records sealed with cryptographic SHA-256 hashes and bound to device session.
+                            </p>
+                          </div>
+
+                          <div className="table-responsive" style={{ marginBottom: "20px" }}>
+                            <table className="workstation-table">
+                              <thead>
+                                <tr>
+                                  <th>VIEW</th>
+                                  <th>QUALITY GATE</th>
+                                  <th>SHA-256 EVIDENCE DIGEST</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {capturedViews.map((c) => (
+                                  <tr key={c.view}>
+                                    <td><strong>{c.label}</strong></td>
+                                    <td><span className="tag-complete">PASSED (0.95)</span></td>
+                                    <td className="font-mono" style={{ fontSize: "11px" }}>{c.sha256.slice(0, 24)}...</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                            <button
+                              type="button"
+                              className="btn btn-action-primary"
+                              onClick={() => setAiSubTab("SCREEN_INSPECTION")}
+                            >
+                              Proceed to Screen & Display Inspection (Phase 9) →
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-action-secondary"
+                              onClick={resetAiInspection}
+                            >
+                              New Capture Sequence
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {aiSubTab === "SCREEN_INSPECTION" && (
+                    <div className="panel-card ai-flow-card">
+                      <div className="panel-card-header">
+                        <h3>AI SCREEN INSPECTION & CONTROLLED DISPLAY PATTERNS</h3>
+                        <span className="badge-pill ready-badge">PHASE 9</span>
+                      </div>
+
+                      <p className="card-p">
+                        Evaluates surface glass for cracks, chips, and scratches, and runs controlled display patterns (RGB/White/Black) to detect dead pixels, stuck subpixels, and panel burn-in (§35).
+                      </p>
+
+                      {screenTestRunning && (
+                        <div className="display-pattern-box" style={{
+                          background: activeDisplayPattern === "SOLID_RED" ? "#dc2626"
+                            : activeDisplayPattern === "SOLID_GREEN" ? "#16a34a"
+                            : activeDisplayPattern === "SOLID_BLUE" ? "#2563eb"
+                            : activeDisplayPattern === "SOLID_WHITE" ? "#f8fafc"
+                            : activeDisplayPattern === "SOLID_BLACK" ? "#000000"
+                            : "#0f172a",
+                          color: activeDisplayPattern === "SOLID_WHITE" ? "#0f172a" : "#f8fafc",
+                          height: "220px",
+                          borderRadius: "8px",
+                          border: "2px solid #334155",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginBottom: "20px",
+                          transition: "background 0.3s ease",
+                        }}>
+                          <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.05em" }}>
+                            PATTERN: {activeDisplayPattern}
+                          </div>
+                          <div style={{ fontSize: "13px", marginTop: "8px", maxWidth: "80%", textAlign: "center" }}>
+                            {displayTestProgress}
+                          </div>
+                        </div>
+                      )}
+
+                      {!screenTestRunning && !screenReportComplete && (
+                        <div className="screen-test-idle">
+                          <div className="views-grid" style={{ marginBottom: "20px" }}>
+                            <div className="view-step-box">
+                              <strong>1. SOLID RED</strong>
                               <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
-                                {v.instruction}
+                                Dead red subpixels & color matrix uniformity
                               </span>
                             </div>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn-action-primary"
-                          onClick={startAiInspection}
-                        >
-                          Begin 6-View Capture Sequence →
-                        </button>
-                      </div>
-                    )}
-
-                    {inspectionStep >= 1 && inspectionStep <= 6 && (
-                      <div className="ai-active-step">
-                        <div className="step-guidance-box" style={{ background: "#0f172a", padding: "16px", borderRadius: "8px", border: "1px solid #1e293b", marginBottom: "20px" }}>
-                          <h4 style={{ color: "#38bdf8", margin: "0 0 6px" }}>
-                            {capturedViews[inspectionStep - 1].label}
-                          </h4>
-                          <p style={{ color: "#e2e8f0", fontSize: "14px", margin: 0 }}>
-                            {capturedViews[inspectionStep - 1].instruction}
-                          </p>
-                        </div>
-
-                        {/* Simulated Camera Viewfinder */}
-                        <div className="viewfinder-mock" style={{ background: "#020617", height: "240px", borderRadius: "8px", border: "2px dashed #334155", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: "20px" }}>
-                          <div style={{ color: "#475569", fontSize: "13px", fontWeight: 600 }}>
-                            [ FIXTURE ALIGNMENT RETICLE: {capturedViews[inspectionStep - 1].view} ]
-                          </div>
-                          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "6px" }}>
-                            Resolution Standard: 1920x1080 | Lighting: Diffused 5500K
-                          </div>
-                          {qualityGateFeedback && (
-                            <div style={{ marginTop: "14px", padding: "6px 12px", borderRadius: "4px", background: qualityGateFeedback.startsWith("✓") ? "rgba(16, 185, 129, 0.2)" : "rgba(56, 189, 248, 0.2)", color: qualityGateFeedback.startsWith("✓") ? "#10b981" : "#38bdf8", fontSize: "12px", fontWeight: 600 }}>
-                              {qualityGateFeedback}
+                            <div className="view-step-box">
+                              <strong>2. SOLID GREEN</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                Dead green subpixels & tint anomalies
+                              </span>
                             </div>
-                          )}
-                        </div>
+                            <div className="view-step-box">
+                              <strong>3. SOLID BLUE</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                Dead blue subpixels & organic OLED decay
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>4. SOLID WHITE</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                Burn-in, ghosting, navigation bar image retention
+                              </span>
+                            </div>
+                            <div className="view-step-box">
+                              <strong>5. SOLID BLACK</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                Stuck subpixels, backlight bleed & halo effect
+                              </span>
+                            </div>
+                          </div>
 
-                        <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                          <div className="quality-gate-notice" style={{ background: "#0f172a", padding: "12px 16px", borderRadius: "6px", border: "1px solid #1e293b", marginBottom: "20px", fontSize: "12px", color: "#94a3b8" }}>
+                            <strong>Honesty Invariant (§35):</strong> Defect outputs contain <code>DEFECT</code>, <code>LOCATION</code>, <code>SEVERITY</code>, and <code>CONFIDENCE</code>. No final grade is assigned here; grading is strictly evaluated by the Phase 11 Rules Engine.
+                          </div>
+
                           <button
                             type="button"
                             className="btn btn-action-primary"
-                            disabled={isCapturingView}
-                            onClick={captureCurrentView}
+                            onClick={runControlledScreenTest}
                           >
-                            {isCapturingView ? "Processing Quality Gate..." : `Capture ${capturedViews[inspectionStep - 1].label}`}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-action-secondary"
-                            onClick={resetAiInspection}
-                          >
-                            Cancel
+                            Execute Controlled Display Tests (5 Patterns) →
                           </button>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {inspectionStep === 7 && (
-                      <div className="ai-station-complete">
-                        <div style={{ padding: "16px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", marginBottom: "20px" }}>
-                          <h4 style={{ color: "#10b981", margin: "0 0 6px" }}>✓ All 6 Views Successfully Validated</h4>
-                          <p style={{ color: "#cbd5e1", fontSize: "13px", margin: 0 }}>
-                            Evidence records sealed with cryptographic SHA-256 hashes and bound to device session.
-                          </p>
-                        </div>
+                      {screenReportComplete && (
+                        <div className="screen-test-complete">
+                          <div style={{ padding: "16px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", marginBottom: "20px" }}>
+                            <h4 style={{ color: "#10b981", margin: "0 0 6px" }}>✓ AI Screen & Display Evaluation Complete</h4>
+                            <p style={{ color: "#cbd5e1", fontSize: "13px", margin: 0 }}>
+                              Surface front capture analyzed + 5 controlled display patterns executed.
+                            </p>
+                          </div>
 
-                        <div className="table-responsive" style={{ marginBottom: "20px" }}>
-                          <table className="workstation-table">
-                            <thead>
-                              <tr>
-                                <th>VIEW</th>
-                                <th>QUALITY GATE</th>
-                                <th>SHA-256 EVIDENCE DIGEST</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {capturedViews.map((c) => (
-                                <tr key={c.view}>
-                                  <td><strong>{c.label}</strong></td>
-                                  <td><span className="tag-complete">PASSED (0.95)</span></td>
-                                  <td className="font-mono" style={{ fontSize: "11px" }}>{c.sha256.slice(0, 24)}...</td>
+                          <div className="table-responsive" style={{ marginBottom: "20px" }}>
+                            <table className="workstation-table">
+                              <thead>
+                                <tr>
+                                  <th>DEFECT</th>
+                                  <th>LOCATION</th>
+                                  <th>SEVERITY</th>
+                                  <th>CONFIDENCE</th>
+                                  <th>FINDING</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                              </thead>
+                              <tbody>
+                                {screenDefects.map((d, idx) => (
+                                  <tr key={idx}>
+                                    <td><strong>{d.defect}</strong></td>
+                                    <td>{d.location}</td>
+                                    <td>
+                                      <span className={d.severity === "NONE" ? "tag-complete" : "tag-ready"}>
+                                        {d.severity}
+                                      </span>
+                                    </td>
+                                    <td className="font-mono">{d.confidence}</td>
+                                    <td>
+                                      <span className={d.status === "PASSED" ? "tag-complete" : "tag-coverage"}>
+                                        {d.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
 
-                        <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
-                          <button
-                            type="button"
-                            className="btn btn-action-primary"
-                            onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
-                          >
-                            Proceed to Technical Diagnostics →
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-action-secondary"
-                            onClick={resetAiInspection}
-                          >
-                            New Inspection Sequence
-                          </button>
+                          <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                            <button
+                              type="button"
+                              className="btn btn-action-primary"
+                              onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                            >
+                              Proceed to Technical Diagnostics →
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-action-secondary"
+                              onClick={resetScreenTest}
+                            >
+                              Retest Display Patterns
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

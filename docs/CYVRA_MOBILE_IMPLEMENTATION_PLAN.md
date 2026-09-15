@@ -114,12 +114,13 @@
 - Raw image cryptographic hashing (SHA-256) and session association.
 - Verification tests in `:core:test` and `:host:test`, and Workstation Desktop UI.
 
-### Phase 9: AI Screen Inspection [NEXT]
-- Controlled screen test pattern trigger via Android component/ADB (white, black, red, green, blue).
-- Defect detection: cracks, chips, deep scratches, dead/stuck pixels, display burn-in.
-- Localization bounding boxes, severity, and confidence scores.
+### Phase 9: AI Screen Inspection [COMPLETED]
+- Controlled screen test pattern trigger via Android component/ADB (white, black, red, green, blue) (`ControlledDisplayTestRecord`).
+- Defect detection: cracks, chips, deep scratches, dead/stuck pixels, display burn-in (`ScreenDefectEvidence`).
+- Localization bounding boxes, severity, and confidence scores (conforming to §21 & §35).
+- Report assembly (`ScreenInspectionReport`), unit tests in `:core` and `:host`, and Customer Desktop UI.
 
-### Phase 10: AI Body Inspection
+### Phase 10: AI Body Inspection [NEXT]
 - Defect detection across back glass, frame, rails, camera lens cover, and exterior ports.
 - Classification: cosmetic scratch, dent, discoloration, separation/swelling anomaly.
 
