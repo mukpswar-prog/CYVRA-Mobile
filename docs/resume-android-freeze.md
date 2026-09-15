@@ -1,4 +1,4 @@
-# Resume here — after A5 (15 Sep 2026)
+# Resume here — after A6 (15 Sep 2026)
 
 **Start the next session from this file.**  
 **Governing freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
@@ -16,8 +16,9 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 | A2 SDK 36 / minSdk 26 | Done. Laptop `:app:assembleDebug` passed with JDK 21. `app-debug.apk` built. |
 | A3 Windows USB/ADB Host | Done. `apps/host` transport layer implemented & tested. |
 | A4 Generic evidence in :core | Done. Device identity, storage, battery, security collectors implemented and tested (`:core:test` & `:host:test` pass). |
-| A5 Capability Engine / Resolver | **Done.** Capability assessment models & standard assessment engine in `:core`, host capability coordinator in `apps/host`. All tests pass (`:core:test` & `:host:test`). |
-| A6 APK as ANDROID_COMPONENT | **Next.** Device-side supporting component bridge. |
+| A5 Capability Engine / Resolver | Done. Capability assessment models & standard assessment engine in `:core`, host capability coordinator in `apps/host`. All tests pass (`:core:test` & `:host:test`). |
+| A6 APK as ANDROID_COMPONENT | **Done.** Device-side supporting component bridge (`AndroidComponentBridge`), `HostAndroidComponentBridge`, `ComponentEvidenceReceiver`, and unit tests passing. |
+| A7 OEM adapters | **Next.** Real-hardware verified adapters only. |
 
 `minSdk = 26` is the **APK install floor** (Android 8.0+), not the Windows-host device-service floor.
 
@@ -25,7 +26,6 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 
 ```bash
 cd /c/Users/User/StudioProjects/CYVRA-Mobile
-git restore apps/android/settings.gradle.kts
 git pull
 cd apps/android
 export JAVA_HOME="C:/Program Files/Java/jdk-21"
@@ -41,9 +41,9 @@ Expected: `cyvra-mobile-android: Java 21...` and `BUILD SUCCESSFUL` running `:co
 3. **File → Sync Project with Gradle Files**. All `:core`, `:app`, and `:host` will sync.
 4. Run Gradle task `test` or click **Build → Make Project**.
 
-## Next (A6)
+## Next (A7)
 
-A6 connects the APK as `ANDROID_COMPONENT` to collect device-side metrics where permitted.
+A7 evaluates real-hardware verified OEM adapters when physical test devices (e.g. Samsung G5-A) are connected.
 
 ## Frozen pins
 

@@ -29,5 +29,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".ComponentEvidenceReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="co.in.cyvra.mobile.COLLECT_EVIDENCE" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
