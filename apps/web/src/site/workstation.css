@@ -439,6 +439,20 @@
   font-weight: 700;
 }
 
+/* AI Guided Capture Station */
+.views-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.view-step-box {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 12px;
+}
+
 .tag-complete {
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;

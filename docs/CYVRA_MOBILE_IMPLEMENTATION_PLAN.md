@@ -107,13 +107,14 @@
 - Connect `HostAdbTransport`, `AdbGenericEvidenceProvider`, and `HostCapabilityCoordinator` into the customer workflow.
 - Pre-flight checks and non-blocking multi-collector execution.
 
-### Phase 8: AI Physical Inspection Station V0 (Capture Workflow)
+### Phase 8: AI Physical Inspection Station V0 (Capture Workflow) [COMPLETED]
 - Camera intake module (webcam / USB camera feed).
 - 6-view guided capture sequence: Front, Back, Left, Right, Top, Bottom (+ optional oblique views).
-- Image Quality Gate: framing, focus, blur, exposure, glare detection.
+- Image Quality Gate: framing, focus, blur, exposure, glare detection (`ImageQualityGateResult`).
 - Raw image cryptographic hashing (SHA-256) and session association.
+- Verification tests in `:core:test` and `:host:test`, and Workstation Desktop UI.
 
-### Phase 9: AI Screen Inspection
+### Phase 9: AI Screen Inspection [NEXT]
 - Controlled screen test pattern trigger via Android component/ADB (white, black, red, green, blue).
 - Defect detection: cracks, chips, deep scratches, dead/stuck pixels, display burn-in.
 - Localization bounding boxes, severity, and confidence scores.

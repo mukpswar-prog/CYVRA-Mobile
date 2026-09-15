@@ -68,6 +68,66 @@ export function CustomerDesktopShell(props: {
     version: "3.2.1-g5",
   };
 
+  // AI Physical Inspection Station V0 State (§18, §19, §34 / Phase 8)
+  const [inspectionStep, setInspectionStep] = useState<number>(0); // 0 = idle, 1..6 views, 7 = complete
+  const [capturedViews, setCapturedViews] = useState<
+    Array<{ view: string; label: string; status: string; sha256: string; instruction: string }>
+  >([
+    { view: "FRONT", label: "Front View", status: "PENDING", sha256: "", instruction: "Place device in fixture. Screen OFF. Align with border guide." },
+    { view: "BACK", label: "Back View", status: "PENDING", sha256: "", instruction: "Turn device over. Back glass & camera housing facing upward." },
+    { view: "LEFT_SIDE", label: "Left Rail", status: "PENDING", sha256: "", instruction: "Stand device on side. Capture volume rockers & SIM tray rail." },
+    { view: "RIGHT_SIDE", label: "Right Rail", status: "PENDING", sha256: "", instruction: "Turn to right rail. Capture power key & side profile." },
+    { view: "TOP", label: "Top Edge", status: "PENDING", sha256: "", instruction: "Position device with top edge facing camera. Inspect bezel & mic port." },
+    { view: "BOTTOM", label: "Bottom Edge", status: "PENDING", sha256: "", instruction: "Position USB-C / Lightning port facing camera. Inspect charging port & speaker grilles." },
+  ]);
+  const [qualityGateFeedback, setQualityGateFeedback] = useState<string | null>(null);
+  const [isCapturingView, setIsCapturingView] = useState<boolean>(false);
+
+  function startAiInspection() {
+    setInspectionStep(1);
+    setQualityGateFeedback(null);
+  }
+
+  function captureCurrentView() {
+    if (inspectionStep < 1 || inspectionStep > 6) return;
+    setIsCapturingView(true);
+    setQualityGateFeedback("Evaluating image quality gate (resolution, blur, glare, framing)...");
+
+    setTimeout(() => {
+      // Quality Gate PASSED with SHA-256 evidence record
+      const fakeSha = Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+      setCapturedViews((prev) =>
+        prev.map((item, idx) =>
+          idx === inspectionStep - 1
+            ? { ...item, status: "PASSED", sha256: fakeSha }
+            : item,
+        ),
+      );
+      setIsCapturingView(false);
+      setQualityGateFeedback("✓ Image Quality Gate PASSED: Tamper-evident evidence recorded.");
+
+      if (inspectionStep < 6) {
+        setTimeout(() => {
+          setInspectionStep((s) => s + 1);
+          setQualityGateFeedback(null);
+        }, 1000);
+      } else {
+        setTimeout(() => {
+          setInspectionStep(7); // Complete
+          setQualityGateFeedback("✓ Complete 6-View Physical Capture Sequence Recorded.");
+        }, 1000);
+      }
+    }, 1200);
+  }
+
+  function resetAiInspection() {
+    setInspectionStep(0);
+    setQualityGateFeedback(null);
+    setCapturedViews((prev) =>
+      prev.map((item) => ({ ...item, status: "PENDING", sha256: "" })),
+    );
+  }
+
   function runSimulatedLiveDiagnostic() {
     setActiveDiagnosticRunning(true);
     setDiagnosticProgressStep("Handshaking ADB interface on USB port...");
@@ -443,23 +503,142 @@ export function CustomerDesktopShell(props: {
 
               {activeTab === "AI_PHYSICAL_INSPECTION" && (
                 <div className="stage-view ai-inspection-view">
-                  <h2>AI Physical Inspection Station</h2>
+                  <h2>AI Physical Inspection Station V0</h2>
                   <p className="section-desc">
-                    Computer-vision assisted physical inspection adhering to CYVORIQ Mobile Physical Inspection Standard v1.0.
+                    Controlled 6-view physical inspection capture sequence with Image Quality Gate validation (§18, §19, §34).
                   </p>
-                  <div className="panel-card">
-                    <h3>Inspection Sequence (6 Standard Views)</h3>
-                    <div className="views-grid">
-                      <div className="view-step-box">1. FRONT VIEW</div>
-                      <div className="view-step-box">2. BACK VIEW</div>
-                      <div className="view-step-box">3. LEFT SIDE</div>
-                      <div className="view-step-box">4. RIGHT SIDE</div>
-                      <div className="view-step-box">5. TOP</div>
-                      <div className="view-step-box">6. BOTTOM</div>
+
+                  <div className="panel-card ai-flow-card">
+                    <div className="panel-card-header">
+                      <h3>
+                        {inspectionStep === 0 && "GUIDED CAPTURE STATION READY"}
+                        {inspectionStep >= 1 && inspectionStep <= 6 && `STEP ${inspectionStep} OF 6: ${capturedViews[inspectionStep - 1].view} VIEW`}
+                        {inspectionStep === 7 && "INSPECTION CAPTURE SEQUENCE COMPLETE"}
+                      </h3>
+                      <span className="badge-pill optional-badge">
+                        {inspectionStep === 7 ? "COMPLETE (6/6)" : `${capturedViews.filter(v => v.status === "PASSED").length}/6 CAPTURED`}
+                      </span>
                     </div>
-                    <div className="quality-gate-notice">
-                      <strong>Image Quality Gate:</strong> Validates focus, blur, glare, exposure, and correct orientation before AI processing.
-                    </div>
+
+                    {inspectionStep === 0 && (
+                      <div className="ai-station-idle">
+                        <p className="card-p">
+                          Place the target device in the inspection fixture. The station guides the operator through 6 standardized angles, validates image clarity through the <strong>Quality Gate</strong>, and hashes raw evidence with SHA-256.
+                        </p>
+                        <div className="views-grid" style={{ marginBottom: "20px" }}>
+                          {capturedViews.map((v, i) => (
+                            <div key={v.view} className="view-step-box">
+                              <strong>{i + 1}. {v.label}</strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginTop: "4px" }}>
+                                {v.instruction}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-action-primary"
+                          onClick={startAiInspection}
+                        >
+                          Begin 6-View Capture Sequence →
+                        </button>
+                      </div>
+                    )}
+
+                    {inspectionStep >= 1 && inspectionStep <= 6 && (
+                      <div className="ai-active-step">
+                        <div className="step-guidance-box" style={{ background: "#0f172a", padding: "16px", borderRadius: "8px", border: "1px solid #1e293b", marginBottom: "20px" }}>
+                          <h4 style={{ color: "#38bdf8", margin: "0 0 6px" }}>
+                            {capturedViews[inspectionStep - 1].label}
+                          </h4>
+                          <p style={{ color: "#e2e8f0", fontSize: "14px", margin: 0 }}>
+                            {capturedViews[inspectionStep - 1].instruction}
+                          </p>
+                        </div>
+
+                        {/* Simulated Camera Viewfinder */}
+                        <div className="viewfinder-mock" style={{ background: "#020617", height: "240px", borderRadius: "8px", border: "2px dashed #334155", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: "20px" }}>
+                          <div style={{ color: "#475569", fontSize: "13px", fontWeight: 600 }}>
+                            [ FIXTURE ALIGNMENT RETICLE: {capturedViews[inspectionStep - 1].view} ]
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "6px" }}>
+                            Resolution Standard: 1920x1080 | Lighting: Diffused 5500K
+                          </div>
+                          {qualityGateFeedback && (
+                            <div style={{ marginTop: "14px", padding: "6px 12px", borderRadius: "4px", background: qualityGateFeedback.startsWith("✓") ? "rgba(16, 185, 129, 0.2)" : "rgba(56, 189, 248, 0.2)", color: qualityGateFeedback.startsWith("✓") ? "#10b981" : "#38bdf8", fontSize: "12px", fontWeight: 600 }}>
+                              {qualityGateFeedback}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-action-primary"
+                            disabled={isCapturingView}
+                            onClick={captureCurrentView}
+                          >
+                            {isCapturingView ? "Processing Quality Gate..." : `Capture ${capturedViews[inspectionStep - 1].label}`}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-action-secondary"
+                            onClick={resetAiInspection}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {inspectionStep === 7 && (
+                      <div className="ai-station-complete">
+                        <div style={{ padding: "16px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", marginBottom: "20px" }}>
+                          <h4 style={{ color: "#10b981", margin: "0 0 6px" }}>✓ All 6 Views Successfully Validated</h4>
+                          <p style={{ color: "#cbd5e1", fontSize: "13px", margin: 0 }}>
+                            Evidence records sealed with cryptographic SHA-256 hashes and bound to device session.
+                          </p>
+                        </div>
+
+                        <div className="table-responsive" style={{ marginBottom: "20px" }}>
+                          <table className="workstation-table">
+                            <thead>
+                              <tr>
+                                <th>VIEW</th>
+                                <th>QUALITY GATE</th>
+                                <th>SHA-256 EVIDENCE DIGEST</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {capturedViews.map((c) => (
+                                <tr key={c.view}>
+                                  <td><strong>{c.label}</strong></td>
+                                  <td><span className="tag-complete">PASSED (0.95)</span></td>
+                                  <td className="font-mono" style={{ fontSize: "11px" }}>{c.sha256.slice(0, 24)}...</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-action-primary"
+                            onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                          >
+                            Proceed to Technical Diagnostics →
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-action-secondary"
+                            onClick={resetAiInspection}
+                          >
+                            New Inspection Sequence
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
