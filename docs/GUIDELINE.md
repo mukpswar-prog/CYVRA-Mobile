@@ -473,4 +473,4 @@ LinkedIn/company copy: CYVORIQ Solutions, CYVRA, `www.cyvra.co.in`, `www.cyvoriq
 8. Detect, don’t assume. Limitations are evidence. Unavailable is not fail.
 9. No bypass. USB is not authority. Reports are derived from preserved evidence.
 
-**Next human action:** open [docs/resume-android-freeze.md](docs/resume-android-freeze.md). A6 is complete (APK supporting component bridge & receiver in `:app`, `:core`, and `apps/host` tested). Then say **execute A7** (OEM adapters / physical test matrix). Do not touch frozen www/API. Do not start Station or Knox. Do not run AGP Upgrade Assistant.
+**Next human action:** open [docs/resume-android-freeze.md](docs/resume-android-freeze.md). A8 is complete (NIST SP 800-88 Rev. 2 sanitization models, host orchestrator, and post-reset verifier implemented & tested). Then proceed with **execute A9** (Local host reports: Report 1 & Final Sanitization Certificate). Do not touch frozen www/API. Do not start Station or Knox. Do not run AGP Upgrade Assistant.

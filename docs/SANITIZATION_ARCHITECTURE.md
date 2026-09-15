@@ -48,6 +48,14 @@ The report must name method, authority, execution status, verification status, l
 
 session ID, timestamp, manufacturer/brand/model/device, Android version/API/patch, storage, battery, management state, available identifiers, capability assessment, selected method, operator/session identity, authorization, software versions.
 
+## Status and Implementation
+
+Implemented in Slice A8:
+- Data models & interfaces in `:core`: `SanitizationModels.kt` (`SanitizationMethodType`, `AuthorizationRequirement`, `PreSanitizationRecord`, `SanitizationExecutionResult`, `SanitizationVerificationStatus`, `VerificationResult`, `SanitizationProvider`, `VerificationProvider`).
+- Host-side implementations in `:host`: `HostSanitizationProvider` and `HostVerificationProvider`.
+- Non-destructive execution under G5: Defaults to simulated/dry-run execution until physical hardware validation.
+- Unit tests in `:core:test` (`SanitizationModelsTest`) and `:host:test` (`HostSanitizationProviderTest`).
+
 ## Device owner / enterprise
 
 `DevicePolicyManager` wipe is not an ordinary app privilege. Treat device-owner / profile-owner / managed-enterprise as a **future** capability unless separately approved. Do not start Knox (G10).

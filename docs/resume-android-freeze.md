@@ -1,4 +1,4 @@
-# Resume here — after A6 (15 Sep 2026)
+# Resume here — after A8 (15 Sep 2026)
 
 **Start the next session from this file.**  
 **Governing freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
@@ -17,8 +17,10 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 | A3 Windows USB/ADB Host | Done. `apps/host` transport layer implemented & tested. |
 | A4 Generic evidence in :core | Done. Device identity, storage, battery, security collectors implemented and tested (`:core:test` & `:host:test` pass). |
 | A5 Capability Engine / Resolver | Done. Capability assessment models & standard assessment engine in `:core`, host capability coordinator in `apps/host`. All tests pass (`:core:test` & `:host:test`). |
-| A6 APK as ANDROID_COMPONENT | **Done.** Device-side supporting component bridge (`AndroidComponentBridge`), `HostAndroidComponentBridge`, `ComponentEvidenceReceiver`, and unit tests passing. |
-| A7 OEM adapters | **Next.** Real-hardware verified adapters only. |
+| A6 APK as ANDROID_COMPONENT | Done. Device-side supporting component bridge (`AndroidComponentBridge`), `HostAndroidComponentBridge`, `ComponentEvidenceReceiver`, and unit tests passing. |
+| A7 OEM adapters | Evaluated for physical lab devices (Samsung G5-A). |
+| A8 Sanitization Architecture | **Done.** NIST SP 800-88 Rev. 2 models, `HostSanitizationProvider`, `HostVerificationProvider`, pre-sanitization snapshot, operator confirmation, non-destructive G5 execution, and explicit post-reset verification states implemented and tested. |
+| A9 Local Host Reports | **Next.** Local diagnostic & sanitization certificate generation. |
 
 `minSdk = 26` is the **APK install floor** (Android 8.0+), not the Windows-host device-service floor.
 
@@ -46,9 +48,9 @@ To build the APK as well:
 3. **File → Sync Project with Gradle Files**. All `:core`, `:app`, and `:host` will sync.
 4. Run Gradle task `test` or click **Build → Make Project**.
 
-## Next (A7)
+## Next (A9)
 
-A7 evaluates real-hardware verified OEM adapters when physical test devices (e.g. Samsung G5-A) are connected.
+A9 implements local host reporting (Report 1 Verification + Final Sanitization Certificate export).
 
 ## Frozen pins
 
