@@ -34,7 +34,7 @@ Master AI & Commercial Workflow Ingested: [CYVRA_Mobile_Advanced_Customer_Applic
 Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./CYVRA_MOBILE_IMPLEMENTATION_PLAN.md)  
 - **Phase 0 / C0:** Repository audit (Read-only check of shell, host, UI, reports, and data models) — **Done**.
 - **Phase 1:** Freeze application architecture and dependencies DAG in `CYVRA_MOBILE_IMPLEMENTATION_PLAN.md` — **Done**.
-- **Phase 2 / C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons).
+- **Phase 2 / C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons) — **Done** (Implemented `CustomerDesktopShell.tsx`, `workstation.css`, integrated with `WorkspaceApp.tsx`).
 - **Phase 3 / C2:** License service (Scans remaining vs Operator seats, token refresh).
 - **Phase 4:** Commercial API alignment (Entitlements, order states, admin approval).
 - **Phase 5:** Upgrade handoff.

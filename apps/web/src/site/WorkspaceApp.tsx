@@ -7,8 +7,7 @@ import {
   type ReportSummary,
 } from "../api";
 import { IN_STATES } from "../in-states";
-import { ReportView } from "../ReportView";
-import { SignedInHome } from "../SignedInHome";
+import { CustomerDesktopShell } from "./CustomerDesktopShell";
 import { Layout } from "./Layout";
 import { Link, navigate } from "./router";
 
@@ -180,26 +179,28 @@ export function WorkspaceApp(props: {
       ? "Sign in with the same name, pincode and work email. We email a 6-digit code — there is no password."
       : "Start building a more structured, evidence-led mobile device lifecycle. We email a 6-digit sign-in code. There is no password.";
 
+  if (user && !loadingSession) {
+    return (
+      <CustomerDesktopShell
+        user={user}
+        sessions={sessions}
+        reports={reports}
+        reportDetail={reportDetail}
+        busy={busy}
+        onFreezeSession={freezeSession}
+        onOpenReport={openReportById}
+        onCloseReport={() => setReportDetail(null)}
+        onLogout={logout}
+      />
+    );
+  }
+
   return (
     <Layout signedIn={Boolean(user)}>
       <div className="app-wrap">
         <section className="card app-card">
           {loadingSession ? (
             <p className="muted">Checking your session…</p>
-          ) : user && reportDetail ? (
-            <ReportView report={reportDetail} onBack={() => setReportDetail(null)} />
-          ) : user ? (
-            <SignedInHome
-              fullName={user.fullName}
-              email={user.email}
-              companyName={user.companyName}
-              sessions={sessions}
-              reports={reports}
-              busy={busy}
-              onFreeze={freezeSession}
-              onOpen={openReportById}
-              onLogout={logout}
-            />
           ) : step === "register" ? (
             <form onSubmit={submitRegister}>
               <h1>{heading}</h1>
