@@ -52,7 +52,8 @@ This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Kn
 | A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop SDK Platform 36.0 is installed. | **Done** in git and laptop (`BUILD SUCCESSFUL`, `app-debug.apk` built). |
 | A3 | `apps/host` USB/ADB transport. No sanitization execution. | **Done** in git (`:host:test` passes). |
 | A4 | Generic evidence in `:core` + host integration. | **Done** in git (`:core:test` & `:host:test` pass). |
-| A5–A6 | Capability engine & APK as `ANDROID_COMPONENT`. | Next slice |
+| A5 | Capability engine & OEM capability resolver. | **Done** in git (`:core:test` & `:host:test` pass). |
+| A6 | APK as `ANDROID_COMPONENT`. | Next slice |
 | A7 | OEM adapters only when a real device needs them | After first physical devices |
 | A8 | Sanitization **architecture** (non-destructive in G5) | After transport/evidence gates |
 | A9 | Local host reports. Do not change live ingest/report APIs. | Later |
