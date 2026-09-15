@@ -27,3 +27,12 @@ One Samsung does not prove universal OEM support.
 ## Code location
 
 Keep adapters under `apps/android/core` (and later `apps/host` using those types). Do not invent parallel `oem/` Gradle modules for unused brands.
+
+## Implementation Status (Slices A5–A10)
+
+- Implemented `OemAdapter` interface in `apps/android/core/src/main/kotlin/cyvra/mobile/core/CapabilityModels.kt`.
+- Implemented `OemCapabilityResolver` and `DefaultOemCapabilityResolver` in `apps/android/core/src/main/kotlin/cyvra/mobile/core/EvidenceProviders.kt`.
+- Implemented `StandardCapabilityAssessmentEngine` in `:core`, falling back truthfully to verified generic Android platform reset when no OEM hardware adapter exists (§9).
+- Implemented `CompatibilityMatrixEvaluator` in `:core` and `HostCompatibilityValidator` in `apps/host`, classifying device profiles into verified `OemFamily` groups (`SAMSUNG`, `XIAOMI_REDMI_POCO`, `MOTOROLA`, `ONEPLUS`, `OPPO_REALME`, `VIVO`, `GOOGLE_PIXEL`, `NOTHING`, `UNKNOWN_GENERIC`).
+- Unit tested in `:core:test` (`CapabilityAssessmentEngineTest`, `CompatibilityMatrixModelsTest`) and `:host:test` (`HostCapabilityCoordinatorTest`, `HostCompatibilityValidatorTest`).
+

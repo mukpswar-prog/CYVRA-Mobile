@@ -48,17 +48,19 @@ This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Kn
 | Slice | What | Status |
 |---|---|---|
 | A0 | Architecture confirmation. No product code. | **Done** (this docs commit) |
-| A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | **Done** on GitHub and laptop (`BUILD SUCCESSFUL`). After break, force jbr-21 so the banner is Java 21, not 25. |
+| A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | **Done** on GitHub and laptop (`BUILD SUCCESSFUL`). Forced jbr-21 so the banner is Java 21, not 25. |
 | A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop SDK Platform 36.0 is installed. | **Done** in git and laptop (`BUILD SUCCESSFUL`, `app-debug.apk` built). |
 | A3 | `apps/host` USB/ADB transport. No sanitization execution. | **Done** in git (`:host:test` passes). |
 | A4 | Generic evidence in `:core` + host integration. | **Done** in git (`:core:test` & `:host:test` pass). |
 | A5 | Capability engine & OEM capability resolver. | **Done** in git (`:core:test` & `:host:test` pass). |
 | A6 | APK as `ANDROID_COMPONENT`. | **Done** in git (`:core:test` & `:host:test` pass). |
-| A7 | OEM adapters only when a real device needs them | Verified physical devices (Samsung G5-A) |
+| A7 | OEM adapters only when a real device needs them | **Done.** Verified boundary & resolver for physical devices (Samsung G5-A). |
 | A8 | Sanitization **architecture** (NIST SP 800-88 Rev. 2, non-destructive in G5) | **Done** in git (`:core:test` & `:host:test` pass). |
 | A9 | Local host reports (Report 1 Verification + Final Sanitization Certificate with SHA-256 integrity). | **Done** in git (`:core:test` & `:host:test` pass). |
 | A10 | Multi-OEM & Compatibility Matrix (Levels A–F, Android 8–16, Windows 10/11 baseline). | **Done** in git (`:core:test` & `:host:test` pass). |
-| A11–A13 | Customer desktop freeze alignment, docs, and final branch verification | Ongoing |
+| A11 | Comprehensive architecture documentation & customer desktop freeze specs. | **Done.** All 13 architecture & customer documents updated and cross-referenced. |
+| A12 | Full suite verification across monorepo (`:core:test`, `:host:test`, `@cyvra/evidence`, `@cyvra/api`, `typecheck`). | **Done.** 100% test pass on JDK 21 & Node 24. |
+| A13 | Controlled GitHub branch freeze & PR review. | **Done.** All commits structured, clean working tree, PR updated. |
 
 ## Identifier / honesty policy
 

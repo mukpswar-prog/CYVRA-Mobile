@@ -1,4 +1,4 @@
-# Resume here — after A10 (15 Sep 2026)
+# Resume here — Android Freeze Complete (A0–A13) (15 Sep 2026)
 
 **Start the next session from this file.**  
 **Governing freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
@@ -18,13 +18,23 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 | A4 Generic evidence in :core | Done. Device identity, storage, battery, security collectors implemented and tested (`:core:test` & `:host:test` pass). |
 | A5 Capability Engine / Resolver | Done. Capability assessment models & standard assessment engine in `:core`, host capability coordinator in `apps/host`. All tests pass (`:core:test` & `:host:test`). |
 | A6 APK as ANDROID_COMPONENT | Done. Device-side supporting component bridge (`AndroidComponentBridge`), `HostAndroidComponentBridge`, `ComponentEvidenceReceiver`, and unit tests passing. |
-| A7 OEM adapters | Evaluated for physical lab devices (Samsung G5-A). |
+| A7 OEM adapters | Done. Verified boundary & resolver for physical devices (Samsung G5-A). |
 | A8 Sanitization Architecture | Done. NIST SP 800-88 Rev. 2 models, `HostSanitizationProvider`, `HostVerificationProvider`, pre-sanitization snapshot, operator confirmation, non-destructive G5 execution, and explicit post-reset verification states implemented and tested. |
 | A9 Local Host Reports | Done. Report 1 (CYVRA Device Verification Report) + Final Report (CYVRA Data Sanitization & Verification Certificate) with SHA-256 integrity digest, JSON export, and Markdown rendering implemented in `:core` and `apps/host`. All tests pass (`:core:test` & `:host:test`). |
-| A10 Multi-OEM & Compatibility Matrix | **Done.** Multi-tier capability levels (A–F), OEM family classification (Samsung, Xiaomi, Motorola, OnePlus, OPPO, Vivo, Pixel, Nothing, Generic), OS version bounds (Android 8–16), and `HostCompatibilityValidator` implemented and tested. |
-| A11–A13 Final Verification & Freeze | **Next.** Customer desktop freeze alignment, docs verification, and PR finalization. |
+| A10 Multi-OEM & Compatibility Matrix | Done. Multi-tier capability levels (A–F), OEM family classification (Samsung, Xiaomi, Motorola, OnePlus, OPPO, Vivo, Pixel, Nothing, Generic), OS version bounds (Android 8–16), and `HostCompatibilityValidator` implemented and tested. |
+| A11 Architecture Documentation | Done. All architecture and customer specifications completed and cross-referenced. |
+| A12 Full Repository Verification | Done. All automated test suites (`:core:test`, `:host:test`, `@cyvra/evidence`, `@cyvra/api`, `typecheck`) pass cleanly on JDK 21. |
+| A13 GitHub Controlled Freeze | **Done.** Branch `cursor/g0-g3-mobile-slice-7474` clean and PR updated. |
 
 `minSdk = 26` is the **APK install floor** (Android 8.0+), not the Windows-host device-service floor.
+
+## Next Phase: Customer Desktop Windows Application (C0–C10)
+
+Next phase executes the customer-side desktop application roadmap per [CUSTOMER_DESKTOP_PRODUCT_SPEC.md](./CUSTOMER_DESKTOP_PRODUCT_SPEC.md) and [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md):
+- **C0:** Repository audit (Read-only check of shell, host, UI).
+- **C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons).
+- **C2:** License service (Scans remaining vs Operator seats, token refresh).
+- **C3:** Device connection UX (USB, ADB, authorization states).
 
 ## Laptop — type only these lines in Git Bash
 
@@ -49,10 +59,6 @@ To build the APK as well:
 2. Confirm **File → Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK** is set to **`C:\Program Files\Java\jdk-21 Oracle OpenJDK 21.0.8`**.
 3. **File → Sync Project with Gradle Files**. All `:core`, `:app`, and `:host` will sync.
 4. Run Gradle task `test` or click **Build → Make Project**.
-
-## Next (A11–A13)
-
-Complete documentation audit and customer desktop architecture alignment before freezing.
 
 ## Frozen pins
 
