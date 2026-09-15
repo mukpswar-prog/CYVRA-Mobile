@@ -25,6 +25,7 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 
 ```bash
 cd /c/Users/User/StudioProjects/CYVRA-Mobile
+git restore apps/android/settings.gradle.kts
 git pull
 cd apps/android
 export JAVA_HOME="C:/Program Files/Java/jdk-21"
