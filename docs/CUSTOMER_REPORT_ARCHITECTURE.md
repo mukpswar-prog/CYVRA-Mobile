@@ -18,3 +18,11 @@ The Windows desktop application generates two authoritative customer report docu
 - **PDF Export:** Customer-facing, formatted vector document with corporate header, device identifiers, timestamp, operator signature block, and QR code verification link.
 - **JSON Export:** Machine-readable payload matching frozen schema (`GenericDeviceEvidence` and `DeviceCapabilityAssessment`) for enterprise asset management and ingestion.
 - **Cryptographic Digest:** Each report embeds a SHA-256 integrity hash calculated over the immutable evidence records.
+
+---
+
+## 3. Implementation Status (Slice A9)
+
+- Implemented in `:core`: `ReportModels.kt` (`ReportHeader`, `ReportCoverageLabel`, `ReportIntegrityRecord`, `DeviceVerificationReport`, `SanitizationCertificateReport`).
+- Implemented in `apps/host`: `HostReportEngine.kt` supporting Report 1 generation, Final Sanitization Certificate generation, SHA-256 cryptographic digest calculation, JSON export, and Markdown human-readable rendering.
+- Unit tested in `:core:test` (`ReportModelsTest`) and `:host:test` (`HostReportEngineTest`). All tests pass.

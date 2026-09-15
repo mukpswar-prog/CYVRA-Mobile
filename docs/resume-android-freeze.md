@@ -1,4 +1,4 @@
-# Resume here — after A8 (15 Sep 2026)
+# Resume here — after A9 (15 Sep 2026)
 
 **Start the next session from this file.**  
 **Governing freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
@@ -19,8 +19,9 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 | A5 Capability Engine / Resolver | Done. Capability assessment models & standard assessment engine in `:core`, host capability coordinator in `apps/host`. All tests pass (`:core:test` & `:host:test`). |
 | A6 APK as ANDROID_COMPONENT | Done. Device-side supporting component bridge (`AndroidComponentBridge`), `HostAndroidComponentBridge`, `ComponentEvidenceReceiver`, and unit tests passing. |
 | A7 OEM adapters | Evaluated for physical lab devices (Samsung G5-A). |
-| A8 Sanitization Architecture | **Done.** NIST SP 800-88 Rev. 2 models, `HostSanitizationProvider`, `HostVerificationProvider`, pre-sanitization snapshot, operator confirmation, non-destructive G5 execution, and explicit post-reset verification states implemented and tested. |
-| A9 Local Host Reports | **Next.** Local diagnostic & sanitization certificate generation. |
+| A8 Sanitization Architecture | Done. NIST SP 800-88 Rev. 2 models, `HostSanitizationProvider`, `HostVerificationProvider`, pre-sanitization snapshot, operator confirmation, non-destructive G5 execution, and explicit post-reset verification states implemented and tested. |
+| A9 Local Host Reports | **Done.** Report 1 (CYVRA Device Verification Report) + Final Report (CYVRA Data Sanitization & Verification Certificate) with SHA-256 integrity digest, JSON export, and Markdown rendering implemented in `:core` and `apps/host`. All tests pass (`:core:test` & `:host:test`). |
+| A10 Multi-OEM & Compatibility Matrix | **Next.** Physical hardware and multi-OEM test validation (Windows 10/11, Android 8–16). |
 
 `minSdk = 26` is the **APK install floor** (Android 8.0+), not the Windows-host device-service floor.
 
@@ -48,9 +49,9 @@ To build the APK as well:
 3. **File → Sync Project with Gradle Files**. All `:core`, `:app`, and `:host` will sync.
 4. Run Gradle task `test` or click **Build → Make Project**.
 
-## Next (A9)
+## Next (A10)
 
-A9 implements local host reporting (Report 1 Verification + Final Sanitization Certificate export).
+A10 validates compatibility matrix across physical Android versions (8 through 16) and OEM test pool without altering frozen architecture.
 
 ## Frozen pins
 

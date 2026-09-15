@@ -56,7 +56,7 @@ This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Kn
 | A6 | APK as `ANDROID_COMPONENT`. | **Done** in git (`:core:test` & `:host:test` pass). |
 | A7 | OEM adapters only when a real device needs them | Verified physical devices (Samsung G5-A) |
 | A8 | Sanitization **architecture** (NIST SP 800-88 Rev. 2, non-destructive in G5) | **Done** in git (`:core:test` & `:host:test` pass). |
-| A9 | Local host reports. Do not change live ingest/report APIs. | Next slice |
+| A9 | Local host reports (Report 1 Verification + Final Sanitization Certificate with SHA-256 integrity). | **Done** in git (`:core:test` & `:host:test` pass). |
 | A10–A13 | Test matrix, freeze docs, controlled GitHub commits | Ongoing |
 
 ## Identifier / honesty policy
