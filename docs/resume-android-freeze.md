@@ -30,10 +30,15 @@ git pull
 cd apps/android
 export JAVA_HOME="C:/Program Files/Java/jdk-21"
 ./gradlew.bat --stop
-./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" test
+./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :host:test
 ```
 
 Expected: `cyvra-mobile-android: Java 21...` and `BUILD SUCCESSFUL` running `:core:test` and `:host:test`.
+
+To build the APK as well:
+```bash
+./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :app:assembleDebug
+```
 
 ### Alternative: Build / Test directly inside Android Studio
 1. Open Android Studio with `apps/android` open.

@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     kotlin("android")
+    kotlin("plugin.serialization")
 }
 
 android {
@@ -36,6 +37,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.12.0")
 }
