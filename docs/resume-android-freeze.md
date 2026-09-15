@@ -46,8 +46,8 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 13:** CYVORIQ Certified Device Condition & Diagnostic Report (`CyvoriqCertifiedConditionReport`, SHA-256 seal, audit trail) — **Done** (`ReportModels.kt`, `HostReportEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 14:** Data Purge & Verification Flow (2-step operator confirmation barrier, method selection, reconnect & OOBE check) — **Done** (`SanitizationWorkflowModels.kt`, `HostSanitizationWorkflowEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 15:** Final Sanitization & Lifecycle Certificate per NIST SP 800-88 Rev. 2 (`SanitizationCertificateReport`, SHA-256 seal, JSON/PDF download) — **Done** (`ReportModels.kt`, `HostReportEngine.kt`, unit tests, and CustomerDesktop UI).
-- **Next Phase:** Phase 16 (Secure Software Update System with signed manifest & delta package integrity).
-- **Phase 16:** Signed update manifests, delta payload verification, staged reboot installation, and channel version management.
+- **Phase 16:** Secure Software Update System (Signed manifest, Ed25519 signature & SHA-256 verification, safe staging and rollback) — **Done** (`UpdateModels.kt`, `HostUpdateEngine.kt`, unit tests, and CustomerDesktop UI).
+- **Next Phase:** Phase 17 (Website Upgrade Flow & Scan Accounting Integration).
 
 ## Laptop — type only these lines in Git Bash
 

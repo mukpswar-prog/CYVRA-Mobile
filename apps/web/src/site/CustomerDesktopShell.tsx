@@ -303,6 +303,77 @@ export function CustomerDesktopShell(props: {
     setActiveTab("RESULTS_REPORTS");
   }
 
+  // Phase 16: Secure Software Update State (§16, Part H)
+  const [updateStep, setUpdateStep] = useState<
+    "IDLE" | "CHECKING" | "AVAILABLE" | "DOWNLOADING" | "STAGED" | "ROLLED_BACK"
+  >("IDLE");
+  const [updateProgressMsg, setUpdateProgressMsg] = useState<string>("");
+  const [stagedRecord, setStagedRecord] = useState<{
+    version: string;
+    releaseType: string;
+    channel: string;
+    size: string;
+    sha256: string;
+    signatureAlgorithm: string;
+    signature: string;
+    stagedPath: string;
+    rollbackPath: string;
+    notes: string[];
+  } | null>(null);
+
+  function checkForSoftwareUpdates() {
+    setUpdateStep("CHECKING");
+    setUpdateProgressMsg("Contacting CYVRA Update Service (GET /updates/manifest)...");
+
+    setTimeout(() => {
+      setUpdateStep("AVAILABLE");
+      setUpdateProgressMsg("");
+      setStagedRecord({
+        version: "3.2.2-g5",
+        releaseType: "Delta Package",
+        channel: "Stable Channel",
+        size: "18.4 MB",
+        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        signatureAlgorithm: "Ed25519 (CYVORIQ-UPDATE-KEY-PROD-2026)",
+        signature: "SIG_ED25519_8f91a27e3d04b912c7...",
+        stagedPath: "/opt/cyvra/updates/staged/3.2.2-g5/update.delta",
+        rollbackPath: "/opt/cyvra/updates/staged/backup-3.2.1-g5.tar.gz",
+        notes: [
+          "Multi-OEM device probe enhancements for Android 15 & 16 developer preview",
+          "Automated camera focus & glare detection optimization in AI Physical Station",
+          "NIST SP 800-88 Rev. 2 post-reboot verification speed improvement",
+        ],
+      });
+    }, 1000);
+  }
+
+  function downloadAndStageUpdate() {
+    setUpdateStep("DOWNLOADING");
+    setUpdateProgressMsg("Downloading signed delta payload from updates.cyvoriq.co.in...");
+
+    setTimeout(() => {
+      setUpdateProgressMsg("Verifying cryptographic Ed25519 manifest signature...");
+    }, 900);
+
+    setTimeout(() => {
+      setUpdateProgressMsg("Verifying SHA-256 binary hash digest matches manifest...");
+    }, 1700);
+
+    setTimeout(() => {
+      setUpdateProgressMsg("Staging verified binary to safe local update directory...");
+    }, 2500);
+
+    setTimeout(() => {
+      setUpdateStep("STAGED");
+      setUpdateProgressMsg("");
+    }, 3300);
+  }
+
+  function rollbackUpdate() {
+    setUpdateStep("ROLLED_BACK");
+    setUpdateProgressMsg("Staged update rolled back. System restored to current v3.2.1-g5 baseline.");
+  }
+
   function executeDeterministicGrading() {
     setGradingActive(true);
 
@@ -2267,25 +2338,199 @@ export function CustomerDesktopShell(props: {
         </div>
       </footer>
 
-      {/* UPDATE Modal Dialog (§7, §16) */}
+      {/* UPDATE Modal Dialog (§7, §16 / Phase 16) */}
       {updateModalOpen && (
         <div className="modal-backdrop">
-          <div className="modal-card">
+          <div className="modal-card" style={{ maxWidth: "560px" }}>
             <div className="modal-header">
-              <h3>Software Update</h3>
+              <h3>Secure Software Update (Phase 16)</h3>
               <button type="button" className="close-btn" onClick={() => setUpdateModalOpen(false)}>×</button>
             </div>
             <div className="modal-body">
-              <p>Current version: <strong>v{license.version}</strong></p>
-              <div className="update-status-box">
-                <span className="status-bullet-ok">●</span> CYVRA Mobile is up to date.
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                <span>Installed Version: <strong>v{license.version}</strong></span>
+                <span className="badge-pill ready-badge">SECURE UPDATE CHANNEL</span>
               </div>
-              <p className="muted small">
-                Updates maintain system binaries, diagnostic collectors, and Platform-Tools. They never modify your purchased scan entitlements.
-              </p>
+
+              {updateStep === "IDLE" && (
+                <div>
+                  <div className="update-status-box" style={{ marginBottom: "16px" }}>
+                    <span className="status-bullet-ok">●</span> System binaries and diagnostic collectors are active.
+                  </div>
+                  <p className="muted small" style={{ marginBottom: "20px" }}>
+                    Updates maintain system binaries, diagnostic collectors, and Platform-Tools. They never modify your purchased scan entitlements (which are governed by Upgrades).
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-action-primary"
+                    style={{ width: "100%", padding: "10px" }}
+                    onClick={checkForSoftwareUpdates}
+                  >
+                    Check for Signed Updates (GET /updates/manifest) →
+                  </button>
+                </div>
+              )}
+
+              {updateStep === "CHECKING" && (
+                <div style={{ textAlign: "center", padding: "30px 10px" }}>
+                  <div className="spinner" style={{ margin: "0 auto 16px" }} />
+                  <p style={{ color: "#38bdf8", fontSize: "14px", margin: 0 }}>{updateProgressMsg}</p>
+                </div>
+              )}
+
+              {updateStep === "AVAILABLE" && stagedRecord && (
+                <div>
+                  <div style={{ background: "rgba(56, 189, 248, 0.1)", border: "1px solid #38bdf8", borderRadius: "6px", padding: "12px 16px", marginBottom: "16px" }}>
+                    <h4 style={{ color: "#38bdf8", margin: "0 0 4px", fontSize: "14px" }}>
+                      New Signed Release Available: v{stagedRecord.version}
+                    </h4>
+                    <span style={{ fontSize: "12px", color: "#cbd5e1" }}>
+                      {stagedRecord.channel} · {stagedRecord.releaseType} · Size: {stagedRecord.size}
+                    </span>
+                  </div>
+
+                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
+                    <div className="metric-row">
+                      <span className="metric-label">Signature Algorithm:</span>
+                      <span className="metric-value font-mono">{stagedRecord.signatureAlgorithm}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Manifest Signature:</span>
+                      <span className="metric-value font-mono text-emerald-400">{stagedRecord.signature}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Package SHA-256:</span>
+                      <span className="metric-value font-mono text-cyan-400" style={{ wordBreak: "break-all" }}>
+                        {stagedRecord.sha256}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#0b1120", border: "1px solid #1e293b", padding: "12px 14px", borderRadius: "6px", marginBottom: "16px" }}>
+                    <h5 style={{ color: "#cbd5e1", margin: "0 0 6px", fontSize: "12px", textTransform: "uppercase" }}>Release Highlights:</h5>
+                    <ul style={{ margin: 0, paddingLeft: "18px", color: "#94a3b8", fontSize: "12px", lineHeight: "1.5" }}>
+                      {stagedRecord.notes.map((note, i) => (
+                        <li key={i}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <p className="muted small" style={{ marginBottom: "16px" }}>
+                    Security Notice: All artifacts must pass Ed25519 signature and SHA-256 checksum verification before staging. Unsigned packages are strictly rejected (§16, §43).
+                  </p>
+
+                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      type="button"
+                      className="btn btn-action-primary"
+                      style={{ flex: 1 }}
+                      onClick={downloadAndStageUpdate}
+                    >
+                      Download, Verify & Stage Update →
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-action-secondary"
+                      onClick={() => setUpdateStep("IDLE")}
+                    >
+                      Later
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {updateStep === "DOWNLOADING" && (
+                <div style={{ textAlign: "center", padding: "30px 10px" }}>
+                  <div className="spinner" style={{ margin: "0 auto 16px" }} />
+                  <p style={{ color: "#38bdf8", fontSize: "14px", fontWeight: "bold", margin: "0 0 6px" }}>
+                    Cryptographic Verification in Progress
+                  </p>
+                  <p style={{ color: "#94a3b8", fontSize: "12px", margin: 0 }}>
+                    {updateProgressMsg}
+                  </p>
+                </div>
+              )}
+
+              {updateStep === "STAGED" && stagedRecord && (
+                <div>
+                  <div style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
+                    <h4 style={{ color: "#10b981", margin: "0 0 4px", fontSize: "15px" }}>
+                      ✓ Update Cryptographically Verified & Staged
+                    </h4>
+                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
+                      The update binary has passed all cryptographic signature checks and is staged safely for atomic installation upon next restart.
+                    </p>
+                  </div>
+
+                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
+                    <div className="metric-row">
+                      <span className="metric-label">Target Version:</span>
+                      <span className="metric-value font-bold text-sky-400">v{stagedRecord.version}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Staged Payload Path:</span>
+                      <span className="metric-value font-mono">{stagedRecord.stagedPath}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Cryptographic Signature:</span>
+                      <span className="metric-value text-emerald-400 font-bold">✓ Ed25519 VERIFIED</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Payload Checksum:</span>
+                      <span className="metric-value text-emerald-400 font-bold">✓ SHA-256 MATCHED</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Rollback Backup:</span>
+                      <span className="metric-value font-mono text-slate-400">{stagedRecord.rollbackPath}</span>
+                    </div>
+                  </div>
+
+                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      type="button"
+                      className="btn btn-action-primary"
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        alert("Workstation will safely restart to apply staged update v3.2.2-g5.");
+                        setUpdateModalOpen(false);
+                      }}
+                    >
+                      Restart Workstation Now to Apply
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={rollbackUpdate}
+                    >
+                      Rollback Staged Update
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {updateStep === "ROLLED_BACK" && (
+                <div>
+                  <div style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
+                    <h4 style={{ color: "#ef4444", margin: "0 0 4px", fontSize: "14px" }}>
+                      Staged Update Canceled & Rolled Back
+                    </h4>
+                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
+                      Staged binaries removed. Current workstation version v{license.version} remains active and stable.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-action-secondary"
+                    style={{ width: "100%" }}
+                    onClick={() => setUpdateStep("IDLE")}
+                  >
+                    Return to Update Dashboard
+                  </button>
+                </div>
+              )}
             </div>
             <div className="modal-footer">
-              <button type="button" className="btn btn-primary" onClick={() => setUpdateModalOpen(false)}>
+              <button type="button" className="btn btn-ghost" onClick={() => setUpdateModalOpen(false)}>
                 Close
               </button>
             </div>

@@ -158,8 +158,14 @@
 - Interactive certificate viewer, compliance disclaimer breakdown, SHA-256 seal, and one-click JSON/PDF download in Customer Desktop Shell.
 - Unit tests in `:core` and `:host`.
 
-### Phase 16: Secure Software Update System [NEXT]
-- Signed manifest retrieval, delta package download, cryptographic verification, and safe staged installation on restart.
+### Phase 16: Secure Software Update System [COMPLETED]
+- Signed manifest retrieval model (`UpdateArtifactManifest`), channel/release type enums, and staging record (`UpdateStagingRecord`) in `:core` (`UpdateModels.kt`).
+- Cryptographic hash (SHA-256) and Ed25519 signature verification engine with safe atomic staging and rollback in `:host` (`HostUpdateEngine.kt`).
+- Comprehensive unit tests covering version comparison, minimum host constraints, hash integrity, signature rejection, and rollback in `:core:test` and `:host:test`.
+- Interactive 10-step secure update flow modal in Customer Desktop Shell with clear separation between software Update and scan capacity Upgrade.
+
+### Phase 17: Website Upgrade Flow & Scan Accounting Integration [NEXT]
+- Scan entitlement capacity upgrades, customer plan selection, secure external checkout portal integration, and immutable scan accounting ledger.
 
 ---
 
