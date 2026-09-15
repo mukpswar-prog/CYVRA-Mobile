@@ -47,9 +47,11 @@ class HostGradingRulesEngine(
         val hasSevereChassisBending = bodyReport.defects.any {
             it.defectType == BodyDefectType.FRAME_BENT_CHASSIS && it.severity == DefectSeverity.SEVERE
         }
-        val hasSevereBatterySwellingRisk = diagnosticEvidence?.battery?.temperatureDeciCelsius?.value?.let { it > 500 } ?: false
+        val hasSevereBatteryHealthAnomaly = diagnosticEvidence?.battery?.health?.value?.let {
+            it.equals("DEAD", ignoreCase = true) || it.equals("OVERHEAT", ignoreCase = true)
+        } ?: false
 
-        val isSafetyHold = hasSevereChassisBending || hasSevereBatterySwellingRisk
+        val isSafetyHold = hasSevereChassisBending || hasSevereBatteryHealthAnomaly
 
         val safetyGrade = if (isSafetyHold) {
             auditTrail.add(
