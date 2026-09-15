@@ -42,8 +42,9 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 9:** AI Screen Inspection (cracks, scratches, dead/stuck pixels & burn-in with display patterns) — **Done** (`ScreenInspectionModels.kt`, `HostScreenInspectionEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 10:** AI Body Inspection (back glass, frame, rails, camera cover, ports, dents, scratches) — **Done** (`BodyInspectionModels.kt`, `HostBodyInspectionEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 11:** Deterministic Grading Rules Engine (`GRADE-IN-001`, Safety S0/S1, Cosmetic A-D, Functional F0-F2, Country presentation mapping) — **Done** (`GradingModels.kt`, `HostGradingRulesEngine.kt`, unit tests, and CustomerDesktop UI).
-- **Next Phase:** Phase 12 (Human Review & Exception Handling for borderline findings and operator overrides).
-- **Phase 12–13:** Human review exception handling and CYVORIQ certified condition report.
+- **Phase 12:** Human Review & Exception Handling (`[ ACCEPT ]`, `[ REJECT ]`, `[ RECAPTURE ]`, `[ PHYSICAL VERIFICATION ]`) — **Done** (`HumanReviewModels.kt`, `HostHumanReviewEngine.kt`, unit tests, and CustomerDesktop UI).
+- **Next Phase:** Phase 13 (CYVORIQ Certified Device Condition & Diagnostic Report).
+- **Phase 13:** Pre-purge certified report combining software diagnostic evidence + AI physical inspection + human review audit trail.
 - **Phase 14–15:** Data purge integration, post-reset verification, and NIST SP 800-88 Rev. 2 certification.
 
 ## Laptop — type only these lines in Git Bash

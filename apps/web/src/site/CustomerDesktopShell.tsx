@@ -83,8 +83,8 @@ export function CustomerDesktopShell(props: {
   const [qualityGateFeedback, setQualityGateFeedback] = useState<string | null>(null);
   const [isCapturingView, setIsCapturingView] = useState<boolean>(false);
 
-  // Phase 9-11: AI Physical, Screen, Body Inspection & Grading Navigation
-  const [aiSubTab, setAiSubTab] = useState<"PHYSICAL_CAPTURE" | "SCREEN_INSPECTION" | "BODY_INSPECTION" | "GRADING_RULES">("PHYSICAL_CAPTURE");
+  // Phase 9-12: AI Physical, Screen, Body Inspection, Grading & Human Review Navigation
+  const [aiSubTab, setAiSubTab] = useState<"PHYSICAL_CAPTURE" | "SCREEN_INSPECTION" | "BODY_INSPECTION" | "GRADING_RULES" | "HUMAN_REVIEW">("PHYSICAL_CAPTURE");
   const [screenTestRunning, setScreenTestRunning] = useState<boolean>(false);
   const [activeDisplayPattern, setActiveDisplayPattern] = useState<string>("IDLE");
   const [displayTestProgress, setDisplayTestProgress] = useState<string>("");
@@ -116,6 +116,41 @@ export function CustomerDesktopShell(props: {
     auditSteps: Array<{ rule: string; description: string; impact: string }>;
     physicalFindings: string[];
   } | null>(null);
+
+  // Phase 12: Human Review & Exception Handling (§5, §21, §38)
+  const [reviewItems, setReviewItems] = useState<
+    Array<{ id: string; defect: string; location: string; confidence: string; reason: string; action: string; note: string }>
+  >([
+    {
+      id: "REV-01",
+      defect: "Micro-scuff near SIM tray",
+      location: "Left Rail",
+      confidence: "88.4%",
+      reason: "Confidence below 90% threshold",
+      action: "PENDING",
+      note: "",
+    },
+    {
+      id: "REV-02",
+      defect: "Possible hairline scratch (12mm)",
+      location: "Upper display edge",
+      confidence: "93.2%",
+      reason: "Borderline cosmetic wear boundary",
+      action: "PENDING",
+      note: "",
+    },
+  ]);
+  const [reviewSignedOff, setReviewSignedOff] = useState<boolean>(false);
+
+  function handleReviewAction(id: string, action: "ACCEPT" | "REJECT" | "RECAPTURE" | "PHYSICAL_VERIFICATION") {
+    setReviewItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, action } : item)),
+    );
+  }
+
+  function finalizeHumanReview() {
+    setReviewSignedOff(true);
+  }
 
   function executeDeterministicGrading() {
     setGradingActive(true);
@@ -742,6 +777,13 @@ export function CustomerDesktopShell(props: {
                     >
                       ⚖️ 4. Certified Grading (Phase 11)
                     </button>
+                    <button
+                      type="button"
+                      className={`btn ${aiSubTab === "HUMAN_REVIEW" ? "btn-action-primary" : "btn-action-secondary"}`}
+                      onClick={() => setAiSubTab("HUMAN_REVIEW")}
+                    >
+                      👤 5. Human Review (Phase 12)
+                    </button>
                   </div>
 
                   {aiSubTab === "PHYSICAL_CAPTURE" && (
@@ -1285,9 +1327,9 @@ export function CustomerDesktopShell(props: {
                             <button
                               type="button"
                               className="btn btn-action-primary"
-                              onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                              onClick={() => setAiSubTab("HUMAN_REVIEW")}
                             >
-                              Proceed to Technical Diagnostics →
+                              Proceed to Human Review Exceptions (Phase 12) →
                             </button>
                             <button
                               type="button"
@@ -1299,6 +1341,106 @@ export function CustomerDesktopShell(props: {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {aiSubTab === "HUMAN_REVIEW" && (
+                    <div className="panel-card ai-flow-card">
+                      <div className="panel-card-header">
+                        <h3>HUMAN EXCEPTION REVIEW & AUDIT OVERRIDE</h3>
+                        <span className="badge-pill ready-badge">PHASE 12</span>
+                      </div>
+
+                      <p className="card-p">
+                        Auditable operator interface for reviewing borderline AI findings, ambiguous wear marks, and safety alerts (§5, §21, §38). Every decision is logged to build a verifiable training dataset.
+                      </p>
+
+                      <div className="review-cards-list" style={{ marginBottom: "20px" }}>
+                        {reviewItems.map((item) => (
+                          <div key={item.id} style={{ background: "#0f172a", padding: "16px", borderRadius: "8px", border: "1px solid #1e293b", marginBottom: "12px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                              <div>
+                                <strong style={{ color: "#f8fafc", fontSize: "14px" }}>{item.defect}</strong>
+                                <span style={{ display: "block", fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
+                                  Location: {item.location} | Confidence: {item.confidence}
+                                </span>
+                              </div>
+                              <span className="badge-pill optional-badge">{item.reason}</span>
+                            </div>
+
+                            <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                              <button
+                                type="button"
+                                className={`btn ${item.action === "ACCEPT" ? "btn-action-primary" : "btn-action-secondary"}`}
+                                style={{ fontSize: "12px", padding: "5px 10px" }}
+                                onClick={() => handleReviewAction(item.id, "ACCEPT")}
+                              >
+                                ✓ Accept Defect
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn ${item.action === "REJECT" ? "btn-action-primary" : "btn-action-secondary"}`}
+                                style={{ fontSize: "12px", padding: "5px 10px" }}
+                                onClick={() => handleReviewAction(item.id, "REJECT")}
+                              >
+                                ✕ Reject (False Positive)
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn ${item.action === "RECAPTURE" ? "btn-action-primary" : "btn-action-secondary"}`}
+                                style={{ fontSize: "12px", padding: "5px 10px" }}
+                                onClick={() => handleReviewAction(item.id, "RECAPTURE")}
+                              >
+                                📷 Request Recapture
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn ${item.action === "PHYSICAL_VERIFICATION" ? "btn-action-primary" : "btn-action-secondary"}`}
+                                style={{ fontSize: "12px", padding: "5px 10px" }}
+                                onClick={() => handleReviewAction(item.id, "PHYSICAL_VERIFICATION")}
+                              >
+                                🔍 Bench Inspection
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {reviewSignedOff ? (
+                        <div style={{ padding: "16px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", marginBottom: "20px" }}>
+                          <h4 style={{ color: "#10b981", margin: "0 0 4px" }}>✓ Human Review Signed Off</h4>
+                          <p style={{ color: "#cbd5e1", fontSize: "13px", margin: 0 }}>
+                            Exceptions resolved. Operator decisions permanently cryptographically bound to session.
+                          </p>
+                        </div>
+                      ) : (
+                        <div style={{ marginBottom: "20px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-action-primary"
+                            onClick={finalizeHumanReview}
+                          >
+                            Sign & Commit Operator Exceptions (TECH-SIGN-992) →
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-action-primary"
+                          onClick={() => setActiveTab("ADVANCED_DIAGNOSTIC")}
+                        >
+                          Proceed to Technical Diagnostics →
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-action-secondary"
+                          onClick={() => setActiveTab("RESULTS_REPORTS")}
+                        >
+                          View Reports
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

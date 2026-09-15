@@ -132,12 +132,13 @@
 - Country/channel presentation mapping (`CountryGradingProfilePresentation` for India Re-marketing Standard).
 - Unit tests in `:core` and `:host`, and Customer Desktop UI.
 
-### Phase 12: Human Review & Exception Handling [NEXT]
-- Operator exception review interface for low-confidence detections or safety warnings.
-- Actions: `[ ACCEPT ]`, `[ REJECT ]`, `[ RECAPTURE ]`, `[ PHYSICAL VERIFICATION ]`.
-- Audit logging of human overrides.
+### Phase 12: Human Review & Exception Handling [COMPLETED]
+- Operator exception review interface for low-confidence detections or safety warnings (`DefectReviewDecision`).
+- Actions: `[ ACCEPT ]`, `[ REJECT ]`, `[ RECAPTURE ]`, `[ PHYSICAL VERIFICATION ]` (`HumanReviewAction`).
+- Review session signing and audit trail (`HumanReviewSessionRecord`).
+- Unit tests in `:core` and `:host`, and Customer Desktop UI exception panel.
 
-### Phase 13: CYVORIQ Certified Condition Report
+### Phase 13: CYVORIQ Certified Condition Report [NEXT]
 - Comprehensive pre-purge certificate combining software diagnostic evidence + AI physical inspection findings + human review audit trail + tamper-evident SHA-256 signature.
 
 ### Phase 14: Data Purge & Verification Flow
