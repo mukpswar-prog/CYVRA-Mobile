@@ -178,8 +178,15 @@
 - Comprehensive unit tests in `PaymentApprovalModelsTest.kt` and `HostPaymentApprovalEngineTest.kt`.
 - Interactive Customer Desktop Shell upgrade approval barrier and Commercial Orders & Staff Approval audit ledger in "License & Usage".
 
-### Phase 19: Offline Entitlement Handling & Network Resilience [NEXT]
-- Signed offline grace-period license cache, strict distinction between `LICENSE_SERVER_UNAVAILABLE` vs `LICENSE_INVALID`, and offline operation boundaries.
+### Phase 19: Offline Entitlement Handling & Network Resilience [COMPLETED]
+- Operational sensitivity tiers (`OperationSensitivityTier`: `READ_ONLY_NON_DESTRUCTIVE`, `DESTRUCTIVE_DATA_PURGE`, `ENTITLEMENT_EXPANSION_UPGRADE`), health descriptor (`OfflineEntitlementHealth`), and cryptographically signed offline cache (`SignedOfflineLicenseCache`) in `:core` (`OfflineEntitlementModels.kt`).
+- Host offline entitlement engine (`HostOfflineEntitlementEngine.kt`) in `:host` computing SHA-256 canonical token digests, enforcing Ed25519 tamper-evident signatures, managing 24-hour grace periods, and strictly preventing false "License Invalid" alerts upon network drop.
+- Gating policy: non-destructive diagnostics and AI inspection allowed in valid offline grace period; destructive purge and upgrades strictly locked to live online server connection.
+- Comprehensive unit tests in `OfflineEntitlementModelsTest.kt` and `HostOfflineEntitlementEngineTest.kt`.
+- Interactive Customer Desktop Shell status bar indicator, simulation toggle, and detailed offline resilience card in "License & Usage".
+
+### Phase 20: End-to-End Security Hardening & Zero-Leak Audit [NEXT]
+- Cryptographic key protection audit, ensuring zero private keys or admin secrets exist in client code, and strict ADB permission boundary enforcement.
 
 ---
 

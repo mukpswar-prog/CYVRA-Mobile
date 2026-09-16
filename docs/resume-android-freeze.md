@@ -49,7 +49,8 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 16:** Secure Software Update System (Signed manifest, Ed25519 signature & SHA-256 verification, safe staging and rollback) — **Done** (`UpdateModels.kt`, `HostUpdateEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 17:** Website Upgrade Flow & Scan Accounting Integration (Decoupled plan expansion, immutable `license_id`, carried usage, transactional scan ledger) — **Done** (`UpgradeModels.kt`, `HostUpgradeAccountingEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 18:** Payment & Staff Approval Workflow (Order lifecycle, server-verified payment, Option B admin approval gate, and audit records) — **Done** (`PaymentApprovalModels.kt`, `HostPaymentApprovalEngine.kt`, unit tests, and CustomerDesktop UI).
-- **Next Phase:** Phase 19 (Offline Entitlement Handling & Network Resilience).
+- **Phase 19:** Offline Entitlement Handling & Network Resilience (Signed offline cache, 24h grace period, operation gating, and distinguishing server outage from invalid license) — **Done** (`OfflineEntitlementModels.kt`, `HostOfflineEntitlementEngine.kt`, unit tests, and CustomerDesktop UI).
+- **Next Phase:** Phase 20 (End-to-End Security Hardening & Zero-Leak Audit).
 
 ## Laptop — type only these lines in Git Bash
 

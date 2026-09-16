@@ -131,6 +131,11 @@ export function CustomerDesktopShell(props: {
   const [upgradeOrderId, setUpgradeOrderId] = useState<string>("");
   const [paymentReference, setPaymentReference] = useState<string>("");
 
+  // Phase 19: Offline Entitlement & Signed Cache Resilience State (§15, Part G)
+  const [isNetworkOnline, setIsNetworkOnline] = useState<boolean>(true);
+  const [offlineGraceExpiresAt] = useState<string>("2026-09-17 10:00:00 UTC");
+  const [signedCacheDigest] = useState<string>("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+
   // Phase 18: Commercial Orders & Staff Approval Tracking State (§10, §30)
   const [orderRegistry, setOrderRegistry] = useState<Array<{
     orderId: string;
@@ -2400,34 +2405,71 @@ export function CustomerDesktopShell(props: {
                         </div>
                         <div className="metric-row">
                           <span className="metric-label">Entitlement Status:</span>
-                          <span className="metric-value font-bold text-ok">{license.status}</span>
+                          <span className="metric-value font-bold text-ok">
+                            {isNetworkOnline ? license.status : "SERVER_UNAVAILABLE (GRACE PERIOD ACTIVE)"}
+                          </span>
                         </div>
                       </div>
                     </div>
 
                     <div className="panel-card">
                       <div className="panel-card-header">
-                        <h3>Scan Balance Summary</h3>
-                        <span className="badge-pill ready-badge">{license.scansRemaining} SCANS READY</span>
+                        <h3>Offline Resilience & Grace Period (§15 / Phase 19)</h3>
+                        <span className={`badge-pill ${isNetworkOnline ? "ready-badge" : "pending-badge"}`}>
+                          {isNetworkOnline ? "NETWORK ONLINE" : "OFFLINE GRACE ACTIVE"}
+                        </span>
                       </div>
-                      <div style={{ padding: "10px 0" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "13px" }}>
-                          <span>Capacity Utilization:</span>
-                          <strong>{Math.round((license.scansUsed / license.scansTotal) * 100)}% Used</strong>
+                      <div className="device-metric-rows">
+                        <div className="metric-row">
+                          <span className="metric-label">Network Status:</span>
+                          <span className={`metric-value font-bold ${isNetworkOnline ? "text-emerald-400" : "text-amber-400"}`}>
+                            {isNetworkOnline ? "● Live Synchronized with CYVORIQ API" : "● Offline / Service Unreachable"}
+                          </span>
                         </div>
-                        <div style={{ width: "100%", height: "12px", background: "#0b1120", borderRadius: "6px", overflow: "hidden", marginBottom: "14px", border: "1px solid #1e293b" }}>
-                          <div
-                            style={{
-                              width: `${Math.min(100, Math.round((license.scansUsed / license.scansTotal) * 100))}%`,
-                              height: "100%",
-                              background: "#38bdf8",
-                            }}
-                          />
+                        <div className="metric-row">
+                          <span className="metric-label">Signed Token Digest:</span>
+                          <span className="metric-value font-mono text-cyan-400" style={{ fontSize: "11px" }}>
+                            {signedCacheDigest.substring(0, 24)}...
+                          </span>
                         </div>
-                        <p className="muted small" style={{ margin: 0 }}>
-                          Scan transactions are committed upon diagnostic start and debited only when a verified condition or purge certificate is generated (§14).
-                        </p>
+                        <div className="metric-row">
+                          <span className="metric-label">Grace Period Limit:</span>
+                          <span className="metric-value font-mono">{offlineGraceExpiresAt}</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Permitted Offline Tasks:</span>
+                          <span className="metric-value text-sky-400">Non-Destructive Diagnostics & AI Inspection</span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Restricted Offline Tasks:</span>
+                          <span className="metric-value text-rose-400">Destructive Purge & Plan Upgrades (Online Only)</span>
+                        </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="panel-card" style={{ marginBottom: "20px" }}>
+                    <div className="panel-card-header">
+                      <h3>Scan Balance Summary</h3>
+                      <span className="badge-pill ready-badge">{license.scansRemaining} SCANS READY</span>
+                    </div>
+                    <div style={{ padding: "10px 0" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "13px" }}>
+                        <span>Capacity Utilization:</span>
+                        <strong>{Math.round((license.scansUsed / license.scansTotal) * 100)}% Used</strong>
+                      </div>
+                      <div style={{ width: "100%", height: "12px", background: "#0b1120", borderRadius: "6px", overflow: "hidden", marginBottom: "14px", border: "1px solid #1e293b" }}>
+                        <div
+                          style={{
+                            width: `${Math.min(100, Math.round((license.scansUsed / license.scansTotal) * 100))}%`,
+                            height: "100%",
+                            background: "#38bdf8",
+                          }}
+                        />
+                      </div>
+                      <p className="muted small" style={{ margin: 0 }}>
+                        Scan transactions are committed upon diagnostic start and debited only when a verified condition or purge certificate is generated (§14).
+                      </p>
                     </div>
                   </div>
 
@@ -2619,8 +2661,22 @@ export function CustomerDesktopShell(props: {
           <span>ADB: AUTHORIZED (Port 5037)</span>
         </div>
         <div className="status-item">
-          <span className="status-bullet-ok">●</span>
-          <span>API: SYNCHRONIZED</span>
+          {isNetworkOnline ? (
+            <>
+              <span className="status-bullet-ok">●</span>
+              <span>API: SYNCHRONIZED</span>
+            </>
+          ) : (
+            <>
+              <span className="status-bullet-warn" style={{ color: "#f59e0b" }}>●</span>
+              <span style={{ color: "#f59e0b" }}>API: SERVER_UNAVAILABLE (GRACE ACTIVE)</span>
+            </>
+          )}
+        </div>
+        <div className="status-item" style={{ cursor: "pointer" }} onClick={() => setIsNetworkOnline(!isNetworkOnline)}>
+          <span className="badge-pill ready-badge" style={{ background: isNetworkOnline ? "#1e293b" : "#b45309", color: "#f8fafc", fontSize: "10px" }}>
+            [SIMULATE {isNetworkOnline ? "NETWORK DROP" : "RECONNECT"}]
+          </span>
         </div>
         <div className="status-item status-right">
           <span>CYVORIQ Solutions Pvt. Ltd. · CYVRA Mobile Workstation</span>
