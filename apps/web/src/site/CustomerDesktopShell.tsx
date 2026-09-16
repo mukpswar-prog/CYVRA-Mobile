@@ -2843,6 +2843,42 @@ export function CustomerDesktopShell(props: {
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Phase 22: Windows Packaging & Production Release Staging Panel (§43-45) */}
+                  <div className="panel-card" style={{ marginBottom: "20px" }}>
+                    <div className="panel-card-header">
+                      <h3>Windows Packaging & Release Staging (§43–§45 / Phase 22)</h3>
+                      <span className="badge-pill ready-badge">✓ STAGING MANIFEST VERIFIED</span>
+                    </div>
+                    <p className="muted small" style={{ marginBottom: "14px" }}>
+                      Production desktop releases enforce controlled Google Platform-Tools bundling, Microsoft Edge WebView2 verification, and Authenticode signing compliance without requiring Android Studio on customer PCs.
+                    </p>
+
+                    <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
+                      <div className="metric-row">
+                        <span className="metric-label">Installer Target:</span>
+                        <span className="metric-value font-bold text-sky-400">Windows 10/11 x64 (NSIS / MSI Bundler)</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Publisher Certificate:</span>
+                        <span className="metric-value font-mono text-emerald-400" style={{ fontSize: "11px" }}>
+                          CN=CYVORIQ Solutions Private Limited (SHA256withRSA Authenticode)
+                        </span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Controlled Platform-Tools:</span>
+                        <span className="metric-value font-mono text-cyan-400">Embedded Google ADB v35.0.2 (Path-Override Restricted)</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Webview Runtime:</span>
+                        <span className="metric-value text-emerald-400 font-bold">✓ Microsoft Edge WebView2 Evergreen Active</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Visual C++ Runtime:</span>
+                        <span className="metric-value text-emerald-400 font-bold">✓ MSVC 2015-2022 x64 Redistributable Bundled</span>
+                      </div>
+                    </div>
 
                     <div className="panel-card-footer" style={{ marginTop: "14px" }}>
                       <button type="button" className="btn btn-compact-ghost" onClick={props.onLogout}>

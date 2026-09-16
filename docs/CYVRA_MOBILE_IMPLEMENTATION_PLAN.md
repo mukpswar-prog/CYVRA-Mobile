@@ -210,8 +210,18 @@
 - Comprehensive unit test suites in `OemAdapterModelsTest.kt` and `HostMultiOemAdapterRegistryTest.kt`.
 - Interactive Multi-OEM Adapter capability inspector & profile switcher in the Advanced Diagnostic tab of `CustomerDesktopShell.tsx`.
 
-### Phase 22: Windows Packaging & Release Staging [NEXT]
-- Windows packaging specifications, staging directory structure, and release signing checks.
+### Phase 22: Windows Packaging & Release Staging [COMPLETED]
+- Windows packaging and installer models (`WindowsInstallerType`: `MSI_STANDALONE`, `EXE_BOOTSTRAPPER`, `TAURI_BUNDLE_NSIS`, `PORTABLE_ZIP`), runtime checks (`RuntimeDependencyCheck`, `RuntimeComponentStatus`), controlled Platform-Tools bundle (`ControlledPlatformToolsBundle`), and release manifest (`WindowsReleaseStagingManifest`) in `:core` (`PackagingModels.kt`).
+- Host Windows packaging staging engine (`HostPackagingStagingEngine.kt`) in `:host`:
+  - Enforces controlled Platform-Tools pinning (adb v35.0.2) rather than unvetted PATH binaries.
+  - Verifies mandatory Windows runtime components (Microsoft Edge WebView2 Runtime, MSVC 2015-2022 x64 Redistributable).
+  - Validates Authenticode code-signing certificate compliance (`SHA256withRSA`) while keeping private signing keys strictly outside client code.
+  - Computes SHA-256 release package digests for tamper-evident installation.
+- Comprehensive unit test suites in `PackagingModelsTest.kt` and `HostPackagingStagingEngineTest.kt`.
+- Interactive Windows Packaging & Release Staging audit view in the Settings tab of `CustomerDesktopShell.tsx`.
+
+### Phase 23: Full End-to-End System Integration & Acceptance Verification [NEXT]
+- Comprehensive cross-subsystem acceptance testing connecting commercial licensing, AI inspection, deterministic grading, data purge, and post-sanitization reporting.
 
 ---
 
