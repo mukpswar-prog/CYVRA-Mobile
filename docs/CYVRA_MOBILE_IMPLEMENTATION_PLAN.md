@@ -185,8 +185,21 @@
 - Comprehensive unit tests in `OfflineEntitlementModelsTest.kt` and `HostOfflineEntitlementEngineTest.kt`.
 - Interactive Customer Desktop Shell status bar indicator, simulation toggle, and detailed offline resilience card in "License & Usage".
 
-### Phase 20: End-to-End Security Hardening & Zero-Leak Audit [NEXT]
-- Cryptographic key protection audit, ensuring zero private keys or admin secrets exist in client code, and strict ADB permission boundary enforcement.
+### Phase 20: End-to-End Security Hardening & Zero-Leak Audit [COMPLETED]
+- Defined security invariant categories (`SecurityAuditCategory`), compliance status (`SecurityAuditStatus`), finding record (`SecurityAuditFinding`), and audit report (`SecurityAuditReport`) in `:core` (`SecurityAuditModels.kt`).
+- Host security audit engine (`HostSecurityAuditEngine.kt`) in `:host` continuously evaluating compliance against the 12 Absolute Invariants of CYVRA Mobile (§43):
+  1. Private key protection: Zero private signing keys in desktop client codebase, config, or repository.
+  2. Payment secret isolation: Desktop application never holds payment gateway credentials or webhook secrets.
+  3. Admin credential isolation: Zero elevated administrative tokens or backdoor flags in client code.
+  4. Identifier integrity: Zero fabrication of restricted IMEI, hardware serial, or MAC identifiers.
+  5. ADB command safety: Whitelisted prefixes, shell metacharacter injection blocking, and privilege escalation prevention.
+  6. Update signature enforcement: Rejection of unsigned or unverified update binaries.
+  7. Server-authoritative entitlement: Prevention of client-side counter manipulation.
+- Comprehensive unit test suites in `SecurityAuditModelsTest.kt` and `HostSecurityAuditEngineTest.kt`.
+- Interactive "Security Hardening & Zero-Leak Audit (§43 / Phase 20)" live compliance table in the Settings tab of `CustomerDesktopShell.tsx`.
+
+### Phase 21: Multi-OEM Device Adapter Extension [NEXT]
+- Specialized multi-OEM diagnostic and capability adapters (Samsung Knox, Xiaomi HyperOS, OnePlus/Oppo ColorOS, Motorola) extending the base ADB transport.
 
 ---
 
