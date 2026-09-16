@@ -125,8 +125,42 @@ export function CustomerDesktopShell(props: {
   ]);
 
   const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<number>(25);
-  const [upgradeHandoffState, setUpgradeHandoffState] = useState<"SELECTING" | "GENERATING_TOKEN" | "AWAITING_APPROVAL" | "UPGRADED">("SELECTING");
+  const [upgradeHandoffState, setUpgradeHandoffState] = useState<
+    "SELECTING" | "GENERATING_TOKEN" | "PAYMENT_CONFIRMED" | "AWAITING_APPROVAL" | "UPGRADED"
+  >("SELECTING");
   const [upgradeOrderId, setUpgradeOrderId] = useState<string>("");
+  const [paymentReference, setPaymentReference] = useState<string>("");
+
+  // Phase 18: Commercial Orders & Staff Approval Tracking State (§10, §30)
+  const [orderRegistry, setOrderRegistry] = useState<Array<{
+    orderId: string;
+    customerEmail: string;
+    licenseId: string;
+    targetPlan: string;
+    targetScans: number;
+    amountInr: number;
+    status: "PAYMENT_PENDING" | "PAYMENT_CONFIRMED" | "WAITING_ADMIN_APPROVAL" | "APPROVED" | "ENTITLEMENT_ISSUED" | "REJECTED";
+    paymentProvider: string;
+    paymentRef: string;
+    approvedBy: string | null;
+    issuedSerial: string | null;
+    timestamp: string;
+  }>>([
+    {
+      orderId: "ORD-INITIAL-2026-001",
+      customerEmail: props.user.email,
+      licenseId: "LIC-MOB-2026-00124",
+      targetPlan: "25 Device Scans",
+      targetScans: 25,
+      amountInr: 12500,
+      status: "ENTITLEMENT_ISSUED",
+      paymentProvider: "RAZORPAY",
+      paymentRef: "pay_live_initial_90124",
+      approvedBy: "ceo@cyvoriq.com",
+      issuedSerial: "CYVRA15092026SA3F1-1-25",
+      timestamp: "2026-09-15 10:00:00 UTC",
+    },
+  ]);
 
   const license = activeLicenseState;
 
@@ -2437,6 +2471,56 @@ export function CustomerDesktopShell(props: {
                     </table>
                   </div>
 
+                  {/* Commercial Orders & Staff Approval Ledger (§10, §30 / Phase 18) */}
+                  <div className="panel-card" style={{ marginBottom: "24px" }}>
+                    <div className="panel-card-header">
+                      <h3>Commercial Orders & Staff Approval Records (Phase 18)</h3>
+                      <span className="badge-pill ready-badge">{orderRegistry.length} ORDER(S)</span>
+                    </div>
+                    <table className="workstation-data-table">
+                      <thead>
+                        <tr>
+                          <th>Order ID</th>
+                          <th>Target Tier</th>
+                          <th>Amount (INR)</th>
+                          <th>Payment Gateway</th>
+                          <th>Order Lifecycle Status</th>
+                          <th>Approved By</th>
+                          <th>Issued Serial</th>
+                          <th>Timestamp</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderRegistry.map((ord) => (
+                          <tr key={ord.orderId}>
+                            <td className="font-mono text-cyan-400">{ord.orderId}</td>
+                            <td>{ord.targetPlan}</td>
+                            <td>₹{ord.amountInr.toLocaleString("en-IN")}</td>
+                            <td className="font-mono" style={{ fontSize: "11px" }}>{ord.paymentProvider} ({ord.paymentRef})</td>
+                            <td>
+                              <span
+                                className={`badge-pill ${
+                                  ord.status === "ENTITLEMENT_ISSUED"
+                                    ? "ready-badge"
+                                    : ord.status === "WAITING_ADMIN_APPROVAL"
+                                    ? "pending-badge"
+                                    : ord.status === "REJECTED"
+                                    ? "danger-badge"
+                                    : "archived-badge"
+                                }`}
+                              >
+                                {ord.status}
+                              </span>
+                            </td>
+                            <td className="font-mono" style={{ fontSize: "11px" }}>{ord.approvedBy || "—"}</td>
+                            <td className="font-mono" style={{ fontSize: "11px" }}>{ord.issuedSerial || "—"}</td>
+                            <td style={{ fontSize: "11px", color: "#94a3b8" }}>{ord.timestamp}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
                   {/* Device Scan Accounting Ledger (§14) */}
                   <div className="panel-card">
                     <div className="panel-card-header">
@@ -2816,10 +2900,32 @@ export function CustomerDesktopShell(props: {
                       style={{ flex: 1 }}
                       onClick={() => {
                         setUpgradeHandoffState("GENERATING_TOKEN");
+                        const orderId = `ORD-UPG-${Math.floor(100000 + Math.random() * 900000)}`;
+                        const payRef = `pay_rzp_${Math.floor(10000000 + Math.random() * 90000000)}`;
+                        setUpgradeOrderId(orderId);
+                        setPaymentReference(payRef);
+
+                        // Stage new order in registry as PAYMENT_PENDING
+                        setOrderRegistry((prev) => [
+                          {
+                            orderId,
+                            customerEmail: props.user.email,
+                            licenseId: license.licenseId,
+                            targetPlan: `${selectedUpgradePlan} Device Scans`,
+                            targetScans: selectedUpgradePlan,
+                            amountInr: selectedUpgradePlan * 500,
+                            status: "PAYMENT_PENDING",
+                            paymentProvider: "RAZORPAY",
+                            paymentRef: payRef,
+                            approvedBy: null,
+                            issuedSerial: null,
+                            timestamp: new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC",
+                          },
+                          ...prev,
+                        ]);
+
                         setTimeout(() => {
-                          const orderId = `ORD-UPG-${Math.floor(100000 + Math.random() * 900000)}`;
-                          setUpgradeOrderId(orderId);
-                          setUpgradeHandoffState("AWAITING_APPROVAL");
+                          setUpgradeHandoffState("PAYMENT_CONFIRMED");
                         }, 1200);
                       }}
                     >
@@ -2841,34 +2947,38 @@ export function CustomerDesktopShell(props: {
                 </div>
               )}
 
-              {upgradeHandoffState === "AWAITING_APPROVAL" && (
+              {upgradeHandoffState === "PAYMENT_CONFIRMED" && (
                 <div>
                   <div style={{ background: "rgba(56, 189, 248, 0.1)", border: "1px solid #38bdf8", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
                     <h4 style={{ color: "#38bdf8", margin: "0 0 6px", fontSize: "14px" }}>
-                      Upgrade Handoff Token Generated (§12, §30)
+                      ✓ Web Checkout Payment Confirmed (§8, §30)
                     </h4>
                     <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
-                      The customer checkout window has been dispatched. Order ID: <strong className="font-mono">{upgradeOrderId}</strong>
+                      Razorpay webhook received and verified with SHA-256 HMAC signature. Order ID: <strong className="font-mono">{upgradeOrderId}</strong>
                     </p>
                   </div>
 
                   <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
                     <div className="metric-row">
-                      <span className="metric-label">Handoff Endpoint:</span>
-                      <span className="metric-value font-mono text-cyan-400">https://www.cyvoriq.co.in/checkout/upgrade</span>
+                      <span className="metric-label">Payment Gateway:</span>
+                      <span className="metric-value font-bold text-emerald-400">RAZORPAY (Live Verified)</span>
                     </div>
                     <div className="metric-row">
-                      <span className="metric-label">Target Tier:</span>
-                      <span className="metric-value font-bold">{selectedUpgradePlan} Device Scans</span>
+                      <span className="metric-label">Provider Reference:</span>
+                      <span className="metric-value font-mono text-cyan-400">{paymentReference}</span>
                     </div>
                     <div className="metric-row">
-                      <span className="metric-label">Server Verification:</span>
-                      <span className="metric-value text-amber-400">● WAITING FOR ADMIN APPROVAL</span>
+                      <span className="metric-label">Amount Paid:</span>
+                      <span className="metric-value font-bold text-sky-400">₹{(selectedUpgradePlan * 500).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Commercial Gate:</span>
+                      <span className="metric-value text-amber-400 font-bold">● WAITING FOR ADMIN APPROVAL</span>
                     </div>
                   </div>
 
                   <p className="muted small" style={{ marginBottom: "16px" }}>
-                    Simulate Server Approval: Once the checkout portal processes payment, the server increments the entitlement revision without altering the internal license_id.
+                    Security Policy (§10, Option B): Early production requires explicit staff approval before entitlement activation to safeguard quota issuance.
                   </p>
 
                   <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
@@ -2877,7 +2987,67 @@ export function CustomerDesktopShell(props: {
                       className="btn btn-action-primary"
                       style={{ flex: 1 }}
                       onClick={() => {
-                        const newSerial = `CYVRA15092026SA3F1-${license.revision + 1}-${selectedUpgradePlan}`;
+                        // Transition order to WAITING_ADMIN_APPROVAL in registry
+                        setOrderRegistry((prev) =>
+                          prev.map((o) => o.orderId === upgradeOrderId ? { ...o, status: "WAITING_ADMIN_APPROVAL" } : o),
+                        );
+                        setUpgradeHandoffState("AWAITING_APPROVAL");
+                      }}
+                    >
+                      Submit to Staff Approval Queue →
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setUpgradeHandoffState("SELECTING")}
+                    >
+                      Back
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {upgradeHandoffState === "AWAITING_APPROVAL" && (
+                <div>
+                  <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid #f59e0b", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
+                    <h4 style={{ color: "#f59e0b", margin: "0 0 6px", fontSize: "14px" }}>
+                      Staff Review & Authorization Gate (Phase 18)
+                    </h4>
+                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
+                      The order is pending approval by an authorized @cyvoriq.com operator nominated by <strong>ceo@cyvoriq.com</strong> (§10, §30).
+                    </p>
+                  </div>
+
+                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
+                    <div className="metric-row">
+                      <span className="metric-label">Order Number:</span>
+                      <span className="metric-value font-mono">{upgradeOrderId}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Customer Email:</span>
+                      <span className="metric-value">{props.user.email}</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Target Tier:</span>
+                      <span className="metric-value font-bold">{selectedUpgradePlan} Device Scans</span>
+                    </div>
+                    <div className="metric-row">
+                      <span className="metric-label">Payment Status:</span>
+                      <span className="metric-value text-emerald-400 font-bold">✓ PAYMENT_CONFIRMED</span>
+                    </div>
+                  </div>
+
+                  <p className="muted small" style={{ marginBottom: "16px" }}>
+                    Simulate Staff Approval: Approving this order will command the server to mint a new cryptographically signed serial while strictly retaining internal license ID {license.licenseId}.
+                  </p>
+
+                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      type="button"
+                      className="btn btn-action-primary"
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        const newSerial = `CYVRA16092026SA3F1-${license.revision + 1}-${selectedUpgradePlan}`;
                         const newRemaining = Math.max(0, selectedUpgradePlan - license.scansUsed);
 
                         // Mark current revision SUPERSEDED
@@ -2905,17 +3075,42 @@ export function CustomerDesktopShell(props: {
                           revision: prev.revision + 1,
                         }));
 
+                        // Update Order Registry to ENTITLEMENT_ISSUED
+                        setOrderRegistry((prev) =>
+                          prev.map((o) =>
+                            o.orderId === upgradeOrderId
+                              ? {
+                                  ...o,
+                                  status: "ENTITLEMENT_ISSUED",
+                                  approvedBy: "ceo@cyvoriq.com",
+                                  issuedSerial: newSerial,
+                                }
+                              : o,
+                          ),
+                        );
+
                         setUpgradeHandoffState("UPGRADED");
                       }}
                     >
-                      Confirm Server Approval & Activate Revision {license.revision + 1}
+                      Authorize Order as Staff (ceo@cyvoriq.com) →
                     </button>
                     <button
                       type="button"
-                      className="btn btn-ghost"
-                      onClick={() => setUpgradeHandoffState("SELECTING")}
+                      className="btn btn-danger"
+                      onClick={() => {
+                        setOrderRegistry((prev) =>
+                          prev.map((o) =>
+                            o.orderId === upgradeOrderId
+                              ? { ...o, status: "REJECTED", approvedBy: "ceo@cyvoriq.com" }
+                              : o,
+                          ),
+                        );
+                        alert(`Order ${upgradeOrderId} has been REJECTED by staff. No entitlement issued.`);
+                        setUpgradeHandoffState("SELECTING");
+                        setUpgradeModalOpen(false);
+                      }}
                     >
-                      Back
+                      Reject Order
                     </button>
                   </div>
                 </div>

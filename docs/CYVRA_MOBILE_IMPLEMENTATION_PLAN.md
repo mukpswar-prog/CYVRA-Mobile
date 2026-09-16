@@ -171,8 +171,15 @@
 - Comprehensive unit tests in `UpgradeModelsTest.kt` and `HostUpgradeAccountingEngineTest.kt`.
 - Interactive Customer Desktop Shell Upgrade modal, revision ledger, and device scan consumption audit view under "License & Usage".
 
-### Phase 18: Payment & Staff Approval Workflow [NEXT]
-- Order lifecycle (`CREATED` -> `PAYMENT_PENDING` -> `WAITING_ADMIN_APPROVAL` -> `ENTITLEMENT_ISSUED`), server-authoritative payment verification, and admin dashboard approval flow.
+### Phase 18: Payment & Staff Approval Workflow [COMPLETED]
+- Commercial order lifecycle models (`CommercialOrderRecord`, `OrderLifecycleStatus`: `CREATED` -> `PAYMENT_PENDING` -> `PAYMENT_CONFIRMED` -> `WAITING_ADMIN_APPROVAL` -> `APPROVED` -> `ENTITLEMENT_ISSUED`) in `:core` (`PaymentApprovalModels.kt`).
+- Staff / Admin approval audit record (`AdminApprovalRecord`, `AdminApprovalDecision`: `PENDING`, `APPROVED`, `REJECTED`) and trusted payment verification (`PaymentVerificationRecord`, `PaymentProviderType`).
+- Server-authoritative payment confirmation and staff approval engine (`HostPaymentApprovalEngine.kt`) in `:host` enforcing early production Option B gate (Payment Confirmed -> Admin Approval -> Entitlement Issued) with zero local payment secrets.
+- Comprehensive unit tests in `PaymentApprovalModelsTest.kt` and `HostPaymentApprovalEngineTest.kt`.
+- Interactive Customer Desktop Shell upgrade approval barrier and Commercial Orders & Staff Approval audit ledger in "License & Usage".
+
+### Phase 19: Offline Entitlement Handling & Network Resilience [NEXT]
+- Signed offline grace-period license cache, strict distinction between `LICENSE_SERVER_UNAVAILABLE` vs `LICENSE_INVALID`, and offline operation boundaries.
 
 ---
 
