@@ -1,0 +1,399 @@
+================================================================================
+CYVRA MOBILE — CUSTOMER WORKSTATION OPERATING MANUAL
+Document Identifier: CYVRA-DOC-MANUAL-CUST-001
+Revision: 1.0.0 (Production Release Baseline v3.2.2-release)
+Target Audience: Diagnostic Technicians, Refurbishment Operators, Warehouse QA
+Publisher: CYVORIQ Solutions Private Limited
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. INTRODUCTION & PRODUCT PURPOSE
+2. USER INTERFACE NAVIGATION OVERVIEW
+3. CONNECTING AN ANDROID DEVICE (USB & ADB HANDSHAKE)
+4. HARDWARE & SUBSYSTEM DIAGNOSTIC WORKFLOW
+5. AI PHYSICAL INSPECTION (6-VIEW CAPTURE & QUALITY GATE)
+6. AI SCREEN DEFECT ANALYSIS & CONTROLLED DISPLAY PATTERNS
+7. AI BODY DEFECT ANALYSIS & MULTI-VIEW TELEMETRY
+8. DETERMINISTIC GRADING ENGINE (RULESET GRADE-IN-001)
+9. HUMAN REVIEW & EXCEPTION HANDLING
+10. CYVORIQ CERTIFIED CONDITION REPORT GENERATION
+11. CONTROLLED DATA PURGE & 2-STEP CONFIRMATION BARRIER
+12. POST-RESET RECONNECT & SANITIZATION VERIFICATION
+13. NIST SP 800-88 REV. 2 SANITIZATION CERTIFICATE EXPORT
+14. LICENSE USAGE & SCAN ACCOUNTING LEDGER
+15. UPGRADING PLAN ENTITLEMENT & WEB CHECKOUT HANDOFF
+16. OFFLINE RESILIENCE & 24-HOUR GRACE OPERATION
+17. SECURE SOFTWARE UPDATE PROCEDURE
+18. OPERATOR TROUBLESHOOTING & COMMON MISTAKES
+
+================================================================================
+1. INTRODUCTION & PRODUCT PURPOSE
+================================================================================
+CYVRA Mobile is a dedicated Windows workstation software application engineered
+for professional IT asset disposition (ITAD), smartphone refurbishment, retail
+trade-in intake, and certified enterprise data sanitization.
+
+Core Philosophy:
+"Simple for the operator on the outside, rigorous and auditable on the inside."
+The operator journey is structured sequentially:
+Connect Phone -> Diagnose -> AI Grade -> Report -> Purge -> Verify -> Certify.
+
+CYVRA Mobile operates independently of Android Studio or command-line scripting.
+All device communications are handled through a controlled, embedded instance
+of Google Android Debug Bridge (ADB v35.0.2).
+
+================================================================================
+2. USER INTERFACE NAVIGATION OVERVIEW
+================================================================================
+The desktop application window is divided into four persistent zones:
+
+A. Top Header:
+   - Left: CYVRA Mobile Brand Logo & Subtitle.
+   - Center/Right: Customer Name, Active Plan Pill, Live Scan Usage Tracker,
+     License Status Dot, Installed App Version (v3.2.2-release).
+   - Far Right: "UPDATE" Button (software maintenance) and "UPGRADE" Button (plan expansion).
+
+B. Left Navigation Rail:
+   - 📊 OVERVIEW: Intake dashboard, USB/ADB link status, quick action launcher.
+   - 🔍 ADVANCED DIAGNOSTIC: Hardware telemetry, battery nodes, multi-OEM security profile.
+   - 📷 AI PHYSICAL INSPECTION: 6-view camera station, screen inspection, body inspection.
+   - 🛡️ DATA PURGE: 2-step confirmation purge barrier, method selector, wipe execution.
+   - 📄 RESULTS & REPORTS: Local session history, JSON/PDF certificate viewer.
+   - 💳 LICENSE & USAGE: Entitlement revisions, scan accounting ledger, offline grace status.
+   - ❓ HELP: Hardware connection guides, OEM debugging walkthroughs.
+   - ⚙️ SETTINGS: Host PC diagnostics, zero-leak audit seal, release freeze baseline.
+
+C. Center Main Workspace:
+   - Dynamically displays the active workflow and step-by-step progress cards.
+
+D. Bottom Status Bar:
+   - USB Connection Bullet (CONNECTED / DISCONNECTED).
+   - ADB Socket Status (AUTHORIZED Port 5037).
+   - API Synchronization (SYNCHRONIZED / SERVER_UNAVAILABLE).
+   - [SIMULATE NETWORK DROP / RECONNECT] Interactive test toggle.
+   - Publisher attribution and release seal identifier.
+
+================================================================================
+3. CONNECTING AN ANDROID DEVICE (USB & ADB HANDSHAKE)
+================================================================================
+Step 1: Physical Connection:
+- Connect the Android smartphone directly to a high-speed USB port on your PC.
+- Always use a verified USB 3.0 or USB-C data cable. Avoid passive multi-port hubs.
+
+Step 2: Enable Developer Options on the Phone:
+- Open "Settings" -> "About Phone".
+- Locate "Build Number" and tap it rapidly 7 times until a toast message appears:
+  "You are now a developer!"
+
+Step 3: Enable USB Debugging:
+- Return to Settings -> "System" (or "Additional Settings") -> "Developer Options".
+- Toggle "USB Debugging" to ON.
+- Tap "OK" to allow development settings.
+
+Step 4: Authorize Workstation Key:
+- Watch the smartphone display. A dialog will appear:
+  "Allow USB debugging? The computer's RSA key fingerprint is: XX:XX:XX..."
+- Check the box: [x] "Always allow from this computer".
+- Tap "Allow".
+
+Step 5: Workstation Detection:
+- The CYVRA Mobile status bar will immediately transition to:
+  "USB: CONNECTED" and "ADB: AUTHORIZED (Port 5037)".
+- The Overview tab will populate the detected Device Identity:
+  Manufacturer, Model, Serial Number, Android OS Version, and Security Patch Level.
+
+================================================================================
+4. HARDWARE & SUBSYSTEM DIAGNOSTIC WORKFLOW
+================================================================================
+From the Left Nav, click "ADVANCED DIAGNOSTIC".
+Click "RUN COMPREHENSIVE DIAGNOSTIC".
+
+The automated diagnostics engine queries low-level hardware subsystems via ADB:
+1. Device Identity: Model code, build fingerprint, board name, bootloader lock state.
+2. Battery & Thermal Subsystem:
+   - True battery health status (Good, Overheat, Dead, Cold).
+   - Voltage, cycle count (where supported), and kernel battery nodes
+     (e.g., Samsung `sec_bat_health_node`, Qualcomm BMS).
+3. Storage Partitions: Internal eMMC/UFS total capacity, mount points, userdata volume.
+4. Memory & CPU: RAM size, active governors, core cluster utilization.
+5. Security Enclave & Multi-OEM Profile:
+   - Detects Samsung Knox warranty bit (0x0 vs 0x1).
+   - Detects Xiaomi HyperOS TEE security integrity.
+   - Detects OnePlus/Oppo ColorOS OEStore isolation.
+   - Detects Motorola ThinkShield for Mobile defense state.
+   - Detects Google Pixel Titan M2 discrete security chip.
+
+When finished, all findings are stored in the temporary diagnostic evidence registry.
+
+================================================================================
+5. AI PHYSICAL INSPECTION (6-VIEW CAPTURE & QUALITY GATE)
+================================================================================
+From the Left Nav, select "AI PHYSICAL INSPECTION" -> Sub-tab "6-VIEW CAPTURE".
+
+CYVRA Mobile enforces a standardized 6-view physical inspection capture sequence:
+1. View 1: FRONT (Display screen illuminated & powered off).
+2. View 2: BACK (Rear housing, camera lens module, logo).
+3. View 3: LEFT RAIL (SIM tray slot, left metal edge, volume rockers).
+4. View 4: RIGHT RAIL (Power/sleep button, fingerprint scanner bezel).
+5. View 5: TOP EDGE (Microphone pinhole, antenna bands, IR blaster).
+6. View 6: BOTTOM EDGE (USB-C charging port rim, speaker grilles, 3.5mm jack).
+
+Automated Image Quality Gate:
+Before accepting each photo into the permanent evidence record, CYVRA evaluates:
+- Blur & Sharpness: Laplacian variance must exceed threshold (focus blur rejection).
+- Glare & Reflections: Rejects direct flash reflections obscuring screen glass.
+- Resolution & Framing: Verifies full device silhouette framing.
+- Cryptographic Immutability: Every raw image byte stream is immediately hashed
+  into a SHA-256 digest to prevent post-capture tampering.
+
+================================================================================
+6. AI SCREEN DEFECT ANALYSIS & CONTROLLED DISPLAY PATTERNS
+================================================================================
+Select Sub-tab "SCREEN INSPECTION".
+
+A. Passive Surface Analysis:
+- Detects surface cracks, starburst fractures, edge chips, and hairline scratches.
+- Normalizes defect coordinates into bounding boxes with confidence scores.
+
+B. Controlled Active Display Testing:
+- Click "EXECUTE DISPLAY TEST PATTERNS".
+- CYVRA automatically pushes full-screen uniform color fields to the phone:
+  1. Pure Red Pattern: Evaluates red sub-pixel integrity.
+  2. Pure Green Pattern: Evaluates green sub-pixel integrity.
+  3. Pure Blue Pattern: Evaluates blue sub-pixel integrity.
+  4. Pure White Pattern: Evaluates OLED/LCD backlight uniformity & image retention.
+  5. Pure Black Pattern: Evaluates OLED light bleed and stuck bright pixels.
+- The AI model quantifies:
+  - Dead / stuck pixel count.
+  - Burn-in / ghost image retention severity (percentage of screen area affected).
+
+================================================================================
+7. AI BODY DEFECT ANALYSIS & MULTI-VIEW TELEMETRY
+================================================================================
+Select Sub-tab "BODY INSPECTION".
+Click "RUN AI BODY ANALYSIS".
+
+The computer vision engine analyzes the remaining captures:
+- Rear Housing: Back glass fractures, peeling laminate, ceramic scuffs.
+- Side Rails: Frame dents, anodized aluminum paint chips, impact gouges.
+- Camera Module: Lens cover glass cracks, sapphire ring abrasions, dust intrusion.
+- Ports: Charging port pin corrosion, bent USB-C tongue, blocked speaker grilles.
+- Chassis Structural Bend: Evaluates longitudinal frame alignment. Any severe
+  chassis bend automatically raises a Safety Hold flag.
+
+================================================================================
+8. DETERMINISTIC GRADING ENGINE (RULESET GRADE-IN-001)
+================================================================================
+Select Sub-tab "GRADING RULES".
+Click "CALCULATE DETERMINISTIC GRADE".
+
+CYVRA Mobile does NOT use opaque or fluctuating grading. It executes versioned,
+deterministic rules (e.g., Ruleset `GRADE-IN-001`):
+
+A. Safety Grade (S0 or S1):
+   - S0: Safe to Process. No swelling, normal battery health, straight chassis.
+   - S1: SAFETY HOLD. Triggered by severe chassis bend, swollen battery, or dead cell.
+     (Note: S1 devices are locked from automated data purge).
+
+B. Cosmetic Grade (A, B, C, D):
+   - Grade A (Like New / Flawless): Zero scratches, pristine glass and frame.
+   - Grade B (Good / Light Wear): Zero cracks, minor micro-scuffs on rails (<12mm).
+   - Grade C (Fair / Moderate Wear): Visible scratches, frame gouges, paint wear.
+   - Grade D (Damaged): Screen crack, back fracture, broken lens, or heavy dents.
+
+C. Functional Grade (F0, F1, F2):
+   - F0: Fully Functional. Display, touch, cameras, storage, battery 100% operational.
+   - F1: Partially Functional. Minor component failure (e.g., secondary mic or NFC).
+   - F2: Non-Functional. Primary display dead, mainboard failure, or storage error.
+
+D. Overall CYVORIQ Certified Grade:
+   - Combines Safety, Cosmetic, and Functional tiers into an auditable final score
+     (e.g., "Grade B (Certified Good) · S0 / F0").
+
+================================================================================
+9. HUMAN REVIEW & EXCEPTION HANDLING
+================================================================================
+Select Sub-tab "HUMAN REVIEW".
+
+When an AI detection has marginal confidence (< 85%) or a safety flag is raised,
+CYVRA generates an Operator Review Item:
+1. The technician inspects the flagged defect and high-resolution image crop.
+2. Operator selects an action:
+   - ACCEPT: Confirm the AI detection.
+   - REJECT: Overrule false detection with operator reason note.
+   - RECAPTURE: Trigger photo re-take due to glare or focus issue.
+   - PHYSICAL_VERIFICATION: Escalate for manual caliper/magnifier inspection.
+3. Every human action records the operator's User ID, timestamp, and signature,
+   creating an immutable audit trail.
+
+================================================================================
+10. CYVORIQ CERTIFIED CONDITION REPORT GENERATION
+================================================================================
+From the Left Nav, select "RESULTS & REPORTS".
+Click "GENERATE CONDITION REPORT CERTIFICATE".
+
+The system compiles the pre-purge condition certificate:
+- Customer and license metadata.
+- Full device identity (IMEI, Serial, Model, OS).
+- 6-view physical inspection summary and raw SHA-256 image hashes.
+- Screen defect and controlled display test results.
+- Body defect measurements and chassis alignment.
+- Deterministic grading score and human review audit records.
+- Tamper-evident SHA-256 certificate digest.
+
+SCAN ACCOUNTING TRIGGER:
+Upon generating the certificate, 1 scan is debited from your license entitlement.
+The transaction is recorded in the Device Scan Consumption Audit Ledger.
+
+Export Options:
+- Click "Download Canonical JSON Certificate" (Machine-readable audit file).
+- Click "Print / Export PDF Certificate" (Formatted for customer trade-in slip).
+
+================================================================================
+11. CONTROLLED DATA PURGE & 2-STEP CONFIRMATION BARRIER
+================================================================================
+From the Left Nav, click "DATA PURGE".
+
+CYVRA Mobile strictly prevents accidental data destruction through a mandatory
+Two-Step Operator Confirmation Barrier:
+
+Step 1: Destructive Warning Checklist:
+The operator must review and manually check 3 safety confirmations:
+[x] Customer data backup has been offered and accepted/declined.
+[x] Cloud accounts (Google Account, Samsung Account, Mi Account) are unlinked.
+[x] Device battery charge is above 50% or plugged into stable power.
+
+Step 2: Explicit Serial Typing Barrier:
+The operator MUST manually type the exact serial number of the connected phone:
+Target: "R5CR12ABCDE"
+Input:  "R5CR12ABCDE"
+The "START CONTROLLED DATA PURGE" button remains disabled until the serial matches.
+
+Step 3: Sanitization Method Selection:
+- Method 1: Cryptographic Erase (Fastest, destroys storage encryption master keys).
+- Method 2: Platform Factory Reset (OEM recovery wipe of userdata & cache).
+- Method 3: Overwrite & Zeroize (NIST Clear method for legacy non-encrypted partitions).
+
+Click "CONFIRM & INITIATE DATA PURGE".
+The phone reboots into recovery and executes the sanitization sequence.
+
+================================================================================
+12. POST-RESET RECONNECT & SANITIZATION VERIFICATION
+================================================================================
+Following the reboot, the operator does NOT manually certify completion.
+CYVRA Mobile performs automated Post-Reset Verification:
+
+1. Reconnection Handshake:
+   The workstation waits for the device to finish rebooting and re-enumerate on USB.
+2. OOBE / Setup Wizard State Verification:
+   CYVRA queries the device package manager and activity manager:
+   - Verifies the device is running the Out-Of-Box Experience (OOBE) / Setup Wizard.
+   - Verifies the user setup complete flag is FALSE (`user_setup_complete = 0`).
+3. Account Clearance Verification:
+   Queries AccountManager: Verifies zero Google, Samsung, or corporate accounts remain.
+4. Storage Partition Assessment:
+   Verifies `/data` partition has been newly formatted with a fresh filesystem UUID.
+
+================================================================================
+13. NIST SP 800-88 REV. 2 SANITIZATION CERTIFICATE EXPORT
+================================================================================
+Once post-reset verification succeeds, CYVRA Mobile automatically issues the
+Final Sanitization & Lifecycle Certificate:
+- Conforms to NIST SP 800-88 Rev. 2 "Guidelines for Media Sanitization".
+- Records Pre-Purge Device State and Post-Purge Verification Outcome.
+- Identifies Sanitization Method used (e.g., "Cryptographic Erase / NIST Clear").
+- Includes Operator Credentials, Date/Time Stamp, and Workstation ID.
+- Sealed with a 256-bit cryptographic digest.
+
+Click "Export JSON Certificate" or "Print PDF Certificate" for legal compliance.
+
+================================================================================
+14. LICENSE USAGE & SCAN ACCOUNTING LEDGER
+================================================================================
+From the Left Nav, select "LICENSE & USAGE".
+This tab provides full visibility into your commercial scan entitlement:
+
+- Active License Credentials: Displays Internal License ID, Public Serial,
+  Plan Tier (Starter, Professional, Enterprise), and Scans Remaining.
+- Capacity Utilization Bar: Visual indicator of consumed vs remaining scans.
+- Entitlement Revision Ledger: Tracks plan upgrades and carried-over balances.
+- Device Scan Consumption Audit Ledger: Transactional table recording every scan
+  event with Transaction ID, Device Serial, Session UUID, and UTC Timestamp.
+
+Rule: CYVRA never consumes a scan upon simple connection or diagnostic exploration.
+Scans are committed and debited ONLY when a final certificate is generated.
+
+================================================================================
+15. UPGRADING PLAN ENTITLEMENT & WEB CHECKOUT HANDOFF
+================================================================================
+When your scan balance runs low:
+1. Click the "UPGRADE" button in the top header (or inside "LICENSE & USAGE").
+2. Select your desired upgrade package:
+   - Pack 1: Growth (+250 Scans) — ₹4,999
+   - Pack 2: Scale (+1,000 Scans) — ₹16,999
+   - Pack 3: Enterprise Unlimited (Annual) — ₹49,999
+3. Review Carried-Over Usage: Your unused scans and historical scan records
+   are strictly preserved across revisions.
+4. Click "PROCEED TO SECURE WEB CHECKOUT":
+   - The workstation securely hands off the session to your default web browser
+     at https://cyvoriq.co.in/checkout/.
+   - The desktop core NEVER handles credit cards, UPI, or Razorpay/Stripe secrets.
+5. Complete payment on the web portal.
+6. Return to CYVRA Mobile. Once admin staff approves the issuance, the application
+   automatically refreshes, advances your license revision (e.g., Rev 1 -> Rev 2),
+   and increments your scan balance.
+
+================================================================================
+16. OFFLINE RESILIENCE & 24-HOUR GRACE OPERATION
+================================================================================
+CYVRA Mobile is engineered for industrial environments with intermittent internet:
+
+- Signed Offline Cache: Each time the workstation connects to the CYVORIQ cloud,
+  it caches an Ed25519-signed authorization token.
+- 24-Hour Grace Period: If your warehouse internet drops, CYVRA continues operating
+  for up to 24 hours under offline grace.
+- Permitted Offline Tasks: You can perform all non-destructive diagnostics, 6-view
+  AI captures, display tests, deterministic grading, and human reviews offline.
+- Restricted Offline Tasks: Destructive data purges and plan upgrades require
+  a live online verification handshake to ensure compliance.
+- No False "Invalid" Warnings: If the network drops, the status bar displays:
+  "API: SERVER_UNAVAILABLE (GRACE ACTIVE)", rather than falsely claiming the
+  license is invalid.
+
+================================================================================
+17. SECURE SOFTWARE UPDATE PROCEDURE
+================================================================================
+1. Click "UPDATE" in the top header.
+2. The workstation checks `https://api.cyvoriq.co.in/updates/manifest.json`.
+3. If an update is available (e.g., v3.2.2-g5):
+   - Click "DOWNLOAD & VERIFY PACKAGE".
+   - CYVRA downloads the delta package and validates its Ed25519 digital signature
+     and SHA-256 payload hash against known publisher keys.
+4. Staged Rollback Safety:
+   - The update is extracted into a staging folder.
+   - If verification fails or is interrupted, the operator can click "ROLLBACK"
+     to immediately revert to the current operational baseline without loss of data.
+5. Click "APPLY UPDATE & RESTART" to finalize installation.
+
+================================================================================
+18. OPERATOR TROUBLESHOOTING & COMMON MISTAKES
+================================================================================
+Issue A: Phone shows "Unauthorized" in status bar.
+Fix: Unlock the phone screen, disconnect the USB cable, plug it back in, and
+tap "Always allow from this computer" when the RSA prompt appears.
+
+Issue B: Display test patterns do not advance automatically.
+Fix: Ensure "Stay awake while charging" is enabled in Android Developer Options,
+and tap the screen once if a system notification blocked the display overlay.
+
+Issue C: Serial number input in Purge Barrier does not match.
+Fix: Check the Overview tab for the exact detected serial number (case-sensitive).
+Ensure no trailing spaces are entered.
+
+Issue D: Offline grace expired.
+Fix: Reconnect the laptop to Wi-Fi or Ethernet for 30 seconds to allow CYVRA
+to synchronize with the licensing server and renew the 24-hour token.
+================================================================================
+END OF CUSTOMER WORKSTATION OPERATING MANUAL — CYVORIQ SOLUTIONS PVT. LTD.
+================================================================================

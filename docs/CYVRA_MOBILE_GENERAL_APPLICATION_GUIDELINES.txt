@@ -1,0 +1,202 @@
+================================================================================
+CYVRA MOBILE — GENERAL APPLICATION ARCHITECTURAL GUIDELINES
+Document Identifier: CYVRA-DOC-GUIDELINES-GEN-001
+Revision: 1.0.0 (Production Release Baseline v3.2.2-release)
+Product: CYVRA Mobile — Professional Android Device Diagnostics & Data Purge
+Publisher: CYVORIQ Solutions Private Limited
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. FUNDAMENTAL PRODUCT POSITIONING & PHILOSOPHY
+2. CORE ARCHITECTURAL BOUNDARIES & MVC SEPARATION
+3. THE HONESTY RULE & MULTI-OEM COMPATIBILITY
+4. HARDWARE COMMUNICATION & CONTROLLED ADB TRANSPORT
+5. EVIDENCE-LED SANITIZATION & NIST SP 800-88 PRINCIPLES
+6. THE 12 ABSOLUTE INVARIANTS OF CYVRA MOBILE
+7. CRYPTOGRAPHIC DATA INTEGRITY & AUDIT TRAILS
+8. NETWORK RESILIENCE & OFFLINE FAULT TOLERANCE
+9. USER EXPERIENCE & VISUAL DESIGN DIRECTIVES
+10. CODEBASE FREEZE RULES & PRODUCTION DEPLOYMENT POLICY
+
+================================================================================
+1. FUNDAMENTAL PRODUCT POSITIONING & PHILOSOPHY
+================================================================================
+CYVRA Mobile is positioned as:
+"A Windows-hosted Android device-service application with controlled USB/ADB
+communication and capability-aware Android/OEM integration."
+
+What CYVRA Mobile IS NOT:
+- It is NOT an Android APK pretending to be a Windows diagnostic tool.
+- It is NOT a web browser script attempting to execute unsupported hardware operations.
+- It is NOT an invasive hacker utility that bypasses Android lock screens or FRP.
+
+The Permanent Product Rule:
+"Make the customer workflow simple, but make the evidence, licensing, device
+communication, sanitization, verification, and audit architecture rigorous."
+
+The Customer Experience:
+Connect Phone -> Diagnose -> AI Grade -> Report -> Purge -> Verify -> Certify.
+
+Behind that simple experience, the engineering system guarantees:
+Authenticated entitlement -> controlled device session -> capability-aware
+evidence -> authorized operation -> verified result -> auditable report.
+
+================================================================================
+2. CORE ARCHITECTURAL BOUNDARIES & MVC SEPARATION
+================================================================================
+CYVRA Mobile strictly isolates concerns across discrete architectural tiers:
+
+A. Presentation Tier (Vite / React / WebView2):
+   - Located in `apps/web/src/site/CustomerDesktopShell.tsx`.
+   - Responsible for rendering UI components, receiving operator button clicks,
+     displaying real-time progress bars, and rendering diagnostic telemetry.
+   - Contains NO business logic, no cryptographic private keys, and no direct
+     raw socket code.
+
+B. Business & Transport Tier (JVM / Kotlin Host Engine):
+   - Located in `apps/host/src/main/kotlin/cyvra/mobile/host/`.
+   - Orchestrates ADB communication, parses shell output, calculates deterministic
+     grading rules, evaluates human review exceptions, and performs post-wipe checks.
+
+C. Core Domain & Data Model Tier (Kotlin Multiplatform / JVM):
+   - Located in `apps/android/core/src/main/kotlin/cyvra/mobile/core/`.
+   - Immutable data models, JSON serialization contracts, evidence schemas,
+     and cryptographic SHA-256 digest definitions. Zero UI or OS dependencies.
+
+D. Cloud Licensing & Storage Tier (Cloudflare Workers / Neon PostgreSQL):
+   - Located in `services/api/` and `packages/database/`.
+   - Server-authoritative entitlement management, commercial order ledger,
+     payment webhook verification, and certificate archiving.
+
+================================================================================
+3. THE HONESTY RULE & MULTI-OEM COMPATIBILITY
+================================================================================
+A. The Absolute Prohibition on Universal Compatibility Claims:
+   Marketing, documentation, and user interfaces must NEVER claim:
+   "Works on every Android phone."
+   Android is an open-source, highly fragmented ecosystem with hundreds of OEMs
+   (Samsung, Xiaomi, Oppo, Motorola, Google, Vivo, Transsion, etc.).
+
+B. The Mandatory Standard:
+   "Designed for broad Android OEM and version compatibility, with capability-aware
+   handling for differences between devices."
+
+C. Honest Capability Reporting:
+   If a device does not support a specific hardware query (e.g., battery cycle
+   count on budget chipsets or locked diagnostic nodes on older Android versions),
+   CYVRA must report the field status as `NOT_SUPPORTED` or `UNAVAILABLE`.
+   Under NO circumstances may CYVRA fabricate synthetic or assumed values.
+
+================================================================================
+4. HARDWARE COMMUNICATION & CONTROLLED ADB TRANSPORT
+================================================================================
+A. Controlled Platform-Tools Pinning:
+   CYVRA Mobile bundles and pins Google Platform-Tools `adb.exe` v35.0.2 in:
+   `C:\Program Files\CYVRA Mobile\platform-tools\adb.exe`
+   The workstation must NEVER execute an unvetted `adb.exe` found in the customer's
+   Windows system PATH.
+
+B. Single-Device Intake Rule:
+   CYVRA Mobile services ONE Android device at a time per workstation.
+   Attempting to connect multiple phones simultaneously to one workstation creates
+   device disambiguation hazards and data purge cross-contamination risks.
+
+C. Safe Command Execution:
+   All ADB shell commands must be strictly parameterized and whitelisted.
+   Shell metacharacters (`;`, `&`, `|`, `` ` ``, `$`, `>`, `<`) are strictly blocked
+   to eliminate command injection vulnerabilities.
+
+================================================================================
+5. EVIDENCE-LED SANITIZATION & NIST SP 800-88 PRINCIPLES
+================================================================================
+CYVRA Mobile adheres to NIST Special Publication 800-88 Revision 2
+("Guidelines for Media Sanitization"):
+
+1. Separation of Concerns:
+   Diagnostic evidence collection must NEVER be combined with sanitization.
+   Report 1 (Condition Report) records pre-purge state.
+   Report 2 (Sanitization Certificate) records the verified sanitization event.
+
+2. Two-Step Operator Confirmation Barrier:
+   Sanitization is irreversible. CYVRA enforces an interactive checklist and
+   requires the operator to manually type the device's exact serial number
+   before the purge button becomes active.
+
+3. Independent Post-Reset Verification:
+   A sanitization command being sent is NOT proof of sanitization.
+   CYVRA Mobile waits for the device to reboot, reconnects via USB, queries
+   the package manager and user accounts, and independently verifies the Out-Of-Box
+   Experience (OOBE) state before generating a completion certificate.
+
+================================================================================
+6. THE 12 ABSOLUTE INVARIANTS OF CYVRA MOBILE
+================================================================================
+Every engineer, pull request, and deployment must uphold these 12 invariants:
+
+1. SEC-001 (Private Key Protection):
+   Private code signing keys and encryption private keys must NEVER exist in
+   the client software, git repositories, or developer environments.
+2. SEC-002 (Payment Secret Isolation):
+   Desktop applications never hold Razorpay or Stripe API secrets. All payments
+   use decoupled browser handoff.
+3. SEC-003 (Admin Credential Isolation):
+   Desktop client code must possess zero administrative authority tokens.
+4. SEC-004 (Identifier Integrity):
+   Strict prohibition against fabricating or altering IMEI, serial, or MAC data.
+5. SEC-005 (ADB Command Safety):
+   Whitelisted commands only; metacharacter injection strictly prevented.
+6. SEC-006 (Update Signature Enforcement):
+   Software delta updates must be Ed25519 digitally signed and staged atomically.
+7. SEC-007 (Server-Authoritative Entitlement):
+   The desktop client cannot manipulate scan counters; all revisions are server-signed.
+8. SEC-008 (Controlled Platform-Tools):
+   Must bundle and pin tested ADB binaries; no system PATH reliance.
+9. SEC-009 (Two-Step Purge Confirmation):
+   Manual checklist plus typed serial barrier required for destructive actions.
+10. SEC-010 (Offline Grace Boundaries):
+    Non-destructive tasks allowed offline; destructive purges require live server.
+11. SEC-011 (Multi-OEM Safety):
+    Respects manufacturer security boundaries (e.g., Knox warranty bit 0x1).
+12. SEC-012 (Tamper-Evident Reporting):
+    All condition reports and sanitization certificates are sealed with SHA-256.
+
+================================================================================
+7. CRYPTOGRAPHIC DATA INTEGRITY & AUDIT TRAILS
+================================================================================
+- All raw physical inspection captures (6-views) are hashed with SHA-256 immediately
+  upon acquisition to prove no retouching or photo alteration occurred.
+- Condition reports, human review logs, and sanitization certificates produce
+  canonical JSON structures whose SHA-256 digest is signed by the workstation.
+- Any discrepancy between the stored checksum and the regenerated payload
+  flags the certificate as `TAMPERED_INVALID`.
+
+================================================================================
+8. NETWORK RESILIENCE & OFFLINE FAULT TOLERANCE
+================================================================================
+- Network drops should NEVER disrupt active device diagnostics or physical inspection.
+- The workstation maintains a 24-hour cryptographically signed offline cache.
+- The system must explicitly distinguish between:
+  - `LICENSE_SERVER_UNAVAILABLE` (Network issue — Grace period remains active).
+  - `LICENSE_INVALID` (Cryptographic failure or revocation — Workstation locked).
+- Never report a license as "invalid" merely because Wi-Fi or Ethernet was disconnected.
+
+================================================================================
+9. USER EXPERIENCE & VISUAL DESIGN DIRECTIVES
+================================================================================
+- Professional workstation aesthetic: Dark-slate industrial palette (#0b1120 / #1e293b).
+- High-contrast telemetry metrics with clear status badges (OK: Emerald, WARN: Amber, DANGER: Rose).
+- Monospace formatting for hardware serials, MAC addresses, hashes, and model numbers.
+- Responsive layout with zero nested horizontal scrollbars on standard 1080p laptop screens.
+
+================================================================================
+10. CODEBASE FREEZE RULES & PRODUCTION DEPLOYMENT POLICY
+================================================================================
+- All version pins are frozen:
+  Kotlin 2.3.21 | AGP 8.13.2 | Gradle 9.1.0 | JDK 21 | compileSdk/targetSdk 36 | minSdk 26
+- Do not bump Gradle or AGP versions without architectural review.
+- Do not add external dependencies without security vulnerability assessment.
+- All 24 engineering phases are complete and frozen on `cursor/g0-g3-mobile-slice-7474`.
+================================================================================
+END OF GENERAL APPLICATION ARCHITECTURAL GUIDELINES — CYVORIQ SOLUTIONS PVT. LTD.
+================================================================================

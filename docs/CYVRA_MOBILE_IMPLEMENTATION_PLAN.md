@@ -247,6 +247,12 @@
 - Comprehensive unit test suites in `ReleaseFreezeModelsTest.kt` and `HostReleaseFreezeEngineTest.kt`.
 - Production release freeze baseline panel and Windows installer download banners in `CustomerDesktopShell.tsx` (Overview & Settings tabs).
 - Architecture clarification: CYVRA Mobile operates as a standalone Windows desktop executable (.exe setup installer) interacting with phones via USB/ADB, alongside the web licensing & customer portal.
+- Exhaustive software documentation suite created in `docs/*.txt`:
+  - `CYVRA_MOBILE_DOWNLOAD_AND_INSTALLATION_GUIDE.txt`
+  - `CYVRA_MOBILE_CUSTOMER_USER_MANUAL.txt`
+  - `CYVRA_MOBILE_ADMINISTRATOR_MANUAL.txt`
+  - `CYVRA_MOBILE_GENERAL_APPLICATION_GUIDELINES.txt`
+  - `CYVRA_MOBILE_DEEP_AUDIT_AND_NEXT_STEPS.txt`
 
 ---
 

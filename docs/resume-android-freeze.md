@@ -55,6 +55,12 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 22:** Windows Packaging & Release Staging (Controlled platform-tools adb v35.0.2, WebView2 & MSVC checks, Authenticode signing manifest) — **Done** (`PackagingModels.kt`, `HostPackagingStagingEngine.kt`, unit tests, and CustomerDesktop UI Settings).
 - **Phase 23:** Full End-to-End System Integration & Acceptance Verification (18-stage customer journey, 8 acceptance categories §80, tamper-evident acceptance seal) — **Done** (`AcceptanceModels.kt`, `HostAcceptanceVerificationEngine.kt`, unit tests, and CustomerDesktop UI Settings).
 - **Phase 24:** Final Signed Production Release Freeze (Authenticode code signing validation, primary Windows setup exe / enterprise MSI bundling, freeze seal) — **Done** (`ReleaseFreezeModels.kt`, `HostReleaseFreezeEngine.kt`, unit tests, and CustomerDesktop UI Overview & Settings).
+- **Comprehensive Documentation Suite Added (.txt files):**
+  - `CYVRA_MOBILE_DOWNLOAD_AND_INSTALLATION_GUIDE.txt`: Step-by-step download and installation guide for Windows `.exe` setup.
+  - `CYVRA_MOBILE_CUSTOMER_USER_MANUAL.txt`: Exhaustive technician and customer operating manual for all workflows.
+  - `CYVRA_MOBILE_ADMINISTRATOR_MANUAL.txt`: Administrative portal, Option B approval gate, order lifecycle, and telemetry.
+  - `CYVRA_MOBILE_GENERAL_APPLICATION_GUIDELINES.txt`: Architectural guidelines, honesty rule, and 12 absolute invariants.
+  - `CYVRA_MOBILE_DEEP_AUDIT_AND_NEXT_STEPS.txt`: Monorepo codebase inventory, test audit, and operational roadmap.
 - **All 24 Product Engineering Phases Completed & Frozen.**
 
 ## Laptop — type only these lines in Git Bash
