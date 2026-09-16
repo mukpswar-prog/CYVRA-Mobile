@@ -84,9 +84,9 @@ If the error is `Unable to download toolchain ... languageVersion=25 ... vendor=
 3. In Git Bash: `cd /c/Users/User/StudioProjects/CYVRA-Mobile` then `git pull`.
 4. Run `cd apps/android && ./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :host:test`.
 5. Expected: `BUILD SUCCESSFUL` for `:core:test` and `:host:test`. (And `./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :app:assembleDebug` for APK).
-6. Slices A0–A13, Customer Desktop Workstation C1–C4, Phase 8 (AI Physical Inspection V0), Phase 9 (AI Screen Inspection), Phase 10 (AI Body Inspection), Phase 11 (Deterministic Grading Rules Engine), Phase 12 (Human Review), Phase 13 (CYVORIQ Certified Report), Phase 14 (Data Purge Workflow), Phase 15 (NIST Sanitization Certificate), Phase 16 (Secure Software Update System), Phase 17 (Website Upgrade Flow & Scan Accounting), Phase 18 (Payment & Staff Approval Workflow), Phase 19 (Offline Entitlement Handling & Network Resilience), and Phase 20 (End-to-End Security Hardening & Zero-Leak Audit) are complete. In Git Bash, pull and test with:
+6. Slices A0–A13, Customer Desktop Workstation C1–C4, Phase 8 (AI Physical Inspection V0), Phase 9 (AI Screen Inspection), Phase 10 (AI Body Inspection), Phase 11 (Deterministic Grading Rules Engine), Phase 12 (Human Review), Phase 13 (CYVORIQ Certified Report), Phase 14 (Data Purge Workflow), Phase 15 (NIST Sanitization Certificate), Phase 16 (Secure Software Update System), Phase 17 (Website Upgrade Flow & Scan Accounting), Phase 18 (Payment & Staff Approval Workflow), Phase 19 (Offline Entitlement Handling & Network Resilience), Phase 20 (End-to-End Security Hardening & Zero-Leak Audit), and Phase 21 (Multi-OEM Device Adapter Extension) are complete. In Git Bash, pull and test with:
 `./gradlew.bat -Dorg.gradle.java.home="C:/Program Files/Java/jdk-21" :core:test :host:test`
-To proceed with Phase 21 (Multi-OEM Device Adapter Extension), say **execute Phase 21 approved**.
+To proceed with Phase 22 (Windows Packaging & Release Staging), say **execute Phase 22 approved**.
 
 When the owned Samsung arrives, switch to [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4.
 

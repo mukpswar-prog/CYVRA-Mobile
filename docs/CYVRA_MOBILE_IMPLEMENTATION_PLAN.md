@@ -198,8 +198,20 @@
 - Comprehensive unit test suites in `SecurityAuditModelsTest.kt` and `HostSecurityAuditEngineTest.kt`.
 - Interactive "Security Hardening & Zero-Leak Audit (§43 / Phase 20)" live compliance table in the Settings tab of `CustomerDesktopShell.tsx`.
 
-### Phase 21: Multi-OEM Device Adapter Extension [NEXT]
-- Specialized multi-OEM diagnostic and capability adapters (Samsung Knox, Xiaomi HyperOS, OnePlus/Oppo ColorOS, Motorola) extending the base ADB transport.
+### Phase 21: Multi-OEM Device Adapter Extension [COMPLETED]
+- Extended OEM capability and security models (`OemSecuritySuite`, `OemCapabilityFeature`, `OemAdapterProfile`) in `:core` (`OemAdapterModels.kt`).
+- Implemented `HostMultiOemAdapterRegistry` and dedicated manufacturer adapters in `:host` (`HostMultiOemAdapterRegistry.kt`):
+  - **Samsung Galaxy**: One UI detection, Knox hardware security enclave attestation, `sec_bat_health_node`, and Knox secure erase capability.
+  - **Xiaomi / Redmi / POCO**: HyperOS / MIUI detection, Xiaomi TEE cryptographic integrity, and Qualcomm BMS telemetry.
+  - **OnePlus / Oppo / Realme**: ColorOS / OxygenOS detection, OEStore isolated security, and SuperVOOC dual-cell telemetry.
+  - **Motorola**: Live G54 test baseline, ThinkShield for Mobile OS defense, and Moto charge control telemetry.
+  - **Google Pixel**: Titan M2 discrete hardware security module and Pixel Health HAL.
+  - **Generic Android**: Robust AOSP fallback ensuring standard recovery wipe-data.
+- Comprehensive unit test suites in `OemAdapterModelsTest.kt` and `HostMultiOemAdapterRegistryTest.kt`.
+- Interactive Multi-OEM Adapter capability inspector & profile switcher in the Advanced Diagnostic tab of `CustomerDesktopShell.tsx`.
+
+### Phase 22: Windows Packaging & Release Staging [NEXT]
+- Windows packaging specifications, staging directory structure, and release signing checks.
 
 ---
 

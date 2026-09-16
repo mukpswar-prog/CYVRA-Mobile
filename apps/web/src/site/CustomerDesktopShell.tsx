@@ -136,6 +136,9 @@ export function CustomerDesktopShell(props: {
   const [offlineGraceExpiresAt] = useState<string>("2026-09-17 10:00:00 UTC");
   const [signedCacheDigest] = useState<string>("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 
+  // Phase 21: Multi-OEM Device Adapter Selection & Capability State (§8, §24)
+  const [selectedOemFamily, setSelectedOemFamily] = useState<"MOTOROLA" | "SAMSUNG" | "XIAOMI" | "ONEPLUS" | "GOOGLE" | "GENERIC">("MOTOROLA");
+
   // Phase 18: Commercial Orders & Staff Approval Tracking State (§10, §30)
   const [orderRegistry, setOrderRegistry] = useState<Array<{
     orderId: string;
@@ -1066,7 +1069,7 @@ export function CustomerDesktopShell(props: {
                       <strong>Honesty Invariant:</strong> The diagnostic engine queries real-time device parameters via controlled ADB and optional device-side component.
                       Restricted identifiers (telephony IMEI, Wi-Fi MAC) are never fabricated and are marked with explicit limitation reasons.
                     </p>
-                    <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                    <div className="btn-row" style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
                       <button
                         type="button"
                         className="btn btn-action-primary"
@@ -1082,6 +1085,114 @@ export function CustomerDesktopShell(props: {
                       >
                         View Existing Reports
                       </button>
+                    </div>
+
+                    {/* Phase 21: Multi-OEM Device Adapter & Security Suite Telemetry */}
+                    <div className="panel-card" style={{ background: "#0b1120", border: "1px solid #1e293b", padding: "16px", borderRadius: "8px" }}>
+                      <div className="panel-card-header" style={{ marginBottom: "12px" }}>
+                        <h4 style={{ margin: 0, fontSize: "14px", color: "#38bdf8" }}>
+                          Multi-OEM Device Adapter & Hardware Security Profile (§8, §24 / Phase 21)
+                        </h4>
+                        <span className="badge-pill ready-badge">
+                          {selectedOemFamily === "SAMSUNG" ? "SAMSUNG KNOX ACTIVE" :
+                           selectedOemFamily === "XIAOMI" ? "XIAOMI TEE ATTESTED" :
+                           selectedOemFamily === "ONEPLUS" ? "OPPO / COLOROS TEE" :
+                           selectedOemFamily === "GOOGLE" ? "TITAN M2 DISCRETE" :
+                           selectedOemFamily === "MOTOROLA" ? "MOTO THINKSHIELD" : "GENERIC ANDROID"}
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", marginBottom: "14px", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className={`btn ${selectedOemFamily === "MOTOROLA" ? "btn-compact-primary" : "btn-compact-ghost"}`}
+                          style={{ fontSize: "11px" }}
+                          onClick={() => setSelectedOemFamily("MOTOROLA")}
+                        >
+                          Motorola (Live G54 Baseline)
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${selectedOemFamily === "SAMSUNG" ? "btn-compact-primary" : "btn-compact-ghost"}`}
+                          style={{ fontSize: "11px" }}
+                          onClick={() => setSelectedOemFamily("SAMSUNG")}
+                        >
+                          Samsung (One UI & Knox)
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${selectedOemFamily === "XIAOMI" ? "btn-compact-primary" : "btn-compact-ghost"}`}
+                          style={{ fontSize: "11px" }}
+                          onClick={() => setSelectedOemFamily("XIAOMI")}
+                        >
+                          Xiaomi (HyperOS & TEE)
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${selectedOemFamily === "ONEPLUS" ? "btn-compact-primary" : "btn-compact-ghost"}`}
+                          style={{ fontSize: "11px" }}
+                          onClick={() => setSelectedOemFamily("ONEPLUS")}
+                        >
+                          OnePlus / Oppo (ColorOS)
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${selectedOemFamily === "GOOGLE" ? "btn-compact-primary" : "btn-compact-ghost"}`}
+                          style={{ fontSize: "11px" }}
+                          onClick={() => setSelectedOemFamily("GOOGLE")}
+                        >
+                          Google (Pixel Titan M)
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${selectedOemFamily === "GENERIC" ? "btn-compact-primary" : "btn-compact-ghost"}`}
+                          style={{ fontSize: "11px" }}
+                          onClick={() => setSelectedOemFamily("GENERIC")}
+                        >
+                          Generic Android AOSP
+                        </button>
+                      </div>
+
+                      <div className="device-metric-rows" style={{ fontSize: "12px" }}>
+                        <div className="metric-row">
+                          <span className="metric-label">Resolved Adapter ID:</span>
+                          <span className="metric-value font-mono text-cyan-400">
+                            {selectedOemFamily === "SAMSUNG" ? "OEM-ADAPTER-SAMSUNG-KNOX" :
+                             selectedOemFamily === "XIAOMI" ? "OEM-ADAPTER-XIAOMI-HYPEROS" :
+                             selectedOemFamily === "ONEPLUS" ? "OEM-ADAPTER-OPPO-COLOROS" :
+                             selectedOemFamily === "GOOGLE" ? "OEM-ADAPTER-GOOGLE-PIXEL" :
+                             selectedOemFamily === "MOTOROLA" ? "OEM-ADAPTER-MOTO-THINKSHIELD" : "OEM-ADAPTER-GENERIC-ANDROID"}
+                          </span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">OEM Security Architecture:</span>
+                          <span className="metric-value font-bold text-emerald-400">
+                            {selectedOemFamily === "SAMSUNG" ? "Samsung Knox Vault (Hardware Enclave)" :
+                             selectedOemFamily === "XIAOMI" ? "Xiaomi TEE Cryptographic Storage" :
+                             selectedOemFamily === "ONEPLUS" ? "OPPO OEStore Isolated Vault" :
+                             selectedOemFamily === "GOOGLE" ? "Google Titan M2 Discrete Security Module" :
+                             selectedOemFamily === "MOTOROLA" ? "ThinkShield for Mobile OS Defense" : "Standard Android Keystore"}
+                          </span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Hardware Battery Telemetry:</span>
+                          <span className="metric-value font-mono">
+                            {selectedOemFamily === "SAMSUNG" ? "sec_bat_health / cycle_count sysfs" :
+                             selectedOemFamily === "XIAOMI" ? "qcom_fg_health / bms sysfs node" :
+                             selectedOemFamily === "ONEPLUS" ? "vooc_fastcharge_health dual-cell node" :
+                             selectedOemFamily === "GOOGLE" ? "pixel_health_hal IHealth service" :
+                             selectedOemFamily === "MOTOROLA" ? "moto_battery_charge_control sysfs" : "dumpsys battery (AOSP standard)"}
+                          </span>
+                        </div>
+                        <div className="metric-row">
+                          <span className="metric-label">Supported Sanitization Methods:</span>
+                          <span className="metric-value text-sky-400">
+                            {selectedOemFamily === "SAMSUNG" ? "Platform Reset, Device Owner Wipe, OEM Secure Erase (Knox)" :
+                             selectedOemFamily === "GENERIC" ? "Standard Platform Reset (Recovery Wipe-Data)" :
+                             "Platform Factory Reset, Device Owner Policy Wipe"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

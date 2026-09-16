@@ -51,7 +51,8 @@ Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./
 - **Phase 18:** Payment & Staff Approval Workflow (Order lifecycle, server-verified payment, Option B admin approval gate, and audit records) — **Done** (`PaymentApprovalModels.kt`, `HostPaymentApprovalEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 19:** Offline Entitlement Handling & Network Resilience (Signed offline cache, 24h grace period, operation gating, and distinguishing server outage from invalid license) — **Done** (`OfflineEntitlementModels.kt`, `HostOfflineEntitlementEngine.kt`, unit tests, and CustomerDesktop UI).
 - **Phase 20:** End-to-End Security Hardening & Zero-Leak Audit (Zero private keys, payment secrets, admin credentials in client, ADB command safety, server entitlement authority) — **Done** (`SecurityAuditModels.kt`, `HostSecurityAuditEngine.kt`, unit tests, and CustomerDesktop UI Settings).
-- **Next Phase:** Phase 21 (Multi-OEM Device Adapter Extension).
+- **Phase 21:** Multi-OEM Device Adapter Extension (Samsung Knox, Xiaomi HyperOS, OnePlus/Oppo ColorOS, Motorola ThinkShield, Google Pixel, Generic AOSP) — **Done** (`OemAdapterModels.kt`, `HostMultiOemAdapterRegistry.kt`, unit tests, and CustomerDesktop UI Diagnostic).
+- **Next Phase:** Phase 22 (Windows Packaging & Release Staging).
 
 ## Laptop — type only these lines in Git Bash
 
