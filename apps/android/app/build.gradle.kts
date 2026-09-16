@@ -1,16 +1,18 @@
 plugins {
     id("com.android.application")
     kotlin("android")
+    kotlin("plugin.serialization")
 }
 
 android {
     namespace = "cyvra.mobile"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "co.in.cyvra.mobile"
-        minSdk = 29
-        targetSdk = 35
+        // APK install floor (Android 8.0+). Not the Windows-host device-service floor.
+        minSdk = 26
+        targetSdk = 36
         versionCode = 1
         versionName = "0.0.0-g5"
     }
@@ -35,6 +37,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.12.0")
 }

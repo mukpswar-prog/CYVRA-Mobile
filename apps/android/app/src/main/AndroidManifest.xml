@@ -5,7 +5,11 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- minSdk 26: pre-31 Bluetooth names. BLUETOOTH_CONNECT is API 31+. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- API 33+. Older Android ignores this name; do not treat it as universal. -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -25,5 +29,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".ComponentEvidenceReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="co.in.cyvra.mobile.COLLECT_EVIDENCE" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

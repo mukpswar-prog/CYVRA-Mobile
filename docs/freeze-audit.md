@@ -43,10 +43,10 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 1. Code lives only in `mukpswar-prog/CYVRA-Mobile`. No folders in Erase.
 2. Cloudflare account `5a3eeb2b3d42726a8ba08732464a0eda` — **new** Pages/Worker/Hyperdrive only. Never `cyvra-www`, `cyvoriq-erase-api`, `cyvra-approvals`.
 3. Neon `floral-art-02749206` is the mobile SoT. Do not reuse Erase Neon or Hyperdrive `cyvra-erase-neon-production`.
-4. Resend from the Worker only. Domain `cyvra.co.in` is already Verified. Do not merge Windows OTP into mobile.
-5. Customer web is `mobile.cyvra.co.in` (today: `cyvra-mobile.pages.dev`). Optional API host `api-mobile.cyvra.co.in`. **Not** `api.cyvra.co.in`.
-6. No second admin host. G7 is a **CYVRA Mobile** section on existing `admin.cyvra.co.in` / `accounts.cyvra.co.in` (same login, super admin `ceo@cyvoriq.com`).
-7. www is a **link** last (G8). No Journey B inside `cyvra-www`. No OTP form on www.
+4. Resend from the Worker only. Today `cyvra.co.in` is Verified (Erase + preview). Cutover From domain is `cyvoriq.co.in`. Do not merge Windows OTP into mobile.
+5. Customer preview is `mobile.cyvra.co.in`. Long-term public site is `www.cyvoriq.co.in`. API hostname is `api.cyvoriq.co.in`. **Not** `api.cyvra.co.in`.
+6. G7 ops is **`admin.cyvoriq.co.in` / `accounts.cyvoriq.co.in`** (new Pages in this repo). Super admin `ceo@cyvoriq.com`. **Not** Erase admin.
+7. G8 is public `www.cyvoriq.co.in`. No Journey B inside `cyvra-www`. No OTP form on Erase www.
 8. Lifecycle: verification → Report 1 → separate sanitization auth → wipe → Final Report. Report 1 ≠ wipe.
 9. USB / QR / ADB-visible ≠ authorization. No lock/FRP bypass. No root as workflow.
 10. Detect, don’t assume. `NOT_AVAILABLE` / `NOT_SUPPORTED` / `NOT_TESTED` / `PERMISSION_DENIED` are not FAIL.
@@ -66,11 +66,11 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 | **G2** | `users` / `email_otp_challenges` / `sessions`. `/health`, `POST /auth/request`, `POST /auth/verify` | **Live.** Neon auth tables exist. Worker `/health` = `status=ok`, `env=preview`, `database=connected`. Preview may still return `devCode` until `API_ENV=production`. |
 | **G3** | Registration on Pages preview, then `mobile.cyvra.co.in`. Honest empty home. Name + pincode mandatory. | **Custom domain live.** `https://mobile.cyvra.co.in/` HTTP 200 (same bundle as pages.dev). Worker still `*.workers.dev`. `api-mobile.cyvra.co.in` NXDOMAIN. |
 | **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` | **This slice.** Schemas + S1 catalog + digest + `PERMISSION_DENIED`. |
-| **G5** | S1 Android on **one** owned Samsung | **Core + ingest live.** JVM `:core` in `apps/android`. Worker `POST /evidence/batches` + `GET /evidence/records`. Neon has evidence tables (`0002_sturdy_salo`, 10 Sep 2026). `/health` `database=connected`. APK/device tests queued. |
+| **G5** | Windows USB/ADB + generic evidence. G5-A = Windows + USB + ADB + owned Samsung (APK supporting) | **Core + ingest live.** JVM `:core` in `apps/android`. Worker `POST /evidence/batches` + `GET /evidence/records`. Neon has evidence tables (`0002_sturdy_salo`, 10 Sep 2026). APK/device tests queued. Freeze: [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md). |
 | **G6** | Render Report 1 from a frozen manifest | **Live on preview.** `POST /reports/freeze` + signed-in HTML print view. Neon `0003` applied. Worker `/health` `ok` / `preview` / `connected`. Pages UI waits for a rebuild from this branch. |
 | **G7** | Ops on admin.cyvoriq.co.in / accounts.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages in this repo. Not Erase admin. Same Neon. |
 | **G8** | Public www.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages. Not a tab on www.cyvra.co.in. |
-| **G9** | Decision 5.1.20.2 then Station | **Forbidden until decision.** No `apps/station`. |
+| **G9** | Decision 5.1.20.2 then Station | **Forbidden until decision.** No `apps/station`. Mobile Windows host (`apps/host`) is a different, approved A3 slice. |
 | **G10** | S3 Knox / UEM | **Forbidden until S1 reports + real contract.** |
 
 ### Code vs guideline gaps (not bugs)

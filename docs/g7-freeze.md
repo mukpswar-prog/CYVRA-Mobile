@@ -2,7 +2,7 @@
 
 Build/test first, then live hosts: [pre-live-runbook.txt](./pre-live-runbook.txt).
 Map: [cross-repo-next-gates.txt](./cross-repo-next-gates.txt).
-Hidden browser bench: `/#ops` (not admin.cyvra.co.in).
+Hidden browser bench: `/#ops` (not `admin.cyvoriq.co.in` yet).
 
 **Started 10 Sep 2026** after G6 preview went live.  
 **Governing law:** [GUIDELINE.md](../GUIDELINE.md). Hosts: [admin-mobile-section.md](./admin-mobile-section.md).
@@ -13,9 +13,9 @@ G7 has two repos. This branch implements **only** the mobile SoT.
 |---|---|---|
 | Serial records | Neon `floral-art-02749206` via `cyvra-mobile-api` | **Yes** |
 | `ADMIN_API_TOKEN` gate | Worker secret (never Git, never Windows cookie) | **Yes** |
-| CYVRA Mobile button / views | Erase `admin-frontend` on `admin.cyvra.co.in` / `accounts.cyvra.co.in` | **No** |
+| CYVRA Mobile admin UI | New Pages `cyvoriq-admin` on `admin.cyvoriq.co.in` | **Not this slice** (API only) |
 | Payment provider / Windows licence tables | Erase | **No** |
-| G8 www nav, G9 Station, G10 Knox | Later | **No** |
+| G8 www, G9 Station, G10 Knox | Later | **No** |
 
 ## Approvals (10 Sep 2026)
 
@@ -23,13 +23,14 @@ G7 has two repos. This branch implements **only** the mobile SoT.
 |---|---|
 | **A** | G6 save accepted. Worker preview version `38ef01e5-8400-4452-87d1-e1e576e2e27a`. |
 | **B** | First G7 coding is **this repo**: `mobile_serials` + `/admin/serials`. |
-| **C** | No second admin host. No copy of Windows licence tables. |
+| **C** | Ops hosts are `admin.cyvoriq.co.in` / `accounts.cyvoriq.co.in`. No copy of Windows licence tables. |
 | **D** | Admin calls use `ADMIN_API_TOKEN` + `X-Admin-Email: ceo@cyvoriq.com`. Never `cyvoriq_admin_session`. |
 | **E** | Do not start G8 / G9 / G10, www, Station, Knox, or Erase frontend here. |
 
-## Contract the Erase admin app will call later
+## Contract (this Worker; UI is admin.cyvoriq.co.in)
 
-Base: `https://cyvra-mobile-api.mukpswar.workers.dev` (not `api.cyvra.co.in`).
+Base: `https://cyvra-mobile-api.mukpswar.workers.dev` until `api.cyvoriq.co.in`
+is attached. Never `api.cyvra.co.in`.
 
 | Method | Path | Meaning |
 |---|---|---|
@@ -38,7 +39,7 @@ Base: `https://cyvra-mobile-api.mukpswar.workers.dev` (not `api.cyvra.co.in`).
 | `POST` | `/admin/serials/:id/issue` | Issue once. Replay keeps `issuedAt` |
 | `POST` | `/admin/serials/:id/revoke` | Revoke |
 
-Headers: `Authorization: Bearer <ADMIN_API_TOKEN>`, `X-Admin-Email: ceo@cyvoriq.com`, `Origin: https://admin.cyvra.co.in`.
+Headers: `Authorization: Bearer <ADMIN_API_TOKEN>`, `X-Admin-Email: ceo@cyvoriq.com`, `Origin: https://admin.cyvoriq.co.in`.
 
 `paymentNoted` is a human attestation, not a payment-gateway proof. Numbering `CYVRA-M-<YEAR>-<UNIQUE>`.
 

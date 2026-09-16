@@ -1,0 +1,214 @@
+================================================================================
+CYVRA MOBILE — ADMINISTRATOR & STAFF WORKFLOW MANUAL
+Document Identifier: CYVRA-DOC-MANUAL-ADMIN-001
+Revision: 1.0.0 (Production Release Baseline v3.2.2-release)
+Target Audience: CYVORIQ Systems Administrators, Compliance Officers, Finance Team
+Publisher: CYVORIQ Solutions Private Limited
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. ADMINISTRATIVE ARCHITECTURE & OPTION B APPROVAL GATE
+2. ADMIN CONSOLE AUTHENTICATION & ACCESS CONTROL
+3. COMMERCIAL ORDER LIFECYCLE MANAGEMENT
+4. PAYMENT WEBHOOK VERIFICATION (RAZORPAY & STRIPE)
+5. STAFF REVIEW & ENTITLEMENT ISSUANCE GATE
+6. CUSTOMER ENTITLEMENT REVISION & REVOCATION
+7. DEVICE SCAN AUDITING & ABUSE PREVENTION
+8. RELEASE PACKAGING & AUTHENTICODE SIGNING MANAGEMENT
+9. ZERO-LEAK SECURITY HARDENING AUDIT INVARIANTS
+10. DATABASE SCHEMA, LOGGING & TELEMETRY MONITORING
+
+================================================================================
+1. ADMINISTRATIVE ARCHITECTURE & OPTION B APPROVAL GATE
+================================================================================
+In enterprise mobile refurbishment and asset sanitization, financial compliance
+and license integrity must be strictly guarded. Under CYVRA Mobile architecture:
+
+OPTION B APPROVAL GATE:
+Payment Confirmed -> Admin Approval -> Entitlement Issued
+
+Rationale:
+Automated, unvetted issuance of bulk scan entitlements or destructive purge
+credits poses high operational risk (e.g., chargebacks, unvetted trial accounts,
+fraudulent payment webhooks).
+Option B introduces a mandatory, server-authoritative staff review step between
+payment gateway capture and cryptographic entitlement issuance:
+1. Customer initiates order on the CYVORIQ website.
+2. Payment gateway (Razorpay / Stripe) confirms settlement via signed webhook.
+3. Order status transitions to: `WAITING_ADMIN_APPROVAL`.
+4. CYVORIQ Staff logs into the Admin Portal, verifies payment reference and GST/tax
+   compliance, and clicks "APPROVE".
+5. The server issues the new license revision token and increments the customer's
+   desktop workstation scan quota.
+
+CRITICAL SECURITY RULE:
+Administrative tokens, approval APIs, and payment secrets exist SOLELY on the
+backend server (Cloudflare Workers / Neon PostgreSQL). The desktop client
+software installed on customer laptops possesses ZERO administrative authority.
+
+================================================================================
+2. ADMIN CONSOLE AUTHENTICATION & ACCESS CONTROL
+================================================================================
+A. Admin Portal URL:
+   https://admin.cyvoriq.co.in/ (or https://cyvoriq.co.in/admin)
+
+B. Authentication Method:
+   - Dedicated Administrator Work Email.
+   - Dual-Factor Authentication (OTP / Hardware Security Key).
+   - Session Tokens: Short-lived JWTs (1 hour expiration) signed with RS256.
+
+C. Role-Based Access Control (RBAC):
+   - SUPER_ADMIN: Global system configuration, key rotation, database migrations.
+   - COMPLIANCE_STAFF: Order approvals, entitlement adjustments, certificate audits.
+   - SUPPORT_AGENT: Read-only session inspection, hardware diagnostic review.
+
+================================================================================
+3. COMMERCIAL ORDER LIFECYCLE MANAGEMENT
+================================================================================
+Every commercial upgrade or scan pack order follows an immutable state machine:
+
+1. `PAYMENT_PENDING`: Customer clicked upgrade; waiting for payment gateway response.
+2. `PAYMENT_CONFIRMED`: Webhook received; transaction reference verified.
+3. `WAITING_ADMIN_APPROVAL`: Awaiting compliance staff manual authorization.
+4. `ENTITLEMENT_ISSUED`: Staff approved; new license serial generated and bound.
+5. `REJECTED`: Staff declined order (e.g., failed AML check, fraudulent card).
+6. `REFUNDED`: Entitlement revoked, payment reversed via gateway API.
+
+Order Records Contain:
+- `orderId`: Unique internal identifier (e.g., `ORD-2026-90412`).
+- `customerId`: Customer account UUID.
+- `targetPlan`: Plan tier requested (e.g., `Professional (250 Scans)`).
+- `amountInr`: Invoice value in INR (e.g., ₹4,999 + 18% GST).
+- `paymentProvider`: `RAZORPAY` or `STRIPE`.
+- `paymentRef`: Bank or gateway transaction reference (e.g., `pay_Q9zL8x2K4m`).
+- `approvedBy`: Admin operator ID who authorized the transaction.
+- `issuedSerial`: Cryptographically signed serial issued to customer.
+
+================================================================================
+4. PAYMENT WEBHOOK VERIFICATION (RAZORPAY & STRIPE)
+================================================================================
+All payment notifications are ingested by server-side Cloudflare Worker endpoints:
+`POST https://api.cyvoriq.co.in/webhooks/razorpay`
+`POST https://api.cyvoriq.co.in/webhooks/stripe`
+
+Verification Protocol:
+1. Razorpay Signature Verification:
+   The backend computes HMAC-SHA256 of `request.body` using the server-secret
+   `RAZORPAY_WEBHOOK_SECRET` and compares it to the `X-Razorpay-Signature` header.
+2. Stripe Signature Verification:
+   Validates the `Stripe-Signature` timestamped header using Stripe SDK.
+3. Idempotency Check:
+   If `paymentRef` has already been recorded in the database, subsequent webhook
+   deliveries are ignored to prevent double-crediting.
+4. If valid, the order status is set to `WAITING_ADMIN_APPROVAL`.
+
+================================================================================
+5. STAFF REVIEW & ENTITLEMENT ISSUANCE GATE
+================================================================================
+Procedure for Compliance Staff:
+
+Step 1: Sign in to https://admin.cyvoriq.co.in/.
+Step 2: Navigate to "Commercial Orders" in the sidebar.
+Step 3: Filter by status: `WAITING_ADMIN_APPROVAL`.
+Step 4: Inspect Order Details:
+        - Verify customer business name, address, and GSTIN.
+        - Verify payment amount matches invoice tier.
+        - Check payment gateway dashboard for settled transaction ID.
+Step 5: Decision:
+        - To Authorize: Click "Approve & Issue Entitlement".
+          The system prompts for your Admin PIN, increments the customer's
+          plan revision, and generates an updated `SignedOfflineLicenseCache`.
+        - To Decline: Click "Reject Order", input rejection reason
+          (e.g., "Incomplete enterprise billing documentation"), and initiate refund.
+
+================================================================================
+6. CUSTOMER ENTITLEMENT REVISION & REVOCATION
+================================================================================
+A. Entitlement Revisions (Preserving Carried Usage):
+   When a customer upgrades from 50 scans to 250 scans, the system does NOT wipe
+   their existing usage. It creates a new immutable revision:
+   - Revision 1: 50 scans total, 32 used, 18 remaining -> SUPERSEDED.
+   - Revision 2: 250 scans total + 18 carried = 268 scans available.
+   The internal `licenseId` remains constant throughout the customer lifetime.
+
+B. Emergency License Revocation:
+   If a customer machine is reported stolen, compromised, or terminated:
+   1. In Admin Console -> "Licenses" -> Select License Serial.
+   2. Click "Revoke License".
+   3. Provide incident reference (e.g., "SEC-INC-2026-08").
+   4. The server flags the token as `REVOKED`.
+   5. Next time the customer desktop workstation attempts an online heartbeat,
+      it immediately locks with message:
+      "LICENSE REVOKED BY CYVORIQ COMPLIANCE — CONTACT SUPPORT".
+
+================================================================================
+7. DEVICE SCAN AUDITING & ABUSE PREVENTION
+================================================================================
+Administrators have access to the central Device Scan Audit Log:
+- Real-time stream of all condition reports and sanitization certificates.
+- Fields: Session UUID, Device Serial, Hardware Model, Timestamp, Workstation IP.
+
+Abuse Detection Rules:
+1. Serial Recycling:
+   If the same smartphone serial is scanned 10 times in 1 hour across different
+   workstations, an alert is raised for review.
+2. Rapid Purge Consumption:
+   Monitors high-volume bulk sanitization lines to ensure scan debits match
+   physical asset intake logs.
+3. Offline Cache Tampering:
+   If a client desktop reports offline operations with an invalid SHA-256 digest
+   or forged timestamp, the client is blocked and flagged for audit.
+
+================================================================================
+8. RELEASE PACKAGING & AUTHENTICODE SIGNING MANAGEMENT
+================================================================================
+When releasing a new desktop version (e.g., v3.2.3):
+
+A. Private Key Isolation:
+   - Authenticode private signing keys NEVER reside on developer laptops or
+     customer workstations.
+   - Private keys are stored in a dedicated Hardware Security Module (HSM)
+     or Azure Key Vault / AWS CloudHSM.
+
+B. Build Pipeline Signing:
+   1. CI/CD agent builds `cyvra-workstation.exe` and `CYVRA-Mobile-Setup.exe`.
+   2. Submits SHA-256 hash to HSM signing service.
+   3. Signs binary using SHA-256 with Authenticode and DigiCert timestamping.
+   4. Generates `release-manifest.json` containing package size and SHA-256 digest.
+   5. Uploads binaries to Cloudflare R2 / AWS S3 distribution buckets.
+
+================================================================================
+9. ZERO-LEAK SECURITY HARDENING AUDIT INVARIANTS
+================================================================================
+Administrators must verify compliance against the 12 Absolute Invariants (§43):
+1. SEC-001: Zero private signing keys in client code or Git repository.
+2. SEC-002: Zero payment gateway secrets (Razorpay / Stripe) in desktop shell.
+3. SEC-003: Zero admin master credentials or backdoor debug tokens in client.
+4. SEC-004: Identifier integrity: No fabrication of restricted IMEI / serial numbers.
+5. SEC-005: ADB command safety: Strict command whitelist; metacharacters blocked.
+6. SEC-006: Update signature enforcement: Rejects unsigned or tampered delta packages.
+7. SEC-007: Server-authoritative entitlement: Desktop cannot manipulate scan counter.
+8. SEC-008: Controlled platform-tools: Restricts PATH overrides of `adb.exe`.
+9. SEC-009: 2-step confirmation purge: Destructive wipe requires manual serial input.
+10. SEC-010: Offline grace boundaries: Destructive purges locked to online state.
+11. SEC-011: Multi-OEM safety: Honors Knox bit 0x1 and hardware warranty boundaries.
+12. SEC-012: Tamper-evident reports: Condition and sanitization certificates SHA-256 sealed.
+
+================================================================================
+10. DATABASE SCHEMA, LOGGING & TELEMETRY MONITORING
+================================================================================
+A. Core Database Tables (Neon PostgreSQL):
+   - `users`: Customer accounts, company name, address, GSTIN, created timestamp.
+   - `licenses`: `license_id`, `serial_number`, `plan_id`, `status`, `expires_at`.
+   - `entitlement_revisions`: Historical ledger of plan expansions and carried scans.
+   - `orders`: Commercial purchase records, payment status, approval signatures.
+   - `scan_transactions`: Transaction ID, device serial, session UUID, scan number.
+   - `audit_events`: Security logs, admin approvals, IP addresses, user agents.
+
+B. Centralized Logging (Cloudflare Logpush / Datadog):
+   - Ingests all API error codes (401 Unauthorized, 403 Forbidden, 429 Rate Limit).
+   - Tracks response latencies and webhook delivery confirmation rates.
+================================================================================
+END OF ADMINISTRATOR & STAFF WORKFLOW MANUAL — CYVORIQ SOLUTIONS PVT. LTD.
+================================================================================

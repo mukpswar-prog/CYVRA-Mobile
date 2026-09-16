@@ -1,9 +1,11 @@
 package cyvra.mobile
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -11,10 +13,13 @@ import androidx.appcompat.app.AppCompatActivity
 import cyvra.mobile.core.CapabilityProfile
 import cyvra.mobile.core.FeatureFact
 import cyvra.mobile.core.PermissionFact
+import cyvra.mobile.core.newEvidenceId
 import cyvra.mobile.core.planEvidence
+import cyvra.mobile.core.plannedIngestJson
+import cyvra.mobile.core.queuePlannedBatch
 
 /**
- * S1 home: capability plan only. No IMEI, no Knox, no grades.
+ * S1 home: capability plan + honest queued batch. No IMEI, no Knox, no grades.
  * Permissions are requested when a test starts (later slice), not on launch.
  */
 class MainActivity : AppCompatActivity() {
@@ -22,13 +27,38 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val profile = snapshot()
         val planned = planEvidence(profile)
-        val text = buildString {
+        val collectedAt = java.time.Instant.now().toString()
+        val deviceLifecycleId = newEvidenceId()
+        val processingSessionId = newEvidenceId()
+        val batchId = newEvidenceId()
+        val profileId = newEvidenceId()
+        val batch = queuePlannedBatch(
+            profile = profile,
+            deviceLifecycleId = deviceLifecycleId,
+            processingSessionId = processingSessionId,
+            batchId = batchId,
+            collectedAt = collectedAt,
+        )
+        val ingest = plannedIngestJson(
+            profile = profile,
+            deviceLifecycleId = deviceLifecycleId,
+            processingSessionId = processingSessionId,
+            batchId = batchId,
+            profileId = profileId,
+            collectedAt = collectedAt,
+        )
+        filesDir.resolve("cyvra-g5-batch.json").writeText(ingest)
+        val summaryText = buildString {
             appendLine("CYVRA Mobile Evidence")
-            appendLine("S1 scaffold — not a sanitization report.")
+            appendLine("S1 planned batch — not a sanitization report.")
+            appendLine("POST https://api.cyvoriq.co.in/evidence/batches")
+            appendLine("USB file copy is not device authorization.")
             appendLine("Logins are separate from Windows Erase.")
             appendLine()
             appendLine("Build: ${profile.manufacturer} ${profile.model} / SDK ${profile.sdkInt}")
             appendLine("Android ID (not IMEI): ${Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)}")
+            appendLine("Queued ${batch.records.size} records. PASS count: ${batch.records.count { it.result == "PASS" }} (must be 0).")
+            appendLine("Saved files/cyvra-g5-batch.json")
             appendLine()
             for (row in planned) {
                 appendLine("${row.testId}  ${row.uiStatus}  (${row.plannedResult})")
@@ -37,10 +67,26 @@ class MainActivity : AppCompatActivity() {
         val view = TextView(this).apply {
             textSize = 14f
             setPadding(32, 32, 32, 32)
-            this.text = text
+            setText(summaryText)
+        }
+        val share = Button(this).apply {
+            setText("Share batch JSON")
+            setOnClickListener {
+                startActivity(
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_TEXT, ingest)
+                            putExtra(Intent.EXTRA_SUBJECT, "CYVRA Mobile S1 batch $batchId")
+                        },
+                        "Share CYVRA batch",
+                    ),
+                )
+            }
         }
         val scroll = ScrollView(this)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(share)
         box.addView(view)
         scroll.addView(box)
         setContentView(scroll)

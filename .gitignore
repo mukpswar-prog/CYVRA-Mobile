@@ -19,12 +19,22 @@ dist/
 # local Postgres data (Neon stand-in for local dev)
 .cyvra-pgdata/
 
+# IDE (never commit; Studio/Cursor create these locally)
+.idea/
+apps/android/.idea/
+
 # Android / Gradle
 apps/android/.gradle/
 apps/android/.kotlin/
 apps/android/**/build/
+apps/host/.gradle/
+apps/host/.kotlin/
+apps/host/build/
 apps/android/local.properties
 apps/android/.idea/
+# Studio/Gradle 9 "updateDaemonJvm" writes this and can pin JDK 25.
+# Freeze is JDK 21. Do not commit it.
+apps/android/gradle/gradle-daemon-jvm.properties
 
 # logs / os
 *.log

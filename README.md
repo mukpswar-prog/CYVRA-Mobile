@@ -1,31 +1,37 @@
 # CYVRA Mobile Evidence
 
-Android phone and tablet verification, evidence, and reports for the CYVRA platform.
+CYVRA Mobile is a Windows-hosted Android device evidence and sanitization platform designed around Android platform capabilities, controlled USB/ADB communication and OEM-specific capability adapters. Actual device capabilities vary by Android version, OEM firmware, permissions, management state and exposed platform interfaces. It does **not** work on all Android devices by compilation alone.
 
-**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Freeze audit: [docs/freeze-audit.md](docs/freeze-audit.md). G4 evidence package: [packages/evidence](packages/evidence). Test pool: [docs/testing/pool.md](docs/testing/pool.md). Samsung/AOSP research: [docs/research/samsung-s1-sources.md](docs/research/samsung-s1-sources.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
+**Governing document:** [GUIDELINE.md](GUIDELINE.md) (also [docs/GUIDELINE.md](docs/GUIDELINE.md) for gate G0). **Android freeze (accepted 14 Sep 2026):** [docs/ANDROID_COMPATIBILITY_FREEZE.md](docs/ANDROID_COMPATIBILITY_FREEZE.md). Start: [docs/resume-android-freeze.md](docs/resume-android-freeze.md). G0–G3 notes: [docs/g0-g3.md](docs/g0-g3.md). Freeze audit: [docs/freeze-audit.md](docs/freeze-audit.md). G4 evidence package: [packages/evidence](packages/evidence). Test pool: [docs/testing/pool.md](docs/testing/pool.md). Compatibility matrix: [docs/TEST_MATRIX.md](docs/TEST_MATRIX.md). Samsung/AOSP research: [docs/research/samsung-s1-sources.md](docs/research/samsung-s1-sources.md). Neon vs Pages vs Workers: [docs/neon-cloudflare.md](docs/neon-cloudflare.md). Neon / Resend / Worker / `mobile.cyvra.co.in` dashboard steps: [docs/dashboard-configure.md](docs/dashboard-configure.md). Thin www Mobile button (link only, no Erase OTP merge): [docs/www-mobile-button.md](docs/www-mobile-button.md). Paused next-slice / G7 admin section: [docs/parked-next-slice.md](docs/parked-next-slice.md),
 [docs/admin-mobile-section.md](docs/admin-mobile-section.md).
 
 - Company: CYVORIQ Solutions Pvt. Ltd.
 - Planned site: https://mobile.cyvra.co.in (live)
 - Frozen Windows product: https://www.cyvra.co.in — **not** this repository
 
-> Do not start CYVRA Station or Knox/S3. G5 Android **core** is in `apps/android`
-> (Codespaces: `./gradlew :core:test`). Worker ingest is `POST /evidence/batches`
+> Do not start CYVRA Station (`apps/station`) or Knox/S3. The CYVRA Mobile
+> Windows host (`apps/host`, slice A3) is the approved orchestrator; the APK is
+> supporting. G5 Android **core** is in `apps/android` (Codespaces:
+> `./gradlew :core:test`). Worker ingest is `POST /evidence/batches`
 > (local: `pnpm test:local-evidence`). Report 1 freeze is `POST /reports/freeze`
-> (local: `pnpm test:local-report`). Device/APK tests wait for a Samsung phone.
+> (local: `pnpm test:local-report`). Device proof is G5-A (Windows + USB + ADB +
+> owned Samsung), not APK compilation. Public www and live API stay frozen.
 > Cutover host is `www.cyvoriq.co.in` (decision 10 Sep 2026). Keep
 > `mobile.cyvra.co.in` until that zone is proven. Same Neon. Do not patch Erase.
 > Zone `cyvoriq.co.in` is on Cloudflare (NS checked 10 Sep 2026). After-break
-> handoff: [docs/resume-after-break.md](docs/resume-after-break.md). Plan:
-> [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt).
+> handoff: [docs/resume-android-freeze.md](docs/resume-android-freeze.md). Plan:
+> [docs/cyvoriq-co-in-cutover.txt](docs/cyvoriq-co-in-cutover.txt). Follow-along
+> audit: [docs/cyvoriq-migration-audit.txt](docs/cyvoriq-migration-audit.txt).
+> Codespaces quota is not required: [docs/without-codespaces.txt](docs/without-codespaces.txt).
 
 ---
 
 ## Monorepo layout
 
 ```
-apps/web/            Customer web (Vite + React) → mobile.cyvra.co.in
-apps/android/        S1 Android scaffold (`:core` JVM tests in Codespaces)
+apps/web/            Customer web (Vite + React) → mobile.cyvra.co.in  (www frozen)
+apps/android/        Supporting Android component (`:core` JVM tests; `:app` APK)
+apps/host/           CYVRA Mobile Windows host (A3+; not Station)
 services/api/        Cloudflare Worker `cyvra-mobile-api` (Hono + pg via Hyperdrive)
 database/            Drizzle schema + migrations (Neon project floral-art-02749206)
 packages/evidence/   Evidence JSON Schema + S1 capability contract (G4)

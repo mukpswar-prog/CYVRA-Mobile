@@ -1,0 +1,261 @@
+================================================================================
+CYVRA MOBILE — WINDOWS APPLICATION DOWNLOAD & INSTALLATION GUIDE
+Document Identifier: CYVRA-DOC-INSTALL-001
+Revision: 1.0.0 (Production Release Baseline v3.2.2-release)
+Publisher: CYVORIQ Solutions Private Limited (CIN: U72900KA2023PTC178921)
+Classification: Official Customer & Operator Technical Documentation
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. ARCHITECTURAL OVERVIEW: WHY A WINDOWS DESKTOP (.EXE) APPLICATION?
+2. SYSTEM REQUIREMENTS & PREREQUISITES
+3. STEP-BY-STEP DOWNLOAD INSTRUCTIONS FROM CYVORIQ PORTAL
+4. CODE SIGNING & AUTHENTICODE INTEGRITY VERIFICATION
+5. INSTALLATION PROCEDURE ON WINDOWS 10 / 11 (64-BIT)
+6. EMBEDDED COMPONENTS & DIRECTORY LAYOUT
+7. POST-INSTALLATION FIRST LAUNCH & LICENSE ACTIVATION
+8. ENTERPRISE SILENT DEPLOYMENT (MSI EXECUTION)
+9. FIREWALL, ANTIVIRUS & DRIVER CONFIGURATION
+10. TROUBLESHOOTING INSTALLATION & RUNTIME ERRORS
+
+================================================================================
+1. ARCHITECTURAL OVERVIEW: WHY A WINDOWS DESKTOP (.EXE) APPLICATION?
+================================================================================
+When users sign in to https://cyvoriq.co.in/, they access the cloud-backed
+commercial and licensing workspace. While this web portal allows account
+management, plan upgrades, scan entitlement auditing, and report archive review,
+a web browser CANNOT directly interact with low-level hardware on physical
+Android smartphones.
+
+Web browsers execute in isolated sandboxes for security:
+- Web browsers cannot bind raw USB endpoints or communicate with device bootloaders.
+- Web browsers cannot execute Android Debug Bridge (ADB) daemon sockets on port 5037.
+- Web browsers cannot send recovery commands, trigger platform factory resets, or
+  query low-level battery charge controller nodes (`/sys/class/power_supply`).
+- Web browsers cannot automate controlled display testing patterns during screen AI inspection.
+
+THEREFORE, CYVRA MOBILE IS DELIVERED AS A NATIVE 64-BIT WINDOWS DESKTOP APPLICATION
+(.EXE SETUP INSTALLER).
+
+The Desktop Architecture comprises:
+1. Native Windows Host Runner: Orchestrates local device communication, background
+   ADB daemons, USB hotplug detection, and file system integrity.
+2. Controlled Google Platform-Tools (adb.exe v35.0.2): Pinned internally so that the
+   customer machine never depends on arbitrary or broken ADB binaries in Windows PATH.
+3. Microsoft Edge WebView2 Evergreen Shell: Renders the fluid, hardware-accelerated
+   Customer Desktop Workstation user interface natively inside a Windows desktop window.
+4. Cryptographic Validation Subsystem: Validates licenses offline and online with
+   Ed25519 signatures and SHA-256 canonical hashing.
+
+================================================================================
+2. SYSTEM REQUIREMENTS & PREREQUISITES
+================================================================================
+A. Hardware Requirements:
+   - Processor: Intel Core i3 / AMD Ryzen 3 (or higher), 64-bit x86_64 architecture.
+   - Memory (RAM): Minimum 4 GB RAM (8 GB recommended for simultaneous AI inspection).
+   - Storage Space: Minimum 500 MB free storage on the OS drive (C: drive recommended).
+   - Ports: Minimum 1 available USB 2.0 / 3.0 / USB-C port with high-speed data transfer.
+     (Note: Low-power passive USB hubs or charging-only cables are strictly prohibited).
+
+B. Operating System Requirements:
+   - Windows 10 64-bit (Build 1803 or later: 1909, 20H2, 21H1, 21H2, 22H2).
+   - Windows 11 64-bit (All builds: 21H2, 22H2, 23H2, 24H2).
+   - Windows Server 2019 / 2022 (Standard / Datacenter 64-bit with Desktop Experience).
+
+C. Software Runtime Dependencies:
+   - Microsoft Edge WebView2 Runtime: Pre-installed by default on Windows 10/11.
+     If absent, the CYVRA bootstrapper downloads and configures it automatically.
+   - Microsoft Visual C++ 2015–2022 Redistributable (x64): Bundled in installer.
+   - Java / Android Studio: NOT REQUIRED. Technicians do not need to install
+     Android Studio, JDK, Gradle, or SDK Manager.
+
+================================================================================
+3. STEP-BY-STEP DOWNLOAD INSTRUCTIONS FROM CYVORIQ PORTAL
+================================================================================
+Step 1: Open your web browser (Edge, Chrome, Firefox, or Safari) and navigate to:
+        https://cyvoriq.co.in/
+
+Step 2: Sign In or Register Your Account:
+        - Click "Sign in" or "Create account".
+        - Enter your registered work email address and PIN code.
+        - CYVORIQ will issue a secure 6-digit one-time code to your inbox.
+        - Enter the 6-digit code to authorize your browser session.
+
+Step 3: Navigate to the Downloads Section:
+        - Once logged in to the dashboard, click on the "Settings" or "Downloads" tab.
+        - Alternatively, visit the direct download URL:
+          https://cyvoriq.co.in/downloads/windows/CYVRA-Mobile-Setup-v3.2.2-x64.exe
+
+Step 4: Select Your Installation Package:
+        - For Single Technicians / Standard Workstations:
+          Click "Download Windows Setup (.exe)"
+          Filename: CYVRA-Mobile-Setup-v3.2.2-x64.exe (Size: ~84.9 MB)
+        - For Enterprise IT Multi-Seat Deployments:
+          Click "Download Enterprise MSI Package (.msi)"
+          Filename: CYVRA-Mobile-v3.2.2-x64.msi (Size: ~86.1 MB)
+
+Step 5: Browser Download Confirmation:
+        - If prompted by your browser: "Keep or Discard", select "Keep".
+        - Wait for the download to finish. The file will be in your "Downloads" directory.
+
+================================================================================
+4. CODE SIGNING & AUTHENTICODE INTEGRITY VERIFICATION
+================================================================================
+Every official release of CYVRA Mobile is cryptographically signed using a
+publicly trusted Microsoft Authenticode Code Signing Certificate.
+
+To verify the installer before running:
+1. Locate `CYVRA-Mobile-Setup-v3.2.2-x64.exe` in Windows File Explorer.
+2. Right-click the file and select "Properties".
+3. Click the "Digital Signatures" tab.
+4. Select the signature in the list and click "Details".
+5. Verify the following parameters:
+   - Signer Name: "CYVORIQ Solutions Private Limited"
+   - Digest Algorithm: sha256
+   - Timestamp Authority: DigiCert Timestamp Responder 2026
+   - Status: "This digital signature is OK."
+
+SHA-256 Checksum Verification via PowerShell:
+Run the following command in Windows PowerShell:
+   Get-FileHash -Algorithm SHA256 "CYVRA-Mobile-Setup-v3.2.2-x64.exe"
+
+Expected Checksum:
+9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+
+If the hash does not match, delete the file immediately and re-download.
+
+================================================================================
+5. INSTALLATION PROCEDURE ON WINDOWS 10 / 11 (64-BIT)
+================================================================================
+Step 1: Launch the Installer:
+        Double-click `CYVRA-Mobile-Setup-v3.2.2-x64.exe`.
+        Windows User Account Control (UAC) will display:
+        "Do you want to allow this app to make changes to your device?"
+        Verified publisher: "CYVORIQ Solutions Private Limited"
+        Click "Yes".
+
+Step 2: Setup Wizard:
+        - The CYVRA Mobile Setup dialog will open.
+        - Read and accept the End User License Agreement (EULA).
+        - Click "Next".
+
+Step 3: Installation Destination:
+        - Default Destination Folder:
+          `C:\Program Files\CYVRA Mobile\`
+        - Click "Next".
+
+Step 4: Component Selection:
+        - Core Application Executable (Mandatory).
+        - Controlled Google Platform-Tools adb v35.0.2 (Mandatory).
+        - Desktop and Start Menu Shortcuts (Recommended).
+        - Click "Install".
+
+Step 5: Completion:
+        - The installer extracts all dependencies and registers the application.
+        - Check "Launch CYVRA Mobile" and click "Finish".
+
+================================================================================
+6. EMBEDDED COMPONENTS & DIRECTORY LAYOUT
+================================================================================
+After installation, the filesystem directory under `C:\Program Files\CYVRA Mobile\`
+is structured as follows:
+
+C:\Program Files\CYVRA Mobile\
+ ├── cyvra-workstation.exe             (Native Windows 64-bit launcher)
+ ├── WebView2Loader.dll                (Microsoft Edge WebView2 loader library)
+ ├── resources\                        (Static application assets, CSS, icons)
+ ├── platform-tools\                   (Controlled Google Platform-Tools bundle)
+ │    ├── adb.exe                      (Pinned version 35.0.2)
+ │    ├── AdbWinApi.dll                (Windows USB ADB communication API)
+ │    └── AdbWinUsbApi.dll             (WinUSB driver binding)
+ ├── config\
+ │    └── environment.json             (Locked runtime configuration & ports)
+ └── uninstall.exe                     (Standard Windows clean uninstaller)
+
+AppData & Cache (Per-User Isolated State):
+`%LOCALAPPDATA%\CYVRA Mobile\`
+ ├── license\
+ │    ├── active_token.dat             (Cryptographically signed license token)
+ │    └── offline_grace.json           (24-hour offline grace record & hash)
+ ├── cache\                            (Temporary UI session storage)
+ └── logs\                             (Workstation execution & diagnostic logs)
+
+================================================================================
+7. POST-INSTALLATION FIRST LAUNCH & LICENSE ACTIVATION
+================================================================================
+1. Launch CYVRA Mobile from your Desktop shortcut or Start Menu.
+2. The initial window will display the "Welcome to CYVRA Mobile Workstation" screen.
+3. Sign in using the same work email credentials registered on https://cyvoriq.co.in/.
+4. Once verified, CYVRA Mobile contacts the CYVORIQ License Authority via TLS 1.3:
+   - Fetches your assigned plan (Starter, Professional, or Enterprise).
+   - Establishes your immutable internal License ID.
+   - Downloads your initial scan quota entitlement (e.g., 50, 250, or 1000 scans).
+   - Generates a local signed offline grace cache valid for 24 hours.
+5. The workstation transitions to "STANDBY / READY FOR DEVICE INTAKE".
+
+================================================================================
+8. ENTERPRISE SILENT DEPLOYMENT (MSI EXECUTION)
+================================================================================
+For IT administrators deploying CYVRA Mobile across multiple technician laptops
+using Microsoft Intune, SCCM, or Group Policy (GPO):
+
+A. Silent Installation Command:
+   msiexec.exe /i "CYVRA-Mobile-v3.2.2-x64.msi" /qn /norestart ALLUSERS=1 INSTALLDIR="C:\Program Files\CYVRA Mobile"
+
+B. Silent Installation with Detailed Logging:
+   msiexec.exe /i "CYVRA-Mobile-v3.2.2-x64.msi" /qn /l*v "C:\Logs\CYVRA-Install.log"
+
+C. Silent Uninstallation Command:
+   msiexec.exe /x "CYVRA-Mobile-v3.2.2-x64.msi" /qn /norestart
+
+================================================================================
+9. FIREWALL, ANTIVIRUS & DRIVER CONFIGURATION
+================================================================================
+A. Local Loopback Port 5037 (ADB Daemon):
+   - CYVRA Mobile communicates with `platform-tools\adb.exe` via TCP loopback
+     address `127.0.0.1:5037`.
+   - Ensure local host firewalls (Windows Defender, Symantec, CrowdStrike) allow
+     internal loopback communication on port 5037. No external internet ports
+     are opened by the ADB daemon.
+
+B. Outbound HTTPS Licensing Traffic:
+   - Protocol: HTTPS (Port 443 only).
+   - Domain Whitelist: `*.cyvoriq.co.in`, `api.cyvoriq.co.in`.
+
+C. OEM USB Drivers:
+   - Windows 10/11 includes universal WinUSB drivers for standard Android ADB.
+   - For specific manufacturers (e.g., Samsung Galaxy), install the official
+     Samsung Android USB Driver if Windows Device Manager shows an exclamation mark:
+     `SAMSUNG_USB_Driver_for_Mobile_Phones.exe`.
+
+================================================================================
+10. TROUBLESHOOTING INSTALLATION & RUNTIME ERRORS
+================================================================================
+Symptom 1: SmartScreen prompt "Windows protected your PC".
+Resolution: Click "More info", verify the publisher states "CYVORIQ Solutions
+Private Limited", and click "Run anyway". As new releases build SmartScreen
+reputation, this prompt will disappear.
+
+Symptom 2: "Microsoft Edge WebView2 Runtime missing".
+Resolution: The installer normally downloads WebView2 Evergreen automatically.
+If offline, manually install the Evergreen Standalone Installer (x64) from
+Microsoft's official distribution portal.
+
+Symptom 3: ADB port 5037 collision.
+Resolution: If another software package (e.g., old Android Studio or third-party
+phone manager) has locked port 5037, open Command Prompt as Administrator and run:
+   taskkill /F /IM adb.exe
+Then re-launch CYVRA Mobile. The application will start its controlled adb instance.
+
+Symptom 4: Device connected via USB is not detected.
+Resolution:
+1. Ensure the USB cable supports high-speed data (not charging-only).
+2. On the Android phone: Go to Settings -> About Phone -> Tap "Build Number" 7 times.
+3. Open Settings -> System / Developer Options -> Enable "USB Debugging".
+4. Look at the phone screen; when the prompt appears:
+   "Allow USB debugging? ... Fingerprint: ...",
+   Check "Always allow from this computer" and tap "Allow".
+================================================================================
+END OF DOWNLOAD & INSTALLATION GUIDE — CYVORIQ SOLUTIONS PVT. LTD.
+================================================================================

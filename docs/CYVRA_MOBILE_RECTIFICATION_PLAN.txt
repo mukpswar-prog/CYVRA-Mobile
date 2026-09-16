@@ -1,0 +1,107 @@
+================================================================================
+CYVRA MOBILE — RECTIFICATION PLAN & ARCHITECTURAL OVERHAUL
+Document Identifier: CYVRA-DOC-RECTIFICATION-2026-001
+Status: Approved Architectural Blueprint for Execution
+Applicable Targets: Rust/Tauri Desktop .exe, GitHub Actions CI/CD, Admin Portal Auto-Feed, Web vs Laptop Boundary
+================================================================================
+
+1. EXECUTIVE SUMMARY & IDENTIFIED GAPS
+-------------------------------------
+Based on the direct feedback and visual evidence provided from real deployment testing:
+
+Gap 1: The `.exe` Download Confusion & Fake Alert Barrier
+- Symptom: On https://cyvoriq.co.in/dashboard, clicking "Download Windows Setup (.exe)" showed a JavaScript alert box ("Production Installer Download Triggered...") instead of streaming an actual setup executable file.
+- User expectation: A real Windows installer (`.exe`) with progress bar, installer wizard, license terms & conditions, and installation directory selection, exactly like standard commercial antivirus or diagnostic software.
+- Solution: Rust + Tauri v2 native desktop application architecture. A GitHub Actions CI/CD workflow (`.github/workflows/build-desktop-exe.yml`) that compiles the Rust backend, embeds the frontend workspace, bundles Google platform-tools (adb.exe), and produces a genuine NSIS Windows installer (`.exe`) hosted as downloadable GitHub Release artifacts and served via the web portal.
+
+Gap 2: Inefficient Admin Console & Missing Customer Auto-Feed
+- Symptom: In `admin.cyvoriq.co.in`, generating a license currently presents a blank manual form requiring re-typing of customer email, full name, address, pin code, state, and manual text input for `paymentNoted`.
+- User expectation: When a customer signs up or places an order on `cyvoriq.co.in`, their registered information (Name, Email, Company, Address, Pincode, State) must automatically appear in the Admin Portal queue. The Admin only checks that payment is verified and clicks a single "Approve & Issue License" button.
+- Solution: Extend the Admin API with an automated Customer Order / Registration queue endpoint (`/admin/customers/pending`). Automatically pre-populate customer details from the `users` and `email_otp_challenges` tables, allowing one-click approval and automated license key generation + email dispatch.
+
+Gap 3: Website (`cyvoriq.co.in`) vs Laptop Workstation Boundary Confusion
+- Symptom: The customer currently sees the entire diagnostics, AI inspection, and USB connection workstation inside the Chrome browser at `https://cyvoriq.co.in/dashboard`. Because web browsers cannot communicate with physical USB ports or run adb daemons, this created severe confusion.
+- User expectation: 
+  * `https://cyvoriq.co.in/` (Cloud Web Portal): Solely for Account Creation / Sign-in via OTP, Customer Profile, License / Plan status, and prominent Download of the `CYVRA-Mobile-Setup.exe`.
+  * Laptop / PC (Native Installed `.exe`): Once the customer installs and launches `cyvra-mobile.exe` on their Windows PC, it displays the full workstation interface (Overview, Advanced Diagnostics, AI Inspection, Data Purge, Reports, Settings) with direct access to physical USB ports and device ADB daemons.
+
+--------------------------------------------------------------------------------
+2. RUST / TAURI DESKTOP ARCHITECTURE (.EXE)
+--------------------------------------------------------------------------------
+Framework: Tauri v2 (Rust 2021 + WebView2 + NSIS Installer)
+Why Rust + Tauri?
+- Produces true native `.exe` installers with low memory footprint (~30 MB RAM vs 200+ MB in Electron).
+- Direct access to Windows Win32 APIs, USB device notification events (`WM_DEVICECHANGE`), and process execution (`std::process::Command` to invoke bundled `platform-tools/adb.exe`).
+- NSIS Installer engine provides the standard commercial installer experience:
+  * License agreement & Terms acceptance screen
+  * Installation directory picker (`C:\Program Files\CYVRA Mobile`)
+  * Real-time progress bar showing extraction of binaries
+  * Desktop shortcut creation and Start Menu registration
+  * Digital signature verification support (Authenticode)
+
+Directory Structure:
+apps/desktop/
+├── src-tauri/
+│   ├── Cargo.toml                (Tauri dependencies, adb transport, serde)
+│   ├── tauri.conf.json           (Windows NSIS configuration, bundle metadata)
+│   ├── build.rs
+│   └── src/
+│       ├── main.rs               (Tauri entrypoint)
+│       ├── commands/
+│       │   ├── adb.rs            (Local ADB command runner & device poll)
+│       │   ├── license.rs        (Offline token cache & activation)
+│       │   └── report.rs         (Local report storage & export)
+│       └── usb.rs                (Hotplug USB listener)
+└── package.json                  (Build scripts bridging @cyvra/web UI)
+
+--------------------------------------------------------------------------------
+3. GITHUB ACTIONS AUTOMATED BUILD WORKFLOW
+--------------------------------------------------------------------------------
+Workflow File: `.github/workflows/build-desktop-exe.yml`
+Runner: `windows-latest`
+Process:
+1. Check out repository
+2. Set up Node.js 24 + pnpm
+3. Set up Rust toolchain (stable-x86_64-pc-windows-msvc)
+4. Download and pin official Google Platform-Tools (adb.exe v35.0.2)
+5. Build React UI bundle (`pnpm --filter @cyvra/web build`)
+6. Execute `cargo tauri build` to generate:
+   - `CYVRA-Mobile-Setup-v3.2.2-x64.exe` (NSIS Installer with status bar & terms)
+   - `CYVRA-Mobile-v3.2.2-x64.msi` (Enterprise MSI Installer)
+7. Upload setup binaries to GitHub Actions Artifacts and GitHub Releases.
+8. Update `cyvoriq.co.in` download link to point directly to the GitHub Release asset URL.
+
+--------------------------------------------------------------------------------
+4. STREAMLINED ADMIN PORTAL WORKFLOW
+--------------------------------------------------------------------------------
+Database & API Alignment:
+- Customer registers at `cyvoriq.co.in` (Name, Email, Pincode, Address, State).
+- Details are saved in Neon DB (`users` table).
+- When an order/request is initiated, it appears under "Customers Waiting for Approval" in `admin.cyvoriq.co.in`.
+- Admin Console UI:
+  * Displays pre-filled customer rows (Name, Email, Address, Selected Plan).
+  * Admin checks payment confirmation (e.g., UTR / NEFT reference).
+  * Admin clicks "Approve & Issue License".
+  * Server automatically formats unique `CYVRAddmmyyyy...` key, stores record in `mobile_serials`, and triggers Resend email to the customer with the license key and installation instructions.
+
+--------------------------------------------------------------------------------
+5. STEP-BY-STEP RECTIFICATION ROADMAP
+--------------------------------------------------------------------------------
+Step 1: Admin Portal Streamlining (API & UI)
+- Add `/admin/pending-customers` route in `services/api/src/admin.ts`.
+- Update `apps/web/src/site/AdminApp.tsx` to display auto-fed pending customer cards with a 1-click "Approve & Issue License" button.
+
+Step 2: Customer Web Portal Role Clarification
+- Update `apps/web/src/site/WorkspaceApp.tsx` and web routes:
+  * When logged in on web (`cyvoriq.co.in`), show Customer Account Profile, Active License/Plan info, and direct download links for the Windows setup installer (`CYVRA-Mobile-Setup-x64.exe`).
+  * Add clear guidance: "To begin device diagnostics and physical data purge, download and launch the CYVRA Mobile desktop application on your Windows workstation."
+
+Step 3: Rust / Tauri Native Desktop Project Setup
+- Scaffold `apps/desktop/src-tauri` with complete NSIS installer configurations, USB/ADB handlers, and embedded workstation UI.
+
+Step 4: GitHub Actions Desktop Build Pipeline
+- Implement `.github/workflows/build-desktop-exe.yml` to automatically compile and publish the real `.exe` installer.
+
+================================================================================
+END OF RECTIFICATION PLAN
+================================================================================
