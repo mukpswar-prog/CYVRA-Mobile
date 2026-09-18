@@ -87,7 +87,6 @@ impl UsbObserver {
     /// B3A-3D deliberately does not create a background thread and does not
     /// wire this observer into Tauri. That runtime boundary is verified in
     /// the next gate.
-    #[allow(dead_code)]
     pub(crate) fn poll(&mut self, now: Instant) -> Option<UsbReconciliation> {
         if self.registration.take_topology_changed() {
             self.coalescer.signal(now);

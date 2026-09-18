@@ -3,6 +3,7 @@ pub(crate) mod model;
 pub(crate) mod notification;
 pub(crate) mod observer;
 pub(crate) mod reconcile;
+pub(crate) mod runtime;
 
 use windows::Win32::Devices::DeviceAndDriverInstallation::CONFIGRET;
 
