@@ -1,14 +1,19 @@
 pub(crate) mod enumerate;
 pub(crate) mod model;
 pub(crate) mod notification;
+pub(crate) mod observer;
+pub(crate) mod reconcile;
+
+use windows::Win32::Devices::DeviceAndDriverInstallation::CONFIGRET;
 
 use notification::UsbNotificationRegistration;
-use windows::Win32::Devices::DeviceAndDriverInstallation::CONFIGRET;
 
 // Compile-time anchors only.
 //
-// B3A-3C intentionally does NOT start runtime USB observation.
+// Nothing in B3A-3D starts USB observation from Tauri.
 const _: fn() -> Result<UsbNotificationRegistration, CONFIGRET> =
     UsbNotificationRegistration::register;
 
 const _: fn() -> model::UsbObservation = enumerate::enumerate_usb_devices;
+
+const _: fn() -> Result<observer::UsbObserver, CONFIGRET> = observer::UsbObserver::register;
