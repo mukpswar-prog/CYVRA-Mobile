@@ -5,13 +5,10 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use windows::Win32::Devices::{
-    DeviceAndDriverInstallation::{
-        CM_Register_Notification, CM_Unregister_Notification, CM_NOTIFY_ACTION,
-        CM_NOTIFY_EVENT_DATA, CM_NOTIFY_FILTER, CM_NOTIFY_FILTER_0, CM_NOTIFY_FILTER_0_0,
-        CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE, CONFIGRET, CR_SUCCESS, HCMNOTIFICATION,
-    },
-    Usb::GUID_DEVINTERFACE_USB_DEVICE,
+use windows::Win32::Devices::DeviceAndDriverInstallation::{
+    CM_Register_Notification, CM_Unregister_Notification, CM_NOTIFY_ACTION, CM_NOTIFY_EVENT_DATA,
+    CM_NOTIFY_FILTER, CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES,
+    CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE, CONFIGRET, CR_SUCCESS, HCMNOTIFICATION,
 };
 
 /// Callback-owned state shared with the Windows Configuration Manager.
@@ -40,7 +37,7 @@ impl NotificationContext {
     }
 }
 
-/// Owns one Configuration Manager USB device-interface notification
+/// Owns one Configuration Manager device-instance notification
 /// registration and its callback context.
 ///
 /// Safety invariant:
@@ -58,7 +55,7 @@ pub(crate) struct UsbNotificationRegistration {
 }
 
 impl UsbNotificationRegistration {
-    /// Register for USB device-interface topology notifications.
+    /// Register for Windows device-instance topology notifications.
     pub(crate) fn register() -> Result<Self, CONFIGRET> {
         let context = Box::new(NotificationContext::new());
 
@@ -67,12 +64,8 @@ impl UsbNotificationRegistration {
         let mut filter = CM_NOTIFY_FILTER::default();
 
         filter.cbSize = size_of::<CM_NOTIFY_FILTER>() as u32;
-        filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
-        filter.u = CM_NOTIFY_FILTER_0 {
-            DeviceInterface: CM_NOTIFY_FILTER_0_0 {
-                ClassGuid: GUID_DEVINTERFACE_USB_DEVICE,
-            },
-        };
+        filter.Flags = CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES;
+        filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE;
 
         let mut handle = HCMNOTIFICATION(null_mut());
 

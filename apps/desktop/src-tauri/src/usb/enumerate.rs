@@ -1,15 +1,12 @@
-use std::{mem::size_of, ptr::addr_of};
+use std::mem::size_of;
 
 use windows::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Devices::{
-            DeviceAndDriverInstallation::{
-                SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-                SetupDiGetDeviceInterfaceDetailW, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, HDEVINFO,
-                SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-            },
-            Usb::GUID_DEVINTERFACE_USB_DEVICE,
+        Devices::DeviceAndDriverInstallation::{
+            SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInfo, SetupDiGetClassDevsW,
+            SetupDiGetDeviceInstanceIdW, DIGCF_ALLCLASSES, DIGCF_PRESENT, HDEVINFO,
+            SP_DEVINFO_DATA,
         },
         Foundation::{ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS},
     },
@@ -19,130 +16,84 @@ use super::model::{
     observation_time, UsbConnectionState, UsbDeviceObservation, UsbObservation, UsbObservationState,
 };
 
-const SOURCE: &str = "Windows SetupAPI USB device-interface enumeration";
+const SOURCE: &str = "Windows SetupAPI present USB device-instance enumeration";
 
 fn win32_hresult(code: u32) -> HRESULT {
     HRESULT::from_win32(code)
 }
 
-fn device_interface_path(
+fn is_usb_instance_id(value: &str) -> bool {
+    value
+        .get(..4)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("USB\\"))
+}
+
+fn device_instance_id(
     device_info_set: HDEVINFO,
-    interface_data: &SP_DEVICE_INTERFACE_DATA,
+    device_info_data: &SP_DEVINFO_DATA,
 ) -> Result<String, String> {
     let mut required_size = 0u32;
 
     let size_result = unsafe {
-        SetupDiGetDeviceInterfaceDetailW(
+        SetupDiGetDeviceInstanceIdW(
             device_info_set,
-            interface_data,
+            device_info_data,
             None,
-            0,
             Some(&mut required_size),
-            None,
         )
     };
 
     match size_result {
         Err(error) if error.code() == win32_hresult(ERROR_INSUFFICIENT_BUFFER.0) => {}
         Err(error) => {
-            return Err(format!("SETUPAPI_DETAIL_SIZE_FAILED:{error:?}"));
+            return Err(format!("SETUPAPI_INSTANCE_ID_SIZE_FAILED:{error:?}"));
         }
         Ok(()) => {}
     }
 
-    if required_size < size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32 {
-        return Err(format!("SETUPAPI_DETAIL_SIZE_INVALID:{required_size}"));
+    if required_size == 0 {
+        return Err("SETUPAPI_INSTANCE_ID_SIZE_ZERO".to_string());
     }
 
-    // Use usize-backed storage rather than Vec<u8>.
-    //
-    // This guarantees alignment suitable for the generated
-    // SP_DEVICE_INTERFACE_DETAIL_DATA_W structure before the pointer cast.
-    let allocated_size = required_size;
-    let required_bytes = allocated_size as usize;
-    let word_size = size_of::<usize>();
+    let buffer_len = usize::try_from(required_size)
+        .map_err(|_| "SETUPAPI_INSTANCE_ID_SIZE_OVERFLOW".to_string())?;
 
-    let word_count = required_bytes
-        .checked_add(word_size - 1)
-        .ok_or_else(|| "SETUPAPI_DETAIL_SIZE_OVERFLOW".to_string())?
-        / word_size;
-
-    let mut storage = vec![0usize; word_count];
-
-    let detail = storage
-        .as_mut_ptr()
-        .cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+    let mut buffer = vec![0u16; buffer_len];
 
     unsafe {
-        (*detail).cbSize = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
-    }
-
-    unsafe {
-        SetupDiGetDeviceInterfaceDetailW(
+        SetupDiGetDeviceInstanceIdW(
             device_info_set,
-            interface_data,
-            Some(detail),
-            allocated_size,
-            None,
+            device_info_data,
+            Some(buffer.as_mut_slice()),
             None,
         )
     }
-    .map_err(|error| format!("SETUPAPI_DETAIL_READ_FAILED:{error:?}"))?;
+    .map_err(|error| format!("SETUPAPI_INSTANCE_ID_READ_FAILED:{error:?}"))?;
 
-    let buffer_start = storage.as_ptr() as usize;
-
-    let valid_end = buffer_start
-        .checked_add(allocated_size as usize)
-        .ok_or_else(|| "SETUPAPI_DETAIL_RANGE_OVERFLOW".to_string())?;
-
-    let path_ptr = unsafe { addr_of!((*detail).DevicePath).cast::<u16>() };
-
-    let path_start = path_ptr as usize;
-
-    if path_start >= valid_end {
-        return Err("SETUPAPI_DEVICE_PATH_OUT_OF_RANGE".to_string());
-    }
-
-    let available_bytes = valid_end - path_start;
-    let max_units = available_bytes / size_of::<u16>();
-
-    if max_units == 0 {
-        return Err("SETUPAPI_DEVICE_PATH_EMPTY_BUFFER".to_string());
-    }
-
-    let units = unsafe { std::slice::from_raw_parts(path_ptr, max_units) };
-
-    let nul_index = units
+    let nul_index = buffer
         .iter()
         .position(|unit| *unit == 0)
-        .ok_or_else(|| "SETUPAPI_DEVICE_PATH_NOT_TERMINATED".to_string())?;
+        .ok_or_else(|| "SETUPAPI_INSTANCE_ID_NOT_TERMINATED".to_string())?;
 
     if nul_index == 0 {
-        return Err("SETUPAPI_DEVICE_PATH_EMPTY".to_string());
+        return Err("SETUPAPI_INSTANCE_ID_EMPTY".to_string());
     }
 
-    String::from_utf16(&units[..nul_index])
-        .map_err(|error| format!("SETUPAPI_DEVICE_PATH_INVALID_UTF16:{error}"))
+    String::from_utf16(&buffer[..nul_index])
+        .map_err(|error| format!("SETUPAPI_INSTANCE_ID_INVALID_UTF16:{error}"))
 }
 
 fn enumerate_from_device_info_set(device_info_set: HDEVINFO) -> UsbObservation {
     let mut devices = Vec::new();
 
     for index in 0u32.. {
-        let mut interface_data = SP_DEVICE_INTERFACE_DATA {
-            cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+        let mut device_info_data = SP_DEVINFO_DATA {
+            cbSize: size_of::<SP_DEVINFO_DATA>() as u32,
             ..Default::default()
         };
 
-        let result = unsafe {
-            SetupDiEnumDeviceInterfaces(
-                device_info_set,
-                None,
-                &GUID_DEVINTERFACE_USB_DEVICE,
-                index,
-                &mut interface_data,
-            )
-        };
+        let result =
+            unsafe { SetupDiEnumDeviceInfo(device_info_set, index, &mut device_info_data) };
 
         match result {
             Ok(()) => {}
@@ -158,26 +109,35 @@ fn enumerate_from_device_info_set(device_info_set: HDEVINFO) -> UsbObservation {
             }
         }
 
-        let device_path = match device_interface_path(device_info_set, &interface_data) {
-            Ok(path) => path,
+        let instance_id = match device_instance_id(device_info_set, &device_info_data) {
+            Ok(instance_id) => instance_id,
 
             Err(error) => {
                 return UsbObservation::unknown(format!(
-                    "{SOURCE} could not resolve device path at index {index}: {error}"
+                    "{SOURCE} could not resolve device instance ID at index {index}: {error}"
                 ));
             }
         };
 
+        if !is_usb_instance_id(&instance_id) {
+            continue;
+        }
+
         devices.push(UsbDeviceObservation {
-            device_path,
+            // Existing B3A model field name is retained
+            // deliberately to keep this correction isolated.
+            //
+            // For this enumerator the stable identity carried
+            // in `device_path` is the Windows PnP device
+            // instance ID (for example USB\VID_xxxx...).
+            //
+            // A semantic field rename belongs in a separate
+            // refactor after physical acceptance.
+            device_path: instance_id,
             connection_state: UsbConnectionState::Present,
         });
     }
 
-    // Produce deterministic snapshots.
-    //
-    // Windows interface paths are compared case-insensitively later when
-    // B3A-3D performs previous/current snapshot reconciliation.
     devices.sort_by(|left, right| {
         left.device_path
             .to_ascii_lowercase()
@@ -202,12 +162,7 @@ fn enumerate_from_device_info_set(device_info_set: HDEVINFO) -> UsbObservation {
 
 pub(crate) fn enumerate_usb_devices() -> UsbObservation {
     let device_info_set = match unsafe {
-        SetupDiGetClassDevsW(
-            Some(&GUID_DEVINTERFACE_USB_DEVICE as *const _),
-            PCWSTR::null(),
-            None,
-            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
-        )
+        SetupDiGetClassDevsW(None, PCWSTR::null(), None, DIGCF_PRESENT | DIGCF_ALLCLASSES)
     } {
         Ok(handle) => handle,
 
@@ -234,10 +189,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn usb_instance_id_filter_is_case_insensitive() {
+        assert!(is_usb_instance_id("USB\\VID_04E8&PID_6860\\SERIAL"));
+
+        assert!(is_usb_instance_id("usb\\vid_04e8&pid_6860\\serial"));
+
+        assert!(!is_usb_instance_id("PCI\\VEN_1022&DEV_7914"));
+
+        assert!(!is_usb_instance_id("SWD\\WPDBUSENUM\\DEVICE"));
+    }
+
+    #[test]
     fn setupapi_snapshot_is_internally_coherent() {
         let observation = enumerate_usb_devices();
 
         assert!(!observation.observed_at.is_empty());
+
         assert!(!observation.source.is_empty());
 
         match observation.observation_state {
@@ -246,6 +213,8 @@ mod tests {
 
                 for device in &observation.devices {
                     assert!(!device.device_path.trim().is_empty());
+
+                    assert!(is_usb_instance_id(&device.device_path));
 
                     assert_eq!(device.connection_state, UsbConnectionState::Present);
                 }
