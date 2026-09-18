@@ -1,0 +1,41 @@
+{
+    "$schema":  "../node_modules/@tauri-apps/cli/config.schema.json",
+    "productName":  "CYVRA Mobile",
+    "version":  "0.1.0",
+    "identifier":  "in.co.cyvra.mobile",
+    "build":  {
+                  "frontendDist":  "../dist",
+                  "devUrl":  "http://localhost:5173",
+                  "beforeDevCommand":  "pnpm dev",
+                  "beforeBuildCommand":  "pnpm build"
+              },
+    "app":  {
+                "windows":  [
+                                {
+                                    "title":  "CYVRA Mobile",
+                                    "width":  800,
+                                    "height":  600,
+                                    "resizable":  true,
+                                    "fullscreen":  false
+                                }
+                            ],
+                "security":  {
+                                 "csp":  "default-src \u0027self\u0027; img-src \u0027self\u0027 data:; style-src \u0027self\u0027 \u0027unsafe-inline\u0027; script-src \u0027self\u0027; connect-src ipc: http://ipc.localhost",
+                                 "devCsp":  "default-src \u0027self\u0027; img-src \u0027self\u0027 data:; style-src \u0027self\u0027 \u0027unsafe-inline\u0027; script-src \u0027self\u0027; connect-src ipc: http://ipc.localhost http://localhost:5173 ws://localhost:5173"
+                             }
+            },
+    "bundle":  {
+                   "active":  true,
+                   "targets":  "all",
+                   "icon":  [
+                                "icons/32x32.png",
+                                "icons/128x128.png",
+                                "icons/128x128@2x.png",
+                                "icons/icon.icns",
+                                "icons/icon.ico"
+                            ],
+                   "android":  {
+                                   "debugApplicationIdSuffix":  ".debug"
+                               }
+               }
+}
