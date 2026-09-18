@@ -1,4 +1,5 @@
 plugins {
+    application
     kotlin("jvm")
     kotlin("plugin.serialization")
 }
@@ -25,4 +26,9 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+application {
+    mainClass.set("cyvra.mobile.host.protocol.HostMain")
+    applicationName = "cyvra-mobile-host"
 }
