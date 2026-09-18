@@ -1,3 +1,6 @@
+#[cfg(windows)]
+mod usb;
+
 mod commands;
 mod host_process;
 
