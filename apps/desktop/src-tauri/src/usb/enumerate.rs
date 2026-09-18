@@ -58,7 +58,8 @@ fn device_interface_path(
     //
     // This guarantees alignment suitable for the generated
     // SP_DEVICE_INTERFACE_DETAIL_DATA_W structure before the pointer cast.
-    let required_bytes = required_size as usize;
+    let allocated_size = required_size;
+    let required_bytes = allocated_size as usize;
     let word_size = size_of::<usize>();
 
     let word_count = required_bytes
@@ -81,8 +82,8 @@ fn device_interface_path(
             device_info_set,
             interface_data,
             Some(detail),
-            required_size,
-            Some(&mut required_size),
+            allocated_size,
+            None,
             None,
         )
     }
@@ -91,7 +92,7 @@ fn device_interface_path(
     let buffer_start = storage.as_ptr() as usize;
 
     let valid_end = buffer_start
-        .checked_add(required_size as usize)
+        .checked_add(allocated_size as usize)
         .ok_or_else(|| "SETUPAPI_DETAIL_RANGE_OVERFLOW".to_string())?;
 
     let path_ptr = unsafe { addr_of!((*detail).DevicePath).cast::<u16>() };
