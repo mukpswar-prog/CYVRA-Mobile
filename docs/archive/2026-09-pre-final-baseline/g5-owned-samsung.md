@@ -10,7 +10,7 @@ The APK is a supporting component (install later). Share
 `https://api.cyvoriq.co.in/evidence/batches` as the **customer** you
 already signed in as.
 
-Freeze: [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md).
+Freeze: [ANDROID_COMPATIBILITY_FREEZE.md](../../ANDROID_COMPATIBILITY_FREEZE.md).
 Do not treat emulator compile as OEM compatibility.
 
 USB file copy is **not** device authorization. No IMEI. No Knox.
@@ -22,7 +22,7 @@ Do not paste the session token, the JSON, or OTP codes in chat.
 
 | Item | Why |
 |---|---|
-| Windows laptop with **Android Studio** configured | First-run: [android-studio-laptop.md](./android-studio-laptop.md). Codespaces cannot build `:app` |
+| Windows laptop with **Android Studio** configured | First-run: [android-studio-laptop.md](../../android-studio-laptop.md). Codespaces cannot build `:app` |
 | This repo on the laptop, branch `cursor/g0-g3-mobile-slice-7474` | Same code that just deployed |
 | **One Samsung you own** and can unlock | Owner PIN/password/biometric only |
 | Git Bash (ships with Git for Windows) | Runs `scripts/post-g5-batch.sh` |
@@ -48,7 +48,7 @@ You should see recent commits including the Resend runbook.
 ## Step 2 — Open the Android project in Android Studio
 
 If Studio is newly installed, do the full first-run in
-[android-studio-laptop.md](./android-studio-laptop.md) (SDK Platform 36,
+[android-studio-laptop.md](../../android-studio-laptop.md) (SDK Platform 36,
 JDK 21, open `apps/android`, prove `:app:assembleDebug`). Then return here.
 
 If that is already done:

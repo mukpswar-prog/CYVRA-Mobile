@@ -1,6 +1,6 @@
 # G0 leftover — GitHub repository description
 
-Governing law: [GUIDELINE.md](../GUIDELINE.md) §6.1 item 3.
+Governing law: [GUIDELINE.md](../../../GUIDELINE.md) §6.1 item 3.
 
 This environment’s `gh` CLI is **read-only**. It cannot patch GitHub repo
 metadata. A human with repo admin must set the description once.

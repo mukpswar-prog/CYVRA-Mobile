@@ -1,92 +1,112 @@
-# Android compatibility freeze (GitHub engineering baseline)
+# Android Compatibility Contract
 
-**Accepted:** 14 Sep 2026  
-**Scope:** Android product path in this repo only. Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.  
-**Authoritative guide:** [CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md](./CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md)  
-**Start:** [resume-android-freeze.md](./resume-android-freeze.md)
+**Status:** ACTIVE CONTRACT
+**Date:** 2026-09-19
+**Product:** CYVRA Mobile
 
-## Product principle
+## Purpose
 
-One Windows CYVRA application. One generic Android platform core. Controlled USB/ADB transport. Optional Android device-side capabilities. OEM-specific extensions only behind capability interfaces. No fabricated evidence. No universal sanitization claims. Every destructive operation must be authorized, recorded, and followed by verification.
+This document defines the Android compatibility baseline without turning a build target into a support claim.
 
-CYVRA Mobile is **not** a Samsung-first APK. The Windows host is the orchestrator. The Android APK is a supporting component.
+CYVRA Mobile is a Windows-hosted product. The Android APK is an optional supporting component. The workstation may observe and verify a device through Windows USB/WPD even when the APK cannot be installed or ADB is unavailable.
 
-## Frozen toolchain
+## Frozen Android toolchain
 
-| Component | Frozen value | On disk until the matching slice |
-|---|---|---|
-| Kotlin / KGP | **2.3.21** | A1 applied |
-| Android Gradle Plugin | **8.13.2** | already frozen; do not move to AGP 9 |
-| Gradle Wrapper | **9.1.0** | already frozen |
-| JDK | **21** | Gradle JDK = jbr-21 |
-| compileSdk | **36** | A2 applied |
-| targetSdk | **36** | A2 applied |
-| Android **component** minSdk | **26** | A2 applied. APK floor, not host service floor. |
+| Component | Value |
+|---|---:|
+| Kotlin / KGP | 2.3.21 |
+| Android Gradle Plugin | 8.13.2 |
+| Gradle Wrapper | 9.1.0 |
+| JDK | 21 |
+| compileSdk | 36 |
+| targetSdk | 36 |
+| Android component minSdk | 26 |
 
-`minSdk = 26` is the APK install floor (Android 8.0+). It is **not** the Windows-host device-service floor. The host may still detect or inspect a device that cannot install the APK.
+`minSdk = 26` is the APK installation floor. It is not the entire Windows workstation service floor.
 
-Do not upgrade to AGP 9 as part of this freeze. Keep applying `kotlin("android")`.
+Do not upgrade these pins as incidental cleanup.
 
-## Architecture (A0 confirmed)
+## Compatibility architecture
+
+Independent evidence/transport planes:
 
 ```text
-Windows host (primary orchestrator)
-  USB physical connection
-  Controlled ADB transport
-  Evidence engine
-  Sanitization engine (assess / authorize / execute / verify — execute stays non-destructive in G5)
-    Generic Android provider
-    OEM adapters (verified hardware only)
-    Optional Android APK (device-side APIs the host cannot obtain)
-→ Android device (OS + storage)
+WINDOWS_USB
+WINDOWS_WPD_MTP
+ANDROID_ADB
+ANDROID_COMPONENT
 ```
 
-This is **not** Decision 5.1.20.2. Do not create `apps/station`. Do not start Knox.
+Rules:
 
-## Execution slices
+- USB presence does not imply ADB.
+- WPD/MTP visibility does not imply full filesystem access.
+- ADB is optional advanced evidence.
+- Android Component is optional supporting evidence.
+- unknown OEM falls back to generic capability assessment rather than failing by brand.
+- unavailable or restricted evidence remains unavailable/restricted.
+- no screen-lock, FRP, bootloader, OEM, or permission bypass.
 
-| Slice | What | Status |
-|---|---|---|
-| A0 | Architecture confirmation. No product code. | **Done** (this docs commit) |
-| A1 | Kotlin 2.2.10 → 2.3.21 only. Keep AGP 8.13.2 / Gradle 9.1.0 / JDK 21. Do not change minSdk. `:core:test`. | **Done** on GitHub and laptop (`BUILD SUCCESSFUL`). Forced jbr-21 so the banner is Java 21, not 25. |
-| A2 | compileSdk 36 / targetSdk 36 / minSdk 26. Laptop SDK Platform 36.0 is installed. | **Done** in git and laptop (`BUILD SUCCESSFUL`, `app-debug.apk` built). |
-| A3 | `apps/host` USB/ADB transport. No sanitization execution. | **Done** in git (`:host:test` passes). |
-| A4 | Generic evidence in `:core` + host integration. | **Done** in git (`:core:test` & `:host:test` pass). |
-| A5 | Capability engine & OEM capability resolver. | **Done** in git (`:core:test` & `:host:test` pass). |
-| A6 | APK as `ANDROID_COMPONENT`. | **Done** in git (`:core:test` & `:host:test` pass). |
-| A7 | OEM adapters only when a real device needs them | **Done.** Verified boundary & resolver for physical devices (Samsung G5-A). |
-| A8 | Sanitization **architecture** (NIST SP 800-88 Rev. 2, non-destructive in G5) | **Done** in git (`:core:test` & `:host:test` pass). |
-| A9 | Local host reports (Report 1 Verification + Final Sanitization Certificate with SHA-256 integrity). | **Done** in git (`:core:test` & `:host:test` pass). |
-| A10 | Multi-OEM & Compatibility Matrix (Levels A–F, Android 8–16, Windows 10/11 baseline). | **Done** in git (`:core:test` & `:host:test` pass). |
-| A11 | Comprehensive architecture documentation & customer desktop freeze specs. | **Done.** All 13 architecture & customer documents updated and cross-referenced. |
-| A12 | Full suite verification across monorepo (`:core:test`, `:host:test`, `@cyvra/evidence`, `@cyvra/api`, `typecheck`). | **Done.** 100% test pass on JDK 21 & Node 24. |
-| A13 | Controlled GitHub branch freeze & PR review. | **Done.** All commits structured, clean working tree, PR updated. |
+## Android-version support language
 
-## Identifier / honesty policy
+The engineering test target includes Android API 26 through current API 36-era builds, but compilation/minSdk alone does not prove compatibility.
 
-- Do not make IMEI the primary identity.
-- Never fabricate IMEI, serial, or other hardware identifiers.
-- Never substitute Android ID / app UUID / MAC for IMEI or serial.
-- Unavailable is valid: `value = null`, status restricted/unavailable, reason documented.
-- Do not bypass screen lock, ADB authorization, FRP, bootloader, OEM controls, or Android permissions.
+A customer-facing support claim requires physical validation for the relevant:
 
-## G4 wire format (frozen API)
+```text
+Android version
+OEM/device family
+Windows version
+USB/WPD/ADB state
+workflow capability
+```
 
-Live `POST /evidence/batches` keeps the G4 vocabulary in `packages/evidence`.
+Support may be partial by capability.
 
-Host-internal states (`ADB_READY`, `USB_CONNECTED`, sources such as `ANDROID_COMPONENT`) must **map** onto existing G4 `usbState` / `adbState` / `source` enums at ingest. Do not widen Worker validation until the API freeze lifts.
+## OEM policy
 
-## GitHub process
+The generic Android path is primary.
 
-- Branch: `cursor/g0-g3-mobile-slice-7474` (stay unless a new feature branch is named).
-- Do not commit `.idea/`, `local.properties`, `.gradle/`, `build/`, APKs, `adb.exe`, secrets.
-- Logical commits: Kotlin → SDK baseline → host transport → evidence → capability/sanitization abstractions → tests → docs.
-- Merge to `main` only after PR review.
+Add an OEM adapter only when a real device exposes a verified OEM-specific capability or behavior that cannot be represented safely by the generic path.
 
-## Related architecture docs
+Brand/model detection alone must not unlock privileged behavior.
 
-- [WINDOWS_ANDROID_TRANSPORT_ARCHITECTURE.md](./WINDOWS_ANDROID_TRANSPORT_ARCHITECTURE.md)
-- [DEVICE_EVIDENCE_ARCHITECTURE.md](./DEVICE_EVIDENCE_ARCHITECTURE.md)
-- [SANITIZATION_ARCHITECTURE.md](./SANITIZATION_ARCHITECTURE.md)
-- [OEM_ADAPTER_ARCHITECTURE.md](./OEM_ADAPTER_ARCHITECTURE.md)
-- [TEST_MATRIX.md](./TEST_MATRIX.md)
+See [`OEM_ADAPTER_ARCHITECTURE.md`](./OEM_ADAPTER_ARCHITECTURE.md).
+
+## Sanitization policy
+
+A device being compatible with verification does not mean sanitization is supported.
+
+Sanitization support is method-specific and requires qualification under [`SANITIZATION_ARCHITECTURE.md`](./SANITIZATION_ARCHITECTURE.md).
+
+## Maturity
+
+Use the repository maturity vocabulary:
+
+```text
+MODELLED
+UNIT-TESTED
+PROTOCOL-EXPOSED
+UI-INTEGRATED
+HARDWARE-VALIDATED
+RELEASE-VALIDATED
+```
+
+One handset test proves only that tested capability on that tested environment.
+
+## Current baseline
+
+- Windows 10/11 64-bit are immediate host qualification targets.
+- Native Windows USB observation exists.
+- WPD/MTP device discovery has been hardware exercised on a Samsung handset.
+- ADB/domain collectors are unit-tested.
+- WPD storage/object metadata traversal is still under implementation.
+- full multi-device correlation is not release-validated.
+- sanitization methods are not yet qualified for production destructive execution.
+
+## Related contracts
+
+- [`WINDOWS_ANDROID_TRANSPORT_ARCHITECTURE.md`](./WINDOWS_ANDROID_TRANSPORT_ARCHITECTURE.md)
+- [`DEVICE_EVIDENCE_ARCHITECTURE.md`](./DEVICE_EVIDENCE_ARCHITECTURE.md)
+- [`SANITIZATION_ARCHITECTURE.md`](./SANITIZATION_ARCHITECTURE.md)
+- [`TEST_MATRIX.md`](./TEST_MATRIX.md)

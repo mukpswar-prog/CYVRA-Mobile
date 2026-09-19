@@ -1,28 +1,79 @@
-# Customer Desktop Report Architecture
+# Customer Report Architecture
 
-**Reference:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md) §40–§48, §74
+**Status:** ACTIVE CONTRACT
+**Date:** 2026-09-19
 
----
+## Report types
 
-## 1. Supported Report Types
+### Report 1
 
-The Windows desktop application generates two authoritative customer report documents:
+**CYVRA Device Verification Report**
 
-1. **CYVRA Device Verification Report (Report 1):** Pre-sanitization condition report documenting physical and logical device status, identity, battery condition, storage allocations, security status, and capability assessments.
-2. **CYVRA Data Sanitization & Verification Certificate (Final Report):** Complete tamper-evident record combining pre-purge identity snapshot, operator authorization, execution timestamp, method specifics, post-reboot verification evidence, and NIST SP 800-88 Rev. 2 assurance declarations.
+Pre-sanitization verification/evidence report.
 
----
+It does not prove sanitization.
 
-## 2. Report Formats & Integrity
+### Sanitization outcome
 
-- **PDF Export:** Customer-facing, formatted vector document with corporate header, device identifiers, timestamp, operator signature block, and QR code verification link.
-- **JSON Export:** Machine-readable payload matching frozen schema (`GenericDeviceEvidence` and `DeviceCapabilityAssessment`) for enterprise asset management and ingestion.
-- **Cryptographic Digest:** Each report embeds a SHA-256 integrity hash calculated over the immutable evidence records.
+A successful **CYVRA Data Sanitization & Verification Certificate** is issued only after an authorized, qualified method and accepted validation.
 
----
+Otherwise produce a sanitization attempt/verification report with limitations.
 
-## 3. Implementation Status (Slice A9)
+## One canonical manifest
 
-- Implemented in `:core`: `ReportModels.kt` (`ReportHeader`, `ReportCoverageLabel`, `ReportIntegrityRecord`, `DeviceVerificationReport`, `SanitizationCertificateReport`).
-- Implemented in `apps/host`: `HostReportEngine.kt` supporting Report 1 generation, Final Sanitization Certificate generation, SHA-256 cryptographic digest calculation, JSON export, and Markdown human-readable rendering.
-- Unit tested in `:core:test` (`ReportModelsTest`) and `:host:test` (`HostReportEngineTest`). All tests pass.
+Target architecture:
+
+```text
+immutable evidence
+        ↓
+canonical report manifest
+        ↓
+canonical SHA-256 digest
+        ├─ JSON
+        ├─ PDF
+        └─ cloud registry
+```
+
+JSON, PDF, web, and Markdown are renderings of the same canonical manifest.
+
+They are not competing sources of truth.
+
+## Evidence binding
+
+Evidence V2 report entries bind at least:
+
+```text
+fact/test identity
+evidenceId
+evidence digest
+source
+result/status
+```
+
+Historical V1 reports remain readable.
+
+## Workstation/cloud ownership
+
+The workstation owns observed-device evidence and freezes the canonical local manifest.
+
+The cloud validates/records the same manifest and account/entitlement association.
+
+The cloud must not silently reconstruct a materially different report.
+
+## Integrity
+
+SHA-256 digest proves content integrity, not signer identity.
+
+Digital signing, if introduced, requires a separate controlled key-management design.
+
+Do not place a long-lived private signing key on every customer workstation merely to hash a report.
+
+## Coverage
+
+`COMPLETE`, `LIMITED`, and `PARTIAL` describe evidence completeness, not device quality.
+
+## Report immutability
+
+Once Report 1 is frozen, later sanitization does not rewrite it.
+
+The final sanitization report references the pre-sanitization report/evidence instead.

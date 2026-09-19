@@ -1,14 +1,52 @@
-# Test pool
+# CYVRA Mobile Testing
 
-Step-by-step checks for CYVRA Mobile Evidence.
+This folder contains the living acceptance pool and hardware-test records.
 
-- **Pool (what / how / status):** [pool.md](./pool.md)
-- **S1 research (Samsung + AOSP, no device):** [../research/samsung-s1-sources.md](../research/samsung-s1-sources.md)
-- **G4 package tests:** `pnpm --filter @cyvra/evidence test`
-- **G5 local ingest:** `bash scripts/run-local-evidence.sh` (starts local Postgres + wrangler if needed)
-- **G6 local Report 1 freeze:** `bash scripts/run-local-report.sh`
-- **Compatibility matrix (multi-OEM / USB-ADB):** [../TEST_MATRIX.md](../TEST_MATRIX.md)
-- **Android freeze:** [../ANDROID_COMPATIBILITY_FREEZE.md](../ANDROID_COMPATIBILITY_FREEZE.md)
+Primary engineering matrix: [`../TEST_MATRIX.md`](../TEST_MATRIX.md).
 
-No Samsung handset is in this environment. Device rows stay `queued-no-device`
-until a phone is on the bench. Do not fill PASS/FAIL from documentation alone.
+## Test layers
+
+```text
+unit
+component
+protocol/integration
+UI integration
+physical hardware
+clean-machine release
+```
+
+Do not promote a result from one layer into another.
+
+## Current high-value commands
+
+```text
+pnpm typecheck
+pnpm build
+pnpm test:evidence
+pnpm test:api-origins
+```
+
+Android/domain:
+
+```text
+apps\android\gradlew.bat :core:test :host:test
+```
+
+Desktop/native:
+
+```text
+pnpm build
+pnpm validate:shell
+cargo check
+cargo test
+```
+
+Hardware results live in [`pool.md`](./pool.md).
+
+## Rules
+
+- no PASS from documentation alone;
+- one handset does not prove an OEM family;
+- ADB is not required for every WPD path;
+- destructive sanitization requires a separate qualification matrix;
+- record exact Windows/device/Android/build context for hardware proof.

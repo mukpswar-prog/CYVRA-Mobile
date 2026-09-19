@@ -1,7 +1,7 @@
 # Freeze audit + main-coding plan
 
 **Status:** APPROVED 9 Sep 2026. G4–G6 preview live. Neon `0003` applied 10 Sep 2026. Worker version `38ef01e5-8400-4452-87d1-e1e576e2e27a`, `API_ENV=preview`. Device/APK still queued.  
-**Governing law:** [GUIDELINE.md](../GUIDELINE.md) (also [docs/GUIDELINE.md](./GUIDELINE.md)).  
+**Governing law:** [GUIDELINE.md](../../../GUIDELINE.md) (also [docs/GUIDELINE.md](./GUIDELINE.md)).
 **Branch:** `cursor/g0-g3-mobile-slice-7474`
 
 ## Approvals (9 Sep 2026)
@@ -15,9 +15,9 @@
 | **E** | Do not start G7/G8/G9/G10, www rewrite, or Erase admin in this repo. |
 | Device | No Samsung in hand. Research public docs, write software, test on device last. Keep a text test pool in GitHub. |
 | G0 | GitHub description still needs a human click (`gh` is read-only): [g0-github-description.md](./g0-github-description.md). |
-| G5–G6 | Approved to follow G4. Test procedures queued in [testing/pool.md](./testing/pool.md). |
+| G5–G6 | Approved to follow G4. Test procedures queued in [testing/pool.md](../../testing/pool.md). |
 
-G4 package: [packages/evidence](../packages/evidence). Research: [research/samsung-s1-sources.md](./research/samsung-s1-sources.md).
+G4 package: [packages/evidence](../../../packages/evidence). Research: [research/samsung-s1-sources.md](../../research/samsung-s1-sources.md).
 
 ---
 
@@ -66,7 +66,7 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 | **G2** | `users` / `email_otp_challenges` / `sessions`. `/health`, `POST /auth/request`, `POST /auth/verify` | **Live.** Neon auth tables exist. Worker `/health` = `status=ok`, `env=preview`, `database=connected`. Preview may still return `devCode` until `API_ENV=production`. |
 | **G3** | Registration on Pages preview, then `mobile.cyvra.co.in`. Honest empty home. Name + pincode mandatory. | **Custom domain live.** `https://mobile.cyvra.co.in/` HTTP 200 (same bundle as pages.dev). Worker still `*.workers.dev`. `api-mobile.cyvra.co.in` NXDOMAIN. |
 | **G4** | Evidence JSON Schema + capability contract v1 in `packages/evidence` | **This slice.** Schemas + S1 catalog + digest + `PERMISSION_DENIED`. |
-| **G5** | Windows USB/ADB + generic evidence. G5-A = Windows + USB + ADB + owned Samsung (APK supporting) | **Core + ingest live.** JVM `:core` in `apps/android`. Worker `POST /evidence/batches` + `GET /evidence/records`. Neon has evidence tables (`0002_sturdy_salo`, 10 Sep 2026). APK/device tests queued. Freeze: [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md). |
+| **G5** | Windows USB/ADB + generic evidence. G5-A = Windows + USB + ADB + owned Samsung (APK supporting) | **Core + ingest live.** JVM `:core` in `apps/android`. Worker `POST /evidence/batches` + `GET /evidence/records`. Neon has evidence tables (`0002_sturdy_salo`, 10 Sep 2026). APK/device tests queued. Freeze: [ANDROID_COMPATIBILITY_FREEZE.md](../../ANDROID_COMPATIBILITY_FREEZE.md). |
 | **G6** | Render Report 1 from a frozen manifest | **Live on preview.** `POST /reports/freeze` + signed-in HTML print view. Neon `0003` applied. Worker `/health` `ok` / `preview` / `connected`. Pages UI waits for a rebuild from this branch. |
 | **G7** | Ops on admin.cyvoriq.co.in / accounts.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages in this repo. Not Erase admin. Same Neon. |
 | **G8** | Public www.cyvoriq.co.in | **Decision 10 Sep 2026.** New Pages. Not a tab on www.cyvra.co.in. |
@@ -106,7 +106,7 @@ From GUIDELINE §2–§9 and the 9 Sep freeze plan:
 7. GitHub description (G0): [g0-github-description.md](./g0-github-description.md).
 8. **Last (G8):** www nav links. Erase repo.
 
-Click-paths: [dashboard-configure.md](./dashboard-configure.md), [neon-cloudflare.md](./neon-cloudflare.md).
+Click-paths: [dashboard-configure.md](./dashboard-configure.md), [neon-cloudflare.md](../../neon-cloudflare.md).
 
 ---
 

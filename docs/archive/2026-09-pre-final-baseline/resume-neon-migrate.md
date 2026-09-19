@@ -169,7 +169,7 @@ Optional leftovers, not blocking:
 
 - GitHub description: [g0-github-description.md](./g0-github-description.md)
 - Worker host `api-mobile.cyvra.co.in`: [dashboard-configure.md](./dashboard-configure.md) §4.2
-- Samsung device tests: [testing/pool.md](./testing/pool.md) (`queued-no-device`)
+- Samsung device tests: [testing/pool.md](../../testing/pool.md) (`queued-no-device`)
 
 Coding next after you say **go**: **G6 Report 1** (frozen manifest / PDF). Not before Step 7.
 

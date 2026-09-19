@@ -1,12 +1,12 @@
 # Resume here — superseded 11 Sep 2026
 
-**Current start file:** [resume-g8-freeze.md](./resume-g8-freeze.md) (saved 11 Sep evening for 12 Sep morning).
+**Current start file:** [resume-g8-freeze.md](../../resume-g8-freeze.md) (saved 11 Sep evening for 12 Sep morning).
 
 Public `www.cyvoriq.co.in` is frozen. Next is G7 inbox proof, then G5 on one Samsung. This file is older history. Keep it.
 
 Branch: `cursor/g0-g3-mobile-slice-7474`.
 
-Clicks if admin must be rebuilt: [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
+Clicks if admin must be rebuilt: [admin-cyvoriq-start.txt](../../admin-cyvoriq-start.txt).
 
 ---
 
@@ -55,7 +55,7 @@ stop. Keep `API_ENV=preview`. After www is 200, register on
 
 ## Next — admin only (not accounts)
 
-You (dashboard): [admin-cyvoriq-start.txt](./admin-cyvoriq-start.txt).
+You (dashboard): [admin-cyvoriq-start.txt](../../admin-cyvoriq-start.txt).
 
 1. Create **new** Pages **`cyvoriq-admin`** from the same GitHub repo.
 2. Same build as www. Same `VITE_API_URL`. **No** `ADMIN_API_TOKEN` on Pages.

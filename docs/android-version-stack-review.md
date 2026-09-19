@@ -7,7 +7,7 @@ Pins: [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md).
 This file records the **input we verified**, what was on disk **before** A1, and why we did **not** jump to AGP 9 on 12 Sep. AGP stays **8.13.2**. Kotlin moves to **2.3.21** in A1 (not 2.2.10). compileSdk/targetSdk **36** and minSdk **26** wait for A2.
 
 Start file: [resume-g8-freeze.md](./resume-g8-freeze.md).  
-Laptop checklist (paused): [g5-laptop-work.md](./g5-laptop-work.md).
+Laptop checklist (paused): [g5-laptop-work.md](./archive/2026-09-pre-final-baseline/g5-laptop-work.md).
 
 ---
 

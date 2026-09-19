@@ -2,7 +2,7 @@
 
 **Superseded 10 Sep 2026 (D-2026-09-10-CYVORIQ-DOMAIN).** The 9 Sep freeze
 that put Mobile ops on Erase `admin.cyvra.co.in` is cancelled. Follow
-[cyvoriq-migration-audit.txt](./cyvoriq-migration-audit.txt).
+[cyvoriq-migration-audit.txt](../../cyvoriq-migration-audit.txt).
 
 | Host | Role |
 |---|---|

@@ -5,7 +5,7 @@ Map: [cross-repo-next-gates.txt](./cross-repo-next-gates.txt).
 Hidden browser bench: `/#ops` (not `admin.cyvoriq.co.in` yet).
 
 **Started 10 Sep 2026** after G6 preview went live.  
-**Governing law:** [GUIDELINE.md](../GUIDELINE.md). Hosts: [admin-mobile-section.md](./admin-mobile-section.md).
+**Governing law:** [GUIDELINE.md](../../../GUIDELINE.md). Hosts: [admin-mobile-section.md](./admin-mobile-section.md).
 
 G7 has two repos. This branch implements **only** the mobile SoT.
 

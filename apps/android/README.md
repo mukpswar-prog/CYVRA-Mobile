@@ -1,34 +1,70 @@
-# CYVRA Mobile Evidence — Android component (G5 scaffold)
+# CYVRA Mobile Android Component
 
-The APK is a **supporting device-side component**. The Windows host is the
-orchestrator (slice A3, `apps/host`). Freeze:
-[docs/ANDROID_COMPATIBILITY_FREEZE.md](../../docs/ANDROID_COMPATIBILITY_FREEZE.md).
+The Android APK is an optional supporting component of CYVRA Mobile.
 
-Application id `co.in.cyvra.mobile` (Kotlin package `cyvra.mobile` — `in` is a keyword).
-G4 contract is loaded from `packages/evidence/schema/s1-catalog.v1.json`.
+The Windows workstation remains the product orchestrator.
 
-| Knob | Frozen |
-|---|---|
-| Kotlin / KGP | **2.3.21** (A1; was 2.2.10) |
-| AGP | **8.13.2** (do not move to AGP 9) |
-| Gradle wrapper | **9.1.0** (Codespaces Java 25 needs 9.1+) |
-| JDK | **21** |
-| compileSdk / targetSdk | **36** |
-| minSdk | **26** APK floor (Android 8.0+). Not the host service floor. |
+## Modules
 
-- **`:core`** — JVM. Catalog, plan, honesty, offline queue, planned-batch collect. Runs without a phone. Home for generic evidence interfaces.
-- **`:app`** — Optional Android UI. Included only when `ANDROID_HOME` or `local.properties` exists.
-  Shares `files/cyvra-g5-batch.json` for laptop `POST /evidence/batches`.
+```text
+:core
+  Kotlin/JVM domain models and shared logic
 
-No Knox. No IMEI collection. No lock bypass. USB file copy is not device authorization.
-Laptop `:app:assembleDebug` needs **SDK Platform 36** and Gradle JDK **jbr-21**.
+:host
+  Kotlin/JVM Domain Engine used by the Windows desktop
 
-Laptop, after a customer sign-in (not `ADMIN_API_TOKEN`):
-
-```bash
-API_URL=https://api.cyvoriq.co.in CYVRA_SESSION_TOKEN=… \
-  bash scripts/post-g5-batch.sh --live ./cyvra-g5-batch.json
+:app
+  optional Android supporting component
 ```
 
-Codespaces: [docs/codespaces-g5.md](../../docs/codespaces-g5.md).
-Device tests: [docs/testing/pool.md](../../docs/testing/pool.md).
+`:app` is included when an Android SDK is configured.
+
+## Toolchain
+
+```text
+Kotlin/KGP   2.3.21
+AGP          8.13.2
+Gradle       9.1.0
+JDK          21
+compileSdk   36
+targetSdk    36
+minSdk       26
+```
+
+`minSdk 26` is the APK installation floor, not the Windows workstation service floor.
+
+## Build/test
+
+```powershell
+.\gradlew.bat :core:test :host:test
+```
+
+With Android SDK:
+
+```powershell
+.\gradlew.bat :app:assembleDebug
+```
+
+## Security boundary
+
+The component must not:
+
+- bypass locks/FRP/bootloader/OEM controls;
+- fabricate IMEI/serial;
+- claim Knox/enterprise authority without legitimate authority;
+- treat USB or APK presence as authorization.
+
+## Evidence
+
+The component is one optional evidence source.
+
+New architecture distinguishes:
+
+```text
+WINDOWS_USB
+WINDOWS_WPD_MTP
+ANDROID_ADB
+ANDROID_COMPONENT
+```
+
+See [`../../docs/ANDROID_COMPATIBILITY_FREEZE.md`](../../docs/ANDROID_COMPATIBILITY_FREEZE.md).

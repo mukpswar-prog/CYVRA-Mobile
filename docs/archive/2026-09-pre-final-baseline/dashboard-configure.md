@@ -1,6 +1,6 @@
 # Dashboard configure — Neon, Resend, Worker, `mobile.cyvra.co.in`
 
-Governing law: [GUIDELINE.md](../GUIDELINE.md) §6. **New resources only.** Do not
+Governing law: [GUIDELINE.md](../../../GUIDELINE.md) §6. **New resources only.** Do not
 open or change `cyvra-www`, `cyvoriq-erase-api`, `cyvra-approvals`,
 `www.cyvra.co.in`, or `api.cyvra.co.in`.
 
@@ -142,7 +142,7 @@ curl -sS https://cyvra-mobile-api.mukpswar.workers.dev/health
 
 Expect `"database":"connected"`. If it is `unreachable`, origin still has the old password. Edit origin again. Do not recreate Hyperdrive.
 
-Which Neon/Cloudflare guide and what not to click: [neon-cloudflare.md](./neon-cloudflare.md).
+Which Neon/Cloudflare guide and what not to click: [neon-cloudflare.md](../../neon-cloudflare.md).
 
 **Stop here and reply:** Neon tables ok / Hyperdrive saved / health JSON (the JSON is not a secret).
 
@@ -189,7 +189,7 @@ Save. Back in Resend, click **Verify**. Wait until status is **Verified**.
 4. Domain: restrict to `cyvoriq.co.in` (Mobile). Never lock this key to Erase domain `cyvra.co.in`.
 5. Copy the key once into a password manager. It will not be shown again.
 
-If an older Mobile key is Domain=`cyvra.co.in`, create a new key. Do not edit or delete Erase keys. See [resend-mobile-otp.md](./resend-mobile-otp.md).
+If an older Mobile key is Domain=`cyvra.co.in`, create a new key. Do not edit or delete Erase keys. See [resend-mobile-otp.md](../../resend-mobile-otp.md).
 
 ### 2.4 From address we will use
 

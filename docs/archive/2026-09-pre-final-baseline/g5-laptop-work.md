@@ -2,13 +2,13 @@
 
 **No Samsung required for A1.** Phone work is [g5-owned-samsung.md](./g5-owned-samsung.md) Step 4+, later. G5-A is Windows + USB + ADB + owned Samsung, not APK-only.
 
-**14 Sep freeze accepted:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md). Start: [resume-android-freeze.md](./resume-android-freeze.md).
+**14 Sep freeze accepted:** [ANDROID_COMPATIBILITY_FREEZE.md](../../ANDROID_COMPATIBILITY_FREEZE.md). Start: [resume-android-freeze.md](../../resume-android-freeze.md).
 
 - A1: Kotlin **2.3.21**. AGP **8.13.2**, Gradle **9.1.0**, JDK **21**.
 - A2: compileSdk/targetSdk **36**, minSdk **26** (APK floor). SDK Platform 36 required for `:app:assembleDebug`.
 - Do not upgrade to AGP 9.
 
-Governing start: [resume-android-freeze.md](./resume-android-freeze.md).  
+Governing start: [resume-android-freeze.md](../../resume-android-freeze.md).
 Branch: `cursor/g0-g3-mobile-slice-7474`.  
 Clone: `C:\Users\User\StudioProjects\CYVRA-Mobile`
 

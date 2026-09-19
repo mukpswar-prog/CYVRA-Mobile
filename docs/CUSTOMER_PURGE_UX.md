@@ -1,47 +1,84 @@
-# Customer Data Purge & Verification UX
+# Customer Sanitization UX
 
-**Reference:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md) §27–§36, §70, §74
+**Status:** ACTIVE UX CONTRACT
+**Date:** 2026-09-19
 
----
+## Boundary
 
-## 1. Purge Lifecycle
+Device Verification does not authorize sanitization.
 
-Data Purge is strictly decoupled from diagnostics. A diagnostic scan does NOT authorize a destructive operation.
+The sanitization workspace begins only after an explicit operator action.
+
+## Safe lifecycle
 
 ```text
-CONNECT DEVICE
-      │
-      ▼
-PRE-PURGE DIAGNOSTIC & CAPABILITY ASSESSMENT (Slice A5)
-      │
-      ▼
-TWO-STEP OPERATOR AUTHORIZATION (Explicit confirmation + Confirmation phrase)
-      │
-      ▼
-METHOD SELECTION (Platform Factory Reset vs OEM-Verified Erase)
-      │
-      ▼
-PERSIST PRE-PURGE EVIDENCE & SESSION UUID
-      │
-      ▼
-EXECUTION TRIGGER (ADB platform command or OEM reset trigger)
-      │
-      ▼
-EXPECTED DEVICE REBOOT & DISCONNECTION
-      │
-      ▼
-DEVICE RE-DETECTION & RECONNECTION
-      │
-      ▼
-POST-RESET VERIFICATION (Android Setup Wizard / OOBE state detection)
-      │
-      ▼
-FINAL PURGE CERTIFICATE & AUDIT REPORT
+select same correlated target
+        ↓
+show qualified methods only
+        ↓
+show scope + limitations
+        ↓
+freeze pre-operation evidence
+        ↓
+policy/entitlement authority
+        ↓
+two-step operator confirmation
+        ↓
+re-check same target
+        ↓
+method-specific execution
+        ↓
+expected disconnect/reboot
+        ↓
+reconnect + same-device correlation
+        ↓
+multi-signal verification
+        ↓
+validation
+        ↓
+certificate only if accepted
 ```
 
----
+## Method wording
 
-## 2. NIST SP 800-88 Rev. 2 Terminology & Guardrails
+Use:
 
-- **No False Claims:** Factory reset is documented as "Platform Factory Reset", never misrepresented as "NIST Purge" or "Cryptographic Erase" unless verified hardware cryptographic erasing occurs.
-- **Verification States:** `VERIFIED`, `PARTIALLY_VERIFIED`, `PLATFORM_REPORTED_COMPLETE`, `REQUIRES_EXTERNAL_VERIFICATION`, `FAILED`. Simple PASS/FAIL binaries are forbidden.
+```text
+Platform Factory Reset
+Qualified Clear
+Qualified Purge
+Cryptographic Erase — only when qualified
+OEM Sanitization — only when qualified
+External Verification Required
+Sanitization Unsupported
+```
+
+Do not use unsupported marketing language such as "100% unrecoverable" or "NIST wipe".
+
+## Authorization
+
+Step 1: acknowledge destructive effect.
+
+Step 2: confirm an operation/target-bound phrase or equivalent challenge.
+
+If target identity/topology changes after confirmation, authorization becomes stale.
+
+## Simulation
+
+A dry run is visibly labelled simulation.
+
+`SIMULATION_COMPLETE` must never look like successful sanitization and must never enable a successful certificate.
+
+## Reconnect
+
+ADB may be unavailable after reset.
+
+The UI must support USB/WPD-based reconnect evidence and operator verification where required.
+
+## Outcome
+
+Successful validation may produce a **CYVRA Data Sanitization & Verification Certificate**.
+
+Inconclusive, unsupported, failed, or externally verified cases produce a non-success outcome/attempt report with limitations.
+
+See [`SANITIZATION_ARCHITECTURE.md`](./SANITIZATION_ARCHITECTURE.md).

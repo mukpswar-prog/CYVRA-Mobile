@@ -1,6 +1,9 @@
 #[cfg(windows)]
 mod usb;
 
+#[cfg(windows)]
+mod wpd;
+
 mod commands;
 mod host_process;
 
@@ -12,7 +15,8 @@ pub fn run() {
     let app = tauri::Builder::default()
         .manage(commands::HostState::new())
         .invoke_handler(tauri::generate_handler![
-            commands::get_host_info
+            commands::get_host_info,
+            commands::get_wpd_devices
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
