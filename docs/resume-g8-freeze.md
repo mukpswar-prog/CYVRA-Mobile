@@ -8,7 +8,7 @@ This file remains the www / OTP / G8 history. Public www is still frozen.
 Do not polish `www.cyvoriq.co.in`. Do not flip `API_ENV`. Do not start Station or Knox.
 
 Review (history): [android-version-stack-review.md](./android-version-stack-review.md).  
-Laptop checklist: [g5-laptop-work.md](./g5-laptop-work.md).  
+Laptop checklist: [g5-laptop-work.md](./archive/2026-09-pre-final-baseline/g5-laptop-work.md).
 Governing law: [GUIDELINE.md](../GUIDELINE.md).  
 Branch: `cursor/g0-g3-mobile-slice-7474`.
 
@@ -39,7 +39,7 @@ Branch: `cursor/g0-g3-mobile-slice-7474`.
 | Live Worker / Pages | API Action #5 + Pages Action #3 on this branch. `/health` has `mailConfigured: true` and `mailFromHost: "cyvoriq.co.in"`. |
 | OTP mailbox | **Trusted 12 Sep.** Ops and customer codes landed in real inboxes. |
 | Public www | Frozen. Do not polish. |
-| Android Studio laptop | Quail 4 / 2026.1.4, `apps/android` open, AGP 8.13.2 pulled. APK not built. After-break: [g5-laptop-work.md](./g5-laptop-work.md). |
+| Android Studio laptop | Quail 4 / 2026.1.4, `apps/android` open, AGP 8.13.2 pulled. APK not built. After-break: [g5-laptop-work.md](./archive/2026-09-pre-final-baseline/g5-laptop-work.md). |
 
 ---
 

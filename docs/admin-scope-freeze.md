@@ -1,111 +1,84 @@
-# admin.cyvoriq.co.in — scope freeze (11 Sep 2026)
+# CYVRA Mobile Admin Scope
 
-Governing law: [GUIDELINE.md](../GUIDELINE.md). Morning start: [resume-g8-freeze.md](./resume-g8-freeze.md).  
-API history: [g7-freeze.md](./g7-freeze.md).
+**Status:** ACTIVE ADMIN BOUNDARY
+**Date:** 2026-09-19
 
-This file freezes **what lives on the ops host**. Public www stays frozen separately.
+## Purpose
 
----
+The CYVRA Mobile admin surface manages Mobile operational authority. It is not the CYVRA Erase admin system.
 
-## How it is connected (do not redo)
+## Separation
 
-| Piece | Frozen value |
-|---|---|
-| Host | `https://admin.cyvoriq.co.in/` |
-| UI | Same Vite bundle as `cyvoriq-www`. Hostname gate `isAdminHost()` → `AdminApp` |
-| Look | Erase-admin layout family, **graphite + CYVRA orange `#FF7A00`**. Not Erase teal. Not Fraunces `cyvoriq-admin.pages.dev` |
-| API | `https://api.cyvoriq.co.in` (`VITE_API_URL`) |
-| Database | Neon `floral-art-02749206` tables `mobile_serials`, `staff_operators`, `staff_otp_challenges`, `staff_sessions` |
-| Super admin | `ceo@cyvoriq.com` (always allowed; does not need a staff row) |
-| Staff login | OTP emailed to a **nominated `@cyvoriq.com` inbox**. Phone is not used. Preview may also show an on-screen code until Resend delivers. |
-| Token bootstrap | Worker secret `ADMIN_API_TOKEN` + `X-Admin-Email` for scripts only. Never Pages, never Git, never chat |
-| CORS | Origin `https://admin.cyvoriq.co.in` is allowed. Erase www is not |
+Keep separate:
 
-**Do not** move the custom domain onto `https://cyvoriq-admin.pages.dev/` while that project still serves Fraunces **CYVRA Admin** (not this repo).
-
----
-
-## Licence key policy (locked)
-
-Format (slab and kind are readable from the key itself):
-
-```
-CYVRA{dd}{mm}{yyyy}{kind}{hex4}-1-{max}
+```text
+customer authentication
+staff authentication
+desktop authentication
+licence/entitlement administration
+break-glass/service credentials
 ```
 
-Example: `CYVRA11092026SA3F1-1-1` (single user, one device) or `CYVRA11092026SA3F1-1-5`
+Do not reuse Erase sessions, databases, tokens, or workers.
 
-| Piece | Meaning |
-|---|---|
-| `CYVRA` | Product |
-| `ddmmyyyy` | Create date UTC |
-| `S` or `B` | SINGLE user or BULK licence |
-| 4 hex | Uniqueness |
-| `1-1` / `1-3` / `1-5` / `1-7` / `1-25` | Device slab. `1-1` is **single-user only** |
+## Staff authentication
 
-Same key may be used on devices of the **same brand** up to `max`. Not a Windows Erase licence. Not IMEI.
+Normal staff access should use staff OTP/session authentication.
 
-Approve emails the key to the **customer’s verified email only**. Send is tracked (`emailedAt`, `emailMessageId`, `emailError`).
+Requirements:
 
----
+- authorized staff identities only;
+- non-enumerating challenge response;
+- durable source + identity rate limiting;
+- atomic OTP consume;
+- HttpOnly/same-site web session where applicable;
+- append-only audit of privileged actions.
 
-## Inbox OTP (do this before flipping production)
+A service/break-glass admin token is not normal browser authentication and must never be shipped to Pages or the customer desktop.
 
-On-screen preview codes mean Resend did **not** deliver. Keep `API_ENV=preview` until a real code lands in `ceo@cyvoriq.com`. Then, later, flip production.
+## Licence administration
 
-| Check | Why |
-|---|---|
-| Worker `cyvra-mobile-api` has a **Mobile** sending key | `/health` shows `mailConfigured: true`. The key Domain must be `cyvoriq.co.in` (or all domains). An Erase-restricted `cyvra.co.in` key 403s. Do not rotate Erase keys. Runbook: [resend-mobile-otp.md](./resend-mobile-otp.md). |
-| Secret `RESEND_FROM` is `CYVRA Mobile <noreply@cyvoriq.co.in>` | `/health` shows `mailFromHost: "cyvoriq.co.in"`. Do not fall back to `noreply@cyvra.co.in`. |
-| Resend domain `cyvoriq.co.in` is **Verified** (SPF/DKIM) | Already Verified. Keep `cyvra.co.in` verified for Erase. |
-| Resend is not stuck in testing mode | Testing mode only delivers to the Resend account inbox. Add `ceo@cyvoriq.com` there, or enable production sending after the domain is Verified. |
-| Inbox, Spam, Promotions | Delivery can succeed and still miss the primary inbox. |
+Admin may:
 
-Ops login now shows the exact Resend error when send fails, and still accepts the on-screen code while `API_ENV=preview`. Production never returns the code.
+```text
+create/issue entitlement
+associate customer
+upgrade/revise entitlement
+revoke
+review usage/transactions
+review reports/audit
+```
 
----
+A human-readable licence/reference number is not a secret authenticator.
 
-## Inside this host
+Device binding and verification scan consumption are separate concepts.
 
-1. Staff OTP sign-in (`ceo@cyvoriq.com`, or another `@cyvoriq.com` nominated by the CEO).
-2. **Generate PENDING** — customer snapshot + brand scope + slab + human `paymentNoted`.
-3. **Approve & email** — issue once; replay keeps `issuedAt`. Production will not issue if email fails.
-4. **Revoke**. Replay keeps `revokedAt`.
-5. **Staff** — CEO nominates / revokes operators.
-6. **Reports** — from date / to date, every stored customer and licence field, download CSV or Excel (`.xls`), print to PDF.
-7. Honest copy: payment noted is a human attestation. This is not a payment gateway. This is not Erase admin.
+## Payment
 
-## Outside this host (frozen out)
+Admin may record payment/approval state according to business process.
 
-Do not add these to `admin.cyvoriq.co.in`:
+The Mobile admin console is not itself a card-payment processor unless a separately integrated payment system is added.
 
-- Public marketing, Get Started, customer OTP register / sign-in
-- Customer dashboard, Report 1 viewer, evidence ingest
-- Windows Erase licences, `cyvoriq_admin_session`, `admin.cyvra.co.in`
-- Payment gateway / UPI / Stripe
-- `accounts.cyvoriq.co.in` (later, separate Pages)
-- Station, Knox, sanitization authorization
-- Serials UI on `www.cyvoriq.co.in` via `/#ops` or `/ops`
+## Destructive authority
 
----
+Sanitization policy/authorization is a separate high-risk permission.
 
-## Advance check
+Do not infer destructive authority from the ability to create a licence.
 
-| Check | Result |
-|---|---|
-| Browser on admin host shows **CYVRA Mobile ops** + licence console | Required after Pages rebuild |
-| www still shows Know the Device / Get Started | Must stay true (do not polish marketing) |
-| `cyvoriq-admin.pages.dev` is a different Fraunces app | Fail if used as custom-domain target — do not attach |
-| Unauth `GET /admin/serials` | HTTP 401 `Admin token required.` |
-| Gmail staff OTP | HTTP 403 |
-| Token in Pages | Forbidden — not present |
-| Dummy payment Create PENDING on production | Forbidden |
+## Data
 
----
+Administrative exports must follow customer-data minimization and retention policy.
 
-## Human proof still open
+Never expose:
 
-CEO requests an ops code at `https://admin.cyvoriq.co.in/` (do not paste the code in chat).  
-The sign-in card must show either “Code emailed…” **or** the exact Resend error plus an on-screen preview code.  
-Do **not** Create PENDING with dummy payment text on the live Worker.  
-Do **not** flip `API_ENV=production` until a real OTP is trusted in `ceo@cyvoriq.com`.
+```text
+OTP plaintext
+session tokens
+email-provider keys
+database credentials
+signing private keys
+```
+
+## Current maturity
+
+Existing admin/API slices are useful implementation foundations, but final security hardening and entitlement accounting remain Phase-2/3 work. Do not treat historical `devicesBound` or public-key formats as the final accounting/security design.

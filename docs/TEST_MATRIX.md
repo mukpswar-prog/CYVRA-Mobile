@@ -1,62 +1,154 @@
-# Compatibility test matrix
+# CYVRA Mobile Engineering Acceptance Matrix
 
-**Freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
-**Do not claim support from compilation alone.**
+**Status:** ACTIVE REFERENCE
+**Date:** 2026-09-19
 
-## Capability levels (not a single compatible flag)
+## Purpose
 
-| Level | Meaning |
+This is the engineering acceptance matrix for CYVRA Mobile. Compilation, unit tests, or a single handset do not establish broad product support.
+
+## Maturity levels
+
+```text
+MODELLED
+UNIT-TESTED
+PROTOCOL-EXPOSED
+UI-INTEGRATED
+HARDWARE-VALIDATED
+RELEASE-VALIDATED
+```
+
+A capability is reported at the highest level actually proven.
+
+## Host matrix
+
+| Area | Required coverage |
 |---|---|
-| A | Launch / connect |
-| B | Generic evidence |
-| C | Extended evidence |
-| D | Sanitization capability assessment |
-| E | Sanitization execution |
-| F | Verification |
+| Windows | Windows 10 x64, Windows 11 x64 |
+| Clean machine | fresh supported Windows install |
+| Installer | install, launch, update, uninstall |
+| Runtime | bundled/managed prerequisites; no Android Studio required |
+| USB | attach, detach, reconnect, topology change |
+| WPD/MTP | absent, available, enumeration race, metadata-only |
+| ADB | unavailable, unauthorized, offline, ready |
+| Multiple devices | detection, ambiguity, explicit selection |
+| Network | online, offline, reconnect, sync rejection |
 
-A device may be A PASS, B PASS, C PARTIAL, E UNSUPPORTED. That is more truthful than DEVICE = FAILED.
+## Device transport scenarios
 
-## Android OS (physical validation target)
+| ID | Scenario | Required outcome |
+|---|---|---|
+| TR-001 | no handset | no false device |
+| TR-002 | USB present, WPD absent | USB evidence preserved |
+| TR-003 | USB + WPD, ADB unavailable | basic verification remains possible |
+| TR-004 | USB + WPD, ADB unauthorized | no bypass; limitation shown |
+| TR-005 | ADB offline | separate ADB state |
+| TR-006 | unplug during scan | bounded failure; no crash |
+| TR-007 | reconnect same handset | re-correlate identity |
+| TR-008 | two plausible handsets | no implicit first-device selection |
+| TR-009 | WPD topology changes between two-pass calls | bounded retry / deterministic error |
+| TR-010 | WPD metadata scan | no customer content stream opened |
 
-Android 8 / API 26 through Android 16 / API 36, including 12L.
+## Evidence scenarios
 
-APK minSdk 26 covers install of the supporting component. Host service of older devices is a separate matrix row.
+- unavailable/restricted fields never become PASS;
+- same evidence ID + same canonical digest is idempotent replay;
+- same evidence ID + different digest is integrity conflict;
+- collector failure preserves other collectors;
+- WPD evidence remains `WINDOWS_WPD_MTP`;
+- cloud receive time never replaces collection time;
+- Report 1 binds immutable evidence and digest in Evidence V2;
+- historical Evidence V1 remains readable.
 
-## OEM (physical)
+## Licensing scenarios
 
-Samsung; Xiaomi/Redmi/POCO; Motorola; OnePlus; OPPO/Realme; Vivo; Pixel; Nothing; unknown OEM (must use generic provider).
+- passive USB/WPD preflight consumes nothing;
+- explicit Device Verification starts/reserves a transaction;
+- successfully frozen canonical Report 1 finalizes consumption;
+- crash/retry cannot double-consume;
+- device binding and scan consumption are separate;
+- public licence/reference number alone is not authority;
+- offline authorization, if introduced, is bounded and anti-replay.
 
-First lab set: one device from each of Samsung, Xiaomi-family, Motorola, OnePlus, OPPO/Realme/Vivo, Pixel — across multiple Android generations.
+## Sanitization scenarios
 
-## Windows
+Simulation and production destructive qualification are separate.
 
-Windows 10 64-bit and Windows 11 64-bit. Managed ADB, USB detect, authorization, offline, disconnect, reconnect.
+Minimum destructive qualification coverage includes:
 
-## G5 stages (revised)
+- unauthorized attempt;
+- unsupported/unqualified method;
+- target ambiguity;
+- target changes after confirmation;
+- disconnect before and after trigger;
+- desktop process interruption;
+- reboot/reconnect;
+- ADB unavailable after reset;
+- WPD/USB-only post-state;
+- method-reported error;
+- method-reported success but expected state absent;
+- removable/secondary storage limitation;
+- replay/retry attempt;
+- same-device identity mismatch;
+- external verification required.
 
-| Stage | Meaning |
-|---|---|
-| G5-A | Windows + USB + ADB + Samsung |
-| G5-B | Windows + ADB + generic Android evidence |
-| G5-C | Additional OEM |
-| G5-D | Older and current Android |
+No sanitization method is customer-supported until the exact method/device scope is `HARDWARE-VALIDATED` and the packaged product path is `RELEASE-VALIDATED`.
 
-Sanitization **execution** stays non-destructive until G5-A/B pass.
+## Current hardware evidence
 
-## Emulator policy
+Current D2.3 testing has proven Windows WPD device discovery on a Samsung handset in the current bench environment.
 
-Useful: UI, lifecycle, permissions, API/storage behaviour, reports, failure handling.  
-Not a substitute: OEM firmware, physical storage, USB drivers, real ADB, hardware identifiers, factory reset, sanitization verification.
+That does not prove:
 
-## Automated (no phone)
+- recursive metadata scanning;
+- all Samsung models;
+- all Android versions;
+- other OEMs;
+- sanitization;
+- clean-machine release readiness.
 
-`cd apps/android && ./gradlew :core:test :host:test`  
-Implemented tests:
-- `:core`: `G5CoreTest`, `EvidenceModelsTest`, `CapabilityAssessmentEngineTest`, `AndroidComponentModelsTest`, `SanitizationModelsTest`, `ReportModelsTest`, `CompatibilityMatrixModelsTest`.
-- `:host`: `HostTransportTest`, `AdbGenericEvidenceProviderTest`, `HostCapabilityCoordinatorTest`, `HostAndroidComponentBridgeTest`, `HostSanitizationProviderTest`, `HostReportEngineTest`, `HostCompatibilityValidatorTest`.
+## Automated commands
 
-All pass on Java 21 across Windows 10/11 and Linux CI baselines.
+Repository-level checks include:
 
-## Existing pool
+```text
+pnpm typecheck
+pnpm build
+pnpm test:evidence
+pnpm test:api-origins
+```
 
-Living G0–G7 rows remain in [testing/pool.md](./testing/pool.md). This file is the multi-OEM / USB-ADB matrix the freeze adds.
+Android/domain tests:
+
+```text
+apps\android\gradlew.bat :core:test :host:test
+```
+
+Desktop/native checks:
+
+```text
+pnpm build
+pnpm validate:shell
+cargo check
+cargo test
+```
+
+Use the exact command appropriate to the component under test.
+
+## Evidence recording
+
+Each hardware acceptance row should record:
+
+```text
+date
+Windows version
+device OEM/model
+Android version
+transport state
+software build/commit
+test ID
+expected
+actual
+maturity reached
+limitations
+```

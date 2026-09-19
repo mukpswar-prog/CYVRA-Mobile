@@ -1,50 +1,99 @@
 # Customer Desktop Product Specification
 
-**Freeze status:** ACCEPTED CUSTOMER-SIDE ENGINEERING BASELINE  
-**Product:** CYVRA Mobile — Android Device Diagnostics & Data Purge  
-**Primary Host:** Windows 10/11 64-bit  
-**Primary Operating Model:** One Windows CYVRA desktop application servicing Android devices one at a time via USB/ADB.  
-**Reference Document:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md)
+**Status:** ACTIVE PRODUCT CONTRACT
+**Date:** 2026-09-19
+**Product:** CYVRA Mobile
+**Immediate host target:** Windows 10/11 64-bit
 
----
+## Product
 
-## 1. Executive Summary
+CYVRA Mobile is a Windows workstation for Android device discovery, verification, evidence preservation, reporting, and separately authorized sanitization.
 
-CYVRA Mobile delivers a professional Windows desktop application for Android device intake, diagnostics, evidence preservation, and data sanitization verification. 
+Customers should not need Android Studio, Gradle, or an arbitrary system `adb.exe` to operate a release build.
 
-Technicians and customers operate the system with zero prerequisite knowledge of Android Studio, Gradle, command-line interfaces, or Java runtimes.
-
----
-
-## 2. Core Operational Flow
+## Core lifecycle
 
 ```text
-CYVRA Website (Purchase / Entitlement)
-       ↓
-Protected Windows Desktop Application Download
-       ↓
-Windows Installation & License Activation
-       ↓
-Windows Preflight (OS, Architecture, ADB component, Driver status)
-       ↓
-Connect ONE Android Device via USB
-       ↓
-Connection & Authorization Handshake (USB detected → ADB authorized)
-       ↓
-Advanced Diagnostic (Identity, Battery, Storage, Security)
-       ↓
-Diagnostic Results & Signed Report Generation
-       ↓
-[Optionally] Controlled Data Purge Workflow (Capability Assessment → Authorization → Platform Reset → Reconnect → Post-Purge Verification → Final Report)
-       ↓
-Disconnect & Ready for Next Device
+Launch / sign in / entitlement
+        ↓
+Workstation preflight
+        ↓
+USB/WPD device discovery
+        ↓
+select one target device
+        ↓
+optional ADB / Android-component enrichment
+        ↓
+Device Verification
+        ↓
+canonical Report 1
+        ↓
+optional separate Sanitization workflow
+        ↓
+reconnect / verify / validate
+        ↓
+final outcome report or certificate
 ```
 
----
+## Device model
 
-## 3. Product Positioning & Boundary
+The product must present independent states for:
 
-- **Positioning:** Professional Android Device Diagnostics & Data Purge workstation.
-- **Honesty Rule:** No claim of universal compatibility ("Works on every Android phone" is strictly forbidden). CYVRA explicitly assesses and reports capabilities per device.
-- **Security Boundary:** Never bypass Android lock screens, FRP (Factory Reset Protection), bootloader security, or Knox/OEM tamper protections.
-- **Device Service Floor:** The Windows host services Android devices via ADB independently of whether the optional Android APK is installed (`minSdk = 26` applies solely to the APK component).
+```text
+WINDOWS_USB
+WINDOWS_WPD_MTP
+ANDROID_ADB
+ANDROID_COMPONENT
+```
+
+ADB is not required for every basic verification.
+
+One selected target is processed at a time, while all attached candidates are detected and safely disambiguated.
+
+## Architecture boundary
+
+```text
+React Desktop UI
+    presentation/operator interaction
+
+Rust/Tauri Native Layer
+    Windows USB/PnP/WPD/native lifecycle
+
+Kotlin Domain Engine
+    Android semantics/evidence/licensing/reports/sanitization policy
+
+Android Component
+    optional supporting device-side evidence
+
+Cloud Control Plane
+    auth/entitlement/registry/audit
+```
+
+## Product honesty
+
+CYVRA Mobile must not claim:
+
+- universal Android compatibility;
+- unavailable identifiers;
+- password/PIN/FRP bypass;
+- WPD full-filesystem access;
+- factory reset equals Purge;
+- release support based only on unit tests.
+
+## Commercial boundary
+
+Passive discovery is free.
+
+Chargeable Device Verification begins only at an explicit transaction boundary and is finalized after the canonical Report 1 is successfully frozen.
+
+Sanitization is a separate authorization boundary.
+
+## Current maturity
+
+The full end-to-end customer product is still under engineering integration.
+
+Current proven pieces include native USB observation, WPD device enumeration on current test hardware, substantial Kotlin domain logic, and existing cloud evidence/report slices.
+
+Installer, complete UI integration, multi-device correlation, Evidence V2, and production sanitization remain subject to later acceptance gates.
+
+See [`CYVRA_MOBILE_PROJECT_INDEX.md`](./CYVRA_MOBILE_PROJECT_INDEX.md).

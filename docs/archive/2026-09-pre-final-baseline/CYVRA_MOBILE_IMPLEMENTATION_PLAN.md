@@ -1,7 +1,7 @@
 # CYVRA MOBILE — Engineering Implementation Plan
 
-**Governing Freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
-**Host Architecture Law:** [CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md](./CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md)  
+**Governing Freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](../../ANDROID_COMPATIBILITY_FREEZE.md)
+**Host Architecture Law:** [CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md](../../CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md)
 **Customer Product Spec:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md)  
 **Master AI & Commercial Workflow:** [CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md](./CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md)
 

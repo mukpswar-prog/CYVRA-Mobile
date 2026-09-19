@@ -3,7 +3,7 @@
 **Start the next session from this file.**  
 **Governing freeze:** [ANDROID_COMPATIBILITY_FREEZE.md](./ANDROID_COMPATIBILITY_FREEZE.md)  
 **Full law:** [CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md](./CYVRA_Mobile_Final_Android_MultiOEM_Windows_USB_ADB_Freeze_Guide.md)  
-**Customer application freeze:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md)
+**Customer application freeze:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./archive/2026-09-pre-final-baseline/CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md)
 
 Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 
@@ -30,8 +30,8 @@ Public www, live API, OTP, `API_ENV`, Station, Knox, and Erase stay frozen.
 
 ## Next Phase: Customer Desktop Windows Application (C0–C10 & Master AI Workflow)
 
-Master AI & Commercial Workflow Ingested: [CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md](./CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md)  
-Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./CYVRA_MOBILE_IMPLEMENTATION_PLAN.md)  
+Master AI & Commercial Workflow Ingested: [CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md](./archive/2026-09-pre-final-baseline/CYVRA_Mobile_Advanced_Customer_Application_AI_Grading_Licensing_Master_Workflow.md)
+Master Engineering Implementation Plan: [CYVRA_MOBILE_IMPLEMENTATION_PLAN.md](./archive/2026-09-pre-final-baseline/CYVRA_MOBILE_IMPLEMENTATION_PLAN.md)
 - **Phase 0 / C0:** Repository audit (Read-only check of shell, host, UI, reports, and data models) — **Done**.
 - **Phase 1:** Freeze application architecture and dependencies DAG in `CYVRA_MOBILE_IMPLEMENTATION_PLAN.md` — **Done**.
 - **Phase 2 / C1:** Customer shell (Header, Navigation, Status Bar, Update/Upgrade buttons) — **Done**.

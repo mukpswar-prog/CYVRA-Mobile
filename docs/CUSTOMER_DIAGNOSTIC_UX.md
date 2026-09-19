@@ -1,41 +1,95 @@
-# Customer Diagnostic User Experience & Workflows
+# Customer Diagnostic UX
 
-**Reference:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md) §16–§22, §74
+**Status:** ACTIVE UX CONTRACT
+**Date:** 2026-09-19
 
----
+## Goal
 
-## 1. Workstation Interface Structure
+The customer UI must explain what the workstation actually sees without forcing the operator to understand Windows device APIs, MTP, or ADB internals.
 
-The customer application is frozen to a clear four-region layout:
+## Main device card
+
+Present independent connection indicators:
 
 ```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│ CYVRA MOBILE                         Customer: ABC Technologies    ● ACTIVE │
-│ Android Diagnostics & Data Purge     License: 25 Device Scans              │
-│                                      Scans: 8 / 25        [UPDATE] [UPGRADE]│
-├───────────────┬────────────────────────────────────────────────────────────┤
-│ OVERVIEW      │                                                            │
-│ ADVANCED      │                    MAIN WORKSPACE                          │
-│ DIAGNOSTIC    │  - Device Connection Card (USB/ADB/Auth Status)           │
-│ DATA PURGE    │  - Device Identity Snapshot                                │
-│ RESULTS &     │  - Real-Time Diagnostic Test Suite                         │
-│ REPORTS       │  - Evidence Collector Output & Limitations                 │
-│ LICENSE &     │                                                            │
-│ USAGE         │                                                            │
-│ HELP / SETTING│                                                            │
-│ ───────────   │                                                            │
-│ 17 REMAINING  │                                                            │
-├───────────────┴────────────────────────────────────────────────────────────┤
-│ USB: CONNECTED (Port 3) | ADB: AUTHORIZED | Worker API: SYNCHRONIZED       │
-└────────────────────────────────────────────────────────────────────────────┘
+USB        PRESENT / NOT PRESENT / UNKNOWN
+MTP/WPD    AVAILABLE / UNAVAILABLE / UNKNOWN
+ADB        UNAVAILABLE / UNAUTHORIZED / OFFLINE / READY
+Component  AVAILABLE / UNAVAILABLE / RESTRICTED
 ```
 
----
+Do not compress these into one green/red "connected" light.
 
-## 2. Advanced Diagnostic Lifecycle
+## Discovery
 
-1. **Pre-flight & Discovery:** Verifies Windows host runtime, controlled ADB binary, and physical USB connection.
-2. **Device State Handshake:** Guides operator through unlocking screen and checking "Always allow from this computer" for RSA authorization.
-3. **Evidence Extraction:** Invokes independent collectors (Identity, Battery, Storage, Security). Failure in one collector never aborts the overall scan.
-4. **Honesty Verification:** Restricted fields (telephony IMEI, hardware serial, battery SOH) are explicitly flagged with reason documentation instead of placeholders or fabrication.
-5. **Report Generation:** Generates Report 1 (CYVRA Device Verification Report) with cryptographic digest.
+Before a verification starts, the UI may passively:
+
+- observe USB;
+- enumerate WPD/MTP devices;
+- show safe descriptive metadata;
+- estimate available verification paths.
+
+This must not consume a licensed scan.
+
+## Multiple devices
+
+If more than one plausible device is attached:
+
+- show candidates;
+- do not pick the first device silently;
+- require explicit selection when correlation is insufficient;
+- bind the selected device to a session-scoped reference.
+
+## ADB guidance
+
+If ADB is unavailable, continue with available USB/WPD evidence.
+
+If ADB is unauthorized, explain that Android requires user authorization. Do not guide around the RSA prompt.
+
+## Verification
+
+After explicit `Start Device Verification`:
+
+```text
+transaction reservation
+        ↓
+independent collectors
+        ↓
+limitations shown as collected
+        ↓
+canonical Report 1 freeze
+        ↓
+consumption finalization
+```
+
+Collector failure must not crash the complete verification.
+
+## Honesty presentation
+
+Use explicit states such as:
+
+```text
+Available
+Not available
+Restricted by Android
+Permission required
+Not supported
+Not tested
+Error
+```
+
+Do not show placeholders as measured facts.
+
+## Report
+
+Report 1 is the **CYVRA Device Verification Report**.
+
+It is not a sanitization certificate.
+
+Coverage labels describe evidence completeness, not device quality.
+
+## Sanitization navigation
+
+Sanitization is a separate workspace with separate warnings and authorization.
+
+A verification result must never imply the destructive action is already authorized.

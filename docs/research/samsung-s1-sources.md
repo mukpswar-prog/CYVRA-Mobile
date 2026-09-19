@@ -1,101 +1,75 @@
-# Samsung / Android S1 sources (G4 research)
+# Samsung / Android Public-API Research
 
-**Status:** research for G4 capability contract. Not Knox. Not S3.  
-**Date:** 9 September 2026  
-**No device in hand:** findings are from public OEM/AOSP documents. Device
-confirmation is queued in [docs/testing/pool.md](../testing/pool.md).
+**Status:** ACTIVE RESEARCH REFERENCE — historical S1 terminology retained for traceability
+**Original research period:** September 2026
 
-S1 is a normal Android app: least privilege, no root, no Knox SDK, no
-OEM-authoritative identity (GUIDELINE §8.2). The contract is **feature-flag
-driven**. `Build.MODEL` is recorded as a fact. It is never a `switch` that
-unlocks tests.
+## Purpose
 
-## What S1 may read (public Android APIs)
+This file records public Android/Samsung API constraints that informed the early S1 evidence contract.
 
-| Fact | API | Notes |
-|---|---|---|
-| Manufacturer / brand / model / fingerprint | `android.os.Build` | Public. Samsung devices typically report `Build.MANUFACTURER = "samsung"`. |
-| Android release / SDK | `Build.VERSION` | Public. |
-| App-scoped Android ID | `Settings.Secure.ANDROID_ID` | Resettable, signing-key scoped. **Not** IMEI. |
-| Form factor | `Configuration.smallestScreenWidthDp` | Tablets are commonly ≥ 600 dp. Feature-based, not a second product. |
-| Feature flags | `PackageManager.hasSystemFeature` | Source of capability. CDD: telephony is optional on tablets. |
-| Camera ids | `CameraManager.getCameraIdList` | Some Camera2 characteristics need `CAMERA` on Android 10+. |
-| Sensors | `SensorManager.getSensorList` / `getDefaultSensor` | **Declare ≠ detect.** Samsung devices have reported `FEATURE_SENSOR_STEP_COUNTER == true` while `getDefaultSensor` is null. |
-| Battery **status** | `BatteryManager` / `ACTION_BATTERY_CHANGED` | Level, scale, plugged, `EXTRA_HEALTH` (GOOD/OVERHEAT/…). This is **not** state-of-health. |
-| Storage | `StatFs` / `StorageStatsManager` | Public. |
-| Wi-Fi / BT presence | feature flags + connection APIs | Classify. Do not enable/disable Wi-Fi (`setWifiEnabled` is a no-op for apps targeting API 29+). |
-| Lock **presence** | `KeyguardManager.isDeviceSecure` / `isKeyguardLocked` | Detect only. Forgotten PIN ≠ authority. |
-| USB / ADB settings | `UsbManager`, `Settings.Global.ADB_ENABLED` | USB ≠ authorization. ADB visible ≠ ADB authorized. |
+`S1` is historical Evidence V1 terminology. New architecture uses explicit provenance such as `ANDROID_COMPONENT`, `ANDROID_ADB`, `WINDOWS_USB`, and `WINDOWS_WPD_MTP`.
 
-Official references:
+Research does not equal hardware validation.
 
-- [Build](https://developer.android.com/reference/android/os/Build)
-- [PackageManager features](https://developer.android.com/reference/android/content/pm/PackageManager)
-- [Android 14 CDD](https://source.android.com/docs/compatibility/14/android-14-cdd) (telephony optional for tablets)
-- [Android 10 privacy changes](https://developer.android.com/about/versions/10/privacy/changes)
-- [BatteryManager](https://developer.android.com/reference/android/os/BatteryManager)
+## Public Android observations
 
-## What S1 must not claim (documented, not guessed)
+Normal Android application APIs can generally expose facts such as:
 
-### IMEI / hardware serial
+- manufacturer/brand/model/build/version;
+- package-manager feature flags;
+- app-scoped Android ID;
+- camera/sensor presence subject to platform/permission rules;
+- battery status/charge information;
+- scoped storage information;
+- lock-presence state;
+- selected connectivity state.
 
-Android 10+ protects IMEI, MEID, IMSI, SIM serial, and `Build.getSerial()`
-behind `READ_PRIVILEGED_PHONE_STATE`. Third-party Play apps cannot hold that
-permission. Samsung’s own docs say the same: unique identifiers on Knox
-devices from Android 10 need **Knox Configure** (`DeviceInventory.getKnoxServiceId`)
-or **Knox Manage Open API**, not a consumer app.
+Availability changes by Android version, permission, OEM, management state, and API restrictions.
 
-- https://developer.android.com/about/versions/10/privacy/changes
-- https://source.android.com/docs/core/connect/device-identifiers
-- https://docs.samsungknox.com/dev/knox-sdk/kbas/how-to-get-the-unique-identifier-for-devices-running-android-10-q-os-using-knox-configure/
-- https://docs.samsungknox.com/admin/knox-manage/kbas/kba-900-how-to-find-device-imei-and-serial-number-with-knox-manage-open-api/
+## Restricted identifiers
 
-G4 encoding: test `IDN.IMEI_SERIAL` is `s1ForbiddenPass`. Planned result
-`NOT_AVAILABLE` / limitation `LAYER_FORBIDDEN`. Never FAIL.
+IMEI and hardware serial are restricted on modern Android for ordinary applications.
 
-### Battery state of health
+CYVRA must not:
 
-Public `BatteryManager` exposes `BATTERY_PROPERTY_CAPACITY` (charge %) and
-`EXTRA_HEALTH` (immediate health enum). `BATTERY_PROPERTY_STATE_OF_HEALTH` exists
-in AOSP behind `FLAG_STATE_OF_HEALTH_PUBLIC` and is **not** a third-party S1
-API. Samsung publishes battery SOH through **Knox Asset Intelligence**
-`POST /devices/getDevices` (`batterySoh`: Good / Normal / Weak / Bad) — S3.
+- fabricate them;
+- substitute Android ID/MAC/app UUID and keep the IMEI/serial label;
+- bypass platform restrictions.
 
-- https://developer.android.com/reference/android/os/BatteryManager
-- https://android.googlesource.com/platform/frameworks/base.git/+/master/core/java/android/os/BatteryManager.java
-- https://docs.samsungknox.com/dev/knox-asset-intelligence/tutorials/manage-devices/
-- https://docs.samsungknox.com/dev/knox-asset-intelligence/release-notes/25-01/
+Restricted/unavailable is a valid evidence outcome.
 
-G4 encoding: `PWR.BATTERY_STATUS` is S1. `PWR.BATTERY_SOH` is forbidden on S1.
+## Battery state of health
 
-### Knox
+Battery charge/status exposed through public Android APIs is not equivalent to manufacturer/enterprise battery state-of-health.
 
-Knox SDK (`EnterpriseDeviceManager.getAPILevel`, attestation, inventory) is S3.
-From Android 15 / Knox 3.11, many methods require Device Owner or Profile Owner.
-A consumer S1 app must not claim Samsung-authorized, Knox-attested, or
-warranty-bit root detection as a CYVRA result.
+Do not infer a battery SOH percentage/grade from ordinary public status fields.
 
-- https://docs.samsungknox.com/dev/knox-sdk/api-reference/restricted-api-methods/
-- https://docs.samsungknox.com/devref/knox-sdk/reference/com/samsung/android/knox/EnterpriseDeviceManager.html
+## Samsung / Knox
 
-G4 encoding: `SEC.KNOX_CLAIM` is `s1ForbiddenPass`.
+Knox and related Samsung enterprise capabilities require the appropriate Samsung/enterprise authority and supported deployment context.
 
-## Discovery order (locked in code)
+A consumer/supporting APK must not claim Samsung/Knox authority merely because the device is Samsung.
 
-Detect → classify access (L0–L4) → discover capabilities from feature flags →
-policy filter → permitted ops → evidence plan → record limitations.
+## Capability model
 
-USB state and ADB state are **independent** fields on the capability profile.
+Preserve:
 
-Declare / detect / tested stay three different facts on each feature.
+```text
+DECLARED
+DETECTED
+TESTED
+```
 
-## When a Samsung phone arrives
+as distinct concepts.
 
-Do not expand the contract with `if (model === …)`. Confirm:
+A model name must not unlock a capability.
 
-1. `Build.MANUFACTURER` / `MODEL` / `FINGERPRINT` snapshot
-2. `hasSystemFeature` vs `getDefaultSensor` disagreements (record both)
-3. Camera permission gating on Camera2 characteristics
-4. Tablet SKU: `FEATURE_TELEPHONY` false → `NET.CELLULAR` = `NOT_SUPPORTED`
+## Evidence rule
 
-Step-by-step device procedures live in the test pool, not in this file.
+Current product implementation must follow the active contracts:
+
+- [`../ANDROID_COMPATIBILITY_FREEZE.md`](../ANDROID_COMPATIBILITY_FREEZE.md)
+- [`../DEVICE_EVIDENCE_ARCHITECTURE.md`](../DEVICE_EVIDENCE_ARCHITECTURE.md)
+- [`../OEM_ADAPTER_ARCHITECTURE.md`](../OEM_ADAPTER_ARCHITECTURE.md)
+
+This research file is supporting evidence, not governing architecture.

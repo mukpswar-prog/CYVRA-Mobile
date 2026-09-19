@@ -1,30 +1,112 @@
-# Customer Desktop License & Entitlement Architecture
+# Customer Licence & Entitlement Architecture
 
-**Reference:** [CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md](./CYVRA_Mobile_Customer_Side_Windows_Application_Product_Engineering_Freeze_Guide.md) §2, §3, §74
+**Status:** ACTIVE CONTRACT
+**Date:** 2026-09-19
 
----
+## Commercial concepts
 
-## 1. Commercial Dimensions: Users vs Device Scans
-
-CYVRA explicitly distinguishes:
-1. **Licensed Device Scans:** The quantity of Android devices authorized to be processed under the entitlement (e.g. 3, 5, 7, 25 device scans). Device scans are never referred to as "users".
-2. **Operator / User Seats:** The number of technician accounts permitted to access the workstation application.
-
----
-
-## 2. Server-Authoritative Entitlement Revision Model
-
-License upgrades do not destroy historical records. They advance an entitlement revision:
+Keep these separate:
 
 ```text
-License Identity: immutable license_id
-       │
-       ├── Revision 1: CYVRA-MOB-XXXX-001 (Plan: 3 Scans, Used: 2, Remaining: 1)
-       │        ↓ (Customer purchases upgrade on web)
-       └── Revision 2: CYVRA-MOB-XXXX-002 (Plan: 25 Scans, Used: 2, Remaining: 23)
-                        [Status: ACTIVE, Revision 1 SUPERSEDED]
+customer/account access
+operator seats
+licence/entitlement identity
+device binding
+verification transaction
+scan consumption
+sanitization policy
 ```
 
-- **Database Identity:** `license_id` is the immutable primary key. Serial numbers are revision-specific tokens.
-- **Accounting:** Device scan consumptions are decremented only upon completion of a successful report generation or authorized purge verification, preventing accidental burning of scans.
-- **Offline Policy:** Cached cryptographic lease with grace period; network sync required periodically or upon license upgrade.
+Do not use one counter to represent several concepts.
+
+## Public licence number
+
+A human-readable licence/reference number is a lookup/reference identifier.
+
+It is not sufficient as a secret authenticator or destructive-operation authority.
+
+Authentication/authorization must rely on server-side protected state and appropriate credentials/tokens.
+
+## Verification transaction
+
+Target lifecycle:
+
+```text
+CREATED
+  ↓
+RESERVED
+  ↓
+EVIDENCE_CAPTURED
+  ↓
+REPORT_FROZEN
+  ↓
+CONSUMED
+```
+
+Failure/exception states may include:
+
+```text
+EXPIRED
+RELEASED
+FAILED
+MANUAL_REVIEW
+```
+
+Exact schema is frozen during implementation.
+
+## Charge boundary
+
+Passive operations are free:
+
+```text
+USB discovery
+WPD/MTP discovery
+preflight
+device-card construction
+licence-state display
+```
+
+Explicit `Start Device Verification` creates/reserves the transaction.
+
+Consumption finalizes only after the canonical Report 1 has been successfully frozen.
+
+A crash, retry, or report replay must not double-charge.
+
+## Device binding
+
+Device binding and scan consumption are separate records.
+
+A device can be correlated/bound without implying a new scan was consumed.
+
+Do not use a single `devicesBound` counter as the final accounting model.
+
+## Upgrade
+
+Commercial upgrade creates a new entitlement revision/state without rewriting historical transactions or reports.
+
+The desktop refreshes server-authoritative entitlement after the web purchase/approval flow.
+
+The desktop never handles raw payment-card data.
+
+## Offline
+
+No fixed offline grace duration is frozen here.
+
+If offline commercial authorization is supported, it must use a protected, expiring, anti-replay lease bound to the customer/workstation/operation as appropriate.
+
+## Audit
+
+Record append-only commercial events for:
+
+```text
+issue
+activate
+reserve
+release
+consume
+upgrade
+revoke
+manual adjustment
+```
+
+Administrative action requires authenticated staff authority, not possession of the public licence string.

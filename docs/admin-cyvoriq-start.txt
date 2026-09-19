@@ -1,75 +1,69 @@
-ADMIN.CYVORIQ.CO.IN — FIRST CLICKS
-After www.cyvoriq.co.in is HTTP 200.
-Sister: docs/www-cyvoriq-start.txt  docs/resume-g8-freeze.md
+ADMIN.CYVORIQ.CO.IN — CURRENT DEPLOYMENT RUNBOOK
 
-Same GitHub repo and same Vite bundle as www. The app shows the serials
-UI only when the hostname is admin.cyvoriq.co.in (or *.cyvoriq-admin.pages.dev).
+Product: CYVRA Mobile
+Repository: mukpswar-prog/CYVRA-Mobile
+Production branch: main
+Pages project: cyvoriq-admin
+Custom domain: admin.cyvoriq.co.in
+API: https://api.cyvoriq.co.in
 
-Do not bind admin to Worker cyvra-mobile-api.
-Do not put ADMIN_API_TOKEN on Pages.
-Do not open Pages cyvra-www or admin.cyvra.co.in.
+Governing references:
+  docs/CYVRA_MOBILE_PROJECT_INDEX.md
+  docs/admin-scope-freeze.md
+  docs/neon-cloudflare.md
+  docs/resend-mobile-otp.md
 
+Deployment helper:
+  scripts/deploy-admin-cyvoriq.sh
 
-================================================================================
-1. CREATE PAGES PROJECT  cyvoriq-admin
-================================================================================
+SECURITY BOUNDARY
 
-  Cloudflare → Workers & Pages → Create → Pages → Connect to Git
-    Repo:            mukpswar-prog/CYVRA-Mobile
-    Project name:    cyvoriq-admin        (not cyvoriq-www, not cyvra-mobile)
-    Production branch:
-      cursor/g0-g3-mobile-slice-7474
-    Framework:       React (Vite)
-    Root directory:  (empty — repo root)
-    Build command:   pnpm install && pnpm --filter @cyvra/web build
-    Build output:    /apps/web/dist
-    Environment variables (Production AND Preview), BUILD-TIME only:
-      VITE_API_URL = https://api.cyvoriq.co.in
-      NODE_VERSION = 24
+- Never place ADMIN_API_TOKEN on Pages or in browser code.
+- Never place DATABASE_URL, RESEND_API_KEY, SESSION_SECRET, or database
+  credentials on Pages.
+- Normal staff browser access uses the approved staff authentication/session
+  flow.
+- Break-glass/service credentials are not normal browser authentication.
+- CYVRA Mobile admin infrastructure remains separate from CYVRA Erase.
 
-  If Cloudflare says the repo is already used by cyvoriq-www or
-  cyvra-mobile: still create a THIRD/SECOND project named cyvoriq-admin.
+PAGES CONFIGURATION
 
-  Never add ADMIN_API_TOKEN, DATABASE_URL, RESEND_*, or SESSION_SECRET.
+Project:
+  cyvoriq-admin
 
+Production branch:
+  main
 
-================================================================================
-2. CUSTOM DOMAIN
-================================================================================
+Framework:
+  Vite
 
-  After cyvoriq-admin.pages.dev is HTTP 200:
+Repository root:
+  monorepo root
 
-    Pages → cyvoriq-admin → Custom domains → admin.cyvoriq.co.in
+Build command:
+  pnpm install && pnpm --filter @cyvra/web build
 
-  Zone must be cyvoriq.co.in. If it offers cyvra.co.in, STOP.
-  Do not add a manual CNAME first.
+Build output:
+  apps/web/dist
 
+Public build variables:
+  VITE_API_URL=https://api.cyvoriq.co.in
 
-================================================================================
-3. PROVE
-================================================================================
+Do not place secrets in public build variables.
 
-  Browser:  https://admin.cyvoriq.co.in/
-            CYVORIQ logo, "CYVRA Mobile ops", serials form.
+CUSTOM DOMAIN
 
-  PowerShell:
+After the Pages deployment is healthy:
 
-    curl.exe -sS -I https://admin.cyvoriq.co.in/
-    curl.exe -sS -I https://www.cyvoriq.co.in/
+  Pages -> cyvoriq-admin -> Custom domains
+  admin.cyvoriq.co.in
 
-  Pass: both HTTP 200. www still shows the public site (not serials).
+The DNS zone must be cyvoriq.co.in.
 
-  In the admin form (do not paste the token in chat):
-    X-Admin-Email = ceo@cyvoriq.com
-    ADMIN_API_TOKEN = the Worker secret (type it; do not screenshot it)
-    Refresh list  → should list serials or an empty list, not 401 if token is right
+VERIFY
 
+  curl.exe -sS -I https://admin.cyvoriq.co.in/
 
-================================================================================
-4. STOP AFTER ADMIN IS 200
-================================================================================
+Then verify the current staff authentication flow in the browser.
 
-  Do not create cyvoriq-accounts yet.
-  Do not 301 mobile.cyvra.co.in.
-  Do not set API_ENV=production.
-  Do not remove Erase admin from CORS until you have used this host once.
+Do not use an old resume/G0-G8 document as the deployment authority.
