@@ -12,6 +12,8 @@ use windows::{
 };
 
 const MAX_WPD_DEVICES: u32 = 4096;
+const MAX_WPD_ENUMERATION_ATTEMPTS: usize = 3;
+const S_FALSE_HRESULT: windows::core::HRESULT = windows::core::HRESULT(1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WpdDeviceDescriptor {
@@ -102,6 +104,19 @@ fn create_refreshed_manager() -> Result<IPortableDeviceManager, String> {
     Ok(manager)
 }
 
+fn get_devices_hresult(
+    manager: &IPortableDeviceManager,
+    output: *mut PWSTR,
+    count: *mut u32,
+) -> windows::core::HRESULT {
+    unsafe {
+        (windows::core::Interface::vtable(manager).GetDevices)(
+            windows::core::Interface::as_raw(manager),
+            output,
+            count,
+        )
+    }
+}
 fn query_text(
     manager: &IPortableDeviceManager,
     device_id: PCWSTR,
@@ -208,43 +223,69 @@ pub(crate) fn enumerate_devices() -> Result<Vec<WpdDeviceDescriptor>, String> {
 
     let manager = create_refreshed_manager()?;
 
-    // First pass: Windows reports the required number of PWSTR entries.
-    let mut required_count = 0u32;
+    let mut attempt = 0usize;
 
-    unsafe { manager.GetDevices(ptr::null_mut(), &mut required_count) }
-        .map_err(|error| format!("WPD_DEVICE_COUNT_FAILED: {error}"))?;
+    let (raw_ids, output_count) = loop {
+        attempt += 1;
 
-    if required_count == 0 {
-        return Ok(Vec::new());
-    }
+        // First pass: Windows reports the required number of PWSTR entries.
+        let mut required_count = 0u32;
 
-    // A defensive bound prevents a corrupt provider from requesting an
-    // unreasonable host allocation.
-    if required_count > MAX_WPD_DEVICES {
-        return Err(format!("WPD_DEVICE_COUNT_INVALID: {required_count}"));
-    }
+        unsafe { manager.GetDevices(ptr::null_mut(), &mut required_count) }
+            .map_err(|error| format!("WPD_DEVICE_COUNT_FAILED: {error}"))?;
 
-    let allocation_count =
-        usize::try_from(required_count).map_err(|_| "WPD_DEVICE_COUNT_OVERFLOW".to_string())?;
+        if required_count == 0 {
+            return Ok(Vec::new());
+        }
 
-    let mut raw_ids = TaskMemDeviceIds::new(allocation_count);
+        // A defensive bound prevents a corrupt provider from requesting an
+        // unreasonable host allocation.
+        if required_count > MAX_WPD_DEVICES {
+            return Err(format!("WPD_DEVICE_COUNT_INVALID: {required_count}"));
+        }
 
-    let mut output_count = required_count;
+        let allocation_count =
+            usize::try_from(required_count).map_err(|_| "WPD_DEVICE_COUNT_OVERFLOW".to_string())?;
 
-    // Second pass: fills the pointer array. Windows allocates each
-    // individual string; TaskMemDeviceIds releases them on every exit path.
-    unsafe { manager.GetDevices(raw_ids.as_mut_ptr(), &mut output_count) }
-        .map_err(|error| format!("WPD_DEVICE_ENUMERATION_FAILED: {error}"))?;
+        let mut raw_ids = TaskMemDeviceIds::new(allocation_count);
 
-    if output_count > required_count {
-        return Err(format!(
-            "WPD_DEVICE_COUNT_INCONSISTENT: allocated={required_count}, returned={output_count}"
-        ));
-    }
+        let mut output_count = required_count;
 
-    let output_count =
-        usize::try_from(output_count).map_err(|_| "WPD_OUTPUT_COUNT_OVERFLOW".to_string())?;
+        // Preserve the raw HRESULT here. The generated windows-rs wrapper
+        // converts successful HRESULT values into Result<()>, which would
+        // discard the distinction between S_OK and S_FALSE.
+        let result = get_devices_hresult(&manager, raw_ids.as_mut_ptr(), &mut output_count);
 
+        if result == S_FALSE_HRESULT {
+            if attempt >= MAX_WPD_ENUMERATION_ATTEMPTS {
+                return Err(format!(
+                    "WPD_DEVICE_ENUMERATION_UNSTABLE: attempts={attempt}"
+                ));
+            }
+
+            // The WPD snapshot changed or exceeded the prior allocation.
+            // Drop releases any returned task-memory strings before retrying.
+            unsafe { manager.RefreshDeviceList() }
+                .map_err(|error| format!("WPD_MANAGER_REFRESH_FAILED: {error}"))?;
+
+            continue;
+        }
+
+        result
+            .ok()
+            .map_err(|error| format!("WPD_DEVICE_ENUMERATION_FAILED: {error}"))?;
+
+        if output_count > required_count {
+            return Err(format!(
+                "WPD_DEVICE_COUNT_INCONSISTENT: allocated={required_count}, returned={output_count}"
+            ));
+        }
+
+        let output_count =
+            usize::try_from(output_count).map_err(|_| "WPD_OUTPUT_COUNT_OVERFLOW".to_string())?;
+
+        break (raw_ids, output_count);
+    };
     let mut devices = Vec::with_capacity(output_count);
 
     for raw_id in raw_ids.values().iter().take(output_count) {
