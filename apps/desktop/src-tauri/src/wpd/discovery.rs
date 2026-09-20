@@ -403,11 +403,23 @@ pub(crate) fn enumerate_devices() -> Result<Vec<WpdDeviceDescriptor>, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_enumeration_result, enumerate_devices, EnumerationAction, WpdError,
+        classify_enumeration_result, enumerate_devices, ComApartment, EnumerationAction, WpdError,
         MAX_WPD_ENUMERATION_ATTEMPTS, S_FALSE_HRESULT, WPD_DEVICE_ENUMERATION_FAILED,
         WPD_DEVICE_ENUMERATION_UNSTABLE, WPD_NULL_DEVICE_ID,
     };
-    use windows::core::HRESULT;
+    use std::ffi::c_void;
+    use windows::{
+        core::{HRESULT, PCWSTR, PWSTR},
+        Win32::{
+            Devices::PortableDevices::{
+                IPortableDevice, IPortableDeviceKeyCollection, IPortableDeviceValues,
+                PortableDeviceFTM, PortableDeviceValues, WPD_CLIENT_DESIRED_ACCESS,
+                WPD_FUNCTIONAL_CATEGORY_STORAGE, WPD_FUNCTIONAL_OBJECT_CATEGORY,
+            },
+            Foundation::GENERIC_READ,
+            System::Com::{CoCreateInstance, CoTaskMemFree, CLSCTX_INPROC_SERVER},
+        },
+    };
 
     #[test]
     fn classifier_accepts_s_ok() {
@@ -527,5 +539,140 @@ mod tests {
         println!("MANUFACTURER={:?}", handset.manufacturer);
 
         println!("DESCRIPTION={:?}", handset.description);
+
+        // G4 hardware acceptance: explicitly request read-only WPD access.
+        // No content interface is requested and no customer object is opened.
+        let _com = ComApartment::initialize_mta().expect("G4 COM initialization must succeed");
+
+        let client_info: IPortableDeviceValues =
+            unsafe { CoCreateInstance(&PortableDeviceValues, None, CLSCTX_INPROC_SERVER) }
+                .expect("G4 PortableDeviceValues creation must succeed");
+
+        unsafe { client_info.SetUnsignedIntegerValue(&WPD_CLIENT_DESIRED_ACCESS, GENERIC_READ.0) }
+            .expect("G4 explicit GENERIC_READ configuration must succeed");
+
+        let device: IPortableDevice =
+            unsafe { CoCreateInstance(&PortableDeviceFTM, None, CLSCTX_INPROC_SERVER) }
+                .expect("G4 PortableDeviceFTM creation must succeed");
+
+        let pnp_device_id = handset
+            .pnp_device_id
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+
+        unsafe { device.Open(PCWSTR::from_raw(pnp_device_id.as_ptr()), &client_info) }
+            .expect("G4 Samsung handset must open through explicit read-only WPD access");
+
+        println!("CYVRA_WPD_READ_ONLY_OPEN=true");
+        println!("CYVRA_WPD_DESIRED_ACCESS=GENERIC_READ");
+
+        // G5: enumerate only immediate children of the WPD root object.
+        // No recursive traversal and no customer content streams are opened.
+        let content = unsafe { device.Content() }
+            .expect("G5 read-only WPD Content interface must be available");
+
+        let root_id = "DEVICE"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+
+        let enumerator = unsafe {
+            content.EnumObjects(
+                0,
+                PCWSTR::from_raw(root_id.as_ptr()),
+                None::<&IPortableDeviceValues>,
+            )
+        }
+        .expect("G5 root object enumeration must start");
+
+        let properties =
+            unsafe { content.Properties() }.expect("G5 WPD properties interface must be available");
+
+        const MAX_G5_ROOT_OBJECTS: usize = 64;
+
+        let mut root_object_count = 0usize;
+        let mut storage_object_count = 0usize;
+
+        loop {
+            assert!(
+                root_object_count < MAX_G5_ROOT_OBJECTS,
+                "G5 root enumeration exceeded defensive bound"
+            );
+
+            let mut raw_ids = [PWSTR::null()];
+            let mut fetched = 0u32;
+
+            let result = unsafe { enumerator.Next(&mut raw_ids, &mut fetched) };
+
+            result.ok().expect("G5 root object enumeration failed");
+
+            if fetched == 0 {
+                break;
+            }
+
+            assert_eq!(
+                fetched, 1,
+                "G5 single-object enumeration returned unexpected count"
+            );
+
+            let raw_id = raw_ids[0];
+
+            assert!(!raw_id.is_null(), "G5 returned a null root object ID");
+
+            let object_id =
+                unsafe { raw_id.to_string() }.expect("G5 root object ID must contain valid UTF-16");
+
+            unsafe {
+                CoTaskMemFree(Some(raw_id.as_ptr() as *const c_void));
+            }
+
+            root_object_count += 1;
+
+            let object_id_wide = object_id
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<_>>();
+
+            // NULL key collection deliberately requests properties only;
+            // it does not request or open the object data stream.
+            let values = unsafe {
+                properties.GetValues(
+                    PCWSTR::from_raw(object_id_wide.as_ptr()),
+                    None::<&IPortableDeviceKeyCollection>,
+                )
+            }
+            .expect("G5 root object property retrieval must succeed");
+
+            let category = unsafe { values.GetGuidValue(&WPD_FUNCTIONAL_OBJECT_CATEGORY) };
+
+            let is_storage = category
+                .as_ref()
+                .is_ok_and(|category| *category == WPD_FUNCTIONAL_CATEGORY_STORAGE);
+
+            println!("G5_ROOT_OBJECT id={object_id:?} storage={is_storage}");
+
+            if is_storage {
+                storage_object_count += 1;
+            }
+        }
+
+        assert!(
+            root_object_count > 0,
+            "G5 WPD root exposed no immediate objects"
+        );
+
+        assert!(
+            storage_object_count > 0,
+            "G5 did not discover a WPD storage functional object"
+        );
+
+        println!("CYVRA_WPD_ROOT_OBJECT_COUNT={root_object_count}");
+        println!("CYVRA_WPD_STORAGE_OBJECT_COUNT={storage_object_count}");
+        println!("CYVRA_WPD_STORAGE_FUNCTIONAL_OBJECT=true");
+
+        unsafe { device.Close() }.expect("G4 WPD device Close must succeed");
+
+        println!("CYVRA_WPD_READ_ONLY_CLOSE=true");
     }
 }
