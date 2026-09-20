@@ -37,10 +37,7 @@ struct WpdError {
 
 impl WpdError {
     fn new(code: &'static str) -> Self {
-        Self {
-            code,
-            detail: None,
-        }
+        Self { code, detail: None }
     }
 
     fn with_detail(code: &'static str, detail: impl Into<String>) -> Self {
@@ -81,12 +78,9 @@ fn classify_enumeration_result(
         return Ok(EnumerationAction::Retry);
     }
 
-    result.ok().map_err(|error| {
-        WpdError::with_detail(
-            WPD_DEVICE_ENUMERATION_FAILED,
-            error.to_string(),
-        )
-    })?;
+    result
+        .ok()
+        .map_err(|error| WpdError::with_detail(WPD_DEVICE_ENUMERATION_FAILED, error.to_string()))?;
 
     Ok(EnumerationAction::Complete)
 }
@@ -107,9 +101,9 @@ impl ComApartment {
     fn initialize_mta() -> Result<Self, String> {
         let result = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
 
-        result
-            .ok()
-            .map_err(|error| format!("WPD_COM_INITIALIZATION_FAILED: {error}"))?;
+        result.ok().map_err(|error| {
+            WpdError::with_detail(WPD_COM_INITIALIZATION_FAILED, error.to_string()).to_string()
+        })?;
 
         Ok(Self)
     }
@@ -171,11 +165,13 @@ enum DeviceTextField {
 
 fn create_refreshed_manager() -> Result<IPortableDeviceManager, String> {
     let manager: IPortableDeviceManager =
-        unsafe { CoCreateInstance(&PortableDeviceManager, None, CLSCTX_INPROC_SERVER) }
-            .map_err(|error| format!("WPD_MANAGER_CREATE_FAILED: {error}"))?;
+        unsafe { CoCreateInstance(&PortableDeviceManager, None, CLSCTX_INPROC_SERVER) }.map_err(
+            |error| WpdError::with_detail(WPD_MANAGER_CREATE_FAILED, error.to_string()).to_string(),
+        )?;
 
-    unsafe { manager.RefreshDeviceList() }
-        .map_err(|error| format!("WPD_MANAGER_REFRESH_FAILED: {error}"))?;
+    unsafe { manager.RefreshDeviceList() }.map_err(|error| {
+        WpdError::with_detail(WPD_MANAGER_REFRESH_FAILED, error.to_string()).to_string()
+    })?;
 
     Ok(manager)
 }
@@ -307,8 +303,9 @@ pub(crate) fn enumerate_devices() -> Result<Vec<WpdDeviceDescriptor>, String> {
         // First pass: Windows reports the required number of PWSTR entries.
         let mut required_count = 0u32;
 
-        unsafe { manager.GetDevices(ptr::null_mut(), &mut required_count) }
-            .map_err(|error| format!("WPD_DEVICE_COUNT_FAILED: {error}"))?;
+        unsafe { manager.GetDevices(ptr::null_mut(), &mut required_count) }.map_err(|error| {
+            WpdError::with_detail(WPD_DEVICE_COUNT_FAILED, error.to_string()).to_string()
+        })?;
 
         if required_count == 0 {
             return Ok(Vec::new());
@@ -317,11 +314,15 @@ pub(crate) fn enumerate_devices() -> Result<Vec<WpdDeviceDescriptor>, String> {
         // A defensive bound prevents a corrupt provider from requesting an
         // unreasonable host allocation.
         if required_count > MAX_WPD_DEVICES {
-            return Err(format!("WPD_DEVICE_COUNT_INVALID: {required_count}"));
+            return Err(WpdError::with_detail(
+                WPD_DEVICE_COUNT_INVALID,
+                required_count.to_string(),
+            )
+            .to_string());
         }
 
-        let allocation_count =
-            usize::try_from(required_count).map_err(|_| "WPD_DEVICE_COUNT_OVERFLOW".to_string())?;
+        let allocation_count = usize::try_from(required_count)
+            .map_err(|_| WpdError::new(WPD_DEVICE_COUNT_OVERFLOW).to_string())?;
 
         let mut raw_ids = TaskMemDeviceIds::new(allocation_count);
 
@@ -332,33 +333,29 @@ pub(crate) fn enumerate_devices() -> Result<Vec<WpdDeviceDescriptor>, String> {
         // discard the distinction between S_OK and S_FALSE.
         let result = get_devices_hresult(&manager, raw_ids.as_mut_ptr(), &mut output_count);
 
-        if result == S_FALSE_HRESULT {
-            if attempt >= MAX_WPD_ENUMERATION_ATTEMPTS {
-                return Err(format!(
-                    "WPD_DEVICE_ENUMERATION_UNSTABLE: attempts={attempt}"
-                ));
+        match classify_enumeration_result(result, attempt).map_err(|error| error.to_string())? {
+            EnumerationAction::Retry => {
+                // The WPD snapshot changed or exceeded the prior allocation.
+                // Drop releases any returned task-memory strings before retrying.
+                unsafe { manager.RefreshDeviceList() }.map_err(|error| {
+                    WpdError::with_detail(WPD_MANAGER_REFRESH_FAILED, error.to_string()).to_string()
+                })?;
+
+                continue;
             }
-
-            // The WPD snapshot changed or exceeded the prior allocation.
-            // Drop releases any returned task-memory strings before retrying.
-            unsafe { manager.RefreshDeviceList() }
-                .map_err(|error| format!("WPD_MANAGER_REFRESH_FAILED: {error}"))?;
-
-            continue;
+            EnumerationAction::Complete => {}
         }
-
-        result
-            .ok()
-            .map_err(|error| format!("WPD_DEVICE_ENUMERATION_FAILED: {error}"))?;
 
         if output_count > required_count {
-            return Err(format!(
-                "WPD_DEVICE_COUNT_INCONSISTENT: allocated={required_count}, returned={output_count}"
-            ));
+            return Err(WpdError::with_detail(
+                WPD_DEVICE_COUNT_INCONSISTENT,
+                format!("allocated={required_count}, returned={output_count}"),
+            )
+            .to_string());
         }
 
-        let output_count =
-            usize::try_from(output_count).map_err(|_| "WPD_OUTPUT_COUNT_OVERFLOW".to_string())?;
+        let output_count = usize::try_from(output_count)
+            .map_err(|_| WpdError::new(WPD_OUTPUT_COUNT_OVERFLOW).to_string())?;
 
         break (raw_ids, output_count);
     };
@@ -366,14 +363,15 @@ pub(crate) fn enumerate_devices() -> Result<Vec<WpdDeviceDescriptor>, String> {
 
     for raw_id in raw_ids.values().iter().take(output_count) {
         if raw_id.is_null() {
-            return Err("WPD_NULL_DEVICE_ID".to_string());
+            return Err(WpdError::new(WPD_NULL_DEVICE_ID).to_string());
         }
 
-        let pnp_device_id = unsafe { raw_id.to_string() }
-            .map_err(|error| format!("WPD_DEVICE_ID_UTF16_INVALID: {error}"))?;
+        let pnp_device_id = unsafe { raw_id.to_string() }.map_err(|error| {
+            WpdError::with_detail(WPD_DEVICE_ID_UTF16_INVALID, error.to_string()).to_string()
+        })?;
 
         if pnp_device_id.trim().is_empty() {
-            return Err("WPD_EMPTY_DEVICE_ID".to_string());
+            return Err(WpdError::new(WPD_EMPTY_DEVICE_ID).to_string());
         }
 
         let device_id = PCWSTR::from_raw(raw_id.as_ptr() as *const u16);
@@ -404,8 +402,70 @@ pub(crate) fn enumerate_devices() -> Result<Vec<WpdDeviceDescriptor>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::enumerate_devices;
+    use super::{
+        classify_enumeration_result, enumerate_devices, EnumerationAction, WpdError,
+        MAX_WPD_ENUMERATION_ATTEMPTS, S_FALSE_HRESULT, WPD_DEVICE_ENUMERATION_FAILED,
+        WPD_DEVICE_ENUMERATION_UNSTABLE, WPD_NULL_DEVICE_ID,
+    };
+    use windows::core::HRESULT;
 
+    #[test]
+    fn classifier_accepts_s_ok() {
+        let action =
+            classify_enumeration_result(HRESULT(0), 1).expect("S_OK must complete enumeration");
+
+        assert_eq!(action, EnumerationAction::Complete);
+    }
+
+    #[test]
+    fn classifier_retries_s_false_before_final_attempt() {
+        for attempt in 1..MAX_WPD_ENUMERATION_ATTEMPTS {
+            let action = classify_enumeration_result(S_FALSE_HRESULT, attempt)
+                .expect("S_FALSE before the final attempt must request a retry");
+
+            assert_eq!(
+                action,
+                EnumerationAction::Retry,
+                "attempt {attempt} must remain inside the retry window"
+            );
+        }
+    }
+
+    #[test]
+    fn classifier_stops_on_third_s_false() {
+        let error = classify_enumeration_result(S_FALSE_HRESULT, MAX_WPD_ENUMERATION_ATTEMPTS)
+            .expect_err("third S_FALSE must stop retrying");
+
+        assert_eq!(error.code, WPD_DEVICE_ENUMERATION_UNSTABLE);
+        assert_eq!(
+            error.to_string(),
+            "WPD_DEVICE_ENUMERATION_UNSTABLE: attempts=3"
+        );
+    }
+
+    #[test]
+    fn classifier_failed_hresult_has_stable_error_code() {
+        let failed = HRESULT(0x80004005u32 as i32);
+
+        let error = classify_enumeration_result(failed, 1)
+            .expect_err("failed HRESULT must fail enumeration");
+
+        assert_eq!(error.code, WPD_DEVICE_ENUMERATION_FAILED);
+        assert!(
+            error
+                .to_string()
+                .starts_with("WPD_DEVICE_ENUMERATION_FAILED: "),
+            "failure detail must retain the stable CYVRA error-code prefix"
+        );
+    }
+
+    #[test]
+    fn wpd_error_without_detail_preserves_stable_code() {
+        let error = WpdError::new(WPD_NULL_DEVICE_ID);
+
+        assert_eq!(error.code, WPD_NULL_DEVICE_ID);
+        assert_eq!(error.to_string(), "WPD_NULL_DEVICE_ID");
+    }
     #[test]
     fn portable_device_manager_enumerates_without_error() {
         enumerate_devices().expect("Windows WPD enumeration should succeed");
