@@ -1,4 +1,4 @@
-use std::{ffi::c_void, ptr};
+use std::{ffi::c_void, fmt, ptr};
 
 use windows::{
     core::{PCWSTR, PWSTR},
@@ -14,6 +14,82 @@ use windows::{
 const MAX_WPD_DEVICES: u32 = 4096;
 const MAX_WPD_ENUMERATION_ATTEMPTS: usize = 3;
 const S_FALSE_HRESULT: windows::core::HRESULT = windows::core::HRESULT(1);
+
+const WPD_COM_INITIALIZATION_FAILED: &str = "WPD_COM_INITIALIZATION_FAILED";
+const WPD_MANAGER_CREATE_FAILED: &str = "WPD_MANAGER_CREATE_FAILED";
+const WPD_MANAGER_REFRESH_FAILED: &str = "WPD_MANAGER_REFRESH_FAILED";
+const WPD_DEVICE_COUNT_FAILED: &str = "WPD_DEVICE_COUNT_FAILED";
+const WPD_DEVICE_COUNT_INVALID: &str = "WPD_DEVICE_COUNT_INVALID";
+const WPD_DEVICE_COUNT_OVERFLOW: &str = "WPD_DEVICE_COUNT_OVERFLOW";
+const WPD_DEVICE_ENUMERATION_UNSTABLE: &str = "WPD_DEVICE_ENUMERATION_UNSTABLE";
+const WPD_DEVICE_ENUMERATION_FAILED: &str = "WPD_DEVICE_ENUMERATION_FAILED";
+const WPD_DEVICE_COUNT_INCONSISTENT: &str = "WPD_DEVICE_COUNT_INCONSISTENT";
+const WPD_OUTPUT_COUNT_OVERFLOW: &str = "WPD_OUTPUT_COUNT_OVERFLOW";
+const WPD_NULL_DEVICE_ID: &str = "WPD_NULL_DEVICE_ID";
+const WPD_DEVICE_ID_UTF16_INVALID: &str = "WPD_DEVICE_ID_UTF16_INVALID";
+const WPD_EMPTY_DEVICE_ID: &str = "WPD_EMPTY_DEVICE_ID";
+
+#[derive(Debug, PartialEq, Eq)]
+struct WpdError {
+    code: &'static str,
+    detail: Option<String>,
+}
+
+impl WpdError {
+    fn new(code: &'static str) -> Self {
+        Self {
+            code,
+            detail: None,
+        }
+    }
+
+    fn with_detail(code: &'static str, detail: impl Into<String>) -> Self {
+        Self {
+            code,
+            detail: Some(detail.into()),
+        }
+    }
+}
+
+impl fmt::Display for WpdError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.detail {
+            Some(detail) => write!(formatter, "{}: {}", self.code, detail),
+            None => formatter.write_str(self.code),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EnumerationAction {
+    Complete,
+    Retry,
+}
+
+fn classify_enumeration_result(
+    result: windows::core::HRESULT,
+    attempt: usize,
+) -> Result<EnumerationAction, WpdError> {
+    if result == S_FALSE_HRESULT {
+        if attempt >= MAX_WPD_ENUMERATION_ATTEMPTS {
+            return Err(WpdError::with_detail(
+                WPD_DEVICE_ENUMERATION_UNSTABLE,
+                format!("attempts={attempt}"),
+            ));
+        }
+
+        return Ok(EnumerationAction::Retry);
+    }
+
+    result.ok().map_err(|error| {
+        WpdError::with_detail(
+            WPD_DEVICE_ENUMERATION_FAILED,
+            error.to_string(),
+        )
+    })?;
+
+    Ok(EnumerationAction::Complete)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WpdDeviceDescriptor {
