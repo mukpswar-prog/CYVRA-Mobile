@@ -696,8 +696,7 @@ mod tests {
                 },
                 Foundation::GENERIC_READ,
                 System::Com::{
-                    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
-                    COINIT_MULTITHREADED,
+                    CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
                 },
             },
         };
@@ -799,9 +798,8 @@ mod tests {
         // Verify privacy: no content streams were opened (by code inspection)
         println!("G6_HARDWARE_TEST: Privacy contract maintained (metadata-only)");
 
-        // Close device
+        // Close device (COM objects drop automatically, no CoUninitialize needed in test)
         unsafe { device.Close() }.expect("Device close");
-        unsafe { CoUninitialize() };
 
         println!("G6_HARDWARE_TEST: PASS");
     }

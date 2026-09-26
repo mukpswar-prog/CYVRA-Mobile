@@ -69,6 +69,7 @@ Validated: Samsung Galaxy A10s (VID_04E8&PID_6860)
 - Determinism verified (two scans produce identical digest)
 - Depth bound hit honestly reported (WPD_SCAN_BOUNDS_DEPTH)
 - No content streams opened
+- COM teardown fixed (removed unnecessary CoUninitialize in test)
 
 ## Evidence V2
 
