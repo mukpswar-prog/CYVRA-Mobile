@@ -183,3 +183,81 @@ pub async fn get_wpd_devices(
         )
     }
 }
+
+#[tauri::command]
+pub async fn scan_wpd_device_metadata(
+    state: tauri::State<'_, HostState>,
+    session_device_id: String,
+) -> Result<crate::wpd::scanner::WpdScanResult, String> {
+    #[cfg(windows)]
+    {
+        use crate::wpd::discovery::enumerate_devices;
+        use crate::wpd::scanner::scan_device_metadata;
+        use windows::{
+            core::{CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED},
+            Win32::{
+                Devices::PortableDevices::{
+                    IPortableDevice, IPortableDeviceValues, PortableDeviceFTM, PortableDeviceValues,
+                    WPD_CLIENT_DESIRED_ACCESS,
+                },
+                Foundation::GENERIC_READ,
+                System::Com::CoCreateInstance,
+            },
+        };
+
+        // Look up PnP device ID from session ID
+        let session_ids = state.wpd_session_ids.lock()
+            .map_err(|_| "WPD_SESSION_ID_LOCK_FAILED".to_string())?;
+
+        let pnp_device_id = session_ids.by_pnp_device_id.iter()
+            .find(|(_, sid)| **sid == session_device_id)
+            .map(|(id, _)| id.clone())
+            .ok_or_else(|| "WPD_SESSION_NOT_FOUND".to_string())?;
+
+        drop(session_ids);
+
+        // Initialize COM
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
+            .ok()
+            .map_err(|e| format!("WPD_COM_INIT_FAILED: {}", e))?;
+
+        // Open device with GENERIC_READ
+        let client_info: IPortableDeviceValues =
+            unsafe { CoCreateInstance(&PortableDeviceValues, None, CLSCTX_INPROC_SERVER) }
+                .map_err(|e| format!("{}: {}", WPD_SCAN_OPEN_FAILED, e))?;
+
+        unsafe { client_info.SetUnsignedIntegerValue(&WPD_CLIENT_DESIRED_ACCESS, GENERIC_READ.0) }
+            .map_err(|e| format!("{}: {}", WPD_SCAN_OPEN_FAILED, e))?;
+
+        let device: IPortableDevice =
+            unsafe { CoCreateInstance(&PortableDeviceFTM, None, CLSCTX_INPROC_SERVER) }
+                .map_err(|e| format!("{}: {}", WPD_SCAN_OPEN_FAILED, e))?;
+
+        let pnp_wide: Vec<u16> = pnp_device_id.encode_utf16().chain(std::iter::once(0)).collect();
+        unsafe { device.Open(PCWSTR::from_raw(pnp_wide.as_ptr()), &client_info) }
+            .map_err(|e| format!("{}: {}", WPD_SCAN_OPEN_FAILED, e))?;
+
+        // Get device metadata for the result
+        let devices = enumerate_devices()?;
+        let device_descriptor = devices.iter()
+            .find(|d| d.pnp_device_id.to_ascii_lowercase() == pnp_device_id.to_ascii_lowercase());
+
+        let friendly_name = device_descriptor.and_then(|d| d.friendly_name.clone());
+        let manufacturer = device_descriptor.and_then(|d| d.manufacturer.clone());
+
+        // Perform the scan
+        let result = scan_device_metadata(&device, &session_device_id, friendly_name, manufacturer);
+
+        // Close device
+        unsafe { device.Close() }.ok();
+        unsafe { CoUninitialize() };
+
+        result
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = (state, session_device_id);
+        Err("WPD_UNSUPPORTED_PLATFORM".to_string())
+    }
+}
