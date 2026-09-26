@@ -22,6 +22,16 @@ The Project Index is the repository navigation and documentation-control entry p
 
 Do not resume engineering from old `resume-*`, G0–G8, migration, cutover, old freeze-guide, or old manual files. Those documents are being consolidated as historical material.
 
+### Audit documentation (2026-09-26)
+
+Independent forensic audit completed and preserved:
+
+- [`docs/AUDIT_SUMMARY_2026-09-26.md`](docs/AUDIT_SUMMARY_2026-09-26.md) — 46 issues identified, 100% mapped to FSB
+- [`docs/ACTION_PLAN_2026-09-26.md`](docs/ACTION_PLAN_2026-09-26.md) — Phase 1-5 execution plan
+- [`docs/STATUS_REPORT_2026-09-26.md`](docs/STATUS_REPORT_2026-09-26.md) — Current state snapshot
+
+These documents validate the project's self-assessment and provide the execution roadmap.
+
 ---
 
 ## Product lifecycle
@@ -224,17 +234,40 @@ CYVRA uses the following maturity vocabulary:
 
 Do not use compilation or unit tests alone as proof of product support.
 
-At the current engineering baseline:
+### Current engineering baseline (2026-09-26)
 
-- Windows USB observation exists.
-- WPD/MTP device enumeration has been proven on real Samsung hardware.
-- WPD metadata/content-hierarchy scanning is still under implementation.
-- Kotlin host/domain functionality is substantially modeled and unit-tested.
-- the full customer lifecycle is not yet completely protocol-exposed/UI-integrated.
-- production sanitization methods are not yet hardware-qualified.
-- the Windows installer/release path is not yet release-validated.
+**Active branch:** `phase2-correct` at commit `2463f79`
 
-See the Project Index and Final Forensic/System-Design Baseline for the current detailed status.
+**Hardware-validated:**
+- Windows USB/PnP observation on Samsung Galaxy A10s
+- WPD/MTP device enumeration on Samsung Galaxy A10s (MTP mode)
+- Privacy boundary (P2.0C): raw WPD/PnP IDs never cross public IPC
+- Bounded WPD enumeration (MAX_WPD_ENUMERATION_ATTEMPTS = 3)
+- Read-only WPD device open (G4) with GENERIC_READ access
+- Root/storage discovery (G5) with MAX_G5_ROOT_OBJECTS = 64
+- Samsung A10s physical acceptance (connect/unplug/reconnect cycle)
+
+**Protocol-exposed:**
+- WPD Tauri command boundary
+- Host Protocol V1 (GET_HOST_INFO, GET_PREFLIGHT, GET_DEVICE_STATE)
+
+**Unit-tested:**
+- Kotlin host/domain functionality (evidence, reports, licensing, sanitization)
+- Android core models and tests
+
+**Not yet implemented:**
+- WPD metadata/content-hierarchy scanning (G6 — next)
+- Unified evidence V2 schema
+- Full customer lifecycle UI integration
+- Production sanitization methods (not hardware-qualified)
+- Windows installer/release path (not release-validated)
+
+**Phase status:**
+- Phase 1 (CONSOLIDATE): ✅ Complete
+- Phase 2 (CORRECT): 🔶 In progress
+- Phase 3-5: ⬜ Not started
+
+See the Project Index and Final Forensic/System-Design Baseline for detailed status.
 
 ---
 
