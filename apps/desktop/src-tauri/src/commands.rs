@@ -192,18 +192,21 @@ pub async fn scan_wpd_device_metadata(
     #[cfg(windows)]
     {
         use crate::wpd::discovery::enumerate_devices;
-        use crate::wpd::scanner::scan_device_metadata;
-        use windows::{
-            core::{CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED},
-            Win32::{
-                Devices::PortableDevices::{
-                    IPortableDevice, IPortableDeviceValues, PortableDeviceFTM, PortableDeviceValues,
-                    WPD_CLIENT_DESIRED_ACCESS,
-                },
-                Foundation::GENERIC_READ,
-                System::Com::CoCreateInstance,
-            },
-        };
+        use crate::wpd::scanner::{scan_device_metadata, WPD_SCAN_OPEN_FAILED};
+use windows::{
+    core::PCWSTR,
+    Win32::{
+        Devices::PortableDevices::{
+            IPortableDevice, IPortableDeviceValues, PortableDeviceFTM,
+            PortableDeviceValues, WPD_CLIENT_DESIRED_ACCESS,
+        },
+        Foundation::GENERIC_READ,
+        System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize,
+            CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+        },
+    },
+};
 
         // Look up PnP device ID from session ID
         let session_ids = state.wpd_session_ids.lock()
