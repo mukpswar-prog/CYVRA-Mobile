@@ -24,15 +24,12 @@ use windows::{
     core::{PCWSTR, PWSTR},
     Win32::{
         Devices::PortableDevices::{
-            IPortableDevice, IPortableDeviceContent, IPortableDeviceKeyCollection,
-            IPortableDeviceValues, IEnumPortableDeviceObjectIDs,
-            WPD_FUNCTIONAL_OBJECT_CATEGORY, WPD_FUNCTIONAL_CATEGORY_STORAGE,
-            WPD_OBJECT_NAME, WPD_OBJECT_ORIGINAL_FILE_NAME,
-            WPD_OBJECT_CONTENT_TYPE, WPD_OBJECT_FORMAT,
-            WPD_OBJECT_SIZE, WPD_OBJECT_DATE_CREATED, WPD_OBJECT_DATE_MODIFIED,
-            WPD_STORAGE_CAPACITY,
-            WPD_STORAGE_FILE_SYSTEM_TYPE, WPD_STORAGE_SERIAL_NUMBER,
-            WPD_CONTENT_TYPE_FOLDER,
+            IEnumPortableDeviceObjectIDs, IPortableDevice, IPortableDeviceContent,
+            IPortableDeviceKeyCollection, IPortableDeviceValues, WPD_CONTENT_TYPE_FOLDER,
+            WPD_FUNCTIONAL_CATEGORY_STORAGE, WPD_FUNCTIONAL_OBJECT_CATEGORY,
+            WPD_OBJECT_CONTENT_TYPE, WPD_OBJECT_DATE_CREATED, WPD_OBJECT_DATE_MODIFIED,
+            WPD_OBJECT_FORMAT, WPD_OBJECT_NAME, WPD_OBJECT_ORIGINAL_FILE_NAME, WPD_OBJECT_SIZE,
+            WPD_STORAGE_CAPACITY, WPD_STORAGE_FILE_SYSTEM_TYPE, WPD_STORAGE_SERIAL_NUMBER,
         },
         System::Com::CoTaskMemFree,
     },
@@ -195,16 +192,15 @@ fn read_optional_string(values: &IPortableDeviceValues, key: &PROPERTYKEY) -> Op
 
 /// Read an optional u64 property from WPD values.
 fn read_optional_u64(values: &IPortableDeviceValues, key: &PROPERTYKEY) -> Option<u64> {
-    unsafe {
-        values.GetUnsignedIntegerValue(key).ok().map(|v| v as u64)
-    }
+    unsafe { values.GetUnsignedIntegerValue(key).ok().map(|v| v as u64) }
 }
 
 /// Read an optional GUID property from WPD values.
-fn read_optional_guid(values: &IPortableDeviceValues, key: &PROPERTYKEY) -> Option<windows::core::GUID> {
-    unsafe {
-        values.GetGuidValue(key).ok()
-    }
+fn read_optional_guid(
+    values: &IPortableDeviceValues,
+    key: &PROPERTYKEY,
+) -> Option<windows::core::GUID> {
+    unsafe { values.GetGuidValue(key).ok() }
 }
 
 /// Query storage properties for a storage functional object.
@@ -266,10 +262,7 @@ fn enumerate_objects_recursive(
         return;
     }
 
-    let parent_id_wide: Vec<u16> = parent_id
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
+    let parent_id_wide: Vec<u16> = parent_id.encode_utf16().chain(std::iter::once(0)).collect();
 
     let enumerator: IEnumPortableDeviceObjectIDs = match unsafe {
         content.EnumObjects(
@@ -343,13 +336,9 @@ fn query_object_metadata(
     object_id: &str,
     parent_id: &str,
 ) -> Result<WpdObjectMetadata, String> {
-    let properties = unsafe { content.Properties() }
-        .map_err(|e| format!("{}", e))?;
+    let properties = unsafe { content.Properties() }.map_err(|e| format!("{}", e))?;
 
-    let object_id_wide: Vec<u16> = object_id
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
+    let object_id_wide: Vec<u16> = object_id.encode_utf16().chain(std::iter::once(0)).collect();
 
     let values = unsafe {
         properties.GetValues(
@@ -381,9 +370,9 @@ fn query_object_metadata(
     };
 
     // Extract extension from name
-    let extension = name.as_ref().and_then(|n| {
-        n.rsplit_once('.').map(|(_, ext)| ext.to_string())
-    });
+    let extension = name
+        .as_ref()
+        .and_then(|n| n.rsplit_once('.').map(|(_, ext)| ext.to_string()));
 
     Ok(WpdObjectMetadata {
         object_id: object_id.to_string(),
@@ -428,15 +417,12 @@ pub fn scan_device_metadata(
     let mut storages: Vec<WpdStorageSummary> = Vec::new();
     let mut limitations: Vec<String> = Vec::new();
 
-    let content = unsafe { device.Content() }
-        .map_err(|e| format!("{}: {}", WPD_SCAN_CONTENT_FAILED, e))?;
+    let content =
+        unsafe { device.Content() }.map_err(|e| format!("{}: {}", WPD_SCAN_CONTENT_FAILED, e))?;
 
     // Enumerate root objects to find storage functional objects
     let root_id = "DEVICE";
-    let root_id_wide: Vec<u16> = root_id
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
+    let root_id_wide: Vec<u16> = root_id.encode_utf16().chain(std::iter::once(0)).collect();
 
     let enumerator = unsafe {
         content.EnumObjects(
@@ -487,10 +473,7 @@ pub fn scan_device_metadata(
             }
         };
 
-        let object_id_wide: Vec<u16> = object_id
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
+        let object_id_wide: Vec<u16> = object_id.encode_utf16().chain(std::iter::once(0)).collect();
 
         let values = match unsafe {
             properties.GetValues(
@@ -521,15 +504,9 @@ pub fn scan_device_metadata(
                 enumerate_objects_recursive(&content, &object_id, 1, &mut ctx, &mut all_objects);
 
                 // Update storage summary counts
-                storage.object_count = all_objects.iter()
-                    .filter(|o| !o.is_folder)
-                    .count() as u64;
-                storage.folder_count = all_objects.iter()
-                    .filter(|o| o.is_folder)
-                    .count() as u64;
-                storage.total_bytes = all_objects.iter()
-                    .filter_map(|o| o.size_bytes)
-                    .sum();
+                storage.object_count = all_objects.iter().filter(|o| !o.is_folder).count() as u64;
+                storage.folder_count = all_objects.iter().filter(|o| o.is_folder).count() as u64;
+                storage.total_bytes = all_objects.iter().filter_map(|o| o.size_bytes).sum();
                 storage.scan_errors = ctx.errors.clone();
 
                 storages.push(storage);
@@ -551,9 +528,9 @@ pub fn scan_device_metadata(
 
     // Sort objects deterministically for digest
     all_objects.sort_by(|a, b| {
-        a.parent_id.cmp(&b.parent_id).then_with(|| {
-            a.name.cmp(&b.name)
-        })
+        a.parent_id
+            .cmp(&b.parent_id)
+            .then_with(|| a.name.cmp(&b.name))
     });
 
     // Compute deterministic digest
@@ -584,8 +561,7 @@ pub fn scan_device_metadata(
 /// Objects are sorted by (parent_id, name) before hashing.
 fn compute_inventory_digest(objects: &[WpdObjectMetadata]) -> String {
     // Canonical JSON: sorted keys, no whitespace
-    let canonical = serde_json::to_string(objects)
-        .unwrap_or_else(|_| "[]".to_string());
+    let canonical = serde_json::to_string(objects).unwrap_or_else(|_| "[]".to_string());
 
     let mut hasher = Sha256::new();
     hasher.update(canonical.as_bytes());
@@ -701,102 +677,132 @@ mod tests {
         let digest1 = compute_inventory_digest(&objects1);
         let digest2 = compute_inventory_digest(&objects2);
 
-        assert_ne!(digest1, digest2, "Different objects must produce different digests");
+        assert_ne!(
+            digest1, digest2,
+            "Different objects must produce different digests"
+        );
     }
 
-#[test]
-#[ignore = "requires connected Samsung A10s via WPD/MTP"]
-fn hardware_scan_a10s_produces_valid_result() {
-    use crate::wpd::discovery::enumerate_devices;
-    use windows::{
-        core::{PCWSTR, PWSTR},
-        Win32::{
-            Devices::PortableDevices::{
-                IPortableDevice, IPortableDeviceValues, PortableDeviceFTM,
-                PortableDeviceValues, WPD_CLIENT_DESIRED_ACCESS,
+    #[test]
+    #[ignore = "requires connected Samsung A10s via WPD/MTP"]
+    fn hardware_scan_a10s_produces_valid_result() {
+        use crate::wpd::discovery::enumerate_devices;
+        use windows::{
+            core::PCWSTR,
+            Win32::{
+                Devices::PortableDevices::{
+                    IPortableDevice, IPortableDeviceValues, PortableDeviceFTM,
+                    PortableDeviceValues, WPD_CLIENT_DESIRED_ACCESS,
+                },
+                Foundation::GENERIC_READ,
+                System::Com::{
+                    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+                    COINIT_MULTITHREADED,
+                },
             },
-            Foundation::GENERIC_READ,
-            System::Com::{
-                CoCreateInstance, CoInitializeEx, CoUninitialize,
-                CoTaskMemFree, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
-            },
-        },
-    };
-    use std::ffi::c_void;
+        };
 
-    // Find A10s
-    let devices = enumerate_devices().expect("WPD enumeration should succeed");
+        // Find A10s
+        let devices = enumerate_devices().expect("WPD enumeration should succeed");
 
-    let handset = devices.iter().find(|d| {
-        let id = d.pnp_device_id.to_ascii_uppercase();
-        let friendly = d.friendly_name.as_deref().unwrap_or("").to_ascii_uppercase();
-        (id.contains("VID_04E8") && id.contains("PID_6860")) || friendly.contains("A10S")
-    }).expect("Samsung A10s must be connected for hardware test");
+        let handset = devices
+            .iter()
+            .find(|d| {
+                let id = d.pnp_device_id.to_ascii_uppercase();
+                let friendly = d
+                    .friendly_name
+                    .as_deref()
+                    .unwrap_or("")
+                    .to_ascii_uppercase();
+                (id.contains("VID_04E8") && id.contains("PID_6860")) || friendly.contains("A10S")
+            })
+            .expect("Samsung A10s must be connected for hardware test");
 
-    println!("G6_HARDWARE_TEST: Found A10s at {}", handset.pnp_device_id);
+        println!("G6_HARDWARE_TEST: Found A10s at {}", handset.pnp_device_id);
 
-    // Initialize COM
-    unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok().expect("COM init");
+        // Initialize COM
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
+            .ok()
+            .expect("COM init");
 
-    // Create client info with GENERIC_READ
-    let client_info: IPortableDeviceValues =
-        unsafe { CoCreateInstance(&PortableDeviceValues, None, CLSCTX_INPROC_SERVER) }
-            .expect("PortableDeviceValues creation");
-    unsafe { client_info.SetUnsignedIntegerValue(&WPD_CLIENT_DESIRED_ACCESS, GENERIC_READ.0) }
-        .expect("GENERIC_READ configuration");
+        // Create client info with GENERIC_READ
+        let client_info: IPortableDeviceValues =
+            unsafe { CoCreateInstance(&PortableDeviceValues, None, CLSCTX_INPROC_SERVER) }
+                .expect("PortableDeviceValues creation");
+        unsafe { client_info.SetUnsignedIntegerValue(&WPD_CLIENT_DESIRED_ACCESS, GENERIC_READ.0) }
+            .expect("GENERIC_READ configuration");
 
-    // Open device
-    let device: IPortableDevice =
-        unsafe { CoCreateInstance(&PortableDeviceFTM, None, CLSCTX_INPROC_SERVER) }
-            .expect("PortableDeviceFTM creation");
+        // Open device
+        let device: IPortableDevice =
+            unsafe { CoCreateInstance(&PortableDeviceFTM, None, CLSCTX_INPROC_SERVER) }
+                .expect("PortableDeviceFTM creation");
 
-    let pnp_wide: Vec<u16> = handset.pnp_device_id.encode_utf16().chain(std::iter::once(0)).collect();
-    unsafe { device.Open(PCWSTR::from_raw(pnp_wide.as_ptr()), &client_info) }
-        .expect("G6 device open must succeed");
+        let pnp_wide: Vec<u16> = handset
+            .pnp_device_id
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        unsafe { device.Open(PCWSTR::from_raw(pnp_wide.as_ptr()), &client_info) }
+            .expect("G6 device open must succeed");
 
-    println!("G6_HARDWARE_TEST: Device opened with GENERIC_READ");
+        println!("G6_HARDWARE_TEST: Device opened with GENERIC_READ");
 
-    // Run the scan
-    let result = scan_device_metadata(
-        &device,
-        "test-session-001",
-        handset.friendly_name.clone(),
-        handset.manufacturer.clone(),
-    ).expect("G6 scan must succeed");
+        // Run the scan
+        let result = scan_device_metadata(
+            &device,
+            "test-session-001",
+            handset.friendly_name.clone(),
+            handset.manufacturer.clone(),
+        )
+        .expect("G6 scan must succeed");
 
-    // Validate results
-    println!("G6_HARDWARE_TEST: Scan complete");
-    println!("  Storages: {}", result.storages.len());
-    println!("  Objects: {}", result.objects.len());
-    println!("  Digest: {}", result.inventory_digest);
-    println!("  Limitations: {:?}", result.limitations);
-    println!("  Duration: {} -> {}", result.scan_started_at, result.scan_completed_at);
+        // Validate results
+        println!("G6_HARDWARE_TEST: Scan complete");
+        println!("  Storages: {}", result.storages.len());
+        println!("  Objects: {}", result.objects.len());
+        println!("  Digest: {}", result.inventory_digest);
+        println!("  Limitations: {:?}", result.limitations);
+        println!(
+            "  Duration: {} -> {}",
+            result.scan_started_at, result.scan_completed_at
+        );
 
-    assert!(!result.storages.is_empty(), "Must find at least one storage");
-    assert_eq!(result.inventory_digest.len(), 64, "SHA-256 hex digest must be 64 chars");
-    assert!(result.objects.iter().all(|o| !o.object_id.is_empty()), "All objects must have IDs");
+        assert!(
+            !result.storages.is_empty(),
+            "Must find at least one storage"
+        );
+        assert_eq!(
+            result.inventory_digest.len(),
+            64,
+            "SHA-256 hex digest must be 64 chars"
+        );
+        assert!(
+            result.objects.iter().all(|o| !o.object_id.is_empty()),
+            "All objects must have IDs"
+        );
 
-    // Verify determinism: run scan again, digest must match
-    let result2 = scan_device_metadata(
-        &device,
-        "test-session-002",
-        handset.friendly_name.clone(),
-        handset.manufacturer.clone(),
-    ).expect("Second scan must succeed");
+        // Verify determinism: run scan again, digest must match
+        let result2 = scan_device_metadata(
+            &device,
+            "test-session-002",
+            handset.friendly_name.clone(),
+            handset.manufacturer.clone(),
+        )
+        .expect("Second scan must succeed");
 
-    assert_eq!(
-        result.inventory_digest, result2.inventory_digest,
-        "Digest must be deterministic across scans"
-    );
-    println!("G6_HARDWARE_TEST: Determinism verified");
+        assert_eq!(
+            result.inventory_digest, result2.inventory_digest,
+            "Digest must be deterministic across scans"
+        );
+        println!("G6_HARDWARE_TEST: Determinism verified");
 
-    // Verify privacy: no content streams were opened (by code inspection)
-    println!("G6_HARDWARE_TEST: Privacy contract maintained (metadata-only)");
+        // Verify privacy: no content streams were opened (by code inspection)
+        println!("G6_HARDWARE_TEST: Privacy contract maintained (metadata-only)");
 
-    // Close device
-    unsafe { device.Close() }.expect("Device close");
-    unsafe { CoUninitialize() };
+        // Close device
+        unsafe { device.Close() }.expect("Device close");
+        unsafe { CoUninitialize() };
 
-    println!("G6_HARDWARE_TEST: PASS");
-}
+        println!("G6_HARDWARE_TEST: PASS");
+    }
 }

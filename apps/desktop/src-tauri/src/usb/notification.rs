@@ -61,11 +61,12 @@ impl UsbNotificationRegistration {
 
         let context_ptr = (&*context as *const NotificationContext).cast::<c_void>();
 
-        let mut filter = CM_NOTIFY_FILTER::default();
-
-        filter.cbSize = size_of::<CM_NOTIFY_FILTER>() as u32;
-        filter.Flags = CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES;
-        filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE;
+        let filter = CM_NOTIFY_FILTER {
+            cbSize: size_of::<CM_NOTIFY_FILTER>() as u32,
+            Flags: CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES,
+            FilterType: CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE,
+            ..Default::default()
+        };
 
         let mut handle = HCMNOTIFICATION(null_mut());
 

@@ -170,7 +170,7 @@ pub async fn get_wpd_devices(
             results.push(WpdDeviceResult::from_descriptor(device, session_device_id));
         }
 
-        return Ok(results);
+        Ok(results)
     }
 
     #[cfg(not(windows))]
@@ -193,26 +193,30 @@ pub async fn scan_wpd_device_metadata(
     {
         use crate::wpd::discovery::enumerate_devices;
         use crate::wpd::scanner::{scan_device_metadata, WPD_SCAN_OPEN_FAILED};
-use windows::{
-    core::PCWSTR,
-    Win32::{
-        Devices::PortableDevices::{
-            IPortableDevice, IPortableDeviceValues, PortableDeviceFTM,
-            PortableDeviceValues, WPD_CLIENT_DESIRED_ACCESS,
-        },
-        Foundation::GENERIC_READ,
-        System::Com::{
-            CoCreateInstance, CoInitializeEx, CoUninitialize,
-            CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
-        },
-    },
-};
+        use windows::{
+            core::PCWSTR,
+            Win32::{
+                Devices::PortableDevices::{
+                    IPortableDevice, IPortableDeviceValues, PortableDeviceFTM,
+                    PortableDeviceValues, WPD_CLIENT_DESIRED_ACCESS,
+                },
+                Foundation::GENERIC_READ,
+                System::Com::{
+                    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+                    COINIT_MULTITHREADED,
+                },
+            },
+        };
 
         // Look up PnP device ID from session ID
-        let session_ids = state.wpd_session_ids.lock()
+        let session_ids = state
+            .wpd_session_ids
+            .lock()
             .map_err(|_| "WPD_SESSION_ID_LOCK_FAILED".to_string())?;
 
-        let pnp_device_id = session_ids.by_pnp_device_id.iter()
+        let pnp_device_id = session_ids
+            .by_pnp_device_id
+            .iter()
             .find(|(_, sid)| **sid == session_device_id)
             .map(|(id, _)| id.clone())
             .ok_or_else(|| "WPD_SESSION_NOT_FOUND".to_string())?;
@@ -236,14 +240,18 @@ use windows::{
             unsafe { CoCreateInstance(&PortableDeviceFTM, None, CLSCTX_INPROC_SERVER) }
                 .map_err(|e| format!("{}: {}", WPD_SCAN_OPEN_FAILED, e))?;
 
-        let pnp_wide: Vec<u16> = pnp_device_id.encode_utf16().chain(std::iter::once(0)).collect();
+        let pnp_wide: Vec<u16> = pnp_device_id
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
         unsafe { device.Open(PCWSTR::from_raw(pnp_wide.as_ptr()), &client_info) }
             .map_err(|e| format!("{}: {}", WPD_SCAN_OPEN_FAILED, e))?;
 
         // Get device metadata for the result
         let devices = enumerate_devices()?;
-        let device_descriptor = devices.iter()
-            .find(|d| d.pnp_device_id.to_ascii_lowercase() == pnp_device_id.to_ascii_lowercase());
+        let device_descriptor = devices
+            .iter()
+            .find(|d| d.pnp_device_id.eq_ignore_ascii_case(&pnp_device_id));
 
         let friendly_name = device_descriptor.and_then(|d| d.friendly_name.clone());
         let manufacturer = device_descriptor.and_then(|d| d.manufacturer.clone());
