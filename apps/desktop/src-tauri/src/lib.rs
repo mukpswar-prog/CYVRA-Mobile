@@ -16,6 +16,7 @@ pub fn run() {
         .manage(commands::HostState::new())
         .invoke_handler(tauri::generate_handler![
             commands::get_host_info,
+            commands::get_device_state,
             commands::get_wpd_devices,
             commands::scan_wpd_device_metadata
         ])

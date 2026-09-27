@@ -5,6 +5,9 @@ use serde::Serialize;
 use crate::host_process::{HostInfo, HostProcessManager};
 
 #[cfg(windows)]
+use crate::usb::{enumerate::enumerate_usb_devices, model::UsbObservationState};
+
+#[cfg(windows)]
 use crate::wpd::discovery::{enumerate_devices, WpdDeviceDescriptor};
 
 pub struct HostState {
@@ -106,6 +109,33 @@ pub struct HostInfoResult {
     pub host_version: String,
 }
 
+/// Rust Windows USB plane summary (FSB-003 authority).
+///
+/// Raw PnP device-instance identities intentionally stay internal
+/// (canonical guideline P0: raw PnP ID exposure).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsbObservationSummary {
+    pub observation_state: String,
+    pub device_count: usize,
+    pub observed_at: String,
+    pub source: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceStateResult {
+    pub connection_state: String,
+    pub usb_state: String,
+    pub adb_state: String,
+    pub adb_available: bool,
+    pub ready_to_scan: bool,
+    pub status_message: String,
+    pub operator_action_required: Option<String>,
+    pub device_descriptor: Option<serde_json::Value>,
+    pub usb_observation: UsbObservationSummary,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WpdDeviceResult {
@@ -147,6 +177,66 @@ pub async fn get_host_info(state: tauri::State<'_, HostState>) -> Result<HostInf
         host_version,
     })
 }
+
+/// Evaluates device connection state using authoritative Windows USB truth.
+///
+/// Physical USB state comes from a fresh SetupAPI present-device
+/// enumeration ("notification is a trigger, enumeration is truth").
+/// The Host receives that state through the GET_DEVICE_STATE payload
+/// and must never re-derive it from ADB discovery (FSB-003).
+#[tauri::command]
+pub async fn get_device_state(
+    state: tauri::State<'_, HostState>,
+) -> Result<DeviceStateResult, String> {
+    #[cfg(windows)]
+    {
+        let observation = tauri::async_runtime::spawn_blocking(enumerate_usb_devices)
+            .await
+            .map_err(|error| format!("USB_ENUMERATION_TASK_FAILED: {error}"))?;
+
+        let usb_connected = observation.observation_state == UsbObservationState::UsbPresent;
+
+        let usb_observation_state = match observation.observation_state {
+            UsbObservationState::UsbPresent => "USB_PRESENT",
+            UsbObservationState::UsbNotPresent => "USB_NOT_PRESENT",
+            UsbObservationState::UsbObservationUnknown => "USB_OBSERVATION_UNKNOWN",
+        };
+
+        let device_state = {
+            let mut manager = state
+                .manager
+                .lock()
+                .map_err(|_| "HOST_STATE_LOCK_FAILED".to_string())?;
+
+            manager.get_device_state(usb_connected, usb_observation_state)?
+        };
+
+        Ok(DeviceStateResult {
+            connection_state: device_state.connection_state,
+            usb_state: device_state.usb_state,
+            adb_state: device_state.adb_state,
+            adb_available: device_state.adb_available,
+            ready_to_scan: device_state.ready_to_scan,
+            status_message: device_state.status_message,
+            operator_action_required: device_state.operator_action_required,
+            device_descriptor: device_state.device_descriptor,
+            usb_observation: UsbObservationSummary {
+                observation_state: usb_observation_state.to_string(),
+                device_count: observation.devices.len(),
+                observed_at: observation.observed_at,
+                source: observation.source,
+            },
+        })
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = state;
+
+        Err("GET_DEVICE_STATE is only supported on Windows".to_string())
+    }
+}
+
 #[tauri::command]
 pub async fn get_wpd_devices(
     state: tauri::State<'_, HostState>,
