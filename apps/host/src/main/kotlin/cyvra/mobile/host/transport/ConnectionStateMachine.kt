@@ -8,6 +8,12 @@ data class ConnectionDiagnosticSnapshot(
     val connectionState: DeviceConnectionState,
     val usbState: HostUsbState,
     val adbState: HostAdbState,
+    /**
+     * Device-level ADB availability (Option A contract, 2026-09-27):
+     * true only when the connected device's ADB interface is visible to
+     * ADB discovery (unauthorized / offline / ready). False for NO_DEVICE,
+     * USB-only detection, and adb-binary absence.
+     */
     val adbAvailable: Boolean,
     val deviceDescriptor: AdbDeviceDescriptor? = null,
     val statusMessage: String,
@@ -26,7 +32,7 @@ class ConnectionStateMachine {
                 connectionState = DeviceConnectionState.NO_DEVICE,
                 usbState = HostUsbState.USB_NOT_CONNECTED,
                 adbState = HostAdbState.ADB_UNAVAILABLE,
-                adbAvailable = adbClientAvailable,
+                adbAvailable = adbClientAvailable && discoveredDevices.isNotEmpty(),
                 deviceDescriptor = null,
                 statusMessage = "No device connected. Connect Android device via USB.",
                 operatorActionRequired = "Connect Android device with a data-capable USB cable.",
@@ -39,7 +45,7 @@ class ConnectionStateMachine {
                 connectionState = DeviceConnectionState.USB_DETECTED,
                 usbState = HostUsbState.USB_CONNECTED,
                 adbState = HostAdbState.ADB_UNAVAILABLE,
-                adbAvailable = adbClientAvailable,
+                adbAvailable = adbClientAvailable && discoveredDevices.isNotEmpty(),
                 deviceDescriptor = null,
                 statusMessage = "USB connection detected. ADB interface not visible.",
                 operatorActionRequired = "Enable USB Debugging on the Android device in Developer Options.",

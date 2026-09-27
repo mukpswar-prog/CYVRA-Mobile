@@ -455,20 +455,75 @@ fn resolve_java_executable() -> Result<PathBuf, String> {
 
 #[cfg(all(test, windows))]
 mod tests {
-    use super::HostProcessManager;
+    use super::{DeviceState, HostProcessManager};
     use crate::usb::model::UsbObservationState;
+    use std::path::PathBuf;
+    use std::process::Command;
 
-    /// FSB-003 hardware validation.
+    /// Locates the adb CLI for the environment probe.
     ///
-    /// Requires the acceptance Samsung A10s physically connected with
-    /// USB debugging disabled, plus `:host:installDist` built.
+    /// Probe only — production ADB discovery is not touched by this.
+    fn resolve_adb() -> PathBuf {
+        for var in ["ANDROID_HOME", "ANDROID_SDK_ROOT"] {
+            if let Ok(sdk) = std::env::var(var) {
+                let candidate = PathBuf::from(sdk).join("platform-tools").join("adb.exe");
+                if candidate.exists() {
+                    return candidate;
+                }
+            }
+        }
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let candidate = PathBuf::from(local)
+                .join("Android")
+                .join("Sdk")
+                .join("platform-tools")
+                .join("adb.exe");
+            if candidate.exists() {
+                return candidate;
+            }
+        }
+        PathBuf::from("adb")
+    }
+
+    /// Environment oracle for the ADB-OFF / ADB-ON runtime legs.
     ///
-    /// Expected outcome: native USB truth reaches the Host through the
-    /// GET_DEVICE_STATE payload and evaluates to USB_DETECTED.
-    /// The ADB-derived path must never produce NO_DEVICE here.
-    #[test]
-    #[ignore = "requires the connected Samsung A10s with USB debugging disabled"]
-    fn device_state_with_adb_disabled_reports_usb_detected() {
+    /// Reports whether an authorized ADB device is attached by asking the
+    /// adb CLI directly. This is deliberately independent of the production
+    /// GET_DEVICE_STATE payload under test: a genuine payload failure can
+    /// never be masked by the probe, and each leg skips only when its own
+    /// required environment is absent.
+    fn authorized_adb_device_present() -> bool {
+        let adb = resolve_adb();
+        let output = match Command::new(&adb).arg("devices").output() {
+            Ok(out) => out,
+            Err(err) => {
+                println!(
+                    "ADB_ENV_PROBE=unavailable ({}: {}) -> no authorized ADB device",
+                    adb.display(),
+                    err
+                );
+                return false;
+            }
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let authorized = stdout.lines().any(|line| {
+            let mut fields = line.split_whitespace();
+            let _serial = fields.next();
+            fields.next() == Some("device")
+        });
+        println!("ADB_ENV_PROBE=authorized_device_present={}", authorized);
+        authorized
+    }
+
+    /// Shared FSB-003 hardware prelude for both runtime legs.
+    ///
+    /// Requires the acceptance Samsung A10s physically connected
+    /// (VID_04E8 visible through SetupAPI) plus `:host:installDist` built.
+    ///
+    /// Proves the native USB truth before any state expectation: SetupAPI
+    /// must report the phone with observation state USB_PRESENT, and that
+    /// fact is what reaches the Host through GET_DEVICE_STATE.
+    fn fsb003_usb_prelude() -> (bool, HostProcessManager) {
         let observation = crate::usb::enumerate::enumerate_usb_devices();
 
         println!("observation_state={:?}", observation.observation_state);
@@ -485,7 +540,7 @@ mod tests {
 
         assert!(
             phone_present,
-            "A10s (VID_04E8) must be present via SetupAPI while ADB is disabled"
+            "A10s (VID_04E8) must be present via SetupAPI"
         );
 
         assert_eq!(
@@ -493,11 +548,13 @@ mod tests {
             UsbObservationState::UsbPresent
         );
 
-        let usb_connected =
-            observation.observation_state == UsbObservationState::UsbPresent;
+        let usb_connected = observation.observation_state == UsbObservationState::UsbPresent;
 
-        let mut manager = HostProcessManager::new();
+        (usb_connected, HostProcessManager::new())
+    }
 
+    /// Queries GET_DEVICE_STATE and prints the full payload for the record.
+    fn query_device_state(manager: &mut HostProcessManager, usb_connected: bool) -> DeviceState {
         let state = manager
             .get_device_state(usb_connected, "USB_PRESENT")
             .expect("GET_DEVICE_STATE should succeed against the built Host");
@@ -510,9 +567,82 @@ mod tests {
         println!("status_message={}", state.status_message);
         println!("usb_observation_state={}", state.usb_observation_state);
 
+        state
+    }
+
+    /// FSB-003 USB invariants — must hold in BOTH runtime states.
+    ///
+    /// ADB enrichment never changes the USB truth (REQ-DEV-011: ADB is
+    /// never a detection prerequisite, and its absence never yields
+    /// NO_DEVICE).
+    fn assert_usb_invariants(state: &DeviceState) {
         assert_eq!(state.usb_observation_state, "USB_PRESENT");
         assert_eq!(state.usb_state, "USB_CONNECTED");
+    }
+
+    /// FSB-003 hardware validation — ADB-OFF leg of the runtime matrix.
+    ///
+    /// Requires the acceptance Samsung A10s physically connected with
+    /// USB debugging disabled, plus `:host:installDist` built.
+    ///
+    /// Expected outcome: native USB truth reaches the Host through the
+    /// GET_DEVICE_STATE payload and evaluates to USB_DETECTED with no ADB
+    /// enrichment. The ADB-derived path must never produce NO_DEVICE here.
+    ///
+    /// Environment-aware: if an authorized ADB device is attached, this leg
+    /// reports SKIP and returns (USB debugging is intentionally enabled in
+    /// that environment) while the ADB-ON leg owns the expectations.
+    #[test]
+    #[ignore = "requires the connected Samsung A10s with USB debugging disabled"]
+    fn device_state_with_adb_disabled_reports_usb_detected() {
+        if authorized_adb_device_present() {
+            println!(
+                "VALIDATION=ADB_OFF skipped: environment not present \
+                 (authorized ADB device attached; USB debugging enabled)"
+            );
+            return;
+        }
+        println!("VALIDATION=ADB_OFF: running (no authorized ADB device attached)");
+
+        let (usb_connected, mut manager) = fsb003_usb_prelude();
+        let state = query_device_state(&mut manager, usb_connected);
+
+        assert_usb_invariants(&state);
         assert_eq!(state.connection_state, "USB_DETECTED");
+        assert!(!state.adb_available);
         assert!(!state.ready_to_scan);
+    }
+
+    /// FSB-003 hardware validation — ADB-ON leg of the runtime matrix.
+    ///
+    /// Requires the acceptance Samsung A10s physically connected with
+    /// USB debugging enabled and RSA-authorized, plus `:host:installDist`
+    /// built.
+    ///
+    /// Expected outcome: the USB truth is unchanged (USB_PRESENT /
+    /// USB_CONNECTED) while the connection state is enriched to ADB_READY —
+    /// ADB contributes bench evidence only, never the USB detection itself.
+    ///
+    /// Environment-aware: if no authorized ADB device is attached, this leg
+    /// reports SKIP and returns while the ADB-OFF leg owns that environment.
+    #[test]
+    #[ignore = "requires the connected Samsung A10s with USB debugging enabled and authorized"]
+    fn device_state_with_adb_enabled_reports_adb_ready() {
+        if !authorized_adb_device_present() {
+            println!(
+                "VALIDATION=ADB_ON skipped: environment not present \
+                 (no authorized ADB device attached; USB debugging disabled)"
+            );
+            return;
+        }
+        println!("VALIDATION=ADB_ON: running (authorized ADB device attached)");
+
+        let (usb_connected, mut manager) = fsb003_usb_prelude();
+        let state = query_device_state(&mut manager, usb_connected);
+
+        assert_usb_invariants(&state);
+        assert_eq!(state.connection_state, "ADB_READY");
+        assert!(state.adb_available);
+        assert!(state.ready_to_scan);
     }
 }
