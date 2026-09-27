@@ -10,7 +10,7 @@ pluginManagement {
         kotlin("android") version "2.3.21"
         // Otter 2 supports AGP 4.1–8.13 only. 9.0.1 removes BaseVariant and
         // Studio's KotlinAndroidTarget then crashes on sync.
-        id("com.android.application") version "8.13.2"
+        id("com.android.application") version "9.4.1"
     }
 }
 
