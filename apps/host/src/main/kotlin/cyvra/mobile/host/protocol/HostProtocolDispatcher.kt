@@ -6,7 +6,10 @@ import cyvra.mobile.host.transport.ConnectionStateMachine
 import cyvra.mobile.host.transport.HostPreflightVerifier
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
@@ -65,29 +68,68 @@ class HostProtocolDispatcher(
 
     private fun deviceStateResponse(request: HostRequest): HostResponse {
         return try {
-            val adbBinary = adbLocator.locate()
-                ?: return errorResponse(
-                    request = request,
-                    code = "ADB_NOT_FOUND",
-                    message = "ADB binary could not be located by the Host ADB locator",
-                )
+            /*
+             * Physical USB truth arrives from the Rust Windows USB plane
+             * (SetupAPI present-device enumeration) via the request
+             * payload. The Host must not infer physical USB state from
+             * ADB device discovery (FSB-003; canonical guideline 8.3).
+             */
+            val usbConnected =
+                (request.payload["usbConnected"] as? JsonPrimitive)?.booleanOrNull
+                    ?: return errorResponse(
+                        request = request,
+                        code = "USB_STATE_MISSING",
+                        message = "GET_DEVICE_STATE requires payload.usbConnected " +
+                            "from the Rust Windows USB plane",
+                    )
 
-            val adbClient = AdbClient(adbBinary)
-            val discoveredDevices = adbClient.listDevices()
+            val usbObservationState =
+                (request.payload["usbObservationState"] as? JsonPrimitive)?.contentOrNull
+                    ?: return errorResponse(
+                        request = request,
+                        code = "USB_STATE_MISSING",
+                        message = "GET_DEVICE_STATE requires payload.usbObservationState " +
+                            "from the Rust Windows USB plane",
+                    )
 
             /*
-             * The current Host transport layer does not independently expose
-             * physical USB detection. Therefore do not fabricate USB state.
-             *
-             * A discovered ADB device proves an ADB-visible connection.
-             * With no discovered device, we conservatively evaluate the
-             * connection as having no confirmed USB/ADB device.
+             * A Windows API failure must never be presented as proof
+             * that no device is attached (transport architecture 3.3).
              */
-            val usbConnected = discoveredDevices.isNotEmpty()
+            when (usbObservationState) {
+                "USB_OBSERVATION_UNKNOWN" -> {
+                    return errorResponse(
+                        request = request,
+                        code = "USB_OBSERVATION_UNKNOWN",
+                        message = "Windows USB observation failed; " +
+                            "absence of a device cannot be asserted",
+                    )
+                }
+
+                "USB_PRESENT", "USB_NOT_PRESENT" -> Unit
+
+                else -> {
+                    return errorResponse(
+                        request = request,
+                        code = "USB_STATE_INVALID",
+                        message = "Unrecognized usbObservationState: $usbObservationState",
+                    )
+                }
+            }
+
+            /*
+             * ADB discovery refines ADB state only. A missing ADB
+             * binary degrades to "ADB unavailable" instead of failing
+             * the request: USB state must remain answerable without ADB.
+             */
+            val adbBinary = adbLocator.locate()
+            val discoveredDevices = adbBinary
+                ?.let { AdbClient(it).listDevices() }
+                .orEmpty()
 
             val snapshot = connectionStateMachine.evaluate(
                 usbConnected = usbConnected,
-                adbClientAvailable = true,
+                adbClientAvailable = adbBinary != null,
                 discoveredDevices = discoveredDevices,
             )
 
@@ -98,6 +140,7 @@ class HostProtocolDispatcher(
                 put("adbAvailable", snapshot.adbAvailable)
                 put("readyToScan", snapshot.readyToScan)
                 put("statusMessage", snapshot.statusMessage)
+                put("usbObservationState", usbObservationState)
 
                 snapshot.operatorActionRequired?.let {
                     put("operatorActionRequired", it)

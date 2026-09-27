@@ -17,6 +17,7 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 const PROTOCOL_VERSION: &str = "1";
 const HOST_COMMAND: &str = "GET_HOST_INFO";
+const DEVICE_STATE_COMMAND: &str = "GET_DEVICE_STATE";
 const HOST_MAIN_CLASS: &str = "cyvra.mobile.host.protocol.HostMain";
 
 static REQUEST_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -44,6 +45,8 @@ struct HostResponse {
     request_id: String,
     status: String,
     host_version: String,
+    #[serde(default)]
+    payload: Value,
     error: Option<HostError>,
 }
 
@@ -53,6 +56,56 @@ pub struct HostInfo {
     pub protocol_version: String,
     pub request_id: String,
     pub host_version: String,
+}
+
+/// Host-evaluated device connection state (FSB-003).
+///
+/// `usb_state` reflects physical USB truth supplied by the Rust Windows
+/// USB plane. It is never re-derived from ADB device discovery.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceState {
+    pub connection_state: String,
+    pub usb_state: String,
+    pub adb_state: String,
+    pub adb_available: bool,
+    pub ready_to_scan: bool,
+    pub status_message: String,
+    pub operator_action_required: Option<String>,
+    pub device_descriptor: Option<Value>,
+    pub usb_observation_state: String,
+}
+
+fn payload_string(payload: &Value, key: &str) -> Result<String, String> {
+    payload
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| {
+            format!(
+                "HOST_INVALID_RESPONSE: payload.{} is missing or not a string",
+                key
+            )
+        })
+}
+
+fn payload_bool(payload: &Value, key: &str) -> Result<bool, String> {
+    payload
+        .get(key)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            format!(
+                "HOST_INVALID_RESPONSE: payload.{} is missing or not a boolean",
+                key
+            )
+        })
+}
+
+fn payload_optional_string(payload: &Value, key: &str) -> Option<String> {
+    payload
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::to_string)
 }
 
 pub struct HostProcessManager {
@@ -84,7 +137,70 @@ impl HostProcessManager {
         };
 
         let response = self.send_request(&request)?;
+        let response = Self::validate_envelope(response, &request_id)?;
 
+        Ok(HostInfo {
+            protocol_version: response.protocol_version,
+            request_id: response.request_id,
+            host_version: response.host_version,
+        })
+    }
+
+    /// Asks the Host to evaluate device connection state.
+    ///
+    /// `usb_connected` and `usb_observation_state` are supplied by the
+    /// Rust Windows USB plane (SetupAPI present-device enumeration).
+    ///
+    /// The Host must not infer physical USB state from ADB discovery
+    /// (FSB-003; canonical guideline 8.3).
+    pub fn get_device_state(
+        &mut self,
+        usb_connected: bool,
+        usb_observation_state: &str,
+    ) -> Result<DeviceState, String> {
+        let request_id = format!(
+            "d2.1-{}",
+            REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+        );
+
+        let request = HostRequest {
+            protocol_version: PROTOCOL_VERSION.to_string(),
+            request_id: request_id.clone(),
+            command: DEVICE_STATE_COMMAND.to_string(),
+            payload: json!({
+                "usbConnected": usb_connected,
+                "usbObservationState": usb_observation_state,
+            }),
+        };
+
+        let response = self.send_request(&request)?;
+        let response = Self::validate_envelope(response, &request_id)?;
+
+        let payload = &response.payload;
+
+        Ok(DeviceState {
+            connection_state: payload_string(payload, "connectionState")?,
+            usb_state: payload_string(payload, "usbState")?,
+            adb_state: payload_string(payload, "adbState")?,
+            adb_available: payload_bool(payload, "adbAvailable")?,
+            ready_to_scan: payload_bool(payload, "readyToScan")?,
+            status_message: payload_string(payload, "statusMessage")?,
+            operator_action_required: payload_optional_string(
+                payload,
+                "operatorActionRequired",
+            ),
+            device_descriptor: payload.get("device").cloned(),
+            usb_observation_state: payload_string(
+                payload,
+                "usbObservationState",
+            )?,
+        })
+    }
+
+    fn validate_envelope(
+        response: HostResponse,
+        expected_request_id: &str,
+    ) -> Result<HostResponse, String> {
         if response.protocol_version != PROTOCOL_VERSION {
             return Err(format!(
                 "HOST_PROTOCOL_MISMATCH: expected protocol {}, received {}",
@@ -92,10 +208,10 @@ impl HostProcessManager {
             ));
         }
 
-        if response.request_id != request_id {
+        if response.request_id != expected_request_id {
             return Err(format!(
                 "HOST_REQUEST_ID_MISMATCH: expected {}, received {}",
-                request_id, response.request_id
+                expected_request_id, response.request_id
             ));
         }
 
@@ -114,11 +230,7 @@ impl HostProcessManager {
             return Err("HOST_INVALID_RESPONSE: hostVersion is empty".to_string());
         }
 
-        Ok(HostInfo {
-            protocol_version: response.protocol_version,
-            request_id: response.request_id,
-            host_version: response.host_version,
-        })
+        Ok(response)
     }
 
     fn send_request(
@@ -339,4 +451,68 @@ fn resolve_java_executable() -> Result<PathBuf, String> {
     }
 
     Ok(PathBuf::from("java.exe"))
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::HostProcessManager;
+    use crate::usb::model::UsbObservationState;
+
+    /// FSB-003 hardware validation.
+    ///
+    /// Requires the acceptance Samsung A10s physically connected with
+    /// USB debugging disabled, plus `:host:installDist` built.
+    ///
+    /// Expected outcome: native USB truth reaches the Host through the
+    /// GET_DEVICE_STATE payload and evaluates to USB_DETECTED.
+    /// The ADB-derived path must never produce NO_DEVICE here.
+    #[test]
+    #[ignore = "requires the connected Samsung A10s with USB debugging disabled"]
+    fn device_state_with_adb_disabled_reports_usb_detected() {
+        let observation = crate::usb::enumerate::enumerate_usb_devices();
+
+        println!("observation_state={:?}", observation.observation_state);
+        println!("device_count={}", observation.devices.len());
+
+        for device in &observation.devices {
+            println!("device={}", device.device_path);
+        }
+
+        let phone_present = observation
+            .devices
+            .iter()
+            .any(|device| device.device_path.contains("VID_04E8"));
+
+        assert!(
+            phone_present,
+            "A10s (VID_04E8) must be present via SetupAPI while ADB is disabled"
+        );
+
+        assert_eq!(
+            observation.observation_state,
+            UsbObservationState::UsbPresent
+        );
+
+        let usb_connected =
+            observation.observation_state == UsbObservationState::UsbPresent;
+
+        let mut manager = HostProcessManager::new();
+
+        let state = manager
+            .get_device_state(usb_connected, "USB_PRESENT")
+            .expect("GET_DEVICE_STATE should succeed against the built Host");
+
+        println!("connection_state={}", state.connection_state);
+        println!("usb_state={}", state.usb_state);
+        println!("adb_state={}", state.adb_state);
+        println!("adb_available={}", state.adb_available);
+        println!("ready_to_scan={}", state.ready_to_scan);
+        println!("status_message={}", state.status_message);
+        println!("usb_observation_state={}", state.usb_observation_state);
+
+        assert_eq!(state.usb_observation_state, "USB_PRESENT");
+        assert_eq!(state.usb_state, "USB_CONNECTED");
+        assert_eq!(state.connection_state, "USB_DETECTED");
+        assert!(!state.ready_to_scan);
+    }
 }
