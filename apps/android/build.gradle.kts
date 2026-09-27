@@ -5,7 +5,7 @@ plugins {
     // throws ClassNotFoundException: com.android.build.gradle.BaseExtension
     // as soon as local.properties exists and :app is included.
     kotlin("android") version "2.3.21" apply false
-    id("com.android.application") version "8.13.2" apply false
+    id("com.android.application") version "9.4.1" apply false
 }
 
 tasks.register("test") {
