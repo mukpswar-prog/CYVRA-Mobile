@@ -1229,6 +1229,19 @@ Freeze schema before implementation.
 
 V2 must carry native evidence into Host business semantics without making React the orchestrator.
 
+### FSB-003 interim payload extension (recorded 2026-09-27)
+
+`GET_DEVICE_STATE` was explicitly extended ahead of the V2 freeze (briefing-directed,
+not a silent overload):
+
+- Required payload fields: `usbConnected` (bool) and `usbObservationState`
+  (`USB_PRESENT` | `USB_NOT_PRESENT` | `USB_OBSERVATION_UNKNOWN`).
+- Fail-closed error codes: `USB_STATE_MISSING`, `USB_STATE_INVALID`,
+  `USB_OBSERVATION_UNKNOWN`. `USB_OBSERVATION_UNKNOWN` must never evaluate to `NO_DEVICE`.
+- ADB absence is carried as `adbAvailable=false` (the `ADB_NOT_FOUND` early error is retired).
+- `EVALUATE_DEVICE_SNAPSHOT` remains the V2 candidate command; this extension must be
+  reconciled or subsumed when the V2 schema is frozen.
+
 ## Gate G10 — Device Verification transaction
 
 Real end-to-end path:
