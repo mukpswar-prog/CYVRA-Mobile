@@ -1239,6 +1239,12 @@ not a silent overload):
 - Fail-closed error codes: `USB_STATE_MISSING`, `USB_STATE_INVALID`,
   `USB_OBSERVATION_UNKNOWN`. `USB_OBSERVATION_UNKNOWN` must never evaluate to `NO_DEVICE`.
 - ADB absence is carried as `adbAvailable=false` (the `ADB_NOT_FOUND` early error is retired).
+  Semantics clarified 2026-09-27 (Option A decision, device-level): `adbAvailable` is `true`
+  only when the connected device's ADB interface is visible to ADB discovery
+  (unauthorized / offline / ready); it is `false` for `NO_DEVICE`, USB-only detection
+  (`USB_DETECTED`), and adb-binary absence. Per-device ADB detail remains in `adbState` /
+  `statusMessage`. The host state machine was corrected to match this contract in the
+  `NO_DEVICE` and `USB_DETECTED` branches.
 - `EVALUATE_DEVICE_SNAPSHOT` remains the V2 candidate command; this extension must be
   reconciled or subsumed when the V2 schema is frozen.
 
