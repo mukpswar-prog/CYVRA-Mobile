@@ -1,5 +1,6 @@
 package cyvra.mobile.host.protocol
 
+import cyvra.mobile.host.service.HostBootstrap
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
@@ -17,6 +18,14 @@ object HostMain {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        /*
+         * Read the production licence exactly once, at boot. The loader is
+         * fail-closed and cannot throw, so an absent or corrupt license.json
+         * degrades the Host to a denied entitlement rather than preventing it
+         * from starting and answering the protocol.
+         */
+        System.err.println(HostBootstrap.describeLicenseState())
+
         val reader = BufferedReader(
             InputStreamReader(System.`in`, StandardCharsets.UTF_8)
         )
