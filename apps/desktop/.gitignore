@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Staged installer payload (host JARs, jlink runtime, platform-tools).
+# Rebuilt by `pnpm stage:resources`; never committed (build artifact).
+.resources
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -9,6 +9,7 @@
                     "lint":  "eslint .",
                     "preview":  "vite preview",
                     "tauri":  "tauri",
+                    "stage:resources":  "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/stage-windows-installer-resources.ps1",
                     "validate:shell":  "node scripts/validate-shell.mjs"
                 },
     "dependencies":  {

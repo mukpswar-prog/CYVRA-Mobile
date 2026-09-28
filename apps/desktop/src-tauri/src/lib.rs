@@ -7,6 +7,15 @@ mod wpd;
 mod commands;
 mod host_process;
 
+/// Console entry point used by the packaging gate and the installer preflight.
+///
+/// Boots the bundled Host and performs one protocol round-trip without opening
+/// a window, so CI can prove an *installed* layout is complete before an
+/// artifact is published.
+pub fn host_selftest() -> Result<String, String> {
+    host_process::run_selftest()
+}
+
 #[cfg(windows)]
 use tauri::Manager;
 
