@@ -669,8 +669,30 @@ mod runtime_resolution_tests {
         );
     }
 
-    /// A source checkout must resolve a Host distribution carrying at least
-    /// one JAR.
+    /// Resolves a Host distribution, failing loudly in CI.
+    ///
+    /// CI stages `.resources/` (which runs `:host:installDist`) *before* the
+    /// Rust tests, so a failure there means the packaging pipeline is broken
+    /// and must not be waved through. Outside CI a fresh checkout legitimately
+    /// has neither a staged payload nor installDist output, so the test reports
+    /// why and steps aside instead of failing for a reason unrelated to its
+    /// subject.
+    #[cfg(debug_assertions)]
+    fn resolve_or_explain(test_name: &str) -> Option<(PathBuf, PathBuf)> {
+        match locate_host() {
+            Ok(resolved) => Some(resolved),
+            Err(error) if std::env::var_os("CI").is_some() => {
+                panic!("{test_name}: CI must stage a Host distribution before running tests: {error}")
+            }
+            Err(error) => {
+                eprintln!("SKIP {test_name}: {error}");
+                None
+            }
+        }
+    }
+
+    /// A staged source checkout must resolve a Host distribution carrying at
+    /// least one JAR.
     ///
     /// The shape differs by origin: Tauri stages `bundle.resources` next to the
     /// test binary (`<root>/host/lib`), while the development-tree fallback
@@ -680,8 +702,10 @@ mod runtime_resolution_tests {
     #[cfg(debug_assertions)]
     #[test]
     fn source_checkouts_resolve_the_host_distribution() {
-        let (root, lib) = locate_host()
-            .expect("host distribution should resolve from a source checkout");
+        let Some((root, lib)) = resolve_or_explain("source_checkouts_resolve_the_host_distribution")
+        else {
+            return;
+        };
 
         assert!(lib.is_dir());
         assert!(
@@ -710,6 +734,11 @@ mod runtime_resolution_tests {
     #[cfg(debug_assertions)]
     #[test]
     fn development_tree_fallback_finds_the_installed_distribution() {
+        let Some(_) = resolve_or_explain("development_tree_fallback_finds_the_installed_distribution")
+        else {
+            return;
+        };
+
         let root = dev_tree_host_root()
             .expect("dev tree fallback should find :host:installDist output");
 

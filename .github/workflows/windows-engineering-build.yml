@@ -70,6 +70,15 @@ jobs:
       - name: Install JS dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      # Staging must happen before any Cargo step: tauri-build resolves
+      # `bundle.resources` at compile time, and `cargo test` runs before
+      # `tauri build`'s beforeBuildCommand gets a chance to stage anything.
+      # This also produces the `:host:installDist` distribution that the
+      # runtime-resolution tests assert on.
+      - name: Stage installer payload (Host dist, Java runtime, platform-tools)
+        working-directory: apps/desktop
+        run: pnpm stage:resources
+
       # --- Tests: any failure fails the workflow -------------------------
       - name: Run core tests (contract, S1 collector, reconciliation, Report 1 derivation)
         working-directory: apps/android
