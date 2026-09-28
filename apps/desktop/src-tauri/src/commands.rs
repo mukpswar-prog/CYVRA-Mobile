@@ -178,6 +178,41 @@ pub async fn get_host_info(state: tauri::State<'_, HostState>) -> Result<HostInf
     })
 }
 
+/// Generic JSON-lines pass-through to the Kotlin Host.
+///
+/// `command` is a `HostCommand` name and `payload` a JSON object string; both
+/// are handed to [`HostProcessManager::send_host_command`], which stamps the
+/// `protocolVersion` / `requestId` envelope, writes one line to the Host's stdin
+/// and reads the single line it answers with on stdout.
+///
+/// The response is returned **verbatim, including a `status: "ERROR"` envelope**.
+/// `LICENSE_REQUIRED`, `SANITIZE_PHRASE_MISMATCH` and the decision D-1
+/// `BLOCKED_NOT_IMPLEMENTED` outcome are protocol answers the UI must render
+/// accurately, not exceptions. `Err` is reserved for the bridge itself failing,
+/// which is a genuinely different class of problem:
+///
+/// * `Ok(response)` - the Host answered, whatever its status.
+/// * `Err(message)` - the Host could not be reached or its envelope was invalid.
+#[tauri::command]
+pub async fn send_host_command(
+    state: tauri::State<'_, HostState>,
+    command: String,
+    payload: String,
+) -> Result<String, String> {
+    /*
+     * The lock is held across the whole write-then-read exchange on purpose:
+     * the Host speaks JSON-lines over a single stdin/stdout pair, so two
+     * concurrent requests would interleave their bytes and each read the
+     * other's answer. Serialising here is what makes the wire protocol true.
+     */
+    let mut manager = state
+        .manager
+        .lock()
+        .map_err(|_| "HOST_STATE_LOCK_FAILED".to_string())?;
+
+    manager.send_host_command(&command, &payload)
+}
+
 /// Evaluates device connection state using authoritative Windows USB truth.
 ///
 /// Physical USB state comes from a fresh SetupAPI present-device
