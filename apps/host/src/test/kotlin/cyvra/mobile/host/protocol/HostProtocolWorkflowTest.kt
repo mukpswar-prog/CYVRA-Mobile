@@ -36,6 +36,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -860,6 +861,220 @@ class HostProtocolWorkflowTest {
         val certificateJson = assertNotNull(str(finalReport, "certificateJson"))
         assertFalse(certificateJson.contains("SANITIZATION SUCCESS"))
         assertTrue(certificateJson.contains("BLOCKED_NOT_IMPLEMENTED"))
+
+        session.printTranscript()
+    }
+
+    // ------------------------------------------------------------------
+    // 5b. P4: full sanitization lifecycle, end to end over JSON-lines
+    // ------------------------------------------------------------------
+
+    /**
+     * P4 end-to-end proof of the sanitization state machine on the JSON-lines wire.
+     *
+     * Six commands in order, each succeeding only because the one before it ran, ending
+     * with the certificate written to a temporary `<cyvra.home>` and its manifest verified
+     * against the bytes on disk.
+     *
+     * The lifecycle is *expected* to end blocked (decision D-1, OUTCOME B): the destructive
+     * trigger stays hardware-gated until validated on the physical device. Nothing here
+     * fakes a successful sanitization - the point is that the protocol, the certificate
+     * generator and the disk writer all report that blocked outcome honestly.
+     */
+    @Test
+    fun sanitizationLifecycleE2E_blockedCertificateIsHonestAndPersistedOnDisk() {
+        val session = Session()
+        val scan = session.scan()
+        val scanRequestId = scan.requestId
+
+        // --- 1. SANITIZE_START: eligibility gate opens -------------------
+        val start = session.send(HostCommand.SANITIZE_START)
+        assertEquals(HostProtocolV1.VERSION, start.protocolVersion, "envelope protocol version")
+        assertTrue(start.requestId.startsWith("req-"), "envelope must echo a request id")
+        assertNotEquals(scanRequestId, start.requestId, "each command needs its own request id")
+        assertEquals(HostResponseStatus.OK, start.status, start.error?.message ?: "")
+        assertNull(start.error, "an eligible start must not carry an error")
+        assertEquals(true, bool(start, "eligible"))
+        assertEquals(SERIAL, str(start, "serial"))
+        assertEquals("AUTHORIZATION_REQUIRED", str(start, "currentStep"))
+        assertEquals(true, bool(start, "step1AcknowledgementRequired"))
+        val operationId = assertNotNull(str(start, "operationId"))
+        val phrase = assertNotNull(str(start, "step2PhraseRequired"))
+        assertTrue(operationId.startsWith("PURGE-OP-"), "the gate must mint an operation id")
+        assertEquals("CONFIRM PURGE $operationId", phrase, "the phrase must derive from the operation id")
+
+        // --- 2. SANITIZE_AUTHORIZE: step 1 acknowledged ------------------
+        val authorize = session.send(HostCommand.SANITIZE_AUTHORIZE, buildJsonObject {
+            put("acknowledged", true)
+        })
+        assertEquals(HostResponseStatus.OK, authorize.status, authorize.error?.message ?: "")
+        assertNull(authorize.error)
+        assertEquals("STEP1_ACKNOWLEDGEMENT_RECORDED", str(authorize, "step"))
+        assertEquals(true, bool(authorize, "acknowledged"))
+        assertEquals(operationId, str(authorize, "operationId"))
+        assertEquals(phrase, str(authorize, "step2PhraseRequired"), "the phrase must not change mid-gate")
+
+        // --- 3. SANITIZE_CONFIRM: step 2 phrase accepted -----------------
+        val confirm = session.send(HostCommand.SANITIZE_CONFIRM, buildJsonObject {
+            put("confirmationPhrase", phrase)
+        })
+        assertEquals(HostResponseStatus.OK, confirm.status, confirm.error?.message ?: "")
+        assertNull(confirm.error)
+        assertEquals("STEP2_PHRASE_ACCEPTED", str(confirm, "step"))
+        assertEquals(true, bool(confirm, "phraseAccepted"))
+        assertEquals(operationId, str(confirm, "operationId"))
+
+        // --- 4. SANITIZE_EXECUTE: D-1 OUTCOME B, blocked yet answered OK -
+        val execute = session.send(HostCommand.SANITIZE_EXECUTE)
+        assertEquals(HostResponseStatus.OK, execute.status, execute.error?.message ?: "")
+        assertNull(execute.error)
+        assertEquals("BLOCKED_NOT_IMPLEMENTED", str(execute, "executionStatus"))
+        assertEquals(false, bool(execute, "executionSuccess"))
+        assertEquals("BLOCKED_NOT_EXECUTED", str(execute, "lifecycleOutcome"))
+        assertEquals("REQUIRES_EXTERNAL_VERIFICATION", str(execute, "verificationStatus"))
+        assertEquals(false, bool(execute, "successClaimed"))
+        assertEquals(true, bool(execute, "finalReportAvailable"))
+        assertEquals(operationId, str(execute, "operationId"))
+        assertTrue(list(execute, "blockReasons").isNotEmpty(), "a blocked run must say why it blocked")
+        assertTrue(str(execute, "decision").orEmpty().contains("D-1"), "decision D-1 must be visible")
+
+        // --- 5. SANITIZE_VERIFY: honest external verification ------------
+        val verify = session.send(HostCommand.SANITIZE_VERIFY)
+        assertEquals(HostResponseStatus.OK, verify.status, verify.error?.message ?: "")
+        assertNull(verify.error)
+        assertEquals("REQUIRES_EXTERNAL_VERIFICATION", str(verify, "status"))
+        assertEquals("REQUIRES_EXTERNAL_VERIFICATION", str(verify, "assuranceLevel"))
+        assertEquals(false, bool(verify, "postResetStateDetected"))
+        assertEquals(false, bool(verify, "userDataInaccessible"))
+        assertEquals(false, bool(verify, "setupWizardDetected"))
+        assertEquals(false, bool(verify, "successClaimed"))
+        assertTrue(list(verify, "limitations").isNotEmpty(), "assurance must carry its limitations")
+
+        // --- 6. GET_FINAL_REPORT: certificate written to disk ------------
+        val finalReport = session.send(HostCommand.GET_FINAL_REPORT)
+        assertEquals(HostResponseStatus.OK, finalReport.status, finalReport.error?.message ?: "")
+        assertNull(finalReport.error)
+        val certificateId = assertNotNull(str(finalReport, "certificateId"))
+        assertTrue(certificateId.startsWith("CYVRA-CERT"), "certificate id shape")
+        assertEquals("BLOCKED_NOT_EXECUTED", str(finalReport, "lifecycleOutcome"))
+        assertEquals(false, bool(finalReport, "sanitizationSuccessClaimed"))
+        assertEquals(true, bool(finalReport, "artifactsWritten"))
+        assertEquals(
+            str(scan, "reportId"),
+            str(finalReport, "verificationReportReference"),
+            "the certificate must reference the Report 1 this session produced",
+        )
+        val responseCertificate = assertNotNull(obj(finalReport, "certificate"))
+
+        // --- 7. The certificate is really on disk ------------------------
+        val home = assertNotNull(session.artifactHome, "session must own a temporary cyvra.home")
+        val directory = File(home, HostReportStore.CERTIFICATES_DIRECTORY).resolve(certificateId)
+        assertTrue(directory.isDirectory, "certificate directory was not created: $directory")
+        assertTrue(
+            directory.canonicalFile.toPath().startsWith(home.canonicalFile.toPath()),
+            "the certificate must stay inside cyvra.home",
+        )
+
+        val certificateFile = File(assertNotNull(str(finalReport, "certificateJsonPath")))
+        val markdownFile = File(assertNotNull(str(finalReport, "certificateMarkdownPath")))
+        val manifestFile = File(assertNotNull(str(finalReport, "manifestPath")))
+
+        listOf(certificateFile, markdownFile, manifestFile).forEach { file ->
+            assertTrue(file.isAbsolute, "path must be absolute: $file")
+            assertTrue(file.isFile, "file was not written: $file")
+            assertEquals(directory.canonicalFile, file.parentFile.canonicalFile, "file must live in $directory")
+        }
+        assertEquals(HostReportStore.CERTIFICATE_JSON, certificateFile.name)
+        assertEquals(HostReportStore.CERTIFICATE_MARKDOWN, markdownFile.name)
+        assertEquals(HostReportStore.MANIFEST_FILE_NAME, manifestFile.name)
+
+        // Bytes on disk are exactly the bytes the wire carried - no re-encoding.
+        val storedJson = certificateFile.readText(Charsets.UTF_8)
+        val storedMarkdown = markdownFile.readText(Charsets.UTF_8)
+        assertEquals(assertNotNull(str(finalReport, "certificateJson")), storedJson)
+        assertEquals(assertNotNull(str(finalReport, "certificateMarkdown")), storedMarkdown)
+        assertTrue(storedMarkdown.isNotBlank(), "the markdown certificate must not be empty")
+
+        // manifest.json hashes, checked against an independent digest of the stored bytes.
+        val manifest = json.parseToJsonElement(manifestFile.readText(Charsets.UTF_8)) as JsonObject
+        assertEquals(certificateId, (manifest["artifactId"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals("SHA-256", (manifest["algorithm"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals(HostReportStore.CERTIFICATE_JSON, (manifest["jsonFile"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals(HostReportStore.CERTIFICATE_MARKDOWN, (manifest["markdownFile"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals(
+            sha256Of(certificateFile.readBytes()),
+            (manifest["jsonSha256"] as? JsonPrimitive)?.contentOrNull,
+            "manifest.json digest must match the bytes of ${certificateFile.name}",
+        )
+        assertEquals(
+            sha256Of(markdownFile.readBytes()),
+            (manifest["markdownSha256"] as? JsonPrimitive)?.contentOrNull,
+            "manifest.json digest must match the bytes of ${markdownFile.name}",
+        )
+
+        // ...and they must agree with the digests the JSON-lines payload reported.
+        val responseManifest = assertNotNull(obj(finalReport, "manifest"))
+        assertEquals(
+            (manifest["jsonSha256"] as? JsonPrimitive)?.contentOrNull,
+            (responseManifest["jsonSha256"] as? JsonPrimitive)?.contentOrNull,
+        )
+        assertEquals(
+            (manifest["markdownSha256"] as? JsonPrimitive)?.contentOrNull,
+            (responseManifest["markdownSha256"] as? JsonPrimitive)?.contentOrNull,
+        )
+
+        // The stored certificate parses back to exactly what the wire returned.
+        val storedCertificate = json.parseToJsonElement(storedJson) as JsonObject
+        assertEquals(responseCertificate, storedCertificate)
+
+        // --- 8. The stored certificate reads as blocked, never as success -
+        assertEquals(
+            false,
+            (storedCertificate["sanitizationSuccessClaimed"] as? JsonPrimitive)?.booleanOrNull,
+            "the persisted certificate must not claim sanitization success",
+        )
+        assertEquals(
+            "BLOCKED_NOT_EXECUTED",
+            (storedCertificate["lifecycleOutcome"] as? JsonPrimitive)?.contentOrNull,
+        )
+        assertFalse(
+            storedJson.contains("SANITIZATION SUCCESS"),
+            "a blocked lifecycle must never be written as SANITIZATION SUCCESS",
+        )
+        assertFalse(
+            storedMarkdown.contains("SANITIZATION SUCCESS"),
+            "a blocked lifecycle must never be written as SANITIZATION SUCCESS (markdown)",
+        )
+        assertTrue(
+            storedJson.contains("BLOCKED_NOT_IMPLEMENTED"),
+            "the certificate must record the blocked execution status",
+        )
+
+        // --- 9. The literal wire traffic carried this lifecycle, in order -
+        val wireCommands = session.transcript
+            .filter { it.startsWith(">") }
+            .map { line ->
+                val request = json.parseToJsonElement(line.removePrefix("> ").trim()) as JsonObject
+                (request["command"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+            }
+        assertEquals(
+            listOf(
+                "RUN_SCAN",
+                "SANITIZE_START",
+                "SANITIZE_AUTHORIZE",
+                "SANITIZE_CONFIRM",
+                "SANITIZE_EXECUTE",
+                "SANITIZE_VERIFY",
+                "GET_FINAL_REPORT",
+            ),
+            wireCommands,
+            "the wire traffic must carry the lifecycle in order",
+        )
+
+        // Every exchange stayed a single JSON line, exactly as the protocol promises.
+        session.transcript.filter { it.startsWith("<") }.forEach { line ->
+            assertEquals(1, line.lines().size, "a response must be exactly one JSON line: $line")
+        }
 
         session.printTranscript()
     }
