@@ -88,9 +88,80 @@ jobs:
         run: cargo test
 
       # --- Build & package the real Windows application (unsigned) -------
+      # `beforeBuildCommand` runs `pnpm stage:resources`, which produces
+      # :host:installDist, a jlink Java runtime and platform-tools under
+      # src-tauri/.resources, then `bundle.resources` copies them into the
+      # installer. The installer is therefore self-contained: no JDK, no
+      # Android SDK and no source checkout are required on the target machine.
       - name: Build & package Windows desktop application (Tauri)
         working-directory: apps/desktop
         run: pnpm exec tauri build
+
+      # --- P1 gate: prove the packaged layout runs on a clean machine ------
+      - name: Verify installed layout (Host boots from the bundled runtime)
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $release = "apps/desktop/src-tauri/target/release"
+          $exe     = Join-Path $release "cyvra-mobile-desktop.exe"
+          $staged  = "apps/desktop/src-tauri/.resources"
+          $sim     = Join-Path $release "installed-sim"
+
+          if (-not (Test-Path (Join-Path $staged "host/lib"))) {
+            Write-Host "::error::Staged resources missing: $staged/host/lib"
+            exit 1
+          }
+
+          # A shipped executable must never embed the development Host tree. The
+          # pre-fix binary resolved the Host from CARGO_MANIFEST_DIR, so every
+          # installed copy reported HOST_NOT_BUILT pointing back into the build
+          # workspace. `cyvra-mobile-host` only exists in that source layout.
+          # (Tauri does legitimately embed its own tauri.conf.json path, which
+          # also lives under src-tauri, so the workspace path is not a valid
+          # needle - only the development Host distribution is.)
+          $text = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
+          foreach ($needle in @("cyvra-mobile-host", "host\build\install", "CARGO_MANIFEST_DIR")) {
+            if (-not [string]::IsNullOrWhiteSpace($needle) -and $text.Contains($needle)) {
+              Write-Host "::error::Shipped executable embeds the development Host tree: $needle"
+              exit 1
+            }
+          }
+
+          # Reproduce the installer layout: executable plus resources/ together.
+          if (Test-Path $sim) { Remove-Item $sim -Recurse -Force }
+          New-Item -ItemType Directory -Path $sim -Force | Out-Null
+          Copy-Item $exe $sim -Force
+          Copy-Item $staged (Join-Path $sim "resources") -Recurse -Force
+
+          # Nothing the build machine has on PATH may satisfy the runtime:
+          # only what the installer actually ships may be used.
+          Remove-Item Env:JAVA_HOME  -ErrorAction SilentlyContinue
+          Remove-Item Env:CYVRA_HOME -ErrorAction SilentlyContinue
+
+          $out = Join-Path $sim "selftest.out"
+          $err = Join-Path $sim "selftest.err"
+
+          $process = Start-Process -FilePath (Join-Path $sim "cyvra-mobile-desktop.exe") `
+                      -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow `
+                      -RedirectStandardOutput $out -RedirectStandardError $err
+
+          $report = (@(Get-Content $out -ErrorAction SilentlyContinue) +
+                     @(Get-Content $err -ErrorAction SilentlyContinue)) -join "`n"
+          Write-Host $report
+
+          if ($process.ExitCode -ne 0 -or $report -notmatch "SELFTEST_OK") {
+            Write-Host "::error::Installed-layout selftest failed (exit $($process.ExitCode)). The installer would not run on a clean machine."
+            exit 1
+          }
+
+          foreach ($expected in @("runtime\bin\java.exe", "platform-tools\adb.exe")) {
+            if ($report -notlike "*$expected*") {
+              Write-Host "::error::Selftest did not resolve the bundled $expected"
+              exit 1
+            }
+          }
+
+          Write-Host "Installed layout verified: bundled Java runtime and adb resolved from resources/."
 
       - name: Verify Windows artifacts exist
         run: |

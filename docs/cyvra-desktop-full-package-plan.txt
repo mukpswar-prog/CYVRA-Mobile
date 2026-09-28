@@ -1,0 +1,214 @@
+================================================================================
+CYVRA MOBILE - REAL INSTALLER / FULL PACKAGE ENGINEERING PLAN
+Goal       : A real Windows installer (NSIS/MSI) that installs like antivirus,
+              and on a clean laptop runs END-TO-END:
+              scan -> device details report -> installed-application report
+              -> data purge key -> execute -> post-purge verification -> final report
+Mode       : PLAN FROZEN - steps below do not change without a re-freeze record
+Version    : 1.0
+Companion  : docs/admin-cyvoriq-upgrade-plan.txt (separate ADMIN slice, untracked)
+================================================================================
+
+--------------------------------------------------------------------------------
+0. FROZEN STEPS (P0..P7) - ENTRY / EXIT GATES
+--------------------------------------------------------------------------------
+No phase starts until the previous phase's EXIT GATE is met.
+
+P0  AUDIT & FREEZE                       [EXIT GATE MET - SIGNED]
+    Exit: this plan read; D-1 (purge execution gate) decided.
+    SIGNED DECISIONS (2026-09-28):
+      D-1 PURGE GATE = HARDWARE-GATED. Real execution path is implemented in P4;
+          the destructive trigger stays unarmed until a validated run on the
+          physical Samsung A10s. Ships as OUTCOME B, flips to OUTCOME A on
+          hardware validation. Nothing faked, nothing irreversible by accident.
+      D-2 SCAN TARGET = CONNECTED ANDROID DEVICE. Report 1 = device details +
+          installed applications (S1 device-side first, S2 ADB enrichment).
+          The Windows laptop is only the install host; it is never scanned and
+          never purged.
+
+P1  SELF-CONTAINED HOST RUNTIME          <- fixes HOST_NOT_BUILT (user screenshot)
+    Tasks:
+      1.1 CI runs `./gradlew :host:installDist` before `tauri build`.
+      1.2 Bundle into the installer: host dist JARs (~3.2 MB), a trimmed Java
+          runtime (jlink: java.base + java.logging + jdk.unsupported + crypto),
+          and Android platform-tools (adb.exe) - all as Tauri `bundle.resources`.
+      1.3 `host_process.rs resolve_host_runtime()` - replace compile-time
+          `env!("CARGO_MANIFEST_DIR")` with runtime resolution:
+          `<exe_dir>/resources/host/lib/*.jar` (fallback: dev-tree path for
+          contributors running from source).
+      1.4 `AdbBinaryLocator` - resolve `<exe_dir>/resources/platform-tools/adb.exe`
+          FIRST (absolute), before LOCALAPPDATA / ANDROID_HOME / PATH.
+      1.5 Pass the resource root to the JVM explicitly (-Dcyvra.home=<dir>) so
+          the host never depends on the process working directory.
+    Exit Gate: installer run on a machine with NO Java, NO Android SDK, NO repo
+    checkout shows "HOST CONNECTED" (not HOST_NOT_BUILT / JAVA_HOME_INVALID).
+
+P2  PROTOCOL COMPLETION (workflow becomes reachable)
+    Audit fact: `HostProtocolDispatcher.dispatch()` handles ONLY
+    GET_HOST_INFO / GET_PREFLIGHT / GET_DEVICE_STATE. The orchestrator, report
+    engine, application-inventory provider and sanitization engines are NOT
+    reachable from the wire protocol - they exist as tested classes only.
+    Tasks:
+      2.1 Add Host Protocol V1 commands:
+          RUN_SCAN                 -> WorkstationSessionOrchestrator.executeDiagnostic
+          GET_DEVICE_REPORT        -> Report 1 (device details + application inventory)
+          GET_APPLICATION_INVENTORY-> S1/S2 inventory section + completeness
+          EXPORT_REPORT            -> JSON + markdown to disk, SHA-256 manifest
+          SANITIZE_START           -> eligibility gate + session + target lock
+          SANITIZE_AUTHORIZE       -> step-1 acknowledgement
+          SANITIZE_CONFIRM         -> step-2 confirmation phrase
+          SANITIZE_EXECUTE         -> execution path (gated by D-1)
+          SANITIZE_VERIFY          -> post-reset verification
+          GET_FINAL_REPORT         -> sanitization certificate
+      2.2 Protocol stays JSON-lines, request/response, one command per line.
+      2.3 Every destructive command refuses without prior gate+lock+phrase state.
+    Exit Gate: protocol round-trip tests with FAKE ADB only; 0 real-device calls.
+
+P3  REPORTS ON DISK (the two reports the package must produce)
+    Tasks:
+      3.1 Device details report (Report 1): serial, model, Android/OEM, battery
+          SOH, identity fields (IMEI only when obtainable honestly, else
+          UNKNOWN - never fabricated), coverage verdict, honesty verdict.
+      3.2 Installed-application report: S1 device-side inventory first (works
+          with ADB OFF), S2 ADB enrichment second (never fails the scan).
+          Completeness COMPLETE / FILTERED / UNAVAILABLE - filtered != complete.
+          Classification ONLY from platform system flags (never package name,
+          path, label, OEM or installer).
+      3.3 Write to `%USERPROFILE%\Documents\CYVRA Mobile\Reports\<sessionId>\`
+          report1.json, report1.md, applications.json, applications.csv, manifest.sha256.
+      3.4 Write-once: re-export returns the original file + hash (frozen SoT).
+    Exit Gate: files created on disk; hash verified; existing 146 core + 123 host
+    tests still green; legacy JSON test still green.
+
+P4  DATA PURGE - KEY, EXECUTE, VERIFY     (D-1 controls how far this phase goes)
+    Existing, already correct:
+      - eligibility gate (pre-sanitization evidence required)
+      - 2-step barrier: acknowledgement + typed confirmation phrase
+      - target lock (serial locked at start, re-presented at completion)
+      - method selection: Platform Factory Reset vs OEM Secure Erase
+        (NIST SP 800-88 Rev. 2)
+      - post-reset verification provider + Final Report certificate
+      - fail-closed: successClaimed ONLY for EXECUTED_VERIFIED
+    Currently: `HostSanitizationProvider.execute()` ->
+      executionStatus="BLOCKED_NOT_IMPLEMENTED", isSuccess=false (OUTCOME B).
+    Tasks:
+      4.1 THE KEY: operator-facing purge key UX (eligibility -> ack -> phrase ->
+          arm). Key material never stored, never logged, never in reports.
+      4.2 EXECUTION PATH: implement the real provider behind the key per D-1.
+      4.3 VERIFY: after reboot + reconnect, verification must prove setup-wizard
+          state and inaccessible user data; a non-zero exit code is NOT success.
+      4.4 FINAL REPORT: records executed/not-executed honestly; never claims
+          "SANITIZATION SUCCESS" without a passed verification.
+      4.5 FRP / lock / PIN / pattern bypass is PROHIBITED and out of scope -
+          FRP remaining after a reset is recorded as a limitation, not bypassed.
+    Exit Gate: E2E purge scenario with fakes only; no destructive op against a
+    real device inside automated tests; certificate shows correct outcome.
+
+P5  UI - SCAN / REPORTS / PURGE
+    Tasks: replace the single status card with real screens:
+      S1 CONNECTION  USB truth + ADB enrichment + operator guidance
+      S2 SCAN        run scan, live progress, honest failures
+      S3 REPORTS     device details + installed applications (view + open folder)
+      S4 PURGE       key/interlock UI, disabled-state rule tooltips
+      S5 FINAL       certificate + open report folder
+    Exit Gate: every screen driven by protocol commands only; no invented data.
+
+P6  REAL INSTALLER (the antivirus-grade install experience)
+    Tasks:
+      6.1 NSIS + MSI: install to Program Files, Start Menu + Desktop shortcuts,
+          Add/Remove Programs entry, working uninstaller, WebView2 runtime.
+      6.2 First-run: create report output folder, write a machine-local config
+          (never a repo/CI path), validate host+java+adb present, show a
+          preflight diagnostics panel if anything is missing.
+      6.3 Upgrades: previous version uninstalled cleanly, reports preserved.
+    Exit Gate: clean-VM install -> full end-to-end run -> uninstall leaves no
+    orphan files; no absolute dev path ever appears in an error message.
+
+P7  CI PRODUCES THE REAL ARTIFACT
+    Tasks: workflow builds installDist, assembles resources, builds NSIS+MSI,
+    then VERIFIES the installed layout (jar dir exists, java runtime present,
+    adb present, no CARGO_MANIFEST_DIR string inside the shipped exe).
+    Exit Gate: fresh Actions run green; downloaded artifact installs on a clean
+    machine and reaches HOST CONNECTED.
+
+--------------------------------------------------------------------------------
+1. WHY TODAY'S BUILD CANNOT DO THIS (AUDIT EVIDENCE)
+--------------------------------------------------------------------------------
+BREAK 1 - Host engine not shipped
+  apps/desktop/src-tauri/src/host_process.rs:387
+      PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../host/build/install/...")
+  -> compile-time path baked into the binary. On the CI build that is
+     D:\a\CYVRA-Mobile\CYVRA-Mobile\apps\desktop\src-tauri.
+  -> CI never runs `:host:installDist`; artifact has no JARs and no JRE.
+  -> OBSERVED ON THE USER MACHINE (screenshot):
+     "HOST_NOT_BUILT: expected Host library directory at
+      D:\a\CYVRA-Mobile\CYVRA-Mobile\apps\desktop\src-tauri\../../host/build/
+      install/cyvra-mobile-host\lib. Run :host:installDist first."
+
+BREAK 2 - Protocol dead end
+  apps/host/.../protocol/HostProtocolDispatcher.kt:26-32
+      when (request.command) {
+          GET_HOST_INFO, GET_PREFLIGHT, GET_DEVICE_STATE -> ...
+      }
+  -> WorkstationSessionOrchestrator, HostReportEngine,
+     AdbApplicationInventoryProvider, HostSanitization* are NOT exposed.
+     Even a perfectly installed host could only answer "who are you" and
+     "is a phone plugged in".
+
+BREAK 3 - UI is a status card
+  apps/desktop/src/App.tsx - only `invoke("get_host_info")`.
+  -> No scan, no report, no purge surface.
+
+BREAK 4 - Sanitization intentionally blocked (OUTCOME B)
+  apps/host/.../sanitization/HostSanitizationProvider.kt:95
+      executionStatus = "BLOCKED_NOT_IMPLEMENTED", isSuccess = false
+  -> No validated, device-target-verified destructive provider exists yet.
+     G5 law: destructive ops default to dry-run until physical validation.
+
+--------------------------------------------------------------------------------
+2. RUNTIME DEPENDENCIES THE INSTALLER MUST CARRY
+--------------------------------------------------------------------------------
+  host JARs      : apps/host/build/install/cyvra-mobile-host/lib (6 jars, ~3.2 MB)
+                   core-0.0.0.jar, host-0.0.0.jar, kotlin-stdlib-2.3.21.jar,
+                   kotlinx-serialization-{core,json}-jvm-1.8.1.jar, annotations
+  Java runtime   : REQUIRED. Present on build box only via Android Studio JBR
+                   (C:\Program Files\Android\Android Studio\jbr) and an Oracle
+                   javapath stub; JAVA_HOME unset. A clean laptop has neither.
+                   -> bundle a jlink runtime (not a full JDK) for size.
+  adb.exe        : AdbBinaryLocator checks `platform-tools/adb.exe` RELATIVE TO
+                   CWD, then LOCALAPPDATA, ANDROID_HOME, PATH.
+                   Present here at %LOCALAPPDATA%\Android\Sdk\platform-tools.
+                   -> bundle platform-tools and resolve from the exe directory.
+
+--------------------------------------------------------------------------------
+3. DECISION POINT (must be signed at P0)
+--------------------------------------------------------------------------------
+D-1 PURGE EXECUTION GATE
+    The purge UI, key interlock, target lock, method selection, verification and
+    Final Report are all built in P4 regardless. The open question is only WHEN
+    the destructive trigger is allowed to fire for real:
+      (A) Real path implemented, trigger remains HARDWARE-VALIDATION-GATED
+          (OUTCOME B today -> OUTCOME A after a validated run on the Samsung
+          A10s). Ships now, nothing faked.
+      (B) Full OUTCOME A now - requires the physical A10s connected so the
+          destructive path can be validated live before it is ever armed.
+    Either way: no FRP/lock/PIN/pattern bypass, no simulated success presented
+    as real, no "SANITIZATION SUCCESS" without a passed post-purge verification.
+
+--------------------------------------------------------------------------------
+4. NON-NEGOTIABLE SAFETY RULES (inherited, unchanged)
+--------------------------------------------------------------------------------
+- Metadata-only inventory; never app content, messages, photos, contacts.
+- No lock/PIN/pattern/FRP bypass.
+- No fake IMEI, signing, completeness or sanitization success.
+- UNKNOWN is a valid honest value; FILTERED is never COMPLETE.
+- Raw UID withheld from Report 1; never "all applications on device".
+- Classification from platform flags only - never package/label/path/OEM/installer.
+- S1 works with ADB OFF and must never fail the scan.
+- E2E tests use fakes only - no destructive operation against a real device in CI.
+- No `cargo fmt`; the 21 pre-existing rustfmt findings stay untouched.
+- REQ-AND-001 unchanged; FSB-003 transport semantics unchanged.
+
+================================================================================
+END OF FROZEN PLAN
+================================================================================
