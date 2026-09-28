@@ -27,7 +27,8 @@ pub fn run() {
             commands::get_host_info,
             commands::get_device_state,
             commands::get_wpd_devices,
-            commands::scan_wpd_device_metadata
+            commands::scan_wpd_device_metadata,
+            commands::send_host_command
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
