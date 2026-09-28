@@ -14,7 +14,11 @@ import cyvra.mobile.core.ReportHeader
 import cyvra.mobile.core.ReportIntegrityRecord
 import cyvra.mobile.core.SanitizationCertificateReport
 import cyvra.mobile.core.SanitizationExecutionResult
+import cyvra.mobile.core.SanitizationLifecycleOutcome
 import cyvra.mobile.core.VerificationResult
+import cyvra.mobile.core.deriveApplicationInventorySection
+import cyvra.mobile.core.deriveSanitizationBlockReason
+import cyvra.mobile.core.deriveSanitizationLifecycleOutcome
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
@@ -77,6 +81,10 @@ class HostReportEngine(
                 "Honesty invariant: unavailable metrics recorded as RESTRICTED/NOT_AVAILABLE without guessing or fabrication (§37).",
             ),
             integrity = null,
+            applicationInventory = deriveApplicationInventorySection(
+                primary = evidence.applicationInventory,
+                reconciled = evidence.reconciledApplicationInventory,
+            ),
         )
 
         // Calculate cryptographic digest over serialized base report
@@ -91,6 +99,12 @@ class HostReportEngine(
 
     /**
      * Builds Final Report: CYVRA Data Sanitization & Verification Certificate.
+     *
+     * Fail-closed lifecycle gating: [SanitizationCertificateReport.lifecycleOutcome] is
+     * derived from execution + post-sanitization verification, and
+     * [SanitizationCertificateReport.sanitizationSuccessClaimed] is true only for
+     * EXECUTED_VERIFIED. A blocked, simulated, failed, or unverified sanitization can
+     * never yield a success claim — exit codes and dry runs are explicitly not success.
      */
     fun generateSanitizationCertificate(
         certificateId: String,
@@ -99,6 +113,9 @@ class HostReportEngine(
         executionResult: SanitizationExecutionResult,
         verificationResult: VerificationResult,
         limitations: List<String> = emptyList(),
+        verificationReportReference: String? = null,
+        evidenceProvenance: List<String> = emptyList(),
+        conflicts: List<String> = emptyList(),
     ): SanitizationCertificateReport {
         val header = ReportHeader(
             reportId = certificateId,
@@ -106,6 +123,8 @@ class HostReportEngine(
             operatorId = operatorId,
             sessionUuid = preRecord.sessionUuid,
         )
+
+        val lifecycleOutcome = deriveSanitizationLifecycleOutcome(executionResult, verificationResult)
 
         val baseReport = SanitizationCertificateReport(
             header = header,
@@ -119,6 +138,12 @@ class HostReportEngine(
             userAccountsRemoved = verificationResult.userDataInaccessible,
             limitations = limitations + verificationResult.limitations,
             integrity = null,
+            verificationReportReference = verificationReportReference,
+            evidenceProvenance = evidenceProvenance,
+            conflicts = conflicts,
+            blockReason = deriveSanitizationBlockReason(lifecycleOutcome, executionResult),
+            lifecycleOutcome = lifecycleOutcome,
+            sanitizationSuccessClaimed = lifecycleOutcome == SanitizationLifecycleOutcome.EXECUTED_VERIFIED,
         )
 
         val digest = computeSha256(json.encodeToString(baseReport))
@@ -290,7 +315,46 @@ class HostReportEngine(
             appendLine("- **Recommended Action:** ${report.capabilityAssessment.recommendedPurgeAction}")
             appendLine("- **Post-Purge Verification Required:** ${report.capabilityAssessment.isPostPurgeVerificationRequired}")
             appendLine()
-            appendLine("## 3. Cryptographic Verification")
+            report.applicationInventory?.let { inventory ->
+                appendLine("## 3. Application Inventory (Evidence)")
+                appendLine("- **Inventory Available:** ${inventory.inventoryAvailable}")
+                appendLine("- **Enumeration Completeness:** ${inventory.enumerationCompleteness}")
+                appendLine("- **Total Application Records:** ${inventory.totalApplications}")
+                appendLine(
+                    "- **Classification:** PREINSTALLED_SYSTEM=${inventory.preinstalledSystemCount}, " +
+                        "UPDATED_SYSTEM=${inventory.updatedSystemCount}, " +
+                        "USER_THIRD_PARTY=${inventory.userThirdPartyCount}, " +
+                        "UNKNOWN=${inventory.unknownClassificationCount}",
+                )
+                appendLine(
+                    "- **Enabled State:** ENABLED=${inventory.enabledCount}, DISABLED=${inventory.disabledCount}, " +
+                        "DEFAULT=${inventory.defaultEnabledCount}, UNKNOWN=${inventory.unknownEnabledStateCount}",
+                )
+                appendLine(
+                    "- **S1 Device-Side Evidence:** present=${inventory.s1EvidencePresent}, " +
+                        "completeness=${inventory.s1EnumerationCompleteness ?: "NOT_COLLECTED"}, " +
+                        "provenanceRecords=${inventory.s1ProvenanceCount} " +
+                        "(S1 only=${inventory.s1OnlyCount}, both=${inventory.bothCount})",
+                )
+                appendLine(
+                    "- **S2 ADB Evidence:** present=${inventory.s2EvidencePresent}, " +
+                        "completeness=${inventory.s2EnumerationCompleteness ?: "NOT_COLLECTED"}, " +
+                        "provenanceRecords=${inventory.s2ProvenanceCount} " +
+                        "(S2 only=${inventory.s2OnlyCount}, both=${inventory.bothCount})",
+                )
+                appendLine("- **Collection Methods:** ${inventory.collectionMethods.joinToString(", ").ifEmpty { "NONE" }}")
+                appendLine("- **Collection Timestamps:** ${inventory.collectionTimestamps.joinToString(", ").ifEmpty { "NONE" }}")
+                appendLine("- **Conflicts:** ${inventory.conflictCount}")
+                inventory.conflicts.forEach { appendLine("  - $it") }
+                appendLine("- **Limitations:**")
+                if (inventory.limitations.isEmpty()) {
+                    appendLine("  - NONE")
+                } else {
+                    inventory.limitations.forEach { appendLine("  - $it") }
+                }
+                appendLine()
+            }
+            appendLine("## ${if (report.applicationInventory != null) "4" else "3"}. Cryptographic Verification")
             appendLine("- **Algorithm:** ${report.integrity?.algorithm ?: "NONE"}")
             appendLine("- **SHA-256 Digest:** `${report.integrity?.contentDigest ?: "UNHASHED"}`")
         }
@@ -314,6 +378,10 @@ class HostReportEngine(
             appendLine("- **Execution Status:** ${report.executionResult.executionStatus}")
             appendLine("- **Execution Timestamp:** ${report.executionResult.executedAt}")
             appendLine("- **Authorized By:** ${report.preSanitizationRecord.authorization.authorizedBy ?: "None"}")
+            appendLine("- **Report 1 Reference:** ${report.verificationReportReference ?: "NOT_LINKED"}")
+            appendLine("- **Lifecycle Outcome:** ${report.lifecycleOutcome}")
+            appendLine("- **Sanitization Success Claimed:** ${report.sanitizationSuccessClaimed}")
+            report.blockReason?.let { appendLine("- **Block/Failure Reason:** $it") }
             appendLine()
             appendLine("## 2. Post-Reset Verification")
             appendLine("- **Verification Status:** ${report.verificationResult.status}")
@@ -322,10 +390,19 @@ class HostReportEngine(
             appendLine("- **User Data Inaccessible:** ${report.verificationResult.userDataInaccessible}")
             appendLine("- **User Accounts Removed:** ${report.userAccountsRemoved}")
             appendLine()
-            appendLine("## 3. Limitations & Disclaimers")
+            appendLine("## 3. Evidence Provenance & Conflicts")
+            if (report.evidenceProvenance.isEmpty()) {
+                appendLine("- **Provenance:** NOT_LINKED")
+            } else {
+                report.evidenceProvenance.forEach { appendLine("- **Provenance Source:** $it") }
+            }
+            appendLine("- **Conflicts:** ${report.conflicts.size}")
+            report.conflicts.forEach { appendLine("  - $it") }
+            appendLine()
+            appendLine("## 4. Limitations & Disclaimers")
             report.limitations.forEach { appendLine("- $it") }
             appendLine()
-            appendLine("## 4. Cryptographic Verification")
+            appendLine("## 5. Cryptographic Verification")
             appendLine("- **Algorithm:** ${report.integrity?.algorithm ?: "NONE"}")
             appendLine("- **SHA-256 Digest:** `${report.integrity?.contentDigest ?: "UNHASHED"}`")
         }

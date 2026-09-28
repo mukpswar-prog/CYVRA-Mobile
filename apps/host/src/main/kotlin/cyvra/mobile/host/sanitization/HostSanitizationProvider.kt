@@ -81,20 +81,21 @@ class HostSanitizationProvider(
             )
         }
 
-        // Production reset trigger via ADB command (gated)
-        val resetCmd = when (preRecord.selectedMethod) {
-            SanitizationMethodType.CLEAR_PLATFORM_RESET -> "recovery --wipe_data"
-            else -> "am broadcast -a android.intent.action.MASTER_CLEAR"
-        }
-
-        val result = adbClient.runShell(serial, resetCmd)
+        // OUTCOME B (integrated engineering build): real sanitization execution is
+        // explicitly BLOCKED/NOT_IMPLEMENTED. No validated, device-target-verified
+        // destructive provider exists for the supported targets yet, so no destructive
+        // command may be issued. The system therefore cannot generate a successful
+        // sanitization result: this path records honest block evidence instead of
+        // firing a generic or unverified wipe command. A future evidence-grade
+        // provider plugs in here behind the eligibility gate and target lock.
         return SanitizationExecutionResult(
             operationId = preRecord.operationId,
             method = preRecord.selectedMethod,
-            isSuccess = result.isSuccess,
-            executionStatus = if (result.isSuccess) "TRIGGERED_REBOOT_PENDING" else "FAILED",
-            rawResponse = result.stdout,
-            error = if (!result.isSuccess) result.stderr else null,
+            isSuccess = false,
+            executionStatus = "BLOCKED_NOT_IMPLEMENTED",
+            rawResponse = null,
+            error = "Sanitization execution is blocked: no validated sanitization provider " +
+                "exists for this device target (engineering build; see eligibility gate).",
         )
     }
 }
