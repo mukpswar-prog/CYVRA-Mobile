@@ -13,6 +13,8 @@ import cyvra.mobile.host.license.FileBasedLicenseProvider
 import cyvra.mobile.host.license.LicenseFileReason
 import cyvra.mobile.host.license.LicenseFileResult
 import cyvra.mobile.host.report.HostReportEngine
+import cyvra.mobile.host.report.HostReportStore
+import cyvra.mobile.host.report.ReportWriteException
 import cyvra.mobile.host.service.HostLicenseService
 import cyvra.mobile.host.service.WorkstationSessionOrchestrator
 import cyvra.mobile.host.transport.AdbBinaryLocator
@@ -31,6 +33,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -243,10 +246,18 @@ class HostProtocolWorkflowTest {
     /**
      * Builds a dispatcher whose orchestrator is backed by [FakeAdbRunner]. The binary the
      * dispatcher resolves is deliberately discarded so nothing can reach a real device.
+     *
+     * [reportStore] defaults to a fail-closed store with no installation root, so a test
+     * that never exports cannot write anywhere by accident. [Session] supplies a temporary
+     * home for the tests that do.
      */
     private fun dispatcher(
         license: LicenseFileResult = licensedResult(),
         withAdb: Boolean = true,
+        reportStore: HostReportStore = HostReportStore(
+            reportEngine = reportEngine,
+            homeProvider = { null },
+        ),
     ): HostProtocolDispatcher =
         HostProtocolDispatcher(
             licenseResultProvider = { license },
@@ -261,6 +272,7 @@ class HostProtocolWorkflowTest {
                 )
             },
             reportEngine = reportEngine,
+            reportStore = reportStore,
         )
 
     // ------------------------------------------------------------------
@@ -270,10 +282,25 @@ class HostProtocolWorkflowTest {
     /**
      * One operator session. Every exchange is encoded to a single line, decoded back, and
      * then dispatched, so the transcript is the literal wire traffic.
+     *
+     * [artifactHome] plays the role of `<cyvra.home>`: every artifact this session exports
+     * is written underneath it, which lets tests assert against real files on disk instead
+     * of trusting the paths echoed back over the wire.
      */
     private inner class Session(
-        private val host: HostProtocolDispatcher = dispatcher(),
+        license: LicenseFileResult = licensedResult(),
+        withAdb: Boolean = true,
+        val artifactHome: File? = Files.createTempDirectory("cyvra-artifact-home").toFile(),
     ) {
+        private val host = dispatcher(
+            license = license,
+            withAdb = withAdb,
+            reportStore = HostReportStore(
+                reportEngine = reportEngine,
+                homeProvider = { artifactHome?.absolutePath },
+            ),
+        )
+
         val transcript = mutableListOf<String>()
 
         private var counter = 0
@@ -337,6 +364,15 @@ class HostProtocolWorkflowTest {
 
     private fun int(response: HostResponse, key: String): Int? =
         (response.payload[key] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+
+    /**
+     * Independent SHA-256 over raw file bytes, deliberately not going through
+     * [HostReportEngine], so a manifest can only pass if it describes what was written.
+     */
+    private fun sha256Of(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(bytes)
+            .joinToString("") { "%02x".format(it) }
 
     private fun obj(response: HostResponse, key: String): JsonObject? =
         response.payload[key] as? JsonObject
@@ -434,7 +470,212 @@ class HostProtocolWorkflowTest {
             "GET_DEVICE_REPORT and EXPORT_REPORT must carry the same Report 1",
         )
 
+        // P3: absolute paths to the persisted artifacts travel with the content.
+        val jsonPath = assertNotNull(str(export, "reportJsonPath"))
+        val markdownPath = assertNotNull(str(export, "reportMarkdownPath"))
+        val manifestPath = assertNotNull(str(export, "manifestPath"))
+        listOf(jsonPath, markdownPath, manifestPath).forEach { path ->
+            assertTrue(File(path).isAbsolute, "artifact path must be absolute: $path")
+        }
+        assertEquals(true, bool(export, "artifactsWritten"))
+
         session.printTranscript()
+    }
+
+    // ------------------------------------------------------------------
+    // 1b. P3: artifact persistence under <cyvra.home>
+    // ------------------------------------------------------------------
+
+    /** Drives gate -> acknowledgement -> phrase -> execution, then reads the certificate. */
+    private fun driveSanitizationToExecution(session: Session): HostResponse {
+        val start = session.send(HostCommand.SANITIZE_START)
+        assertEquals(HostResponseStatus.OK, start.status, start.error?.message ?: "")
+        val phrase = assertNotNull(str(start, "step2PhraseRequired"))
+
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.SANITIZE_AUTHORIZE, buildJsonObject { put("acknowledged", true) }).status,
+        )
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.SANITIZE_CONFIRM, buildJsonObject {
+                put("confirmationPhrase", phrase)
+            }).status,
+        )
+        assertEquals(HostResponseStatus.OK, session.send(HostCommand.SANITIZE_EXECUTE).status)
+
+        return session.send(HostCommand.GET_FINAL_REPORT)
+    }
+
+    /**
+     * Asserts one artifact directory holds the expected files, that they are exactly the
+     * content the wire carried, and that `manifest.json` describes their bytes.
+     */
+    private fun assertArtifactDirectory(
+        directory: File,
+        home: File,
+        jsonFileName: String,
+        markdownFileName: String,
+        response: HostResponse,
+        responseJsonKey: String,
+        responseMarkdownKey: String,
+    ) {
+        assertTrue(directory.isDirectory, "artifact directory was not created: $directory")
+        assertTrue(
+            directory.canonicalFile.toPath().startsWith(home.canonicalFile.toPath()),
+            "artifacts must stay inside cyvra.home: $directory is outside $home",
+        )
+
+        val jsonFile = File(assertNotNull(str(response, "${responseJsonKey}Path")))
+        val markdownFile = File(assertNotNull(str(response, "${responseMarkdownKey}Path")))
+        val manifestFile = File(assertNotNull(str(response, "manifestPath")))
+
+        listOf(jsonFile, markdownFile, manifestFile).forEach { file ->
+            assertTrue(file.isAbsolute, "path must be absolute: $file")
+            assertTrue(file.isFile, "file was not written: $file")
+            assertEquals(
+                directory.canonicalFile,
+                file.parentFile.canonicalFile,
+                "file must be written into $directory",
+            )
+        }
+
+        assertEquals(jsonFileName, jsonFile.name)
+        assertEquals(markdownFileName, markdownFile.name)
+        assertEquals(HostReportStore.MANIFEST_FILE_NAME, manifestFile.name)
+
+        // The bytes on disk are exactly the bytes the response carried - no re-encoding.
+        assertEquals(assertNotNull(str(response, responseJsonKey)), jsonFile.readText(Charsets.UTF_8))
+        assertEquals(assertNotNull(str(response, responseMarkdownKey)), markdownFile.readText(Charsets.UTF_8))
+
+        // manifest.json digests, verified against an independent hash of the file bytes.
+        val manifest = json.parseToJsonElement(manifestFile.readText(Charsets.UTF_8)) as JsonObject
+        assertEquals("SHA-256", (manifest["algorithm"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals(sha256Of(jsonFile.readBytes()), (manifest["jsonSha256"] as? JsonPrimitive)?.contentOrNull,
+            "manifest.json digest must match the bytes of ${jsonFile.name}")
+        assertEquals(sha256Of(markdownFile.readBytes()), (manifest["markdownSha256"] as? JsonPrimitive)?.contentOrNull,
+            "manifest.json digest must match the bytes of ${markdownFile.name}")
+
+        // ...and must agree with what the JSON-lines payload reported.
+        val responseManifest = assertNotNull(obj(response, "manifest"))
+        assertEquals(
+            (manifest["jsonSha256"] as? JsonPrimitive)?.contentOrNull,
+            (responseManifest["jsonSha256"] as? JsonPrimitive)?.contentOrNull,
+        )
+        assertEquals(
+            (manifest["markdownSha256"] as? JsonPrimitive)?.contentOrNull,
+            (responseManifest["markdownSha256"] as? JsonPrimitive)?.contentOrNull,
+        )
+    }
+
+    @Test
+    fun exportReport_writesReportArtifactsIntoTemporaryCyvraHome() {
+        val session = Session()
+        session.scan()
+
+        val export = session.send(HostCommand.EXPORT_REPORT)
+        assertEquals(HostResponseStatus.OK, export.status, export.error?.message ?: "")
+
+        val home = assertNotNull(session.artifactHome, "session must own a temporary cyvra.home")
+        val reportId = assertNotNull(str(export, "reportId"))
+
+        assertArtifactDirectory(
+            directory = File(home, HostReportStore.REPORTS_DIRECTORY).resolve(reportId),
+            home = home,
+            jsonFileName = HostReportStore.REPORT_JSON,
+            markdownFileName = HostReportStore.REPORT_MARKDOWN,
+            response = export,
+            responseJsonKey = "reportJson",
+            responseMarkdownKey = "reportMarkdown",
+        )
+
+        assertEquals(true, bool(export, "artifactsWritten"))
+        assertTrue(home.isDirectory, "cyvra.home must exist")
+    }
+
+    @Test
+    fun finalReport_writesCertificateArtifactsIntoTemporaryCyvraHome() {
+        val session = Session()
+        session.scan()
+
+        val finalReport = driveSanitizationToExecution(session)
+        assertEquals(HostResponseStatus.OK, finalReport.status, finalReport.error?.message ?: "")
+
+        val home = assertNotNull(session.artifactHome, "session must own a temporary cyvra.home")
+        val certificateId = assertNotNull(str(finalReport, "certificateId"))
+
+        assertArtifactDirectory(
+            directory = File(home, HostReportStore.CERTIFICATES_DIRECTORY).resolve(certificateId),
+            home = home,
+            jsonFileName = HostReportStore.CERTIFICATE_JSON,
+            markdownFileName = HostReportStore.CERTIFICATE_MARKDOWN,
+            response = finalReport,
+            responseJsonKey = "certificateJson",
+            responseMarkdownKey = "certificateMarkdown",
+        )
+
+        assertEquals(true, bool(finalReport, "artifactsWritten"))
+        // Persistence must not change what the certificate says.
+        assertEquals(false, bool(finalReport, "sanitizationSuccessClaimed"))
+        assertFalse(
+            File(assertNotNull(str(finalReport, "certificateJsonPath"))).readText(Charsets.UTF_8)
+                .contains("SANITIZATION SUCCESS"),
+            "writing to disk must never turn a blocked lifecycle into a success claim",
+        )
+    }
+
+    @Test
+    fun exportReport_withoutCyvraHomeFailsGracefullyAndHostKeepsServing() {
+        val session = Session(artifactHome = null)
+        session.scan()
+
+        val export = session.send(HostCommand.EXPORT_REPORT)
+        assertError(export, HostProtocolDispatcher.REPORT_WRITE_FAILED)
+        val message = assertNotNull(export.error?.message)
+        assertTrue(
+            message.contains(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY),
+            "the refusal must name the missing property, got: $message",
+        )
+
+        // The Host survives and the report is still fully readable in memory.
+        assertEquals(HostResponseStatus.OK, session.send(HostCommand.GET_DEVICE_REPORT).status)
+        assertEquals(HostResponseStatus.OK, session.send(HostCommand.GET_APPLICATION_INVENTORY).status)
+
+        // The certificate path refuses on the write, while the lifecycle itself already ran.
+        val finalReport = driveSanitizationToExecution(session)
+        assertError(finalReport, HostProtocolDispatcher.REPORT_WRITE_FAILED)
+
+        // Verification and reports are unaffected - the process never died.
+        assertEquals(HostResponseStatus.OK, session.send(HostCommand.SANITIZE_VERIFY).status)
+        assertEquals(HostResponseStatus.OK, session.send(HostCommand.GET_DEVICE_REPORT).status)
+    }
+
+    @Test
+    fun reportStore_refusesUnsafeArtifactIdentifiers() {
+        val home = Files.createTempDirectory("cyvra-unsafe-home").toFile()
+        val store = HostReportStore(reportEngine = reportEngine, homeProvider = { home.absolutePath })
+
+        val error = assertFailsWith<ReportWriteException> {
+            store.writeReport("../escaped", "{}", "# report")
+        }
+        assertTrue(
+            error.message.orEmpty().contains("unsafe"),
+            "refusal must explain the unsafe identifier, got: ${error.message}",
+        )
+        assertFalse(File(home, "escaped").exists(), "nothing may escape cyvra.home")
+
+        // A missing home is a refusal too, never an exception out of the protocol loop.
+        val missingHome = HostReportStore(
+            reportEngine = reportEngine,
+            homeProvider = { null },
+        )
+        val missing = assertFailsWith<ReportWriteException> {
+            missingHome.writeReport("CYVRA-R1-2026-ABCDEF", "{}", "# report")
+        }
+        assertTrue(
+            missing.message.orEmpty().contains(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY),
+            "refusal must name the missing property, got: ${missing.message}",
+        )
     }
 
     // ------------------------------------------------------------------
@@ -443,7 +684,7 @@ class HostProtocolWorkflowTest {
 
     @Test
     fun runScan_withoutLicenceRefusesWithLicenseRequired() {
-        val session = Session(dispatcher(license = deniedResult()))
+        val session = Session(license = deniedResult())
 
         val response = session.send(HostCommand.RUN_SCAN, buildJsonObject { put("serial", SERIAL) })
 
@@ -461,7 +702,7 @@ class HostProtocolWorkflowTest {
 
     @Test
     fun runScan_withoutAdbRefusesWithoutTouchingAnyDevice() {
-        val session = Session(dispatcher(withAdb = false))
+        val session = Session(withAdb = false)
 
         val response = session.send(HostCommand.RUN_SCAN, buildJsonObject { put("serial", SERIAL) })
 

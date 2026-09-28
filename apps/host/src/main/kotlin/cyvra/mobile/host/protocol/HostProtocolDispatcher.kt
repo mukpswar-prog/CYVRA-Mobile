@@ -6,6 +6,7 @@ import cyvra.mobile.core.SanitizationMethodType
 import cyvra.mobile.host.license.FileBasedLicenseProvider
 import cyvra.mobile.host.license.LicenseFileResult
 import cyvra.mobile.host.report.HostReportEngine
+import cyvra.mobile.host.report.HostReportStore
 import cyvra.mobile.host.service.HostBootstrap
 import cyvra.mobile.host.service.HostLicenseService
 import cyvra.mobile.host.service.SanitizationLifecycleStart
@@ -36,6 +37,11 @@ class HostProtocolDispatcher(
             WorkstationSessionOrchestrator(AdbClient(binary), licenseService)
         },
     private val reportEngine: HostReportEngine = HostReportEngine(),
+    /**
+     * Persists exported artifacts. Shares [reportEngine] by default so the digests echoed
+     * on the wire and the digests stored in `manifest.json` are always the same bytes.
+     */
+    private val reportStore: HostReportStore = HostReportStore(reportEngine = reportEngine),
 ) {
 
     private val json = Json {
@@ -392,11 +398,31 @@ class HostProtocolDispatcher(
         )
     }
 
-    /** EXPORT_REPORT returns Report 1 in both formats with a SHA-256 manifest. */
+    /**
+     * EXPORT_REPORT returns Report 1 in both formats and persists it under
+     * `<cyvra.home>/reports/<reportId>/`.
+     *
+     * Report generation is untouched: the strings handed to the store are exactly the ones
+     * already returned here, so the file on disk and the payload on the wire agree.
+     */
     private fun exportReportResponse(request: HostRequest): HostResponse {
         val scan = lastScan ?: return noScanError(request, "EXPORT_REPORT")
         val jsonContent = scan.reportJson
         val markdownContent = scan.reportMarkdown
+
+        val written = try {
+            reportStore.writeReport(
+                reportId = scan.report.header.reportId,
+                jsonContent = jsonContent,
+                markdownContent = markdownContent,
+            )
+        } catch (error: Exception) {
+            return errorResponse(
+                request = request,
+                code = REPORT_WRITE_FAILED,
+                message = error.message ?: "Report artifacts could not be written to disk",
+            )
+        }
 
         return okResponse(
             request,
@@ -405,12 +431,16 @@ class HostProtocolDispatcher(
                 put("format", "json+markdown")
                 put("reportJson", jsonContent)
                 put("reportMarkdown", markdownContent)
+                put("reportJsonPath", written.jsonPath)
+                put("reportMarkdownPath", written.markdownPath)
+                put("manifestPath", written.manifestPath)
+                put("artifactsWritten", true)
                 put(
                     "manifest",
                     buildJsonObject {
                         put("algorithm", "SHA-256")
-                        put("jsonSha256", reportEngine.computeSha256(jsonContent))
-                        put("markdownSha256", reportEngine.computeSha256(markdownContent))
+                        put("jsonSha256", written.jsonSha256)
+                        put("markdownSha256", written.markdownSha256)
                     },
                 )
             },
@@ -713,7 +743,10 @@ class HostProtocolDispatcher(
         )
     }
 
-    /** GET_FINAL_REPORT returns the sanitization certificate with a SHA-256 manifest. */
+    /**
+     * GET_FINAL_REPORT returns the sanitization certificate with a SHA-256 manifest and
+     * persists it under `<cyvra.home>/certificates/<certificateId>/`.
+     */
     private fun finalReportResponse(request: HostRequest): HostResponse {
         val result = lifecycleResult
             ?: return errorResponse(
@@ -744,6 +777,20 @@ class HostProtocolDispatcher(
                 message = "Final Report did not encode as a JSON object",
             )
 
+        val written = try {
+            reportStore.writeCertificate(
+                certificateId = certificate.header.reportId,
+                jsonContent = certificateJson,
+                markdownContent = certificateMarkdown,
+            )
+        } catch (error: Exception) {
+            return errorResponse(
+                request = request,
+                code = REPORT_WRITE_FAILED,
+                message = error.message ?: "Certificate artifacts could not be written to disk",
+            )
+        }
+
         return okResponse(
             request,
             buildJsonObject {
@@ -755,12 +802,16 @@ class HostProtocolDispatcher(
                 put("certificate", certificateObject)
                 put("certificateJson", certificateJson)
                 put("certificateMarkdown", certificateMarkdown)
+                put("certificateJsonPath", written.jsonPath)
+                put("certificateMarkdownPath", written.markdownPath)
+                put("manifestPath", written.manifestPath)
+                put("artifactsWritten", true)
                 put(
                     "manifest",
                     buildJsonObject {
                         put("algorithm", "SHA-256")
-                        put("jsonSha256", reportEngine.computeSha256(certificateJson))
-                        put("markdownSha256", reportEngine.computeSha256(certificateMarkdown))
+                        put("jsonSha256", written.jsonSha256)
+                        put("markdownSha256", written.markdownSha256)
                     },
                 )
             },
@@ -854,6 +905,9 @@ class HostProtocolDispatcher(
     companion object {
         /** Refusal code returned when the installed licence cannot entitle a scan. */
         const val LICENSE_REQUIRED: String = "LICENSE_REQUIRED"
+
+        /** Refusal code returned when generated artifacts cannot be written to disk. */
+        const val REPORT_WRITE_FAILED: String = "REPORT_WRITE_FAILED"
 
         private const val KEY_SERIAL = "serial"
         private const val KEY_OPERATOR_ID = "operatorId"
