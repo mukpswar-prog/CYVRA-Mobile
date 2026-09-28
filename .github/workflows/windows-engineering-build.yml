@@ -1,0 +1,121 @@
+# Windows Engineering Build — FIRST INTEGRATED ENGINEERING BUILD
+#
+# Runs this repository's automated test suites, builds the existing Tauri desktop
+# application for Windows on a Windows runner, packages the installers, verifies
+# that the executable and installers really exist, and uploads them.
+#
+# Artifact policy:
+#   * UNSIGNED ENGINEERING ARTIFACT — this repository has no code-signing
+#     infrastructure. No signing step is performed and none is simulated.
+#     Do not present this artifact as a signed or commercial release.
+#   * Generated binaries (apps/desktop/src-tauri/target/) are never committed;
+#     CI produces and uploads them instead.
+#
+# The workflow fails if any test suite fails, if the app fails to build, or if
+# the expected Windows artifacts are missing after the build.
+
+name: Windows Engineering Build
+
+on:
+  push:
+    branches: [phase2-correct]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-engineering-build:
+    name: Test, build & package (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Toolchain setup mirrors the repository's existing workflows
+      # (pnpm 12.3.4 / Node 24) plus the Gradle JDK 21 freeze.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Set up Java (Temurin 21 — repository Gradle freeze)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install JS dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # --- Tests: any failure fails the workflow -------------------------
+      - name: Run core tests (contract, S1 collector, reconciliation, Report 1 derivation)
+        working-directory: apps/android
+        run: ./gradlew.bat :core:test --console=plain
+
+      - name: Run host tests (S2 provider, report/sanitization engines, integrated workflow)
+        working-directory: apps/android
+        run: ./gradlew.bat :host:test --console=plain
+
+      - name: Compile Android app (S1 device-side integration)
+        working-directory: apps/android
+        run: ./gradlew.bat :app:compileDebugKotlin --console=plain
+
+      - name: Run desktop Rust tests
+        working-directory: apps/desktop/src-tauri
+        run: cargo test
+
+      # --- Build & package the real Windows application (unsigned) -------
+      - name: Build & package Windows desktop application (Tauri)
+        working-directory: apps/desktop
+        run: pnpm exec tauri build
+
+      - name: Verify Windows artifacts exist
+        run: |
+          $releaseDir = "apps/desktop/src-tauri/target/release"
+          $exe = Join-Path $releaseDir "cyvra-mobile-desktop.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Host "::error::Missing Windows executable: $exe"
+            exit 1
+          }
+          $msi = @(Get-ChildItem "$releaseDir/bundle/msi" -Filter "*.msi" -File -ErrorAction SilentlyContinue)
+          $nsis = @(Get-ChildItem "$releaseDir/bundle/nsis" -Filter "*-setup.exe" -File -ErrorAction SilentlyContinue)
+          if (($msi.Count + $nsis.Count) -eq 0) {
+            Write-Host "::error::No installer bundle was produced (msi/nsis)"
+            exit 1
+          }
+          Write-Host "Verified Windows artifacts (UNSIGNED ENGINEERING ARTIFACT):"
+          Get-Item $exe | ForEach-Object { Write-Host ("  {0}  {1} bytes" -f $_.FullName, $_.Length) }
+          @($msi) + @($nsis) | ForEach-Object { Write-Host ("  {0}  {1} bytes" -f $_.FullName, $_.Length) }
+
+      - name: Upload unsigned engineering artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyvra-mobile-windows-unsigned-engineering-artifact
+          path: |
+            apps/desktop/src-tauri/target/release/cyvra-mobile-desktop.exe
+            apps/desktop/src-tauri/target/release/bundle/msi/*.msi
+            apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error

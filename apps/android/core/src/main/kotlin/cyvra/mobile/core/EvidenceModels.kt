@@ -109,4 +109,18 @@ data class GenericDeviceEvidence(
     val storage: StorageEvidence,
     val security: SecurityEvidence,
     val features: List<FeatureFact> = emptyList(),
+    /**
+     * Optional single-source installed-application inventory. When the device-side (S1)
+     * inventory was collected it is stored here (the device-side evidence is the primary
+     * inventory snapshot); otherwise the authorized host-side (S2) inventory is stored.
+     * Full S1/S2 provenance lives in [reconciledApplicationInventory].
+     * Additive and default-null: legacy JSON without this field still decodes.
+     */
+    val applicationInventory: ApplicationInventoryEvidence? = null,
+    /**
+     * Optional deterministic S1+S2 reconciliation of the installed-application inventory
+     * (null when no inventory source was collected). Preserves per-source provenance,
+     * completeness, limitations, and conflicts verbatim. Additive and default-null.
+     */
+    val reconciledApplicationInventory: ReconciledApplicationInventory? = null,
 )

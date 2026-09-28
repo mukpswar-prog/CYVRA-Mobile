@@ -7,6 +7,7 @@ import cyvra.mobile.core.DeviceCapabilityAssessment
 import cyvra.mobile.core.DeviceCapabilityItem
 import cyvra.mobile.core.DeviceIdentifierRecord
 import cyvra.mobile.core.DeviceIdentityEvidence
+import cyvra.mobile.core.DeviceVerificationReport
 import cyvra.mobile.core.EvidenceFieldResult
 import cyvra.mobile.core.EvidenceStatus
 import cyvra.mobile.core.GenericDeviceEvidence
@@ -19,9 +20,13 @@ import cyvra.mobile.core.SanitizationVerificationStatus
 import cyvra.mobile.core.SecurityEvidence
 import cyvra.mobile.core.StorageEvidence
 import cyvra.mobile.core.VerificationResult
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class HostReportEngineTest {
@@ -268,5 +273,31 @@ class HostReportEngineTest {
         assertTrue(md.contains("Grade B (Certified Good)"))
         assertTrue(md.contains("2 light frame scratches"))
         assertTrue(md.contains("TECH-SIGN-992"))
+    }
+
+    @Test
+    fun reportOneStaysBackwardCompatibleWithLegacyJson() {
+        val evidence = createSampleEvidence()
+        val assessment = createSampleAssessment()
+
+        val report = engine.generateVerificationReport(
+            reportId = "CYVRA-R1-2026-00002",
+            operatorId = "OP-TESTER",
+            evidence = evidence,
+            assessment = assessment,
+        )
+
+        // Evidence without inventory -> section stays null; nothing is fabricated.
+        assertNull(report.applicationInventory)
+
+        // Simulate pre-inventory legacy JSON: default-valued fields omitted at encode time.
+        val legacyJson = Json { prettyPrint = true; encodeDefaults = false }.encodeToString(report)
+        assertFalse(legacyJson.contains("applicationInventory"))
+
+        // Legacy JSON still decodes against the current contract (additive default-null field).
+        val decoded = Json {}.decodeFromString<DeviceVerificationReport>(legacyJson)
+        assertEquals("CYVRA-R1-2026-00002", decoded.header.reportId)
+        assertEquals(report.integrity?.contentDigest, decoded.integrity?.contentDigest)
+        assertNull(decoded.applicationInventory)
     }
 }
