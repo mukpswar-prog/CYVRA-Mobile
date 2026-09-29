@@ -85,6 +85,7 @@ class HostProtocolDispatcher(
             HostCommand.GET_HOST_INFO -> hostInfoResponse(request)
             HostCommand.GET_PREFLIGHT -> preflightResponse(request)
             HostCommand.GET_DEVICE_STATE -> deviceStateResponse(request)
+            HostCommand.GET_LICENSE_STATE -> licenseStateResponse(request)
             HostCommand.RUN_SCAN -> runScanResponse(request)
             HostCommand.GET_DEVICE_REPORT -> deviceReportResponse(request)
             HostCommand.GET_APPLICATION_INVENTORY -> applicationInventoryResponse(request)
@@ -235,6 +236,37 @@ class HostProtocolDispatcher(
                 message = error.message ?: "Device state evaluation failed",
             )
         }
+    }
+
+    /**
+     * GET_LICENSE_STATE reports the entitlement the workstation actually has.
+     *
+     * Read-only and fail-closed: `present` is true only when [FileBasedLicenseProvider]
+     * read and validated `<cyvra.home>/license.json`. This command cannot activate
+     * anything - it is the Host stating what it found on disk, so a missing or corrupt
+     * file answers `FILE_MISSING` / `UNKNOWN` / `0` rather than a fabricated activation.
+     *
+     * No secrets cross the wire: `licenseId`, `serialNumber`, `customerEmail` and
+     * `planName` stay inside the Host. The four keys below are the whole surface.
+     *
+     * `status` and `scansRemaining` are read from [licenseService], which is seeded from
+     * this very provider record, so before any scan they are byte-identical to the
+     * provider's values and afterwards they report the balance actually debited rather
+     * than a stale pre-scan figure.
+     */
+    private fun licenseStateResponse(request: HostRequest): HostResponse {
+        val file = licenseResult
+        val record = licenseService.getLicense()
+
+        return okResponse(
+            request,
+            buildJsonObject {
+                put("present", file.isLicensed)
+                put("reason", file.reason.name)
+                put("status", record.status.name)
+                put("scansRemaining", record.scansRemaining)
+            },
+        )
     }
 
     // ------------------------------------------------------------------
