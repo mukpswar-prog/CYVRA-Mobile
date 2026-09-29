@@ -4,6 +4,17 @@
 # application for Windows on a Windows runner, packages the installers, verifies
 # that the executable and installers really exist, and uploads them.
 #
+# Build order (P6/P7):
+#   1. install JS deps
+#   2. typecheck + bundle the P5 React UI
+#   3. stage the payload (`:host:installDist`, `jlink` runtime, `platform-tools`)
+#      and assert all three components are present
+#   4. run every test suite, then `cargo test` / `cargo build`
+#   5. `tauri build` (its beforeBuildCommand re-stages, then bundles)
+#   6. gates: installed-layout `--selftest` must print SELFTEST_OK with
+#      `readyToScan=true`, and the packaged artifact set must exceed 100 MB,
+#      proving the payload is inside the shipped files.
+#
 # Artifact policy:
 #   * UNSIGNED ENGINEERING ARTIFACT — this repository has no code-signing
 #     infrastructure. No signing step is performed and none is simulated.
@@ -18,7 +29,7 @@ name: Windows Engineering Build
 
 on:
   push:
-    branches: [phase2-correct]
+    branches: [phase2-correct, feature/p2-protocol-completion]
   workflow_dispatch:
 
 permissions:
@@ -70,6 +81,14 @@ jobs:
       - name: Install JS dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      # The P5 UI is compiled again by `beforeBuildCommand` during
+      # `tauri build`, but a type error there surfaces late and behind the
+      # bundler. Typecheck and bundle the React app explicitly so a broken
+      # bridge call site fails here, before the long Rust release build.
+      - name: Compile P5 React UI (typecheck + production bundle)
+        working-directory: apps/desktop
+        run: pnpm run build
+
       # Staging must happen before any Cargo step: tauri-build resolves
       # `bundle.resources` at compile time, and `cargo test` runs before
       # `tauri build`'s beforeBuildCommand gets a chance to stage anything.
@@ -78,6 +97,28 @@ jobs:
       - name: Stage installer payload (Host dist, Java runtime, platform-tools)
         working-directory: apps/desktop
         run: pnpm stage:resources
+
+      # Fail fast, and before any Cargo step, if one of the three payload
+      # components is missing. A silently empty .resources/ still produces a
+      # green `tauri build`; without this gate the only proof that the
+      # payload was bundled would arrive after the full release build.
+      - name: Assert staged payload (Host dist, jlink runtime, platform-tools)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $res = "apps/desktop/src-tauri/.resources"
+          $required = @(
+            @{ Path = (Join-Path $res "host/lib");          Label = ":host:installDist JARs" },
+            @{ Path = (Join-Path $res "runtime/bin/java.exe"); Label = "jlink Java runtime" },
+            @{ Path = (Join-Path $res "platform-tools/adb.exe"); Label = "platform-tools adb" }
+          )
+          foreach ($item in $required) {
+            if (-not (Test-Path $item.Path)) {
+              Write-Host "::error::Staged payload missing $($item.Label): $($item.Path)"
+              exit 1
+            }
+          }
+          $bytes = [int64]((Get-ChildItem $res -Recurse -File | Measure-Object -Property Length -Sum).Sum)
+          Write-Host ("Staged payload OK ({0:N0} bytes): Host JARs + jlink runtime + platform-tools." -f $bytes)
 
       # --- Tests: any failure fails the workflow -------------------------
       - name: Run core tests (contract, S1 collector, reconciliation, Report 1 derivation)
@@ -95,6 +136,14 @@ jobs:
       - name: Run desktop Rust tests
         working-directory: apps/desktop/src-tauri
         run: cargo test
+
+      # Explicit compile gate for the P5 bridge. `cargo test` builds the test
+      # profile, so this is incremental, but it asserts that the crate still
+      # builds as a binary in the same profile the installer ships and keeps
+      # the failure message distinguishable from a test failure.
+      - name: Compile desktop Rust bridge (cargo build)
+        working-directory: apps/desktop/src-tauri
+        run: cargo build
 
       # --- Build & package the real Windows application (unsigned) -------
       # `beforeBuildCommand` runs `pnpm stage:resources`, which produces
@@ -163,6 +212,18 @@ jobs:
             exit 1
           }
 
+          # P6 gate: SELFTEST_OK alone is not enough. The Host must also have
+          # answered preflight with readyToScan=true, i.e. the bundled JVM,
+          # bundled adb and Host JARs all resolved from resources/ and every
+          # critical preflight check passed. `run_selftest` already refuses to
+          # print SELFTEST_OK when ready is false; this asserts the literal
+          # wire value so a regression cannot pass unnoticed.
+          if ($report -notmatch "readyToScan=true") {
+            Write-Host "::error::Selftest did not report readyToScan=true. Preflight is not green on the installed layout."
+            Write-Host $report
+            exit 1
+          }
+
           foreach ($expected in @("runtime\bin\java.exe", "platform-tools\adb.exe")) {
             if ($report -notlike "*$expected*") {
               Write-Host "::error::Selftest did not resolve the bundled $expected"
@@ -172,8 +233,10 @@ jobs:
 
           Write-Host "Installed layout verified: bundled Java runtime and adb resolved from resources/."
 
-      - name: Verify Windows artifacts exist
+      # --- P7 gate: the payload must really be inside the shipped files ---
+      - name: Verify Windows artifacts exist and carry the payload (> 100 MB)
         run: |
+          $ErrorActionPreference = 'Stop'
           $releaseDir = "apps/desktop/src-tauri/target/release"
           $exe = Join-Path $releaseDir "cyvra-mobile-desktop.exe"
           if (-not (Test-Path $exe)) {
@@ -186,9 +249,28 @@ jobs:
             Write-Host "::error::No installer bundle was produced (msi/nsis)"
             exit 1
           }
+
+          # The bare executable is only the Rust binary (~10 MB): the Host
+          # JARs, the jlink Java runtime and platform-tools are carried by
+          # the installers. If any of those stopped being staged, the set
+          # collapses well below this floor, so the total size is the proof
+          # that the 100 MB+ payload was bundled.
+          $files = @($exe) + @($msi | ForEach-Object { $_.FullName }) + @($nsis | ForEach-Object { $_.FullName })
+          $total = [int64]0
+          foreach ($file in $files) { $total += (Get-Item $file).Length }
+
+          $floor = [int64]100MB
+          if ($total -lt $floor) {
+            Write-Host ("::error::Packaged artifact set is {0:N0} bytes, expected more than {1:N0}. The installer payload was NOT bundled." -f $total, $floor)
+            exit 1
+          }
+
           Write-Host "Verified Windows artifacts (UNSIGNED ENGINEERING ARTIFACT):"
-          Get-Item $exe | ForEach-Object { Write-Host ("  {0}  {1} bytes" -f $_.FullName, $_.Length) }
-          @($msi) + @($nsis) | ForEach-Object { Write-Host ("  {0}  {1} bytes" -f $_.FullName, $_.Length) }
+          foreach ($file in $files) {
+            $item = Get-Item $file
+            Write-Host ("  {0}  {1} bytes" -f $item.FullName, $item.Length)
+          }
+          Write-Host ("P7 payload gate OK: {0:N0} bytes across {1} artifact(s), floor {2:N0} bytes." -f $total, $files.Count, $floor)
 
       - name: Upload unsigned engineering artifact
         uses: actions/upload-artifact@v4
