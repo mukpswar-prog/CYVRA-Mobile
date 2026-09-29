@@ -111,7 +111,7 @@ fn payload_optional_string(payload: &Value, key: &str) -> Option<String> {
 
 /// Rejects anything that is not shaped like a `HostCommand` value.
 ///
-/// Every one of the Host's thirteen commands matches `[A-Z0-9_]+`, so a name
+/// Every one of the Host's fourteen commands matches `[A-Z0-9_]+`, so a name
 /// that does not can be refused here with a precise message instead of being
 /// written to the Host's stdin and surfacing as a decode failure on the far side.
 fn validate_command_name(command: &str) -> Result<(), String> {
@@ -1179,12 +1179,16 @@ mod host_command_bridge_tests {
 
     /// Every command the Kotlin `HostCommand` enum exposes must pass the local
     /// shape check, otherwise the bridge would refuse a perfectly legal call.
+    ///
+    /// This array is the bridge's allow-list: adding a command to the Host
+    /// means adding it here, and the length assertion fails until you do.
     #[test]
-    fn all_thirteen_host_commands_pass_the_shape_check() {
+    fn all_fourteen_host_commands_pass_the_shape_check() {
         let commands = [
             "GET_HOST_INFO",
             "GET_PREFLIGHT",
             "GET_DEVICE_STATE",
+            "GET_LICENSE_STATE",
             "RUN_SCAN",
             "GET_DEVICE_REPORT",
             "GET_APPLICATION_INVENTORY",
@@ -1197,7 +1201,7 @@ mod host_command_bridge_tests {
             "GET_FINAL_REPORT",
         ];
 
-        assert_eq!(commands.len(), 13, "HostCommand changed; update this list");
+        assert_eq!(commands.len(), 14, "HostCommand changed; update this list");
 
         for command in commands {
             assert!(
@@ -1205,6 +1209,50 @@ mod host_command_bridge_tests {
                 "{command} must be accepted by the bridge"
             );
         }
+    }
+
+    /// `GET_LICENSE_STATE` stamps the same envelope every other command does:
+    /// protocol version, a fresh request id, the command name and an object
+    /// payload, all encoded onto a single line.
+    #[test]
+    fn license_state_request_uses_the_standard_wire_format() {
+        let (request_id, request) =
+            build_host_request("GET_LICENSE_STATE", "{}").expect("valid request");
+
+        assert_eq!(request.protocol_version, PROTOCOL_VERSION);
+        assert_eq!(request.request_id, request_id);
+        assert_eq!(request.command, "GET_LICENSE_STATE");
+        assert_eq!(request.payload, json!({}));
+
+        let encoded = serde_json::to_string(&request).expect("encode");
+        assert!(!encoded.contains('\n'), "request spans lines: {encoded}");
+
+        let decoded: Value = serde_json::from_str(&encoded).expect("round trip");
+        assert_eq!(decoded["command"], "GET_LICENSE_STATE");
+        assert_eq!(decoded["protocolVersion"], PROTOCOL_VERSION);
+        assert_eq!(decoded["requestId"], request_id.as_str());
+        assert!(decoded["payload"].is_object(), "payload must be an object");
+    }
+
+    /// The licence query carries no payload of its own, but the bridge must
+    /// still forward one untouched if a caller supplies one - nothing about
+    /// this command may reshape the wire.
+    #[test]
+    fn license_state_payload_survives_the_bridge_untouched() {
+        let payload = r#"{"detail":false}"#;
+        let (_, request) = build_host_request("GET_LICENSE_STATE", payload).expect("valid request");
+
+        assert_eq!(request.payload, json!({"detail": false}));
+    }
+
+    /// Two calls never reuse a request id, so the Host's echoed `requestId`
+    /// can always be matched back to the request that produced it.
+    #[test]
+    fn license_state_request_ids_are_never_reused() {
+        let (first, _) = build_host_request("GET_LICENSE_STATE", "{}").expect("valid request");
+        let (second, _) = build_host_request("GET_LICENSE_STATE", "{}").expect("valid request");
+
+        assert_ne!(first, second, "request ids must be distinct");
     }
 
     /// A malformed name is refused here rather than written to the Host's

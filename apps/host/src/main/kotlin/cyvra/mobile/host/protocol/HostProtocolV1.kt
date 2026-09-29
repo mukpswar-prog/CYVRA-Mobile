@@ -10,6 +10,14 @@ enum class HostCommand {
     GET_PREFLIGHT,
     GET_DEVICE_STATE,
 
+    /**
+     * Read-only licence truth for the first-run wizard and the runtime status card.
+     *
+     * Answers what `FileBasedLicenseProvider` found on disk; it can neither create
+     * nor complete an activation.
+     */
+    GET_LICENSE_STATE,
+
     // P2 workflow: scan -> reports -> sanitization lifecycle.
     RUN_SCAN,
     GET_DEVICE_REPORT,

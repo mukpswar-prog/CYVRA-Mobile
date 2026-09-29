@@ -80,27 +80,140 @@ const EMPTY_SANITIZE: Record<SanitizeStage, HostEnvelope | null> = {
 type StepKey = "connect" | "scan" | "inventory" | "sanitize" | "export";
 
 /**
- * Stepper navigation for the five protocol stages.
+ * One entry per stage of the operator wizard.
  *
- * `label` and `heading` are interface chrome - they name the stage, they do
- * not describe any result. Every value shown *inside* a stage still comes
- * from a Host response.
+ * Everything here is static interface text: it names the stage, tells the
+ * operator what to do, and labels the stage's single primary action. It never
+ * describes a result - every value shown *inside* a stage still comes from a
+ * Host response. No protocol command name appears in any of these strings;
+ * those live in the Engineer diagnostics drawer under Help.
  */
-const STEPS: { key: StepKey; index: number; label: string; heading: string }[] = [
-  { key: "connect", index: 1, label: "Connect", heading: "Connect / Preflight" },
-  { key: "scan", index: 2, label: "Scan", heading: "Run Scan" },
-  { key: "inventory", index: 3, label: "Inventory", heading: "View Inventory" },
-  { key: "sanitize", index: 4, label: "Sanitize", heading: "Sanitization Flow" },
-  { key: "export", index: 5, label: "Export", heading: "Export" },
+type StepMeta = {
+  key: StepKey;
+  index: number;
+  label: string;
+  heading: string;
+  /** The single orange primary action for this stage. */
+  primary: string;
+  purpose: string;
+  now: string;
+  next: string;
+};
+
+const STEPS: StepMeta[] = [
+  {
+    key: "connect",
+    index: 1,
+    label: "Connect",
+    heading: "Workstation and phone connection",
+    primary: "Check connection",
+    purpose:
+      "Confirm this laptop is ready, and that the phone is plugged in and allowed to talk to it.",
+    now: "Plug the phone into any USB port with a data cable, then unlock it and allow this computer when the phone asks.",
+    next: "When the phone says it is ready you can scan it in the next step.",
+  },
+  {
+    key: "scan",
+    index: 2,
+    label: "Scan",
+    heading: "Scan the connected phone",
+    primary: "Scan phone",
+    purpose:
+      "Read the phone's identity and the list of applications installed on it, without copying any personal content.",
+    now: "Check which phone is shown below, add your operator ID if your site uses one, then start the scan.",
+    next: "The scan produces the report that every later step reads from.",
+  },
+  {
+    key: "inventory",
+    index: 3,
+    label: "Applications",
+    heading: "Applications found on the phone",
+    primary: "Load applications",
+    purpose:
+      "Show which applications are installed on the phone, and how trustworthy that list is.",
+    now: "Load the list and read the completeness figures - a filtered list is not the same as a complete one.",
+    next: "Once you are happy with the list you can download the report.",
+  },
+  {
+    key: "sanitize",
+    index: 4,
+    label: "Sanitize",
+    heading: "Hardware-gated purge guide",
+    primary: "Start sanitize guide",
+    purpose: "Walk you through the guarded steps that would erase the phone.",
+    now: "Start the guide and work through each prompt in order - a step only unlocks once the one before it is done.",
+    next: "The last step reports the workstation's decision. On this build the purge is deliberately blocked, and the screen says so.",
+  },
+  {
+    key: "export",
+    index: 5,
+    label: "Download",
+    heading: "Download the verified report",
+    primary: "Download reports",
+    purpose: "Save the finished report and its checksum file onto this laptop so you can hand them over.",
+    now: "Download the reports and note the file locations the workstation gives you.",
+    next: "The files stay with the scan on this laptop; nothing is uploaded anywhere.",
+  },
 ];
 
-/** Chip shown on a stepper node. Priority: locked > active > complete > ready. */
-type NodeTone = "locked" | "active" | "complete" | "ready";
+/**
+ * Stepper tone for a stage. Six words, each derived from a predicate the
+ * buttons already use - a stage never invents a result of its own.
+ *
+ *   IN PROGRESS  a Host command for this stage is in flight
+ *   FAILED       the stage's response was `status: "ERROR"`, the bridge failed
+ *                while running it, or the workstation check did not pass
+ *   COMPLETED    the stage's response was `status: "OK"` with a payload
+ *   BLOCKED      the stage answered and decision D-1 blocked it - never a success
+ *   NOT STARTED  the stage is locked; its gate reason is printed on the node
+ *   READY        the stage is unlocked and has not been run
+ */
+type NodeState = "IN PROGRESS" | "FAILED" | "COMPLETED" | "BLOCKED" | "NOT STARTED" | "READY";
 
-/** Tone of the per-stage status chip in the card header. */
-type StepTone = "ok" | "error" | "idle" | "blocked";
+/** Class-name slug for each stepper state. */
+const stateSlug: Record<NodeState, string> = {
+  "IN PROGRESS": "progress",
+  FAILED: "failed",
+  COMPLETED: "completed",
+  BLOCKED: "blocked",
+  "NOT STARTED": "not-started",
+  READY: "ready",
+};
 
-type StepStatus = { label: string; tone: StepTone };
+/** Commands whose flight or failure belongs to each stage. */
+const STAGE_COMMANDS: Record<StepKey, string[]> = {
+  connect: ["GET_PREFLIGHT", "get_host_info", "get_device_state"],
+  scan: ["RUN_SCAN"],
+  inventory: ["GET_APPLICATION_INVENTORY"],
+  sanitize: [
+    "SANITIZE_START",
+    "SANITIZE_AUTHORIZE",
+    "SANITIZE_CONFIRM",
+    "SANITIZE_EXECUTE",
+  ],
+  export: ["EXPORT_REPORT"],
+};
+
+/**
+ * Maps the command token a bridge failure was reported against back to the
+ * stage that owns it, so only the stage that actually failed turns red.
+ */
+const BRIDGE_FAILURE_STAGE: Record<string, StepKey> = {
+  get_host_info: "connect",
+  get_device_state: "connect",
+  GET_PREFLIGHT: "connect",
+  GET_LICENSE_STATE: "connect",
+  RUN_SCAN: "scan",
+  GET_APPLICATION_INVENTORY: "inventory",
+  SANITIZE_START: "sanitize",
+  SANITIZE_AUTHORIZE: "sanitize",
+  SANITIZE_CONFIRM: "sanitize",
+  SANITIZE_EXECUTE: "sanitize",
+  EXPORT_REPORT: "export",
+};
+
+/** Plain-language reason a button is disabled. Mirrors each `disabled` exactly. */
+const WAITING_REASON = "Waiting for the workstation to finish what it is doing.";
 
 /**
  * Returns the payload only for an `OK` envelope.
@@ -197,6 +310,19 @@ function ListBlock({ values, empty }: { values: string[]; empty: string }) {
  * bridge-level failures are reported separately in the page banner because
  * they mean the Host was never reached at all.
  */
+/**
+ * Renders an exchange according to its real outcome.
+ *
+ * Three situations, kept distinct on screen: nothing was requested, the Host
+ * refused, or the Host answered. A refusal is never styled as a crash;
+ * bridge-level failures are reported separately in the page banner because
+ * they mean the Host was never reached at all.
+ *
+ * The refusal code and message stay here because they are the only honest
+ * description of what went wrong. The request id, protocol version and Host
+ * version that used to sit under this band are engineer detail and now render
+ * only in the Engineer diagnostics drawer.
+ */
 function Outcome({ envelope }: { envelope: HostEnvelope | null }) {
   if (!envelope) {
     return <div className="band band-idle">Not requested yet</div>;
@@ -209,10 +335,6 @@ function Outcome({ envelope }: { envelope: HostEnvelope | null }) {
         <span>
           {envelope.error?.message ?? "The Host returned ERROR without a structured error."}
         </span>
-        <small>
-          Request {envelope.requestId} | protocol v{envelope.protocolVersion} | host v
-          {envelope.hostVersion}
-        </small>
       </div>
     );
   }
@@ -220,10 +342,6 @@ function Outcome({ envelope }: { envelope: HostEnvelope | null }) {
   return (
     <div className="band band-ok">
       <strong>OK</strong>
-      <small>
-        Request {envelope.requestId} | protocol v{envelope.protocolVersion} | host v
-        {envelope.hostVersion}
-      </small>
     </div>
   );
 }
@@ -265,6 +383,101 @@ function Notice({
       <span className="notice-text">{children}</span>
     </aside>
   );
+}
+
+/**
+ * Provenance for a serial shown on screen.
+ *
+ * The three sentences the serial field already used, now shared by the device
+ * panel and the scan form so a serial is never presented without saying where
+ * it came from. Only the element id differs between the two call sites.
+ */
+function SerialProvenance({
+  id,
+  fromHost,
+  value,
+}: {
+  id: string;
+  fromHost: boolean;
+  value: string;
+}) {
+  return (
+    <small id={id}>
+      {fromHost
+        ? "Reported by the Host from the connected device"
+        : value
+          ? "Entered by the operator"
+          : "The Host has not reported a device serial - connect and authorize a device, then refresh"}
+    </small>
+  );
+}
+
+type DeviceView = { text: string; ready: boolean };
+
+/**
+ * Turns the Host's connection enums into one plain sentence for the operator.
+ *
+ * The raw enums (NO_DEVICE, USB_DETECTED, ADB_DETECTED, ADB_UNAVAILABLE,
+ * ADB_UNAUTHORIZED, ADB_OFFLINE, ADB_READY) and the Host's own diagnostic
+ * strings never reach the operator view - they render verbatim in the
+ * Engineer diagnostics drawer instead. Two rules here are deliberate and
+ * must not be relaxed:
+ *
+ *   - `ready` is produced only when the Host itself reported readyToScan
+ *     with an ADB_READY device present, so an unauthorized phone can never
+ *     be shown as ready;
+ *   - a phone that is plugged in but not yet authorised is never reported
+ *     as absent.
+ */
+function deviceView(deviceState: DeviceStateResult | null, failed: boolean): DeviceView {
+  if (!deviceState) {
+    return {
+      text: failed
+        ? "Checking the phone failed - the workstation engine did not answer."
+        : "Checking the phone connection...",
+      ready: false,
+    };
+  }
+
+  const ready =
+    deviceState.readyToScan === true &&
+    deviceState.adbState === "ADB_READY" &&
+    deviceState.device !== null;
+
+  if (ready) {
+    const device = deviceState.device;
+    const name = (device?.model ?? "").trim() || (device?.serial ?? "").trim();
+    return { text: name ? `Phone ready: ${name}` : "Phone ready", ready: true };
+  }
+
+  if (deviceState.usbState === "USB_NOT_CONNECTED") {
+    return {
+      text: "No phone detected. Connect the phone to any USB port of this laptop with a data cable.",
+      ready: false,
+    };
+  }
+
+  if (deviceState.adbState === "ADB_OFFLINE") {
+    return {
+      text: "Phone is reconnecting. Check the USB cable, or unplug it and plug it back in.",
+      ready: false,
+    };
+  }
+
+  if (
+    deviceState.adbState === "ADB_UNAVAILABLE" ||
+    deviceState.adbState === "ADB_UNAUTHORIZED"
+  ) {
+    return {
+      text: "Phone detected on USB. On the phone: enable USB debugging (Developer options) and tap ALLOW when asked to trust this computer.",
+      ready: false,
+    };
+  }
+
+  return {
+    text: "Phone detected, but the workstation cannot read its state yet. Check the phone screen and try again.",
+    ready: false,
+  };
 }
 
 function App() {
@@ -461,58 +674,10 @@ function App() {
   const manifestPath = readString(exportPayload, "manifestPath");
 
   /*
-   * Stepper state. These are the same predicates the buttons already use to
-   * disable themselves - they are read, not re-implemented, so the wizard can
-   * never permit something the protocol layer refuses.
-   */
-  const stepStatus: Record<StepKey, StepStatus> = {
-    connect: hostConnected
-      ? { label: "CONNECTED", tone: "ok" }
-      : hostError
-        ? { label: "UNAVAILABLE", tone: "error" }
-        : { label: "STARTING", tone: "idle" },
-    scan: scanOk
-      ? { label: "COMPLETED", tone: "ok" }
-      : scan
-        ? { label: "REFUSED", tone: "error" }
-        : { label: "NOT RUN", tone: "idle" },
-    inventory:
-      inventory?.status === "OK"
-        ? { label: "LOADED", tone: "ok" }
-        : inventory
-          ? { label: "REFUSED", tone: "error" }
-          : { label: "NOT RUN", tone: "idle" },
-    sanitize: blocked
-      ? { label: "BLOCKED (D-1)", tone: "blocked" }
-      : executePayload
-        ? { label: "EXECUTED", tone: "ok" }
-        : confirmOk
-          ? { label: "CONFIRMED", tone: "ok" }
-          : authorizeOk
-            ? { label: "ACKNOWLEDGED", tone: "ok" }
-            : startOk
-              ? { label: "STARTED", tone: "ok" }
-              : { label: "NOT RUN", tone: "idle" },
-    export:
-      exported?.status === "OK"
-        ? { label: "WRITTEN", tone: "ok" }
-        : exported
-          ? { label: "REFUSED", tone: "error" }
-          : { label: "NOT RUN", tone: "idle" },
-  };
-
-  const stepComplete: Record<StepKey, boolean> = {
-    connect: hostConnected,
-    scan: scanOk,
-    inventory: inventory?.status === "OK",
-    sanitize: confirmOk,
-    export: exported?.status === "OK",
-  };
-
-  /**
-   * Why a stage cannot run yet. The strings are the ones the screen already
-   * showed next to the disabled button; they are surfaced on the stepper so a
-   * locked stage always states its reason instead of silently staying dark.
+   * Stage state. Every value below is read from the predicates the buttons
+   * already use to disable themselves - they are not re-implemented here, so
+   * the stepper can never show a stage as further along than the protocol
+   * layer actually allows.
    */
   const stepLock: Record<StepKey, string | null> = {
     connect: null,
@@ -522,21 +687,197 @@ function App() {
     export: scanOk ? null : "Complete a scan first.",
   };
 
-  const nodeTone = (key: StepKey): NodeTone => {
-    if (stepLock[key] !== null) {
-      return "locked";
-    }
-    if (key === activeStep) {
-      return "active";
-    }
-    if (stepComplete[key]) {
-      return "complete";
-    }
-    return "ready";
+  /** True while a Host command belonging to this stage is in flight. */
+  const stageInFlight = (key: StepKey): boolean =>
+    busy !== null && STAGE_COMMANDS[key].includes(busy);
+
+  /** The furthest exchange this stage has completed. */
+  const stageEnvelope: Record<StepKey, HostEnvelope | null> = {
+    connect: preflight,
+    scan,
+    inventory,
+    sanitize: sanitize.execute ?? sanitize.confirm ?? sanitize.authorize ?? sanitize.start,
+    export: exported,
   };
 
+  const stageRefused = (key: StepKey): boolean => stageEnvelope[key]?.status === "ERROR";
+
+  /** The stage's own response answered `status: "OK"` and carried a payload. */
+  const stageAnsweredOk = (key: StepKey): boolean => {
+    const envelope = stageEnvelope[key];
+    return envelope?.status === "OK" && payloadOf(envelope) !== null;
+  };
+
+  /**
+   * A bridge failure belongs to one stage only - the one whose command the
+   * failure was reported against - so a single broken exchange never paints
+   * the whole wizard red.
+   */
+  const bridgeToken: string | null =
+    bridgeError === null ? null : bridgeError.split(":")[0];
+  const bridgeFromError: StepKey | null =
+    bridgeToken !== null && bridgeToken in BRIDGE_FAILURE_STAGE
+      ? BRIDGE_FAILURE_STAGE[bridgeToken]
+      : null;
+  const bridgeFailedStage: StepKey | null =
+    bridgeFromError ?? (hostError !== null || deviceStateError !== null ? "connect" : null);
+
+  /**
+   * The workstation check passed only when it answered OK *and* reported
+   * readyToScan. An OK answer carrying readyToScan=false is a check that did
+   * not pass, and must never be painted as complete.
+   */
+  const connectPassed = preflight?.status === "OK" && preflightReady === true;
+  const connectDidNotPass = preflight?.status === "OK" && preflightReady !== true;
+
+  const sanitizeStarted =
+    startOk || authorizeOk || confirmOk || sanitize.execute !== null;
+  const sanitizeTerminal = sanitize.execute !== null;
+
+  const nodeStates: Record<StepKey, NodeState> = {
+    connect:
+      stageInFlight("connect")
+        ? "IN PROGRESS"
+        : bridgeFailedStage === "connect" || stageRefused("connect") || connectDidNotPass
+          ? "FAILED"
+          : connectPassed
+            ? "COMPLETED"
+            : "READY",
+    scan: stageInFlight("scan")
+      ? "IN PROGRESS"
+      : bridgeFailedStage === "scan" || stageRefused("scan")
+        ? "FAILED"
+        : stageAnsweredOk("scan")
+          ? "COMPLETED"
+          : stepLock.scan !== null
+            ? "NOT STARTED"
+            : "READY",
+    inventory: stageInFlight("inventory")
+      ? "IN PROGRESS"
+      : bridgeFailedStage === "inventory" || stageRefused("inventory")
+        ? "FAILED"
+        : stageAnsweredOk("inventory")
+          ? "COMPLETED"
+          : stepLock.inventory !== null
+            ? "NOT STARTED"
+            : "READY",
+    sanitize: stageInFlight("sanitize")
+      ? "IN PROGRESS"
+      : bridgeFailedStage === "sanitize" || stageRefused("sanitize")
+        ? "FAILED"
+        : blocked
+          ? "BLOCKED"
+          : sanitizeTerminal && stageAnsweredOk("sanitize")
+            ? "COMPLETED"
+            : sanitizeStarted
+              ? "IN PROGRESS"
+              : stepLock.sanitize !== null
+                ? "NOT STARTED"
+                : "READY",
+    export: stageInFlight("export")
+      ? "IN PROGRESS"
+      : bridgeFailedStage === "export" || stageRefused("export")
+        ? "FAILED"
+        : stageAnsweredOk("export")
+          ? "COMPLETED"
+          : stepLock.export !== null
+            ? "NOT STARTED"
+            : "READY",
+  };
+
+  /**
+   * Plain-language reason each button is disabled. Written to mirror the
+   * button's own `disabled` expression exactly, so the tooltip can never
+   * claim a button is locked for a different reason than it is.
+   */
+  const lockWhenBusy = busy !== null ? WAITING_REASON : null;
+  const lockScan =
+    lockWhenBusy ??
+    (!hostConnected
+      ? "The workstation engine is not connected yet - start at step 1."
+      : !serial.trim()
+        ? "No phone is reported yet - connect the phone, then check the connection."
+        : null);
+  const lockLoad =
+    lockWhenBusy ??
+    (!scanOk ? "Scan the phone first - the applications are collected by the scan." : null);
+  const lockDownload =
+    lockWhenBusy ??
+    (!scanOk ? "Scan the phone first - the report is produced by the scan." : null);
+  const lockGuide =
+    lockWhenBusy ??
+    (!scanOk
+      ? "Scan the phone first - only a finished scan can be purged."
+      : startOk
+        ? "The purge guide has already been started for this scan."
+        : null);
+  const lockAcknowledge =
+    lockWhenBusy ??
+    (!startOk
+      ? "Start the purge guide first."
+      : authorizeOk
+        ? "You have already acknowledged the warning."
+        : null);
+  const lockConfirm =
+    lockWhenBusy ??
+    (!authorizeOk
+      ? "Acknowledge the warning first."
+      : !phrase
+        ? "The workstation has not issued a confirmation phrase yet."
+        : confirmOk
+          ? "You have already confirmed the purge."
+          : null);
+  const lockExecute =
+    lockWhenBusy ?? (!confirmOk ? "Confirm the purge first." : null);
+
+  /** Every exchange, for the Engineer diagnostics drawer under Help. */
+  const exchanges: { label: string; envelope: HostEnvelope | null }[] = [
+    { label: "Workstation check", envelope: preflight },
+    { label: "Scan", envelope: scan },
+    { label: "Applications", envelope: inventory },
+    { label: "Purge guide - start", envelope: sanitize.start },
+    { label: "Purge guide - acknowledge", envelope: sanitize.authorize },
+    { label: "Purge guide - confirm", envelope: sanitize.confirm },
+    { label: "Purge guide - execute", envelope: sanitize.execute },
+    { label: "Download", envelope: exported },
+  ];
+
+  /**
+   * Operator-facing phone connection line, and the phones that are actually
+   * ready. Both derive from the Host's device state; nothing here is
+   * computed locally or assumed.
+   */
+  const device = deviceView(deviceState, deviceStateError !== null);
+  const readyDevices =
+    device.ready && deviceState?.device ? [deviceState.device] : [];
+  const readyCount = readyDevices.length;
+
+  /**
+   * One-line workstation check. The green check is shown only when the Host
+   * both answered OK and reported readyToScan - anything else is a plain
+   * starting or failed line, never a success.
+   */
+  const preflightTone: "ok" | "failed" | "pending" =
+    preflight === null
+      ? bridgeError !== null || hostError !== null
+        ? "failed"
+        : "pending"
+      : preflight.status === "ERROR" || preflightReady !== true
+        ? "failed"
+        : "ok";
+
+  const preflightLine =
+    preflight === null
+      ? preflightTone === "failed"
+        ? "Workstation check failed - the workstation engine did not answer."
+        : "Workstation check is still starting..."
+      : preflight.status === "ERROR"
+        ? "Workstation check failed - the workstation reported a problem."
+        : preflightReady === true
+          ? "Workstation ready - successfully installed."
+          : "Workstation check did not pass - ask your engineer to review the diagnostics.";
+
   const activeMeta = STEPS.find((step) => step.key === activeStep) ?? STEPS[0];
-  const activeStatus = stepStatus[activeStep];
   const activeLock = stepLock[activeStep];
 
   return (
@@ -560,45 +901,44 @@ function App() {
         <p className="eyebrow">Connected device inspection &amp; purge</p>
 
         <p className="workflow-note">
-          Every value on this screen is returned by the Kotlin Host over the JSON-lines protocol.
-          Nothing here is generated locally: if the Host refuses, blocks or reports no data, that
-          is exactly what is shown.
+          CYVRA MOBILE inspects the connected Android phone, produces verified device and application reports, and guides the hardware-gated purge - without copying personal content.
         </p>
 
         {bridgeError && (
           <div className="band band-bridge">
             <strong>BRIDGE FAILURE</strong>
-            <span>{bridgeError}</span>
+            <span>
+              The workstation hit a technical problem and could not finish. Open Help, then
+              Engineer diagnostics, for the detail.
+            </span>
           </div>
         )}
 
         <nav className="stepper" aria-label="Workflow stages">
           {STEPS.map((step) => {
-            const tone = nodeTone(step.key);
+            const state = nodeStates[step.key];
+            const slug = stateSlug[state];
             const reason = stepLock[step.key];
             const isActive = step.key === activeStep;
-            const chipText =
-              tone === "locked"
-                ? "LOCKED"
-                : tone === "active"
-                  ? "ACTIVE"
-                  : tone === "complete"
-                    ? "COMPLETE"
-                    : "READY";
+            const spinning = stageInFlight(step.key);
 
             return (
               <button
                 key={step.key}
                 type="button"
-                className={`step-node is-${tone}`}
+                className={`step-node is-${slug}${isActive ? " is-active" : ""}`}
                 aria-current={isActive ? "step" : undefined}
                 onClick={() => setActiveStep(step.key)}
               >
                 <span className="node-top">
-                  <span className="node-index">{step.index}</span>
+                  {spinning ? (
+                    <img className="node-spin" src={cyvoriqLogo} alt="" aria-hidden="true" />
+                  ) : (
+                    <span className="node-index">{step.index}</span>
+                  )}
                   <span className="node-label">{step.label}</span>
                 </span>
-                <span className={`node-chip is-${tone}`}>{chipText}</span>
+                <span className={`node-chip is-${slug}`}>{state}</span>
                 {reason && <span className="node-reason">{reason}</span>}
               </button>
             );
@@ -614,7 +954,9 @@ function App() {
                 Step {activeMeta.index} of {STEPS.length}
               </span>
             </div>
-            <span className={`step-state is-${activeStatus.tone}`}>{activeStatus.label}</span>
+            <span className={`step-state is-${stateSlug[nodeStates[activeStep]]}`}>
+              {nodeStates[activeStep]}
+            </span>
           </div>
 
           <div className="step-body">
@@ -624,92 +966,50 @@ function App() {
               </Notice>
             )}
 
+            {/* Plain-language stage copy: static text, never a result. */}
+            <div className="step-copy">
+              <div className="copy-block">
+                <h3>Purpose</h3>
+                <p>{activeMeta.purpose}</p>
+              </div>
+              <div className="copy-block">
+                <h3>What to do now</h3>
+                <p>{activeMeta.now}</p>
+              </div>
+              <div className="copy-block">
+                <h3>What happens next</h3>
+                <p>{activeMeta.next}</p>
+              </div>
+            </div>
+
             {/* ---- Step 1 ------------------------------------------------ */}
             {activeStep === "connect" && (
               <>
-                <div className="kv-grid">
-                  <div className="kv">
-                    <span className="card-label">Host engine</span>
-                    <strong>
-                      {hostConnected ? (
-                        <>Connected | V{host?.hostVersion}</>
-                      ) : hostError ? (
-                        "Connection failed"
-                      ) : (
-                        "Starting Host Engine"
-                      )}
-                    </strong>
-                    {hostError && <small>{hostError}</small>}
-                  </div>
-
-                  <div className="kv">
-                    <span className="card-label">Host preflight</span>
-                    <strong>
-                      {preflightReady === null
-                        ? "Awaiting GET_PREFLIGHT"
-                        : `readyToScan = ${String(preflightReady)}`}
-                    </strong>
-                    <small>GET_PREFLIGHT | {preflight?.requestId ?? "not requested"}</small>
-                  </div>
+                <div className={`preflight-line is-${preflightTone}`}>
+                  <span className="preflight-mark" aria-hidden="true" />
+                  <strong>{preflightLine}</strong>
                 </div>
 
-                {preflightChecks.length > 0 && (
-                  <table className="check-table">
-                    <thead>
-                      <tr>
-                        <th>Check</th>
-                        <th>Result</th>
-                        <th>Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preflightChecks.map((check) => (
-                        <tr key={check.checkName}>
-                          <td>
-                            {check.checkName}
-                            {check.isOptional && <span className="tag">optional</span>}
-                          </td>
-                          <td>
-                            <span className={`pill ${check.pass ? "pill-pass" : "pill-fail"}`}>
-                              {check.pass ? "PASS" : "FAIL"}
-                            </span>
-                          </td>
-                          <td>{check.details}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-
                 <Outcome envelope={preflight} />
-                <RawResponse envelope={preflight} />
 
-                <div className="kv-grid">
-                  <div className="kv">
-                    <span className="card-label">Device connection</span>
-                    <strong>
-                      <Value value={deviceState?.connectionState ?? null} fallback="Not evaluated" />
-                    </strong>
-                    <small>
-                      {deviceState ? (
-                        <>
-                          USB {deviceState.usbState} | ADB {deviceState.adbState} | serial{" "}
-                          {deviceState.device?.serial ?? "not reported"}
-                        </>
-                      ) : (
-                        deviceStateError ?? "get_device_state not completed"
-                      )}
-                    </small>
-                  </div>
-
-                  <div className="kv">
-                    <span className="card-label">Host status message</span>
-                    <strong>
-                      <Value value={deviceState?.statusMessage ?? null} fallback="-" />
-                    </strong>
+                <div className="device-panel">
+                  <div className="device-main">
+                    <span className="card-label">Phone connection</span>
+                    <strong className="device-text">{device.text}</strong>
+                    {device.ready && (
+                      <SerialProvenance id="device-provenance" fromHost value={device.text} />
+                    )}
                     {!deviceState?.operatorActionRequired && (
                       <small>No operator action requested</small>
                     )}
+                  </div>
+
+                  <div
+                    className={`ready-badge${readyCount > 0 ? " is-live" : ""}`}
+                    title="Phones ready to scan right now"
+                  >
+                    <span className="ready-count">{readyCount}</span>
+                    <span className="ready-cap">ready</span>
                   </div>
                 </div>
 
@@ -721,10 +1021,10 @@ function App() {
 
                 <button
                   type="button"
-                  className="btn btn-ghost"
+                  className="btn btn-primary"
                   onClick={() => void refreshDeviceState()}
                 >
-                  Refresh device state
+                  {activeMeta.primary}
                 </button>
               </>
             )}
@@ -734,23 +1034,21 @@ function App() {
               <>
                 <div className="field-row">
                   <label className="field">
-                    <span>Target device serial</span>
+                    <span>Phone to scan</span>
                     <input
                       value={serial}
                       onChange={(event) => {
                         setSerial(event.target.value);
                         setSerialFromHost(false);
                       }}
-                      placeholder="No serial reported by the Host"
+                      placeholder="No phone reported yet"
                       aria-describedby="serial-provenance"
                     />
-                    <small id="serial-provenance">
-                      {serialFromHost
-                        ? "Reported by the Host from the connected device"
-                        : serial
-                          ? "Entered by the operator"
-                          : "The Host has not reported a device serial - connect and authorize a device, then refresh"}
-                    </small>
+                    <SerialProvenance
+                      id="serial-provenance"
+                      fromHost={serialFromHost}
+                      value={serial}
+                    />
                   </label>
 
                   <label className="field">
@@ -768,15 +1066,16 @@ function App() {
                   type="button"
                   className="btn btn-primary"
                   disabled={!hostConnected || !serial.trim() || busy !== null}
+                  title={lockScan ?? undefined}
                   onClick={() => void runScan()}
                 >
-                  {busy === "RUN_SCAN" ? "Scanning..." : "Run scan"}
+                  {busy === "RUN_SCAN" ? "Scanning..." : activeMeta.primary}
                 </button>
 
                 {hostConnected && !serial.trim() && (
                   <p className="hint">
-                    No serial available: the Host has not reported a device, and this UI will not
-                    make one up.
+                    No phone is reported yet - connect the phone, then check the connection.
+                    This screen will not invent a serial.
                   </p>
                 )}
 
@@ -813,8 +1112,6 @@ function App() {
                     </div>
                   </div>
                 )}
-
-                <RawResponse envelope={scan} />
               </>
             )}
 
@@ -825,9 +1122,10 @@ function App() {
                   type="button"
                   className="btn btn-primary"
                   disabled={!scanOk || busy !== null}
+                  title={lockLoad ?? undefined}
                   onClick={() => void loadInventory()}
                 >
-                  {busy === "GET_APPLICATION_INVENTORY" ? "Loading..." : "Load inventory"}
+                  {busy === "GET_APPLICATION_INVENTORY" ? "Loading..." : activeMeta.primary}
                 </button>
 
                 <Outcome envelope={inventory} />
@@ -935,8 +1233,6 @@ function App() {
                     </div>
                   </>
                 )}
-
-                <RawResponse envelope={inventory} />
               </>
             )}
 
@@ -946,35 +1242,39 @@ function App() {
                 <div className="action-row">
                   <button
                     type="button"
-                    className="btn"
+                    className="btn btn-primary"
                     disabled={!scanOk || startOk || busy !== null}
+                    title={lockGuide ?? undefined}
                     onClick={() => void runSanitize("start")}
                   >
-                    {busy === "SANITIZE_START" ? "..." : "SANITIZE_START"}
+                    {busy === "SANITIZE_START" ? "Working..." : activeMeta.primary}
                   </button>
                   <button
                     type="button"
-                    className="btn"
+                    className="btn btn-secondary"
                     disabled={!startOk || authorizeOk || busy !== null}
+                    title={lockAcknowledge ?? undefined}
                     onClick={() => void runSanitize("authorize")}
                   >
-                    {busy === "SANITIZE_AUTHORIZE" ? "..." : "SANITIZE_AUTHORIZE"}
+                    {busy === "SANITIZE_AUTHORIZE" ? "Working..." : "Acknowledge the warning"}
                   </button>
                   <button
                     type="button"
-                    className="btn"
+                    className="btn btn-secondary"
                     disabled={!authorizeOk || !phrase || confirmOk || busy !== null}
+                    title={lockConfirm ?? undefined}
                     onClick={() => void runSanitize("confirm")}
                   >
-                    {busy === "SANITIZE_CONFIRM" ? "..." : "SANITIZE_CONFIRM"}
+                    {busy === "SANITIZE_CONFIRM" ? "Working..." : "Confirm the purge"}
                   </button>
                   <button
                     type="button"
                     className="btn btn-danger"
                     disabled={!confirmOk || busy !== null}
+                    title={lockExecute ?? undefined}
                     onClick={() => void runSanitize("execute")}
                   >
-                    {busy === "SANITIZE_EXECUTE" ? "..." : "SANITIZE_EXECUTE"}
+                    {busy === "SANITIZE_EXECUTE" ? "Working..." : "Run the purge"}
                   </button>
                 </div>
 
@@ -1002,11 +1302,12 @@ function App() {
                       <strong>
                         <Value value={phrase} fallback="Not issued" />
                       </strong>
-                      <small>Supplied back to SANITIZE_CONFIRM verbatim - never typed here.</small>
+                      <small>
+                        Supplied back to the workstation verbatim - never typed here.
+                      </small>
                     </div>
                   </div>
                 )}
-                <RawResponse envelope={sanitize.start} />
 
                 <Outcome envelope={sanitize.authorize} />
                 {authorizePayload && (
@@ -1025,7 +1326,6 @@ function App() {
                     </div>
                   </div>
                 )}
-                <RawResponse envelope={sanitize.authorize} />
 
                 <Outcome envelope={sanitize.confirm} />
                 {confirmPayload && (
@@ -1044,7 +1344,6 @@ function App() {
                     </div>
                   </div>
                 )}
-                <RawResponse envelope={sanitize.confirm} />
 
                 <Outcome envelope={sanitize.execute} />
 
@@ -1106,12 +1405,10 @@ function App() {
                   </div>
                 )}
 
-                <RawResponse envelope={sanitize.execute} />
-
                 {confirmOk && !executePayload && (
                   <p className="hint">
-                    Ready to execute. SANITIZE_EXECUTE reports the Host&apos;s decision; this screen
-                    will show whatever it returns.
+                    Ready to run the purge. The workstation reports its own decision, and this
+                    screen shows whatever it returns - it never claims success on its own.
                   </p>
                 )}
               </>
@@ -1124,9 +1421,10 @@ function App() {
                   type="button"
                   className="btn btn-primary"
                   disabled={!scanOk || busy !== null}
+                  title={lockDownload ?? undefined}
                   onClick={() => void runExport()}
                 >
-                  {busy === "EXPORT_REPORT" ? "Writing..." : "Export report"}
+                  {busy === "EXPORT_REPORT" ? "Writing..." : activeMeta.primary}
                 </button>
 
                 <Outcome envelope={exported} />
@@ -1156,14 +1454,185 @@ function App() {
 
                 {exported && !reportJsonPath && (
                   <p className="hint">
-                    The Host did not report any artifact paths on this response - check the refusal
-                    above or the decoded response below.
+                    The workstation did not report any file locations on this response - check the
+                    message above, or open Help and then Engineer diagnostics for the full response.
                   </p>
                 )}
-
-                <RawResponse envelope={exported} />
               </>
             )}
+          </div>
+        </section>
+
+        <section className="help-card" aria-label="Help">
+          <div className="help-head">
+            <h2>Help</h2>
+          </div>
+
+          <div className="help-body">
+            <ul className="help-list">
+              <li>Work through the five steps above in order. A step unlocks only when the one before it has finished.</li>
+              <li>Only the connected phone is inspected. This laptop is never scanned and never wiped.</li>
+              <li>
+                Nothing personal is copied off the phone - the workstation reads the device details
+                and the list of installed applications, and nothing else.
+              </li>
+              <li>
+                The purge stays hardware-gated under decision D-1 until it has been validated on a
+                physical device, so this build reports the purge as blocked on purpose.
+              </li>
+              <li>
+                If a button will not run, hover it to see why. The reason on the button is the same
+                rule the workstation is enforcing.
+              </li>
+            </ul>
+
+            <details className="engineer">
+              <summary>Engineer diagnostics</summary>
+              <p className="hint">
+                Raw protocol values. None of this is needed to operate the workstation.
+              </p>
+
+              <h3 className="subhead">Host engine and device state</h3>
+              <table className="check-table">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Raw value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>hostConnected</td>
+                    <td>{String(hostConnected)}</td>
+                  </tr>
+                  <tr>
+                    <td>hostVersion</td>
+                    <td>{host?.hostVersion ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>hostProtocolVersion</td>
+                    <td>{host?.protocolVersion ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>hostRequestId</td>
+                    <td>{host?.requestId ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>hostError</td>
+                    <td>{hostError ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>deviceStateError</td>
+                    <td>{deviceStateError ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>bridgeError</td>
+                    <td>{bridgeError ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>connectionState</td>
+                    <td>{deviceState?.connectionState ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>usbState</td>
+                    <td>{deviceState?.usbState ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>adbState</td>
+                    <td>{deviceState?.adbState ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>adbAvailable</td>
+                    <td>{deviceState ? String(deviceState.adbAvailable) : "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>readyToScan</td>
+                    <td>{deviceState ? String(deviceState.readyToScan) : "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>statusMessage</td>
+                    <td>{deviceState?.statusMessage ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>operatorActionRequired</td>
+                    <td>{deviceState?.operatorActionRequired ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>device.serial</td>
+                    <td>{deviceState?.device?.serial ?? "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>device.state</td>
+                    <td>{deviceState?.device?.state ?? "-"}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h3 className="subhead">Workstation check</h3>
+              {preflightChecks.length > 0 ? (
+                <table className="check-table">
+                  <thead>
+                    <tr>
+                      <th>Check</th>
+                      <th>Result</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preflightChecks.map((check) => (
+                      <tr key={check.checkName}>
+                        <td>
+                          {check.checkName}
+                          {check.isOptional && <span className="tag">optional</span>}
+                        </td>
+                        <td>
+                          <span className={`pill ${check.pass ? "pill-pass" : "pill-fail"}`}>
+                            {check.pass ? "PASS" : "FAIL"}
+                          </span>
+                        </td>
+                        <td>{check.details}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="hint">The workstation check has not returned any rows yet.</p>
+              )}
+
+              <h3 className="subhead">Protocol exchanges</h3>
+              <table className="check-table">
+                <thead>
+                  <tr>
+                    <th>Exchange</th>
+                    <th>Status</th>
+                    <th>Request ID</th>
+                    <th>Protocol</th>
+                    <th>Host</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exchanges.map(({ label, envelope }) => (
+                    <tr key={label}>
+                      <td>{label}</td>
+                      <td>{envelope ? envelope.status : "not requested"}</td>
+                      <td>{envelope?.requestId ?? "-"}</td>
+                      <td>{envelope ? `v${envelope.protocolVersion}` : "-"}</td>
+                      <td>{envelope ? `v${envelope.hostVersion}` : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <h3 className="subhead">Decoded responses</h3>
+              {exchanges.map(({ label, envelope }) =>
+                envelope ? (
+                  <div key={label} className="exchange">
+                    <span className="card-label">{label}</span>
+                    <RawResponse envelope={envelope} />
+                  </div>
+                ) : null,
+              )}
+            </details>
           </div>
         </section>
       </div>

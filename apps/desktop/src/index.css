@@ -1,49 +1,69 @@
 /*
  * CYVRA Mobile - palette token file.
  *
- * This is the single source of truth for the CYVORIQ house style shared with the
- * sibling product CYVRA Erase: light steel surfaces, a navy sidebar shell, white
- * cards with a steel border, and orange primary actions. Every colour the desktop
- * application draws is declared here once - App.css only ever consumes tokens.
+ * Single source of truth for every colour and elevation the desktop workstation
+ * draws. App.css only ever consumes these tokens; it declares none of its own.
  *
- * Presentation only. No protocol, gating or data behaviour lives in this file.
+ * The palette is the CYVORIQ Solutions house style (see
+ * apps/web/src/site/marketing.css): paper background, white elevated cards,
+ * graphite ink and an orange primary action. The four semantic tones carry
+ * meaning that must never drift:
+ *
+ *   --orange     brand orange  -> COMPLETED stage, primary action
+ *   --ok-*       Host answered OK / phone ready
+ *   --assist-*   Host is asking the operator to do something on the phone
+ *   --danger-*   the Host refused, or the bridge failed
+ *   --amber-*    decision D-1 blocked the purge (never a success signal)
+ *
+ * Presentation only. No protocol, gating or data behaviour lives here.
  */
 :root {
   /* Surfaces */
-  --bg: #e9eef4;
-  --surface: #ffffff;
-  --line: #cbd5e1;
-  --banner: #dce7f3;
-  --sidebar: #0e2a47;
+  --paper: #f5f6f7;
+  --card: #ffffff;
 
   /* Ink */
-  --heading: #0b1f33;
-  --body: #334155;
-  --muted: #64748b;
-  --on-navy: #ffffff;
+  --ink: #15181c;
+  --graphite: #15181c;
+  --muted: #5c6470;
+  --steel: #8d949c;
+  --line: #e6e8eb;
 
-  /* Actions */
-  --cta: #c2410c;
-  --cta-hover: #a63a0c;
-  --secondary: #0e2a47;
-  --disabled-bg: #e2e8f0;
-  --disabled-ink: #64748b;
+  /* Brand action */
+  --orange: #ff7a00;
+  --orange-ink: #e56c00;
+  --orange-soft: #fff4ea;
 
-  /* Accents */
-  --purple: #7048e8;
-  --red: #c92a2a;
-  --green: #2f9e44;
-  --amber: #e8590c;
+  /* Semantic: the Host answered OK / the phone is ready */
+  --ok-ink: #2f9e44;
+  --ok-line: #b7e4c7;
+  --ok-soft: #eafaf0;
+
+  /* Semantic: a request is in flight / the Host wants an operator action */
+  --assist-ink: #1d4ed8;
+  --assist-line: #bfd4fd;
+  --assist-soft: #eff5ff;
+
+  /* Semantic: the Host refused, or the bridge failed */
+  --danger-ink: #c92a2a;
+  --danger-line: #f2c4c4;
+  --danger-soft: #fdf1f1;
+
+  /* Semantic: decision D-1 blocked the purge */
+  --amber-ink: #92400e;
+  --amber-line: #fcd34d;
+  --amber-soft: #fffbeb;
 
   /* Elevation */
-  --shadow-card: 0 1px 2px rgba(11, 31, 51, 0.06), 0 8px 24px rgba(11, 31, 51, 0.06);
+  --shadow-card: 0 1px 2px rgba(26, 29, 35, 0.05), 0 8px 24px rgba(26, 29, 35, 0.05);
+  --shadow-raised: 0 2px 4px rgba(21, 24, 28, 0.06), 0 16px 40px rgba(21, 24, 28, 0.09);
 
   color-scheme: light;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-  color: var(--body);
-  background: var(--bg);
+  color: var(--ink);
+  background: var(--paper);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -63,6 +83,6 @@ body,
 
 body {
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--body);
+  background: var(--paper);
+  color: var(--ink);
 }
