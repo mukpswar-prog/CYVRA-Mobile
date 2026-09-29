@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import cyvoriqLogo from "./assets/cyvoriq-solutions.png";
+
+/**
+ * Commit this bundle was built from, injected by `vite.config.ts`.
+ *
+ * CI sets `GITHUB_SHA`, so a shipped installer names a real commit; a local
+ * build says `development` rather than pretending to be a revision.
+ */
+declare const __CYVRA_BUILD_COMMIT__: string;
+
+const BUILD_COMMIT: string = __CYVRA_BUILD_COMMIT__;
 
 type HostInfoResult = {
   connected: boolean;
@@ -54,11 +65,43 @@ type DeviceStateResult = {
   device: DeviceDescriptor | null;
 };
 
-type PreflightCheck = {
-  checkName: string;
-  pass: boolean;
-  details: string;
-  isOptional: boolean;
+/**
+ * One row of the Host's read-only `GET_CONNECTED_DEVICES` answer.
+ *
+ * Every field is optional on purpose. The Host only emits a value it actually
+ * read: an unknown model or make is simply absent and the table renders the
+ * literal "Not reported", never a guess. `imeiReason` replaces `imei` for
+ * every row this build can answer, because an IMEI is not readable over the
+ * phone connection and the workstation does not invent one.
+ */
+type ConnectedDevice = {
+  transport?: string;
+  serial: string;
+  state: "detected" | "unauthorized" | "authorized" | "disconnected";
+  model?: string;
+  make?: string;
+  imei?: string;
+  imeiReason?: string;
+  portOrLocation?: string;
+};
+
+/** The payload shape the Host returns for `GET_CONNECTED_DEVICES`. */
+type ConnectedDevicesPayload = {
+  adbAvailable?: boolean;
+  devices?: ConnectedDevice[];
+};
+
+/** Lifecycle of one phone's row in the device table. Presentation only. */
+type DeviceRowPhase = "idle" | "scanning" | "reporting" | "sanitize" | "exported";
+
+type DeviceRowStatus = "Not started" | "In progress" | "Ok" | "Failed";
+
+type DeviceRowState = {
+  phase: DeviceRowPhase;
+  status: DeviceRowStatus;
+  reason: string;
+  /** True only after `EXPORT_REPORT` returned OK for this serial. */
+  exportedOk: boolean;
 };
 
 type SanitizeStage = "start" | "authorize" | "confirm" | "execute";
@@ -86,7 +129,7 @@ type StepKey = "connect" | "scan" | "inventory" | "sanitize" | "export";
  * operator what to do, and labels the stage's single primary action. It never
  * describes a result - every value shown *inside* a stage still comes from a
  * Host response. No protocol command name appears in any of these strings;
- * those live in the Engineer diagnostics drawer under Help.
+ * the interface never shows one at all.
  */
 type StepMeta = {
   key: StepKey;
@@ -261,26 +304,23 @@ function readList(source: Record<string, unknown> | null, key: string): string[]
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-function readChecks(source: Record<string, unknown> | null): PreflightCheck[] {
-  const value = source?.checks;
-
-  if (!Array.isArray(value)) {
-    return [];
+/**
+ * One plain sentence describing an answer, for the device table's Status cell.
+ *
+ * A refusal keeps the Host's own message - that is the only honest account of
+ * what happened - and a bridge failure says so, because "the engine did not
+ * answer" is a different fact from "the engine refused".
+ */
+function envelopeReason(envelope: HostEnvelope | null, okFallback: string): string {
+  if (envelope === null) {
+    return "The workstation engine did not answer. Nothing was changed on the phone.";
   }
 
-  return value.map((entry) => {
-    const check = (typeof entry === "object" && entry !== null ? entry : {}) as Record<
-      string,
-      unknown
-    >;
+  if (envelope.status === "ERROR") {
+    return envelope.error?.message ?? "The workstation refused this step without a reason.";
+  }
 
-    return {
-      checkName: readString(check, "checkName") ?? "(unnamed check)",
-      pass: readBoolean(check, "pass") ?? false,
-      details: readString(check, "details") ?? "",
-      isOptional: readBoolean(check, "isOptional") ?? false,
-    };
-  });
+  return okFallback;
 }
 
 /** Renders a placeholder when the Host never reported a value for this key. */
@@ -320,8 +360,8 @@ function ListBlock({ values, empty }: { values: string[]; empty: string }) {
  *
  * The refusal code and message stay here because they are the only honest
  * description of what went wrong. The request id, protocol version and Host
- * version that used to sit under this band are engineer detail and now render
- * only in the Engineer diagnostics drawer.
+ * version are engineer detail: they are never rendered for the operator, and
+ * the engine's own stderr is on disk in the support log instead.
  */
 function Outcome({ envelope }: { envelope: HostEnvelope | null }) {
   if (!envelope) {
@@ -343,20 +383,6 @@ function Outcome({ envelope }: { envelope: HostEnvelope | null }) {
     <div className="band band-ok">
       <strong>OK</strong>
     </div>
-  );
-}
-
-/** Decoded response, field for field as the Host sent it - only whitespace differs. */
-function RawResponse({ envelope }: { envelope: HostEnvelope | null }) {
-  if (!envelope) {
-    return null;
-  }
-
-  return (
-    <details className="raw-response">
-      <summary>Decoded response ({envelope.requestId})</summary>
-      <pre>{JSON.stringify(envelope, null, 2)}</pre>
-    </details>
   );
 }
 
@@ -419,8 +445,8 @@ type DeviceView = { text: string; ready: boolean };
  *
  * The raw enums (NO_DEVICE, USB_DETECTED, ADB_DETECTED, ADB_UNAVAILABLE,
  * ADB_UNAUTHORIZED, ADB_OFFLINE, ADB_READY) and the Host's own diagnostic
- * strings never reach the operator view - they render verbatim in the
- * Engineer diagnostics drawer instead. Two rules here are deliberate and
+ * strings never reach the operator view - no part of the interface renders
+ * them. Two rules here are deliberate and
  * must not be relaxed:
  *
  *   - `ready` is produced only when the Host itself reported readyToScan
@@ -484,6 +510,9 @@ function App() {
   const [host, setHost] = useState<HostInfoResult | null>(null);
   const [hostError, setHostError] = useState<string | null>(null);
 
+  /** Installer version of this build, read from Tauri for the footer line. */
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
   const [preflight, setPreflight] = useState<HostEnvelope | null>(null);
   const [deviceState, setDeviceState] = useState<DeviceStateResult | null>(null);
   const [deviceStateError, setDeviceStateError] = useState<string | null>(null);
@@ -501,6 +530,21 @@ function App() {
 
   const [bridgeError, setBridgeError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+
+  /** Serial of the phone the Host last scanned; the export belongs to it. */
+  const [lastScanSerial, setLastScanSerial] = useState<string | null>(null);
+
+  /** Per-phone row state for the device table. Never read from the wire. */
+  const [deviceRows, setDeviceRows] = useState<Record<string, DeviceRowState>>({});
+
+  /** Read-only device inventory, refreshed on its own cadence. */
+  const [connectedDevices, setConnectedDevices] = useState<ConnectedDevice[]>([]);
+  const [adbAvailable, setAdbAvailable] = useState<boolean | null>(null);
+  const [devicesLoading, setDevicesLoading] = useState(true);
+  const [devicesError, setDevicesError] = useState<string | null>(null);
+
+  /** `GET_LICENSE_STATE` answer, needed before a row's Scan may arm (D-3). */
+  const [licensePresent, setLicensePresent] = useState<boolean | null>(null);
 
   /** Which stage of the wizard is on screen. Navigation only: it gates nothing. */
   const [activeStep, setActiveStep] = useState<StepKey>("connect");
@@ -562,10 +606,110 @@ function App() {
     }
   }, [adoptHostSerial]);
 
+  /**
+   * Reads the connected-phone inventory without taking the global `busy` flag.
+   *
+   * The device table refreshes on its own cadence; if it went through `send`
+   * every poll would blink every button on the page to disabled. A refusal is
+   * stored in `devicesError`, which the table renders as its own red band with
+   * a Retry: a failed listing is never presented as "no phones connected".
+   */
+  const refreshDevices = useCallback(
+    async (showSkeleton = false): Promise<ConnectedDevice[] | null> => {
+      if (showSkeleton) {
+        setDevicesLoading(true);
+      }
+
+      try {
+        const raw = await invoke<string>("send_host_command", {
+          command: "GET_CONNECTED_DEVICES",
+          payload: "{}",
+        });
+
+        const envelope = JSON.parse(raw) as HostEnvelope;
+
+        if (envelope.status !== "OK") {
+          setDevicesError(
+            envelope.error?.message ??
+              "The workstation engine could not list the connected phones.",
+            );
+          return null;
+        }
+
+        const payload = (envelope.payload ?? {}) as ConnectedDevicesPayload;
+        const rows = Array.isArray(payload.devices) ? payload.devices : [];
+
+        setDevicesError(null);
+        setAdbAvailable(payload.adbAvailable === true);
+        setConnectedDevices(rows);
+
+        return rows;
+      } catch (error) {
+        setDevicesError(String(error));
+        return null;
+      } finally {
+        setDevicesLoading(false);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Licence presence, asked once at start-up. `null` means "not known yet" and
+   * fails closed: a row's Scan stays locked until the Host has actually said
+   * the licence is present.
+   */
+  const loadLicense = useCallback(async () => {
+    try {
+      const raw = await invoke<string>("send_host_command", {
+        command: "GET_LICENSE_STATE",
+        payload: "{}",
+      });
+
+      const envelope = JSON.parse(raw) as HostEnvelope;
+      setLicensePresent(
+        envelope.status === "OK" && readBoolean(payloadOf(envelope), "present") === true,
+      );
+    } catch {
+      setLicensePresent(null);
+    }
+  }, []);
+
+  /** Merges a patch into one phone's row, keeping every other field intact. */
+  const patchRow = useCallback((rowSerial: string, patch: Partial<DeviceRowState>) => {
+    if (!rowSerial) {
+      return;
+    }
+
+    setDeviceRows((current) => {
+      const existing: DeviceRowState = current[rowSerial] ?? {
+        phase: "idle",
+        status: "Not started",
+        reason: "",
+        exportedOk: false,
+      };
+
+      return { ...current, [rowSerial]: { ...existing, ...patch } };
+    });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
+      // Footer provenance: the packaged version of this build.
+      try {
+        const version = await getVersion();
+
+        if (!cancelled) {
+          setAppVersion(version);
+        }
+      } catch {
+        if (!cancelled) {
+          setAppVersion(null);
+        }
+      }
+
       // Existing P1 command, kept for backward compatibility.
       try {
         const info = await invoke<HostInfoResult>("get_host_info");
@@ -592,32 +736,99 @@ function App() {
       if (!cancelled) {
         await refreshDeviceState();
       }
+
+      if (!cancelled) {
+        void refreshDevices(true);
+      }
+
+      if (!cancelled) {
+        void loadLicense();
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [refreshDeviceState, send]);
+  }, [loadLicense, refreshDeviceState, refreshDevices, send]);
 
-  const runScan = async () => {
-    const payload: Record<string, unknown> = { serial: serial.trim() };
+  /**
+   * The device table is the centerpiece of the workstation, so it keeps itself
+   * current: every five seconds, without operator input and without claiming
+   * progress. Nothing here synthesises a row - an empty answer means the Host
+   * really did report zero phones.
+   */
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshDevices();
+    }, 5_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refreshDevices]);
+
+  /**
+   * Runs the scan for one phone.
+   *
+   * `targetSerial` is how the device table's per-row Scan reaches this
+   * function: pressing a row makes that phone the one the rest of the wizard
+   * talks about, so no later step can act on a phone the operator did not pick.
+   */
+  const runScan = async (targetSerial?: string) => {
+    const scanSerial = (targetSerial ?? serial).trim();
+    const payload: Record<string, unknown> = { serial: scanSerial };
 
     if (operatorId.trim()) {
       payload.operatorId = operatorId.trim();
     }
 
+    if (targetSerial) {
+      setSerial(scanSerial);
+      setSerialFromHost(true);
+    }
+
+    patchRow(scanSerial, { phase: "scanning", status: "In progress", reason: "" });
+
     const envelope = await send("RUN_SCAN", payload);
     setScan(envelope);
+
+    if (envelope?.status === "OK") {
+      setLastScanSerial(scanSerial);
+      patchRow(scanSerial, {
+        phase: "idle",
+        status: "Ok",
+        reason: "Scan finished for this phone. The report is ready to review.",
+        exportedOk: false,
+      });
+    } else {
+      patchRow(scanSerial, {
+        phase: "idle",
+        status: "Failed",
+        reason: envelopeReason(envelope, ""),
+      });
+    }
 
     // A fresh scan invalidates every downstream artifact (the Host clears its
     // sanitization state too); the screen follows rather than showing stale data.
     setInventory(null);
     setSanitize(EMPTY_SANITIZE);
     setExported(null);
+    void refreshDevices();
   };
 
   const loadInventory = async () => {
-    setInventory(await send("GET_APPLICATION_INVENTORY", {}));
+    const target = (lastScanSerial ?? serial).trim();
+
+    patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
+
+    const envelope = await send("GET_APPLICATION_INVENTORY", {});
+    setInventory(envelope);
+
+    patchRow(target, {
+      phase: "idle",
+      status: envelope?.status === "OK" ? "Ok" : "Failed",
+      reason: envelopeReason(envelope, "Application list read for this phone."),
+    });
   };
 
   const runSanitize = async (stage: SanitizeStage) => {
@@ -638,12 +849,45 @@ function App() {
       payload = { confirmationPhrase: phrase };
     }
 
+    const target = (lastScanSerial ?? serial).trim();
+
+    patchRow(target, { phase: "sanitize", status: "In progress", reason: "" });
+
     const envelope = await send(SANITIZE_COMMANDS[stage], payload);
     setSanitize((current) => ({ ...current, [stage]: envelope }));
+
+    const accepted = envelope?.status === "OK";
+
+    patchRow(target, {
+      // The guide stays the phone's live situation until a new scan replaces it.
+      phase: accepted ? "sanitize" : "idle",
+      status: accepted ? "Ok" : "Failed",
+      reason: envelopeReason(envelope, "The purge guide recorded this step."),
+    });
   };
 
   const runExport = async () => {
-    setExported(await send("EXPORT_REPORT", {}));
+    const target = (lastScanSerial ?? serial).trim();
+
+    patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
+
+    const envelope = await send("EXPORT_REPORT", {});
+    setExported(envelope);
+
+    if (envelope?.status === "OK") {
+      patchRow(target, {
+        phase: "exported",
+        status: "Ok",
+        reason: "Report downloaded for this phone.",
+        exportedOk: true,
+      });
+    } else {
+      patchRow(target, {
+        phase: "idle",
+        status: "Failed",
+        reason: envelopeReason(envelope, ""),
+      });
+    }
   };
 
   const hostConnected = host?.connected === true;
@@ -651,7 +895,6 @@ function App() {
   const scanOk = scan?.status === "OK";
 
   const preflightPayload = payloadOf(preflight);
-  const preflightChecks = readChecks(preflightPayload);
   const preflightReady = readBoolean(preflightPayload, "readyToScan");
 
   const inventoryPayload = payloadOf(inventory);
@@ -830,18 +1073,6 @@ function App() {
   const lockExecute =
     lockWhenBusy ?? (!confirmOk ? "Confirm the purge first." : null);
 
-  /** Every exchange, for the Engineer diagnostics drawer under Help. */
-  const exchanges: { label: string; envelope: HostEnvelope | null }[] = [
-    { label: "Workstation check", envelope: preflight },
-    { label: "Scan", envelope: scan },
-    { label: "Applications", envelope: inventory },
-    { label: "Purge guide - start", envelope: sanitize.start },
-    { label: "Purge guide - acknowledge", envelope: sanitize.authorize },
-    { label: "Purge guide - confirm", envelope: sanitize.confirm },
-    { label: "Purge guide - execute", envelope: sanitize.execute },
-    { label: "Download", envelope: exported },
-  ];
-
   /**
    * Operator-facing phone connection line, and the phones that are actually
    * ready. Both derive from the Host's device state; nothing here is
@@ -875,10 +1106,96 @@ function App() {
         ? "Workstation check failed - the workstation reported a problem."
         : preflightReady === true
           ? "Workstation ready - successfully installed."
-          : "Workstation check did not pass - ask your engineer to review the diagnostics.";
+          : "Workstation check did not pass - read the message below, then run the check again.";
 
   const activeMeta = STEPS.find((step) => step.key === activeStep) ?? STEPS[0];
   const activeLock = stepLock[activeStep];
+
+  /**
+   * Header pill 1 - the inspection engine that runs on this PC. The three
+   * states are exhaustive: answered and connected, not answered yet, or an
+   * answer that never arrived.
+   */
+  const engineState: "online" | "starting" | "offline" = hostConnected
+    ? "online"
+    : host === null && hostError !== null
+      ? "offline"
+      : "starting";
+
+  const engineLabel =
+    engineState === "online"
+      ? "ENGINE ONLINE"
+      : engineState === "starting"
+        ? "ENGINE STARTING"
+        : "ENGINE OFFLINE";
+
+  /**
+   * Header pill 2 - phones, and only phones.
+   *
+   * Counted from the Host's device inventory alone: a phone whose ADB session
+   * dropped (`disconnected`) is not counted as connected, and the number is
+   * never merged with the engine state, because the engine being up says
+   * nothing about whether a phone is plugged in.
+   */
+  const connectedPhoneCount = connectedDevices.filter(
+    (device) => device.state !== "disconnected",
+  ).length;
+
+  const phonePill =
+    connectedPhoneCount > 0 ? `PHONE: ${connectedPhoneCount} CONNECTED` : "PHONE: NONE";
+
+  /**
+   * Rows of the device table: Host inventory plus this view's own per-phone
+   * session state.
+   *
+   * Order, serial, model, make and IMEI come from the Host. The Action, Status
+   * and Report cells are tracked locally, and only from responses this window
+   * actually received - no cell is ever optimistic. The row's Scan is armed by
+   * rule D-3: authorized AND licence present AND no other phone's session
+   * unfinished; when it is not armed the reason is printed on the button
+   * instead of the button silently doing nothing.
+   */
+  const deviceRowsView = connectedDevices.slice(0, 50).map((device, index) => {
+    const rowState: DeviceRowState = deviceRows[device.serial] ?? {
+      phase: "idle",
+      status: "Not started",
+      reason: "",
+      exportedOk: false,
+    };
+
+    const activeReason =
+      device.state === "authorized"
+        ? null
+        : device.state === "disconnected"
+          ? "Connection dropped - check the data cable."
+          : device.state === "unauthorized"
+            ? "Not allowed yet - tap ALLOW on the phone."
+            : "Still being identified by the workstation.";
+
+    const unfinished = Object.entries(deviceRows).some(
+      ([rowSerial, row]) => rowSerial !== device.serial && row.status === "In progress",
+    );
+
+    const scanLock =
+      device.state === "disconnected"
+        ? "This phone's connection dropped. Unplug the data cable and plug it back in."
+        : device.state === "unauthorized"
+          ? "This phone has not allowed this workstation to inspect it. On the phone, tap ALLOW when it asks to trust this computer."
+          : device.state === "detected"
+            ? "This phone is still being identified. Wait a moment, then try again."
+            : licensePresent !== true
+              ? "No licence is installed on this workstation, so a scan cannot start."
+              : unfinished
+                ? "Another phone's session is still running. Wait for it to finish first."
+                : busy !== null
+                  ? "The workstation is busy with the current step. Wait for it to finish."
+                  : null;
+
+    const reportReady =
+      rowState.exportedOk && rowState.status === "Ok" && lastScanSerial === device.serial;
+
+    return { device, number: index + 1, rowState, activeReason, scanLock, reportReady };
+  });
 
   return (
     <main className="cyvra-app">
@@ -887,18 +1204,32 @@ function App() {
           <img className="brand-logo" src={cyvoriqLogo} alt="CYVORIQ Solutions" />
           <div className="brand-titles">
             <span className="brand-product">CYVRA MOBILE</span>
-            <span className="brand-vendor">Desktop Workstation</span>
+            <span className="brand-vendor">by CYVORIQ Solutions</span>
           </div>
         </div>
 
-        <div className={`status-pill ${hostConnected ? "is-online" : "is-starting"}`}>
-          <span className="status-dot" />
-          {hostConnected ? "HOST CONNECTED" : "STARTING"}
+        <div className="header-pills">
+          <span
+            className={`status-pill is-${engineState}`}
+            title="The inspection engine is running on this PC. Phone connection is shown in the device table."
+          >
+            <span className="status-dot" aria-hidden="true" />
+            {engineLabel}
+          </span>
+
+          <span
+            className={`status-pill ${connectedPhoneCount > 0 ? "is-online" : "is-idle"}`}
+            aria-live="polite"
+            title="How many phones this workstation currently sees over USB/ADB."
+          >
+            <span className="status-dot" aria-hidden="true" />
+            {phonePill}
+          </span>
         </div>
       </header>
 
       <div className="workspace">
-        <p className="eyebrow">Connected device inspection &amp; purge</p>
+        <h1 className="page-title">Connected device inspection &amp; purge</h1>
 
         <p className="workflow-note">
           CYVRA MOBILE inspects the connected Android phone, produces verified device and application reports, and guides the hardware-gated purge - without copying personal content.
@@ -908,11 +1239,224 @@ function App() {
           <div className="band band-bridge">
             <strong>BRIDGE FAILURE</strong>
             <span>
-              The workstation hit a technical problem and could not finish. Open Help, then
-              Engineer diagnostics, for the detail.
+              The workstation hit a technical problem and could not finish. Nothing was changed
+              on the phone. If it keeps happening, send the newest file from the logs folder
+              beside this workstation&apos;s reports (see docs/SUPPORT_LOGS.md) to your engineer.
             </span>
           </div>
         )}
+
+        {/* ---- Connected-device table: the workstation's centerpiece ----- */}
+        <section className="device-grid" aria-labelledby="device-grid-title">
+          <div className="device-grid-head">
+            <div className="device-grid-titles">
+              <h2 id="device-grid-title" className="section-label">
+                Connected phones
+              </h2>
+              <p className="hint">
+                Everything below is what the inspection engine actually reports. A value the
+                engine could not read is shown as &quot;Not reported&quot;.
+              </p>
+            </div>
+
+            <div className="device-badges">
+              <span
+                className="count-badge"
+                title="How many phones this workstation can see over USB/ADB."
+              >
+                <strong>{connectedPhoneCount}</strong>
+                <span>Sensed</span>
+              </span>
+              <span
+                className="count-badge is-authorized"
+                title="How many of those phones have allowed this workstation to inspect them."
+              >
+                <strong>
+                  {connectedDevices.filter((device) => device.state === "authorized").length}
+                </strong>
+                <span>Authorized</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="grid-region" aria-live="polite">
+            {devicesLoading && connectedDevices.length === 0 ? (
+              <table className="data-grid is-loading">
+                <caption className="visually-hidden">Loading connected phones</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">IMEI no</th>
+                    <th scope="col">Model/Make</th>
+                    <th scope="col">Active</th>
+                    <th scope="col" className="col-action">
+                      Action (Live Situation)
+                    </th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Report</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[0, 1, 2].map((placeholder) => (
+                    <tr key={placeholder} className="is-skeleton">
+                      <td colSpan={7}>
+                        <span className="skeleton-bar" aria-hidden="true" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : devicesError !== null ? (
+              <div className="band band-error">
+                <strong>COULD NOT LIST PHONES</strong>
+                <span>{devicesError}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  aria-label="Retry listing connected phones"
+                  onClick={() => void refreshDevices(true)}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : adbAvailable === false ? (
+              <div className="band band-note">
+                <strong>PHONE LIST UNAVAILABLE</strong>
+                <span>
+                  The inspection engine cannot list phones right now. Check that the workstation
+                  is fully installed, then try again.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  aria-label="Retry listing connected phones"
+                  onClick={() => void refreshDevices(true)}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : deviceRowsView.length === 0 ? (
+              <div className="grid-empty">
+                <p>No phone is connected to this workstation right now.</p>
+                <ul className="list-plain">
+                  <li>Connect the data cable to this laptop.</li>
+                  <li>Enable USB debugging on the phone (Developer options).</li>
+                  <li>Tap ALLOW on the phone when it asks to trust this computer.</li>
+                </ul>
+              </div>
+            ) : (
+              <table className="data-grid">
+                <caption className="visually-hidden">
+                  Connected phones, read from the inspection engine
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">IMEI no</th>
+                    <th scope="col">Model/Make</th>
+                    <th scope="col">Active</th>
+                    <th scope="col" className="col-action">
+                      Action (Live Situation)
+                    </th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Report</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deviceRowsView.map(
+                    ({ device, number, rowState, activeReason, scanLock, reportReady }) => {
+                      const situation =
+                        rowState.phase === "scanning"
+                          ? "Scanning"
+                          : rowState.phase === "reporting"
+                            ? "Reporting"
+                            : rowState.phase === "sanitize"
+                              ? "Sanitize guide"
+                              : rowState.phase === "exported"
+                                ? "Exported"
+                                : "Idle";
+
+                      const model = device.model?.trim();
+                      const make = device.make?.trim();
+                      const imei = device.imei?.trim();
+                      const modelMake = [model, make].filter(Boolean).join(" / ");
+
+                      return (
+                        <tr
+                          key={device.serial}
+                          className={activeReason ? "is-inactive" : undefined}
+                        >
+                          <td className="col-index">{number}</td>
+                          <td>
+                            {imei ?? (
+                              <span className="not-reported" title={device.imeiReason}>
+                                Not reported
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {modelMake || (
+                              <span className="not-reported">Not reported</span>
+                            )}
+                          </td>
+                          <td>
+                            {activeReason ? (
+                              <>
+                                <span className="yesno is-no">No</span>
+                                <span className="cell-reason">{activeReason}</span>
+                              </>
+                            ) : (
+                              <span className="yesno is-yes">Yes</span>
+                            )}
+                          </td>
+                          <td className="col-action">
+                            <span className="situation">{situation}</span>
+                            {situation === "Idle" && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-compact"
+                                disabled={scanLock !== null}
+                                title={scanLock ?? `Scan ${device.serial}`}
+                                aria-label={`Scan phone ${device.serial}`}
+                                onClick={() => void runScan(device.serial)}
+                              >
+                                Scan
+                              </button>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`row-status is-${rowState.status.toLowerCase().replace(" ", "-")}`}>
+                              {rowState.status}
+                            </span>
+                            {rowState.reason && (
+                              <span className="cell-reason">{rowState.reason}</span>
+                            )}
+                          </td>
+                          <td className="col-action">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-compact"
+                              disabled={!reportReady}
+                              title={
+                                reportReady
+                                  ? "Download this phone's report"
+                                  : "A report is downloadable only after this phone's export finished successfully."
+                              }
+                              aria-label={`Download report for phone ${device.serial}`}
+                              onClick={() => void runExport()}
+                            >
+                              Download
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    },
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
 
         <nav className="stepper" aria-label="Workflow stages">
           {STEPS.map((step) => {
@@ -928,6 +1472,7 @@ function App() {
                 type="button"
                 className={`step-node is-${slug}${isActive ? " is-active" : ""}`}
                 aria-current={isActive ? "step" : undefined}
+                aria-label={`Step ${step.index}: ${step.label}`}
                 onClick={() => setActiveStep(step.key)}
               >
                 <span className="node-top">
@@ -1022,6 +1567,7 @@ function App() {
                 <button
                   type="button"
                   className="btn btn-primary"
+                  aria-label={activeMeta.primary}
                   onClick={() => void refreshDeviceState()}
                 >
                   {activeMeta.primary}
@@ -1067,6 +1613,7 @@ function App() {
                   className="btn btn-primary"
                   disabled={!hostConnected || !serial.trim() || busy !== null}
                   title={lockScan ?? undefined}
+                  aria-label={busy === "RUN_SCAN" ? "Scanning..." : activeMeta.primary}
                   onClick={() => void runScan()}
                 >
                   {busy === "RUN_SCAN" ? "Scanning..." : activeMeta.primary}
@@ -1123,6 +1670,11 @@ function App() {
                   className="btn btn-primary"
                   disabled={!scanOk || busy !== null}
                   title={lockLoad ?? undefined}
+                  aria-label={
+                    busy === "GET_APPLICATION_INVENTORY"
+                      ? "Loading..."
+                      : activeMeta.primary
+                  }
                   onClick={() => void loadInventory()}
                 >
                   {busy === "GET_APPLICATION_INVENTORY" ? "Loading..." : activeMeta.primary}
@@ -1245,6 +1797,9 @@ function App() {
                     className="btn btn-primary"
                     disabled={!scanOk || startOk || busy !== null}
                     title={lockGuide ?? undefined}
+                    aria-label={
+                      busy === "SANITIZE_START" ? "Working..." : activeMeta.primary
+                    }
                     onClick={() => void runSanitize("start")}
                   >
                     {busy === "SANITIZE_START" ? "Working..." : activeMeta.primary}
@@ -1254,6 +1809,9 @@ function App() {
                     className="btn btn-secondary"
                     disabled={!startOk || authorizeOk || busy !== null}
                     title={lockAcknowledge ?? undefined}
+                    aria-label={
+                      busy === "SANITIZE_AUTHORIZE" ? "Working..." : "Acknowledge the warning"
+                    }
                     onClick={() => void runSanitize("authorize")}
                   >
                     {busy === "SANITIZE_AUTHORIZE" ? "Working..." : "Acknowledge the warning"}
@@ -1263,6 +1821,9 @@ function App() {
                     className="btn btn-secondary"
                     disabled={!authorizeOk || !phrase || confirmOk || busy !== null}
                     title={lockConfirm ?? undefined}
+                    aria-label={
+                      busy === "SANITIZE_CONFIRM" ? "Working..." : "Confirm the purge"
+                    }
                     onClick={() => void runSanitize("confirm")}
                   >
                     {busy === "SANITIZE_CONFIRM" ? "Working..." : "Confirm the purge"}
@@ -1272,6 +1833,7 @@ function App() {
                     className="btn btn-danger"
                     disabled={!confirmOk || busy !== null}
                     title={lockExecute ?? undefined}
+                    aria-label={busy === "SANITIZE_EXECUTE" ? "Working..." : "Run the purge"}
                     onClick={() => void runSanitize("execute")}
                   >
                     {busy === "SANITIZE_EXECUTE" ? "Working..." : "Run the purge"}
@@ -1422,6 +1984,7 @@ function App() {
                   className="btn btn-primary"
                   disabled={!scanOk || busy !== null}
                   title={lockDownload ?? undefined}
+                  aria-label={busy === "EXPORT_REPORT" ? "Writing..." : activeMeta.primary}
                   onClick={() => void runExport()}
                 >
                   {busy === "EXPORT_REPORT" ? "Writing..." : activeMeta.primary}
@@ -1454,8 +2017,8 @@ function App() {
 
                 {exported && !reportJsonPath && (
                   <p className="hint">
-                    The workstation did not report any file locations on this response - check the
-                    message above, or open Help and then Engineer diagnostics for the full response.
+                    The workstation did not report any file locations on this response - read the
+                    message above, then try the download again.
                   </p>
                 )}
               </>
@@ -1485,157 +2048,17 @@ function App() {
                 rule the workstation is enforcing.
               </li>
             </ul>
-
-            <details className="engineer">
-              <summary>Engineer diagnostics</summary>
-              <p className="hint">
-                Raw protocol values. None of this is needed to operate the workstation.
-              </p>
-
-              <h3 className="subhead">Host engine and device state</h3>
-              <table className="check-table">
-                <thead>
-                  <tr>
-                    <th>Field</th>
-                    <th>Raw value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>hostConnected</td>
-                    <td>{String(hostConnected)}</td>
-                  </tr>
-                  <tr>
-                    <td>hostVersion</td>
-                    <td>{host?.hostVersion ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>hostProtocolVersion</td>
-                    <td>{host?.protocolVersion ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>hostRequestId</td>
-                    <td>{host?.requestId ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>hostError</td>
-                    <td>{hostError ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>deviceStateError</td>
-                    <td>{deviceStateError ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>bridgeError</td>
-                    <td>{bridgeError ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>connectionState</td>
-                    <td>{deviceState?.connectionState ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>usbState</td>
-                    <td>{deviceState?.usbState ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>adbState</td>
-                    <td>{deviceState?.adbState ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>adbAvailable</td>
-                    <td>{deviceState ? String(deviceState.adbAvailable) : "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>readyToScan</td>
-                    <td>{deviceState ? String(deviceState.readyToScan) : "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>statusMessage</td>
-                    <td>{deviceState?.statusMessage ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>operatorActionRequired</td>
-                    <td>{deviceState?.operatorActionRequired ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>device.serial</td>
-                    <td>{deviceState?.device?.serial ?? "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>device.state</td>
-                    <td>{deviceState?.device?.state ?? "-"}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <h3 className="subhead">Workstation check</h3>
-              {preflightChecks.length > 0 ? (
-                <table className="check-table">
-                  <thead>
-                    <tr>
-                      <th>Check</th>
-                      <th>Result</th>
-                      <th>Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preflightChecks.map((check) => (
-                      <tr key={check.checkName}>
-                        <td>
-                          {check.checkName}
-                          {check.isOptional && <span className="tag">optional</span>}
-                        </td>
-                        <td>
-                          <span className={`pill ${check.pass ? "pill-pass" : "pill-fail"}`}>
-                            {check.pass ? "PASS" : "FAIL"}
-                          </span>
-                        </td>
-                        <td>{check.details}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p className="hint">The workstation check has not returned any rows yet.</p>
-              )}
-
-              <h3 className="subhead">Protocol exchanges</h3>
-              <table className="check-table">
-                <thead>
-                  <tr>
-                    <th>Exchange</th>
-                    <th>Status</th>
-                    <th>Request ID</th>
-                    <th>Protocol</th>
-                    <th>Host</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {exchanges.map(({ label, envelope }) => (
-                    <tr key={label}>
-                      <td>{label}</td>
-                      <td>{envelope ? envelope.status : "not requested"}</td>
-                      <td>{envelope?.requestId ?? "-"}</td>
-                      <td>{envelope ? `v${envelope.protocolVersion}` : "-"}</td>
-                      <td>{envelope ? `v${envelope.hostVersion}` : "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <h3 className="subhead">Decoded responses</h3>
-              {exchanges.map(({ label, envelope }) =>
-                envelope ? (
-                  <div key={label} className="exchange">
-                    <span className="card-label">{label}</span>
-                    <RawResponse envelope={envelope} />
-                  </div>
-                ) : null,
-              )}
-            </details>
           </div>
         </section>
       </div>
+
+      {/* One line, one purpose: which build is this workstation running. */}
+      <footer className="app-footer">
+        <span>
+          v{appVersion ?? "unknown"} - build {BUILD_COMMIT} - protocol v
+          {host?.protocolVersion ?? "1"} - (C) CYVORIQ Solutions
+        </span>
+      </footer>
     </main>
   );
 }
