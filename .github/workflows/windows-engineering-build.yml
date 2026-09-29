@@ -45,24 +45,41 @@ jobs:
         shell: pwsh
 
     steps:
+      # Node 24 runtime pin.
+      #
+      # Every action below is pinned to the first major of that action that runs
+      # on `node24` (GitHub's Node 20 is deprecated). Each was checked against
+      # the `runs:` block of its own action.yml, not against a changelog claim:
+      #
+      #   actions/checkout            v4 (node20) -> v5 (node24)
+      #   pnpm/action-setup           v4 (node20) -> v6 (node24; there is no v5 tag)
+      #   actions/setup-node          v4 (node20) -> v5 (node24)
+      #   actions/setup-java          v4 (node20) -> v5 (node24)
+      #   gradle/actions/setup-gradle v4 (node20) -> v5 (node24)
+      #   actions/upload-artifact     v4 (node20) -> v6 (node24; v5 is still node20)
+      #
+      # Only the major version on each `uses:` line moved. No input was renamed
+      # or dropped: `version`, `node-version`, `cache`, `distribution`,
+      # `java-version`, `name`, `path` and `if-no-files-found` are all still
+      # declared by the majors selected above, so no step logic changed.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Toolchain setup mirrors the repository's existing workflows
       # (pnpm 12.3.4 / Node 24) plus the Gradle JDK 21 freeze.
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 12.3.4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: pnpm
 
       - name: Set up Java (Temurin 21 — repository Gradle freeze)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -76,7 +93,7 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
 
       - name: Set up Gradle (with caching)
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Install JS dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -273,7 +290,7 @@ jobs:
           Write-Host ("P7 payload gate OK: {0:N0} bytes across {1} artifact(s), floor {2:N0} bytes." -f $total, $files.Count, $floor)
 
       - name: Upload unsigned engineering artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cyvra-mobile-windows-unsigned-engineering-artifact
           path: |
