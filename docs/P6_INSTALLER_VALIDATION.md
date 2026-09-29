@@ -59,7 +59,7 @@ Expected result (per-user NSIS install):
 ```text
 DisplayName      : CYVRA Mobile
 DisplayVersion   : 0.1.0
-Publisher        : co
+Publisher        : Cyvoriq Solutions Pvt. Ltd.
 InstallLocation  : "C:\Users\<you>\AppData\Local\CYVRA Mobile"
 UninstallString  : "C:\Users\<you>\AppData\Local\CYVRA Mobile\uninstall.exe"
 EstimatedSize    : <KB>

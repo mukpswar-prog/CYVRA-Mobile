@@ -12,7 +12,7 @@
     "app":  {
                 "windows":  [
                                 {
-                                    "title":  "CYVRA Mobile",
+                                    "title":  "CYVRA MOBILE",
                                     "width":  800,
                                     "height":  600,
                                     "resizable":  true,
@@ -39,6 +39,14 @@
                                },
                    "resources":  {
                                      "./.resources/":  "resources"
-                                 }
+                                 },
+                   "publisher":  "CYVORIQ Solutions",
+                   "copyright":  "Copyright (C) CYVORIQ Solutions",
+                   "windows":  {
+                                   "nsis":  {
+                                                "installerIcon":  "icons/icon.ico",
+                                                "uninstallerIcon":  "icons/icon.ico"
+                                            }
+                               }
                }
 }
