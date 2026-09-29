@@ -3,10 +3,11 @@ use serde_json::{json, Value};
 use std::{
     env,
     fs,
-    io::{BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
+    thread::{self, JoinHandle},
 };
 
 #[cfg(windows)]
@@ -20,6 +21,18 @@ const HOST_COMMAND: &str = "GET_HOST_INFO";
 const DEVICE_STATE_COMMAND: &str = "GET_DEVICE_STATE";
 const PREFLIGHT_COMMAND: &str = "GET_PREFLIGHT";
 const HOST_MAIN_CLASS: &str = "cyvra.mobile.host.protocol.HostMain";
+
+/// Directory under `<cyvra.home>` that receives the Host's stderr, one file per launch.
+const HOST_LOG_DIR: &str = "logs";
+
+/// How many Host stderr logs survive a prune. Support needs a few recent runs, not all.
+const HOST_LOG_RETAIN: usize = 10;
+
+/// Prefix of every file this module owns inside [`HOST_LOG_DIR`].
+const HOST_LOG_PREFIX: &str = "host-";
+
+/// Extension of every file this module owns inside [`HOST_LOG_DIR`].
+const HOST_LOG_EXTENSION: &str = "log";
 
 static REQUEST_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -539,7 +552,7 @@ impl HostProcessManager {
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| {
                 format!(
@@ -565,6 +578,19 @@ impl HostProcessManager {
                     .to_string()
             })?;
 
+        /*
+         * Support traceability without a diagnostics screen: the Host's stderr is
+         * copied to `<cyvra.home>/logs/host-<UTC timestamp>.log`, one file per launch,
+         * pruned to the newest ten. stdout is deliberately left alone - it is the JSON
+         * pipe, and a log of it would be a second copy of the protocol on disk.
+         */
+        if let Some(stderr) = child.stderr.take() {
+            let log_dir = runtime.resource_root.join(HOST_LOG_DIR);
+            // `_drain` starts with an underscore and is dropped right here: the
+            // thread detaches and ends on its own when the Host's stderr closes.
+            let _drain = tee_host_stderr(stderr, &log_dir);
+        }
+
         self.child = Some(child);
         self.stdin = Some(stdin);
         self.stdout = Some(BufReader::new(stdout));
@@ -587,6 +613,155 @@ impl Drop for HostProcessManager {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+// ---------------------------------------------------------------------------
+// Support log on disk (stderr only - stdout stays the pure JSON pipe)
+// ---------------------------------------------------------------------------
+
+/// Name of the log written for one Host launch, e.g. `host-20260929T141530Z.log`.
+///
+/// The UTC timestamp is the whole name, so support can order a log against an
+/// operator's description of "about 2pm today" without opening the file, and two
+/// launches never share a file: a collision within the same second gets a numeric
+/// suffix instead.
+fn host_log_file_name() -> String {
+    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
+    format!("{HOST_LOG_PREFIX}{stamp}.{HOST_LOG_EXTENSION}")
+}
+
+/// Creates `<cyvra.home>/logs` on demand and opens this launch's log inside it.
+///
+/// Returns `Err` only when the directory or the file could not be created. The caller
+/// must still drain the child's stderr in that case: a pipe nobody reads fills up and
+/// the Host would then hang mid-request, which is far worse than a missing log.
+fn open_host_log(log_dir: &Path) -> Result<(PathBuf, fs::File), String> {
+    fs::create_dir_all(log_dir).map_err(|error| {
+        format!(
+            "HOST_LOG_DIR_FAILED: could not create {}: {error}",
+            log_dir.display()
+        )
+    })?;
+
+    let name = host_log_file_name();
+    let mut path = log_dir.join(&name);
+
+    let mut attempt = 1usize;
+    while path.exists() {
+        if attempt > 64 {
+            return Err(format!(
+                "HOST_LOG_FILE_FAILED: no free log name under {}",
+                log_dir.display()
+            ));
+        }
+
+        let file_name = name.replace(
+            &format!(".{HOST_LOG_EXTENSION}"),
+            &format!("-{attempt}.{HOST_LOG_EXTENSION}"),
+        );
+        path = log_dir.join(file_name);
+        attempt += 1;
+    }
+
+    let file = fs::File::create(&path).map_err(|error| {
+        format!(
+            "HOST_LOG_FILE_FAILED: could not create {}: {error}",
+            path.display()
+        )
+    })?;
+
+    prune_host_logs(log_dir, &path);
+
+    Ok((path, file))
+}
+
+/// True for `host-<something>.log`, so a prune can never touch anything else.
+fn is_host_log(path: &Path) -> bool {
+    let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+
+    file_name.starts_with(HOST_LOG_PREFIX)
+        && path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case(HOST_LOG_EXTENSION))
+}
+
+/// Keeps the newest [`HOST_LOG_RETAIN`] logs. The log just opened is never a candidate.
+///
+/// Ordering is by modification time, falling back to the file name (which starts with
+/// the UTC timestamp) so a coarse filesystem clock cannot make a fresh log look stale.
+fn prune_host_logs(log_dir: &Path, keep: &Path) {
+    let Ok(entries) = fs::read_dir(log_dir) else {
+        return;
+    };
+
+    let mut logs: Vec<(std::time::SystemTime, PathBuf)> = Vec::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path == keep || !is_host_log(&path) {
+            continue;
+        }
+
+        let stamp = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+
+        logs.push((stamp, path));
+    }
+
+    logs.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| right.1.cmp(&left.1))
+            .then_with(|| right.1.file_name().cmp(&left.1.file_name()))
+    });
+
+    let spare = HOST_LOG_RETAIN.saturating_sub(1);
+
+    for (_, path) in logs.into_iter().skip(spare) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+/// Drains the Host's stderr into `logs/host-<UTC timestamp>.log`.
+///
+/// Two guarantees, both required:
+///
+/// * stdout is never touched - it stays the single-line JSON pipe the bridge reads;
+/// * stderr is *always* drained. If the log file cannot be opened the bytes are
+///   discarded instead, because an unread pipe would block the Host mid-response.
+///
+/// Returns the path of the log that was created (`None` when it could not be) and the
+/// handle of the draining thread, which a test joins to ensure the file is flushed.
+fn tee_host_stderr<R>(stderr: R, log_dir: &Path) -> (Option<PathBuf>, Option<JoinHandle<()>>)
+where
+    R: Read + Send + 'static,
+{
+    let (path, mut sink): (Option<PathBuf>, Box<dyn Write + Send>) = match open_host_log(log_dir) {
+        Ok((path, file)) => (Some(path), Box::new(file)),
+        Err(error) => {
+            // Not a panic: the log is support material, the pipe is the product.
+            let _ = writeln!(io::stderr(), "{error}");
+            (None, Box::new(io::sink()))
+        }
+    };
+
+    let handle = thread::Builder::new()
+        .name("cyvra-host-stderr".to_string())
+        .spawn(move || {
+            let mut reader = stderr;
+            let _ = io::copy(&mut reader, &mut sink);
+            let _ = sink.flush();
+        })
+        .ok();
+
+    (path, handle)
 }
 
 /// Environment override for a relocated or portable installation root.
@@ -1183,12 +1358,13 @@ mod host_command_bridge_tests {
     /// This array is the bridge's allow-list: adding a command to the Host
     /// means adding it here, and the length assertion fails until you do.
     #[test]
-    fn all_fourteen_host_commands_pass_the_shape_check() {
+    fn all_fifteen_host_commands_pass_the_shape_check() {
         let commands = [
             "GET_HOST_INFO",
             "GET_PREFLIGHT",
             "GET_DEVICE_STATE",
             "GET_LICENSE_STATE",
+            "GET_CONNECTED_DEVICES",
             "RUN_SCAN",
             "GET_DEVICE_REPORT",
             "GET_APPLICATION_INVENTORY",
@@ -1201,7 +1377,7 @@ mod host_command_bridge_tests {
             "GET_FINAL_REPORT",
         ];
 
-        assert_eq!(commands.len(), 14, "HostCommand changed; update this list");
+        assert_eq!(commands.len(), 15, "HostCommand changed; update this list");
 
         for command in commands {
             assert!(
@@ -1253,6 +1429,53 @@ mod host_command_bridge_tests {
         let (second, _) = build_host_request("GET_LICENSE_STATE", "{}").expect("valid request");
 
         assert_ne!(first, second, "request ids must be distinct");
+    }
+
+    /// `GET_CONNECTED_DEVICES` stamps the same envelope every other command does, so the
+    /// read-only listing reaches the Host as one JSON line with an object payload.
+    #[test]
+    fn connected_devices_request_uses_the_standard_wire_format() {
+        let (request_id, request) =
+            build_host_request("GET_CONNECTED_DEVICES", "{}").expect("valid request");
+
+        assert_eq!(request.protocol_version, PROTOCOL_VERSION);
+        assert_eq!(request.request_id, request_id);
+        assert_eq!(request.command, "GET_CONNECTED_DEVICES");
+        assert_eq!(request.payload, json!({}));
+
+        let encoded = serde_json::to_string(&request).expect("encode");
+        assert!(!encoded.contains('\n'), "request spans lines: {encoded}");
+
+        let decoded: Value = serde_json::from_str(&encoded).expect("round trip");
+        assert_eq!(decoded["command"], "GET_CONNECTED_DEVICES");
+        assert_eq!(decoded["protocolVersion"], PROTOCOL_VERSION);
+        assert!(decoded["payload"].is_object(), "payload must be an object");
+    }
+
+    /// The answer side: an honest device row survives the envelope check untouched, and
+    /// the bridge neither adds an IMEI nor invents a port it was never given.
+    #[test]
+    fn connected_devices_response_passes_the_envelope_check_unchanged() {
+        let line = r#"{"protocolVersion":"1","requestId":"d2.1-42","status":"OK","hostVersion":"0.0.0","payload":{"adbAvailable":true,"devices":[{"transport":"USB","serial":"RF8R123456","state":"authorized","model":"SM_A107F","make":"samsung","imeiReason":"IMEI is not readable over this phone connection on this build; it is never guessed."}]},"error":null}"#;
+
+        let response = response(line);
+        assert!(validate_response_envelope(&response, "d2.1-42").is_ok());
+
+        let devices = response.payload["devices"]
+            .as_array()
+            .expect("payload.devices must be an array");
+
+        assert_eq!(devices.len(), 1);
+
+        let entry = devices[0].as_object().expect("a device row is an object");
+
+        assert!(entry.get("imei").is_none(), "an IMEI must never appear");
+        assert!(
+            entry.get("portOrLocation").is_none(),
+            "a port must never be invented"
+        );
+        assert_eq!(entry["state"], "authorized");
+        assert!(entry["imeiReason"].as_str().is_some_and(|v| !v.is_empty()));
     }
 
     /// A malformed name is refused here rather than written to the Host's
@@ -1565,5 +1788,194 @@ mod generic_bridge_end_to_end_tests {
             .expect("bridge must stay healthy after refused requests");
 
         assert_eq!(parse(&again)["status"], "OK", "pipe corrupted: {again}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Support logs on disk: traceability without a diagnostics screen
+// ---------------------------------------------------------------------------
+
+/// The Host's stderr is copied to `<cyvra.home>/logs/host-<UTC timestamp>.log`, one file
+/// per launch, pruned to the newest ten. stdout is never part of that deal - it stays the
+/// single-line JSON pipe the bridge reads, and these tests are what prove the two never
+/// mix.
+#[cfg(test)]
+mod host_support_log_tests {
+    use super::*;
+    use std::io::Cursor;
+
+    /// A unique, empty `<cyvra.home>` stand-in for one test.
+    fn scratch_home(label: &str) -> PathBuf {
+        let dir = env::temp_dir().join(format!(
+            "cyvra-host-log-{label}-{}-{}",
+            std::process::id(),
+            REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("scratch home must be creatable");
+
+        dir
+    }
+
+    /// Drains a source into the log and returns the bytes that were written to it.
+    fn drain<R: Read + Send + 'static>(source: R, logs: &Path) -> (Option<PathBuf>, String) {
+        let (path, handle) = tee_host_stderr(source, logs);
+        handle
+            .expect("the draining thread must start")
+            .join()
+            .expect("the draining thread must not panic");
+
+        let contents = path
+            .as_ref()
+            .map(|path| fs::read_to_string(path).expect("the log must be readable"))
+            .unwrap_or_default();
+
+        (path, contents)
+    }
+
+    /// The directory is created on demand and the file is named for the UTC instant.
+    #[test]
+    fn a_launch_creates_one_utc_named_log_under_the_logs_directory() {
+        let home = scratch_home("create");
+        let logs = home.join(HOST_LOG_DIR);
+
+        assert!(!logs.exists(), "the fixture must start without a logs directory");
+
+        let (path, contents) = drain(Cursor::new(b"first launch\n"), &logs);
+        let path = path.expect("the log file must be created");
+
+        assert!(logs.is_dir(), "the logs directory must be created on demand");
+        assert_eq!(path.parent(), Some(logs.as_path()));
+        assert!(is_host_log(&path), "unexpected log name: {}", path.display());
+        assert_eq!(contents, "first launch\n");
+
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    /// Two launches in the same second must not share a file.
+    #[test]
+    fn two_launches_never_share_a_log_file() {
+        let home = scratch_home("distinct");
+        let logs = home.join(HOST_LOG_DIR);
+
+        let (first, _) = tee_host_stderr(Cursor::new(b"a\n"), &logs);
+        let (second, _) = tee_host_stderr(Cursor::new(b"b\n"), &logs);
+
+        let first = first.expect("first log");
+        let second = second.expect("second log");
+
+        assert_ne!(first, second, "one file per launch");
+        assert!(first.exists());
+        assert!(second.exists());
+
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    /// Pruning keeps the newest ten and never touches anything it does not own.
+    #[test]
+    fn pruning_keeps_the_newest_ten_logs_and_nothing_else_is_touched() {
+        let home = scratch_home("prune");
+        let logs = home.join(HOST_LOG_DIR);
+        fs::create_dir_all(&logs).expect("logs directory");
+
+        // The log being opened right now: never a prune candidate.
+        let current = logs.join("host-20991231T235959Z.log");
+        fs::write(&current, "current\n").expect("current log");
+
+        // A file this module does not own.
+        let operator_note = logs.join("notes.txt");
+        fs::write(&operator_note, "keep me\n").expect("unrelated file");
+
+        for index in 1..=14u32 {
+            let path = logs.join(format!("host-202001{index:02}T000000Z.log"));
+            fs::write(&path, "old\n").expect("fixture log");
+        }
+
+        prune_host_logs(&logs, &current);
+
+        let remaining: Vec<String> = fs::read_dir(&logs)
+            .expect("logs directory must stay readable")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.ends_with(".log"))
+            .collect();
+
+        let host_logs = remaining
+            .iter()
+            .filter(|name| name.starts_with(HOST_LOG_PREFIX))
+            .count();
+
+        assert_eq!(host_logs, HOST_LOG_RETAIN, "only the newest ten survive: {remaining:?}");
+        assert!(current.exists(), "the current log must never be pruned");
+        assert!(operator_note.exists(), "a prune must not touch files it does not own");
+
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    /// The contract, end to end: stderr reaches the log, and the bytes on stdout are the
+    /// child's own - no log header, no duplicated stream, nothing missing.
+    #[test]
+    fn stderr_lands_in_the_log_while_stdout_bytes_stay_unchanged() {
+        let home = scratch_home("pipe");
+        let logs = home.join(HOST_LOG_DIR);
+
+        /*
+         * One child, two pipes: a diagnostic line on stderr and a single
+         * payload line on stdout, exactly the shape the Host produces.
+         */
+        #[cfg(windows)]
+        let mut child = Command::new("cmd")
+            .args(["/C", "echo host-stderr-line 1>&2 & echo READY"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn cmd");
+
+        #[cfg(not(windows))]
+        let mut child = Command::new("sh")
+            .args(["-c", "echo host-stderr-line 1>&2; echo READY"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn sh");
+
+        let mut stdout = child.stdout.take().expect("stdout pipe");
+        let stderr = child.stderr.take().expect("stderr pipe");
+
+        let (path, tee) = tee_host_stderr(stderr, &logs);
+        let path = path.expect("the log file must be created");
+
+        let mut stdout_bytes = Vec::new();
+        stdout.read_to_end(&mut stdout_bytes).expect("read the JSON pipe");
+
+        child.wait().expect("wait for the child");
+
+        tee.expect("the draining thread must start")
+            .join()
+            .expect("the draining thread must not panic");
+
+        // 1. The support log exists and carries the Host's stderr.
+        let logged = fs::read_to_string(&path).expect("the log must be readable");
+        assert!(
+            logged.contains("host-stderr-line"),
+            "stderr missing from the log: {logged:?}"
+        );
+
+        // 2. stdout is byte-for-byte what the child wrote, and nothing else.
+        let stdout_text = String::from_utf8_lossy(&stdout_bytes);
+        assert_eq!(
+            stdout_text.trim(),
+            "READY",
+            "the JSON pipe changed: {stdout_text:?}"
+        );
+        assert!(
+            !stdout_text.contains("host-stderr-line"),
+            "stderr leaked into the JSON pipe: {stdout_text:?}"
+        );
+
+        let _ = fs::remove_dir_all(&home);
     }
 }

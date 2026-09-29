@@ -15,6 +15,7 @@ import cyvra.mobile.host.service.WorkstationSanitizationLifecycleResult
 import cyvra.mobile.host.service.WorkstationSessionOrchestrator
 import cyvra.mobile.host.transport.AdbBinaryLocator
 import cyvra.mobile.host.transport.AdbClient
+import cyvra.mobile.host.transport.AdbDeviceDescriptor
 import cyvra.mobile.host.transport.ConnectionStateMachine
 import cyvra.mobile.host.transport.HostPreflightVerifier
 import kotlinx.serialization.json.Json
@@ -30,6 +31,14 @@ import kotlinx.serialization.json.put
 class HostProtocolDispatcher(
     private val preflightVerifier: HostPreflightVerifier = HostPreflightVerifier(),
     private val adbLocator: AdbBinaryLocator = AdbBinaryLocator(),
+    /**
+     * Builds the ADB client used by the read-only device commands.
+     *
+     * Indirection, not behaviour: production always builds a real [AdbClient]. A test
+     * supplies one backed by a fake process runner, so no test path can reach a real
+     * `adb` binary or a connected phone.
+     */
+    private val adbClientFactory: (java.io.File) -> AdbClient = { binary -> AdbClient(binary) },
     private val connectionStateMachine: ConnectionStateMachine = ConnectionStateMachine(),
     private val licenseResultProvider: () -> LicenseFileResult = { HostBootstrap.licenseResult },
     private val orchestratorFactory: (java.io.File, HostLicenseService) -> WorkstationSessionOrchestrator =
@@ -86,6 +95,7 @@ class HostProtocolDispatcher(
             HostCommand.GET_PREFLIGHT -> preflightResponse(request)
             HostCommand.GET_DEVICE_STATE -> deviceStateResponse(request)
             HostCommand.GET_LICENSE_STATE -> licenseStateResponse(request)
+            HostCommand.GET_CONNECTED_DEVICES -> connectedDevicesResponse(request)
             HostCommand.RUN_SCAN -> runScanResponse(request)
             HostCommand.GET_DEVICE_REPORT -> deviceReportResponse(request)
             HostCommand.GET_APPLICATION_INVENTORY -> applicationInventoryResponse(request)
@@ -192,7 +202,7 @@ class HostProtocolDispatcher(
              */
             val adbBinary = adbLocator.locate()
             val discoveredDevices = adbBinary
-                ?.let { AdbClient(it).listDevices() }
+                ?.let { adbClientFactory(it).listDevices() }
                 .orEmpty()
 
             val snapshot = connectionStateMachine.evaluate(
@@ -267,6 +277,124 @@ class HostProtocolDispatcher(
                 put("scansRemaining", record.scansRemaining)
             },
         )
+    }
+
+    /**
+     * GET_CONNECTED_DEVICES lists every phone this workstation currently sees over ADB.
+     *
+     * Read-only: it runs `adb devices -l` and, for phones ADB has already authorized, one
+     * unprivileged `getprop ro.product.manufacturer`. Nothing is written to a device and no
+     * session is started.
+     *
+     * Honesty rules this response is built around:
+     *
+     *  - `model` and `make` are only emitted when ADB actually returned them; a phone whose
+     *    manufacturer could not be read simply has no `make` key, and the caller renders
+     *    "Not reported" rather than a guess.
+     *  - `imei` is never emitted. Reading an IMEI needs privileged Android permissions this
+     *    workstation does not hold, so every entry carries `imeiReason` instead.
+     *  - `portOrLocation` is never emitted: the Windows truth this build has (SetupAPI
+     *    device-instance enumeration) exposes only a native PnP instance id, which the
+     *    workstation deliberately never puts on the wire, and no new USB parsing was added
+     *    for this command.
+     *  - `state` is ADB's own verdict. `unauthorized` and `disconnected` are reported as
+     *    themselves and can never be read as ready.
+     */
+    private fun connectedDevicesResponse(request: HostRequest): HostResponse {
+        return try {
+            val adbBinary = adbLocator.locate()
+
+            if (adbBinary == null) {
+                /*
+                 * Not an error and not an empty phone list: "no ADB component" is a
+                 * different fact from "no phone attached", so the caller is told which
+                 * one it is rather than being left to infer it from an empty array.
+                 */
+                return okResponse(
+                    request,
+                    buildJsonObject {
+                        put("adbAvailable", false)
+                        put("devices", JsonArray(emptyList()))
+                    },
+                )
+            }
+
+            val client = adbClientFactory(adbBinary)
+            val devices = client.listDevices()
+
+            okResponse(
+                request,
+                buildJsonObject {
+                    put("adbAvailable", true)
+                    put(
+                        "devices",
+                        JsonArray(devices.map { descriptor ->
+                            connectedDevice(client, descriptor)
+                        }),
+                    )
+                },
+            )
+        } catch (error: Exception) {
+            errorResponse(
+                request = request,
+                code = "CONNECTED_DEVICES_FAILED",
+                message = error.message ?: "Could not list connected devices",
+            )
+        }
+    }
+
+    /** One device row, built only from values this Host actually read. */
+    private fun connectedDevice(
+        client: AdbClient,
+        descriptor: AdbDeviceDescriptor,
+    ): JsonObject = buildJsonObject {
+        put("transport", transportOf(descriptor.serial))
+        put("serial", descriptor.serial)
+        put("state", connectedDeviceState(descriptor.state))
+
+        descriptor.model?.takeIf { it.isNotBlank() }?.let { put("model", it) }
+
+        manufacturerOf(client, descriptor)?.let { put("make", it) }
+
+        put("imeiReason", IMEI_REASON)
+    }
+
+    /**
+     * Transport domain of a serial, taken from ADB's own serial grammar so an emulator or
+     * a network attachment is never labelled USB. USB is the only transport the Windows
+     * inspection plane of this build observes, which is why an unrecognised serial is USB.
+     */
+    private fun transportOf(serial: String): String = when {
+        serial.startsWith("emulator-", ignoreCase = true) -> "EMULATOR"
+        serial.contains(':') && serial.substringAfterLast(':').toIntOrNull() != null -> "NETWORK"
+        else -> "USB"
+    }
+
+    /** Maps ADB's state column onto the four states the operator view understands. */
+    private fun connectedDeviceState(adbState: String): String = when (adbState.lowercase()) {
+        "device" -> "authorized"
+        "unauthorized" -> "unauthorized"
+        "offline" -> "disconnected"
+        else -> "detected"
+    }
+
+    /**
+     * Manufacturer as ADB's host reports it for an authorized phone.
+     *
+     * Returns `null` - and the key is omitted - whenever the value is not genuinely there:
+     * an unprivileged shell cannot run on a phone that has not authorized this computer,
+     * and Android answers `null` for an unset property. `null` is never rendered as a
+     * manufacturer.
+     */
+    private fun manufacturerOf(client: AdbClient, descriptor: AdbDeviceDescriptor): String? {
+        if (descriptor.state != "device") return null
+
+        val result = client.runShell(descriptor.serial, "getprop ro.product.manufacturer")
+        if (!result.isSuccess) return null
+
+        return result.stdout
+            .trim()
+            .takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
     }
 
     // ------------------------------------------------------------------
@@ -940,6 +1068,15 @@ class HostProtocolDispatcher(
 
         /** Refusal code returned when generated artifacts cannot be written to disk. */
         const val REPORT_WRITE_FAILED: String = "REPORT_WRITE_FAILED"
+
+        /**
+         * The `imeiReason` every connected-device row carries.
+         *
+         * Reading an IMEI needs privileged Android permissions this workstation does not
+         * hold, so the field is stated as a limitation rather than left blank or filled in.
+         */
+        private const val IMEI_REASON: String =
+            "IMEI is not readable over this phone connection on this build; it is never guessed."
 
         private const val KEY_SERIAL = "serial"
         private const val KEY_OPERATOR_ID = "operatorId"
