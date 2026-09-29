@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import cyvoriqLogo from "./assets/cyvoriq-solutions.png";
@@ -76,6 +76,31 @@ const EMPTY_SANITIZE: Record<SanitizeStage, HostEnvelope | null> = {
   confirm: null,
   execute: null,
 };
+
+type StepKey = "connect" | "scan" | "inventory" | "sanitize" | "export";
+
+/**
+ * Stepper navigation for the five protocol stages.
+ *
+ * `label` and `heading` are interface chrome - they name the stage, they do
+ * not describe any result. Every value shown *inside* a stage still comes
+ * from a Host response.
+ */
+const STEPS: { key: StepKey; index: number; label: string; heading: string }[] = [
+  { key: "connect", index: 1, label: "Connect", heading: "Connect / Preflight" },
+  { key: "scan", index: 2, label: "Scan", heading: "Run Scan" },
+  { key: "inventory", index: 3, label: "Inventory", heading: "View Inventory" },
+  { key: "sanitize", index: 4, label: "Sanitize", heading: "Sanitization Flow" },
+  { key: "export", index: 5, label: "Export", heading: "Export" },
+];
+
+/** Chip shown on a stepper node. Priority: locked > active > complete > ready. */
+type NodeTone = "locked" | "active" | "complete" | "ready";
+
+/** Tone of the per-stage status chip in the card header. */
+type StepTone = "ok" | "error" | "idle" | "blocked";
+
+type StepStatus = { label: string; tone: StepTone };
 
 /**
  * Returns the payload only for an `OK` envelope.
@@ -217,6 +242,31 @@ function RawResponse({ envelope }: { envelope: HostEnvelope | null }) {
   );
 }
 
+/**
+ * An operator-facing callout.
+ *
+ * Two uses: a stage that cannot run yet - its gating reason is printed here
+ * instead of being hidden behind a disabled control - and an action the Host
+ * explicitly asked the operator to perform on the device. The component only
+ * changes presentation; the text is whatever the caller already had.
+ */
+function Notice({
+  tone,
+  label,
+  children,
+}: {
+  tone: "gate" | "action";
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <aside className={`notice notice-${tone}`}>
+      <span className="notice-label">{label}</span>
+      <span className="notice-text">{children}</span>
+    </aside>
+  );
+}
+
 function App() {
   const [host, setHost] = useState<HostInfoResult | null>(null);
   const [hostError, setHostError] = useState<string | null>(null);
@@ -238,6 +288,9 @@ function App() {
 
   const [bridgeError, setBridgeError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+
+  /** Which stage of the wizard is on screen. Navigation only: it gates nothing. */
+  const [activeStep, setActiveStep] = useState<StepKey>("connect");
 
   /**
    * Single entry point to the Rust bridge.
@@ -407,635 +460,713 @@ function App() {
   const reportMarkdownPath = readString(exportPayload, "reportMarkdownPath");
   const manifestPath = readString(exportPayload, "manifestPath");
 
+  /*
+   * Stepper state. These are the same predicates the buttons already use to
+   * disable themselves - they are read, not re-implemented, so the wizard can
+   * never permit something the protocol layer refuses.
+   */
+  const stepStatus: Record<StepKey, StepStatus> = {
+    connect: hostConnected
+      ? { label: "CONNECTED", tone: "ok" }
+      : hostError
+        ? { label: "UNAVAILABLE", tone: "error" }
+        : { label: "STARTING", tone: "idle" },
+    scan: scanOk
+      ? { label: "COMPLETED", tone: "ok" }
+      : scan
+        ? { label: "REFUSED", tone: "error" }
+        : { label: "NOT RUN", tone: "idle" },
+    inventory:
+      inventory?.status === "OK"
+        ? { label: "LOADED", tone: "ok" }
+        : inventory
+          ? { label: "REFUSED", tone: "error" }
+          : { label: "NOT RUN", tone: "idle" },
+    sanitize: blocked
+      ? { label: "BLOCKED (D-1)", tone: "blocked" }
+      : executePayload
+        ? { label: "EXECUTED", tone: "ok" }
+        : confirmOk
+          ? { label: "CONFIRMED", tone: "ok" }
+          : authorizeOk
+            ? { label: "ACKNOWLEDGED", tone: "ok" }
+            : startOk
+              ? { label: "STARTED", tone: "ok" }
+              : { label: "NOT RUN", tone: "idle" },
+    export:
+      exported?.status === "OK"
+        ? { label: "WRITTEN", tone: "ok" }
+        : exported
+          ? { label: "REFUSED", tone: "error" }
+          : { label: "NOT RUN", tone: "idle" },
+  };
+
+  const stepComplete: Record<StepKey, boolean> = {
+    connect: hostConnected,
+    scan: scanOk,
+    inventory: inventory?.status === "OK",
+    sanitize: confirmOk,
+    export: exported?.status === "OK",
+  };
+
+  /**
+   * Why a stage cannot run yet. The strings are the ones the screen already
+   * showed next to the disabled button; they are surfaced on the stepper so a
+   * locked stage always states its reason instead of silently staying dark.
+   */
+  const stepLock: Record<StepKey, string | null> = {
+    connect: null,
+    scan: hostConnected ? null : "The Host is not connected yet.",
+    inventory: scanOk ? null : "Complete a scan first.",
+    sanitize: scanOk ? null : "Complete a scan first.",
+    export: scanOk ? null : "Complete a scan first.",
+  };
+
+  const nodeTone = (key: StepKey): NodeTone => {
+    if (stepLock[key] !== null) {
+      return "locked";
+    }
+    if (key === activeStep) {
+      return "active";
+    }
+    if (stepComplete[key]) {
+      return "complete";
+    }
+    return "ready";
+  };
+
+  const activeMeta = STEPS.find((step) => step.key === activeStep) ?? STEPS[0];
+  const activeStatus = stepStatus[activeStep];
+  const activeLock = stepLock[activeStep];
+
   return (
     <main className="cyvra-app">
-      <section className="cyvra-shell">
-        <header className="cyvra-header">
-          <div className="cyvra-brand-group">
-            <img className="cyvoriq-logo" src={cyvoriqLogo} alt="CYVORIQ Solutions" />
-            <div>
-              <div className="cyvra-brand">CYVRA MOBILE</div>
-              <div className="cyvra-product">Desktop Workstation</div>
-            </div>
+      <header className="brand-header">
+        <div className="brand-lockup">
+          <img className="brand-logo" src={cyvoriqLogo} alt="CYVORIQ Solutions" />
+          <div className="brand-titles">
+            <span className="brand-product">CYVRA MOBILE</span>
+            <span className="brand-vendor">Desktop Workstation</span>
           </div>
+        </div>
 
-          <div className="cyvra-status">
-            <span className="status-dot" />
-            {hostConnected ? "HOST CONNECTED" : "STARTING"}
+        <div className={`status-pill ${hostConnected ? "is-online" : "is-starting"}`}>
+          <span className="status-dot" />
+          {hostConnected ? "HOST CONNECTED" : "STARTING"}
+        </div>
+      </header>
+
+      <div className="workspace">
+        <p className="eyebrow">Connected device inspection &amp; purge</p>
+
+        <p className="workflow-note">
+          Every value on this screen is returned by the Kotlin Host over the JSON-lines protocol.
+          Nothing here is generated locally: if the Host refuses, blocks or reports no data, that
+          is exactly what is shown.
+        </p>
+
+        {bridgeError && (
+          <div className="band band-bridge">
+            <strong>BRIDGE FAILURE</strong>
+            <span>{bridgeError}</span>
           </div>
-        </header>
+        )}
 
-        <section className="cyvra-content">
-          <p className="eyebrow">Connected device inspection &amp; purge</p>
+        <nav className="stepper" aria-label="Workflow stages">
+          {STEPS.map((step) => {
+            const tone = nodeTone(step.key);
+            const reason = stepLock[step.key];
+            const isActive = step.key === activeStep;
+            const chipText =
+              tone === "locked"
+                ? "LOCKED"
+                : tone === "active"
+                  ? "ACTIVE"
+                  : tone === "complete"
+                    ? "COMPLETE"
+                    : "READY";
 
-          <p className="workflow-note">
-            Every value on this screen is returned by the Kotlin Host over the JSON-lines protocol.
-            Nothing here is generated locally: if the Host refuses, blocks or reports no data, that
-            is exactly what is shown.
-          </p>
+            return (
+              <button
+                key={step.key}
+                type="button"
+                className={`step-node is-${tone}`}
+                aria-current={isActive ? "step" : undefined}
+                onClick={() => setActiveStep(step.key)}
+              >
+                <span className="node-top">
+                  <span className="node-index">{step.index}</span>
+                  <span className="node-label">{step.label}</span>
+                </span>
+                <span className={`node-chip is-${tone}`}>{chipText}</span>
+                {reason && <span className="node-reason">{reason}</span>}
+              </button>
+            );
+          })}
+        </nav>
 
-          {bridgeError && (
-            <div className="band band-bridge">
-              <strong>BRIDGE FAILURE</strong>
-              <span>{bridgeError}</span>
-            </div>
-          )}
-
-          {/* ---- Step 1 ------------------------------------------------ */}
-          <section className={`step ${hostConnected ? "step-done" : ""}`}>
-            <div className="step-head">
-              <span className="step-index">1</span>
-              <h2>Connect / Preflight</h2>
-              <span className={`step-state ${hostConnected ? "is-ok" : "is-idle"}`}>
-                {hostConnected ? "CONNECTED" : hostError ? "UNAVAILABLE" : "STARTING"}
+        <section className="wizard-card">
+          <div className="step-head">
+            <span className="step-index">{activeMeta.index}</span>
+            <div className="step-titles">
+              <h2>{activeMeta.heading}</h2>
+              <span className="step-kicker">
+                Step {activeMeta.index} of {STEPS.length}
               </span>
             </div>
+            <span className={`step-state is-${activeStatus.tone}`}>{activeStatus.label}</span>
+          </div>
 
-            <div className="step-body">
-              <div className="kv-grid">
-                <div className="kv">
-                  <span className="card-label">Host engine</span>
-                  <strong>
-                    {hostConnected ? (
-                      <>Connected | V{host?.hostVersion}</>
-                    ) : hostError ? (
-                      "Connection failed"
-                    ) : (
-                      "Starting Host Engine"
-                    )}
-                  </strong>
-                  {hostError && <small>{hostError}</small>}
-                </div>
+          <div className="step-body">
+            {activeLock && (
+              <Notice tone="gate" label="Stage locked">
+                {activeLock}
+              </Notice>
+            )}
 
-                <div className="kv">
-                  <span className="card-label">Host preflight</span>
-                  <strong>
-                    {preflightReady === null
-                      ? "Awaiting GET_PREFLIGHT"
-                      : `readyToScan = ${String(preflightReady)}`}
-                  </strong>
-                  <small>GET_PREFLIGHT | {preflight?.requestId ?? "not requested"}</small>
-                </div>
-              </div>
-
-              {preflightChecks.length > 0 && (
-                <table className="check-table">
-                  <thead>
-                    <tr>
-                      <th>Check</th>
-                      <th>Result</th>
-                      <th>Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preflightChecks.map((check) => (
-                      <tr key={check.checkName}>
-                        <td>
-                          {check.checkName}
-                          {check.isOptional && <span className="tag">optional</span>}
-                        </td>
-                        <td>
-                          <span className={`pill ${check.pass ? "pill-pass" : "pill-fail"}`}>
-                            {check.pass ? "PASS" : "FAIL"}
-                          </span>
-                        </td>
-                        <td>{check.details}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              <Outcome envelope={preflight} />
-              <RawResponse envelope={preflight} />
-
-              <div className="kv-grid">
-                <div className="kv">
-                  <span className="card-label">Device connection</span>
-                  <strong>
-                    <Value value={deviceState?.connectionState ?? null} fallback="Not evaluated" />
-                  </strong>
-                  <small>
-                    {deviceState ? (
-                      <>
-                        USB {deviceState.usbState} | ADB {deviceState.adbState} | serial{" "}
-                        {deviceState.device?.serial ?? "not reported"}
-                      </>
-                    ) : (
-                      deviceStateError ?? "get_device_state not completed"
-                    )}
-                  </small>
-                </div>
-
-                <div className="kv">
-                  <span className="card-label">Host status message</span>
-                  <strong>
-                    <Value value={deviceState?.statusMessage ?? null} fallback="-" />
-                  </strong>
-                  <small>
-                    {deviceState?.operatorActionRequired
-                      ? `Operator action: ${deviceState.operatorActionRequired}`
-                      : "No operator action requested"}
-                  </small>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => void refreshDeviceState()}
-              >
-                Refresh device state
-              </button>
-            </div>
-          </section>
-
-          {/* ---- Step 2 ------------------------------------------------ */}
-          <section className={`step ${scanOk ? "step-done" : ""}`}>
-            <div className="step-head">
-              <span className="step-index">2</span>
-              <h2>Run Scan</h2>
-              <span className={`step-state ${scanOk ? "is-ok" : scan ? "is-error" : "is-idle"}`}>
-                {scanOk ? "COMPLETED" : scan ? "REFUSED" : "NOT RUN"}
-              </span>
-            </div>
-
-            <div className="step-body">
-              <div className="field-row">
-                <label className="field">
-                  <span>Target device serial</span>
-                  <input
-                    value={serial}
-                    onChange={(event) => {
-                      setSerial(event.target.value);
-                      setSerialFromHost(false);
-                    }}
-                    placeholder="No serial reported by the Host"
-                    aria-describedby="serial-provenance"
-                  />
-                  <small id="serial-provenance">
-                    {serialFromHost
-                      ? "Reported by the Host from the connected device"
-                      : serial
-                        ? "Entered by the operator"
-                        : "The Host has not reported a device serial - connect and authorize a device, then refresh"}
-                  </small>
-                </label>
-
-                <label className="field">
-                  <span>Operator ID (optional)</span>
-                  <input
-                    value={operatorId}
-                    onChange={(event) => setOperatorId(event.target.value)}
-                    placeholder="Sent only when filled in"
-                  />
-                  <small>Omitted from the payload when blank - the Host applies its default.</small>
-                </label>
-              </div>
-
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!hostConnected || !serial.trim() || busy !== null}
-                onClick={() => void runScan()}
-              >
-                {busy === "RUN_SCAN" ? "Scanning..." : "Run scan"}
-              </button>
-
-              {!hostConnected && <p className="hint">The Host is not connected yet.</p>}
-              {hostConnected && !serial.trim() && (
-                <p className="hint">
-                  No serial available: the Host has not reported a device, and this UI will not
-                  make one up.
-                </p>
-              )}
-
-              <Outcome envelope={scan} />
-
-              {scanPayload && (
+            {/* ---- Step 1 ------------------------------------------------ */}
+            {activeStep === "connect" && (
+              <>
                 <div className="kv-grid">
                   <div className="kv">
-                    <span className="card-label">Report ID</span>
+                    <span className="card-label">Host engine</span>
                     <strong>
-                      <Value value={readString(scanPayload, "reportId")} />
+                      {hostConnected ? (
+                        <>Connected | V{host?.hostVersion}</>
+                      ) : hostError ? (
+                        "Connection failed"
+                      ) : (
+                        "Starting Host Engine"
+                      )}
                     </strong>
+                    {hostError && <small>{hostError}</small>}
                   </div>
+
                   <div className="kv">
-                    <span className="card-label">Session</span>
+                    <span className="card-label">Host preflight</span>
                     <strong>
-                      <Value value={readString(scanPayload, "sessionUuid")} />
+                      {preflightReady === null
+                        ? "Awaiting GET_PREFLIGHT"
+                        : `readyToScan = ${String(preflightReady)}`}
                     </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Scans remaining</span>
-                    <strong>
-                      <Value value={String(readCount(scanPayload, "scansRemaining") ?? "")} />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Inventory</span>
-                    <strong>
-                      {readBoolean(scanPayload, "inventoryAvailable") ? "Available" : "Not available"}{" "}
-                      | <Value value={readString(scanPayload, "enumerationCompleteness")} />
-                    </strong>
+                    <small>GET_PREFLIGHT | {preflight?.requestId ?? "not requested"}</small>
                   </div>
                 </div>
-              )}
 
-              <RawResponse envelope={scan} />
-            </div>
-          </section>
+                {preflightChecks.length > 0 && (
+                  <table className="check-table">
+                    <thead>
+                      <tr>
+                        <th>Check</th>
+                        <th>Result</th>
+                        <th>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preflightChecks.map((check) => (
+                        <tr key={check.checkName}>
+                          <td>
+                            {check.checkName}
+                            {check.isOptional && <span className="tag">optional</span>}
+                          </td>
+                          <td>
+                            <span className={`pill ${check.pass ? "pill-pass" : "pill-fail"}`}>
+                              {check.pass ? "PASS" : "FAIL"}
+                            </span>
+                          </td>
+                          <td>{check.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
 
-          {/* ---- Step 3 ------------------------------------------------ */}
-          <section className={`step ${inventory?.status === "OK" ? "step-done" : ""}`}>
-            <div className="step-head">
-              <span className="step-index">3</span>
-              <h2>View Inventory</h2>
-              <span
-                className={`step-state ${
-                  inventory?.status === "OK" ? "is-ok" : inventory ? "is-error" : "is-idle"
-                }`}
-              >
-                {inventory?.status === "OK" ? "LOADED" : inventory ? "REFUSED" : "NOT RUN"}
-              </span>
-            </div>
+                <Outcome envelope={preflight} />
+                <RawResponse envelope={preflight} />
 
-            <div className="step-body">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!scanOk || busy !== null}
-                onClick={() => void loadInventory()}
-              >
-                {busy === "GET_APPLICATION_INVENTORY" ? "Loading..." : "Load inventory"}
-              </button>
-              {!scanOk && <p className="hint">Complete a scan first.</p>}
+                <div className="kv-grid">
+                  <div className="kv">
+                    <span className="card-label">Device connection</span>
+                    <strong>
+                      <Value value={deviceState?.connectionState ?? null} fallback="Not evaluated" />
+                    </strong>
+                    <small>
+                      {deviceState ? (
+                        <>
+                          USB {deviceState.usbState} | ADB {deviceState.adbState} | serial{" "}
+                          {deviceState.device?.serial ?? "not reported"}
+                        </>
+                      ) : (
+                        deviceStateError ?? "get_device_state not completed"
+                      )}
+                    </small>
+                  </div>
 
-              <Outcome envelope={inventory} />
+                  <div className="kv">
+                    <span className="card-label">Host status message</span>
+                    <strong>
+                      <Value value={deviceState?.statusMessage ?? null} fallback="-" />
+                    </strong>
+                    {!deviceState?.operatorActionRequired && (
+                      <small>No operator action requested</small>
+                    )}
+                  </div>
+                </div>
 
-              {inventoryPayload && (
-                <>
+                {deviceState?.operatorActionRequired && (
+                  <Notice tone="action" label="Operator action">
+                    {deviceState.operatorActionRequired}
+                  </Notice>
+                )}
+
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => void refreshDeviceState()}
+                >
+                  Refresh device state
+                </button>
+              </>
+            )}
+
+            {/* ---- Step 2 ------------------------------------------------ */}
+            {activeStep === "scan" && (
+              <>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Target device serial</span>
+                    <input
+                      value={serial}
+                      onChange={(event) => {
+                        setSerial(event.target.value);
+                        setSerialFromHost(false);
+                      }}
+                      placeholder="No serial reported by the Host"
+                      aria-describedby="serial-provenance"
+                    />
+                    <small id="serial-provenance">
+                      {serialFromHost
+                        ? "Reported by the Host from the connected device"
+                        : serial
+                          ? "Entered by the operator"
+                          : "The Host has not reported a device serial - connect and authorize a device, then refresh"}
+                    </small>
+                  </label>
+
+                  <label className="field">
+                    <span>Operator ID (optional)</span>
+                    <input
+                      value={operatorId}
+                      onChange={(event) => setOperatorId(event.target.value)}
+                      placeholder="Sent only when filled in"
+                    />
+                    <small>Omitted from the payload when blank - the Host applies its default.</small>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!hostConnected || !serial.trim() || busy !== null}
+                  onClick={() => void runScan()}
+                >
+                  {busy === "RUN_SCAN" ? "Scanning..." : "Run scan"}
+                </button>
+
+                {hostConnected && !serial.trim() && (
+                  <p className="hint">
+                    No serial available: the Host has not reported a device, and this UI will not
+                    make one up.
+                  </p>
+                )}
+
+                <Outcome envelope={scan} />
+
+                {scanPayload && (
                   <div className="kv-grid">
                     <div className="kv">
-                      <span className="card-label">Total applications</span>
+                      <span className="card-label">Report ID</span>
                       <strong>
-                        <Value
-                          value={String(readCount(inventoryPayload, "totalApplications") ?? "")}
-                        />
+                        <Value value={readString(scanPayload, "reportId")} />
                       </strong>
                     </div>
                     <div className="kv">
-                      <span className="card-label">Enumeration completeness</span>
+                      <span className="card-label">Session</span>
                       <strong>
-                        <Value value={readString(inventoryPayload, "enumerationCompleteness")} />
+                        <Value value={readString(scanPayload, "sessionUuid")} />
                       </strong>
                     </div>
                     <div className="kv">
-                      <span className="card-label">S1 evidence</span>
+                      <span className="card-label">Scans remaining</span>
                       <strong>
-                        {readBoolean(inventoryPayload, "s1EvidencePresent") ? "Present" : "Absent"}{" "}
-                        | <Value value={readString(inventoryPayload, "s1EnumerationCompleteness")} />
+                        <Value value={String(readCount(scanPayload, "scansRemaining") ?? "")} />
                       </strong>
                     </div>
                     <div className="kv">
-                      <span className="card-label">S2 evidence</span>
+                      <span className="card-label">Inventory</span>
                       <strong>
-                        {readBoolean(inventoryPayload, "s2EvidencePresent") ? "Present" : "Absent"}{" "}
-                        | <Value value={readString(inventoryPayload, "s2EnumerationCompleteness")} />
+                        {readBoolean(scanPayload, "inventoryAvailable")
+                          ? "Available"
+                          : "Not available"}{" "}
+                        | <Value value={readString(scanPayload, "enumerationCompleteness")} />
                       </strong>
                     </div>
                   </div>
+                )}
 
-                  <h3 className="subhead">Classification</h3>
-                  <div className="count-grid">
-                    {(
-                      [
-                        ["preinstalledSystemCount", "Preinstalled system"],
-                        ["updatedSystemCount", "Updated system"],
-                        ["userThirdPartyCount", "User third-party"],
-                        ["unknownClassificationCount", "Unknown classification"],
-                        ["enabledCount", "Enabled"],
-                        ["disabledCount", "Disabled"],
-                        ["defaultEnabledCount", "Default enabled"],
-                        ["unknownEnabledStateCount", "Unknown enabled state"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <div className="count" key={key}>
-                        <span>{label}</span>
-                        <strong>{readCount(inventoryPayload, key) ?? 0}</strong>
+                <RawResponse envelope={scan} />
+              </>
+            )}
+
+            {/* ---- Step 3 ------------------------------------------------ */}
+            {activeStep === "inventory" && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!scanOk || busy !== null}
+                  onClick={() => void loadInventory()}
+                >
+                  {busy === "GET_APPLICATION_INVENTORY" ? "Loading..." : "Load inventory"}
+                </button>
+
+                <Outcome envelope={inventory} />
+
+                {inventoryPayload && (
+                  <>
+                    <div className="kv-grid">
+                      <div className="kv">
+                        <span className="card-label">Total applications</span>
+                        <strong>
+                          <Value
+                            value={String(readCount(inventoryPayload, "totalApplications") ?? "")}
+                          />
+                        </strong>
                       </div>
-                    ))}
-                  </div>
-
-                  <h3 className="subhead">Provenance &amp; reconciliation</h3>
-                  <div className="count-grid">
-                    {(
-                      [
-                        ["s1OnlyCount", "S1 only"],
-                        ["s2OnlyCount", "S2 only"],
-                        ["bothCount", "In both"],
-                        ["s1ProvenanceCount", "S1 provenance"],
-                        ["s2ProvenanceCount", "S2 provenance"],
-                        ["conflictCount", "Conflicts"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <div className="count" key={key}>
-                        <span>{label}</span>
-                        <strong>{readCount(inventoryPayload, key) ?? 0}</strong>
+                      <div className="kv">
+                        <span className="card-label">Enumeration completeness</span>
+                        <strong>
+                          <Value value={readString(inventoryPayload, "enumerationCompleteness")} />
+                        </strong>
                       </div>
-                    ))}
+                      <div className="kv">
+                        <span className="card-label">S1 evidence</span>
+                        <strong>
+                          {readBoolean(inventoryPayload, "s1EvidencePresent")
+                            ? "Present"
+                            : "Absent"}{" "}
+                          |{" "}
+                          <Value value={readString(inventoryPayload, "s1EnumerationCompleteness")} />
+                        </strong>
+                      </div>
+                      <div className="kv">
+                        <span className="card-label">S2 evidence</span>
+                        <strong>
+                          {readBoolean(inventoryPayload, "s2EvidencePresent")
+                            ? "Present"
+                            : "Absent"}{" "}
+                          |{" "}
+                          <Value value={readString(inventoryPayload, "s2EnumerationCompleteness")} />
+                        </strong>
+                      </div>
+                    </div>
+
+                    <h3 className="subhead">Classification</h3>
+                    <div className="count-grid">
+                      {(
+                        [
+                          ["preinstalledSystemCount", "Preinstalled system"],
+                          ["updatedSystemCount", "Updated system"],
+                          ["userThirdPartyCount", "User third-party"],
+                          ["unknownClassificationCount", "Unknown classification"],
+                          ["enabledCount", "Enabled"],
+                          ["disabledCount", "Disabled"],
+                          ["defaultEnabledCount", "Default enabled"],
+                          ["unknownEnabledStateCount", "Unknown enabled state"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <div className="count" key={key}>
+                          <span>{label}</span>
+                          <strong>{readCount(inventoryPayload, key) ?? 0}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    <h3 className="subhead">Provenance &amp; reconciliation</h3>
+                    <div className="count-grid">
+                      {(
+                        [
+                          ["s1OnlyCount", "S1 only"],
+                          ["s2OnlyCount", "S2 only"],
+                          ["bothCount", "In both"],
+                          ["s1ProvenanceCount", "S1 provenance"],
+                          ["s2ProvenanceCount", "S2 provenance"],
+                          ["conflictCount", "Conflicts"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <div className="count" key={key}>
+                          <span>{label}</span>
+                          <strong>{readCount(inventoryPayload, key) ?? 0}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    <h3 className="subhead">
+                      Conflict notes ({readList(inventoryPayload, "conflicts").length})
+                    </h3>
+                    <ListBlock
+                      values={readList(inventoryPayload, "conflicts")}
+                      empty="No conflicts reported."
+                    />
+
+                    <h3 className="subhead">Limitations</h3>
+                    <ListBlock
+                      values={readList(inventoryPayload, "limitations")}
+                      empty="No limitations reported."
+                    />
+
+                    <div className="band band-note">
+                      <strong>RAW UID WITHHELD</strong>
+                      <span>
+                        {readBoolean(inventoryPayload, "rawUidWithheld")
+                          ? "The Host withholds raw application UIDs from this report by design. Only platform flags are used for classification."
+                          : "The Host did not report rawUidWithheld on this response."}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                <RawResponse envelope={inventory} />
+              </>
+            )}
+
+            {/* ---- Step 4 ------------------------------------------------ */}
+            {activeStep === "sanitize" && (
+              <>
+                <div className="action-row">
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!scanOk || startOk || busy !== null}
+                    onClick={() => void runSanitize("start")}
+                  >
+                    {busy === "SANITIZE_START" ? "..." : "SANITIZE_START"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!startOk || authorizeOk || busy !== null}
+                    onClick={() => void runSanitize("authorize")}
+                  >
+                    {busy === "SANITIZE_AUTHORIZE" ? "..." : "SANITIZE_AUTHORIZE"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!authorizeOk || !phrase || confirmOk || busy !== null}
+                    onClick={() => void runSanitize("confirm")}
+                  >
+                    {busy === "SANITIZE_CONFIRM" ? "..." : "SANITIZE_CONFIRM"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={!confirmOk || busy !== null}
+                    onClick={() => void runSanitize("execute")}
+                  >
+                    {busy === "SANITIZE_EXECUTE" ? "..." : "SANITIZE_EXECUTE"}
+                  </button>
+                </div>
+
+                <Outcome envelope={sanitize.start} />
+                {startPayload && (
+                  <div className="kv-grid">
+                    <div className="kv">
+                      <span className="card-label">Eligible</span>
+                      <strong>{String(readBoolean(startPayload, "eligible") ?? false)}</strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">Operation</span>
+                      <strong>
+                        <Value value={readString(startPayload, "operationId")} />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">Current step</span>
+                      <strong>
+                        <Value value={readString(startPayload, "currentStep")} />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">Confirmation phrase</span>
+                      <strong>
+                        <Value value={phrase} fallback="Not issued" />
+                      </strong>
+                      <small>Supplied back to SANITIZE_CONFIRM verbatim - never typed here.</small>
+                    </div>
                   </div>
+                )}
+                <RawResponse envelope={sanitize.start} />
 
-                  <h3 className="subhead">
-                    Conflict notes ({readList(inventoryPayload, "conflicts").length})
-                  </h3>
-                  <ListBlock
-                    values={readList(inventoryPayload, "conflicts")}
-                    empty="No conflicts reported."
-                  />
+                <Outcome envelope={sanitize.authorize} />
+                {authorizePayload && (
+                  <div className="kv-grid">
+                    <div className="kv">
+                      <span className="card-label">Recorded step</span>
+                      <strong>
+                        <Value value={readString(authorizePayload, "step")} />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">Acknowledged</span>
+                      <strong>
+                        {String(readBoolean(authorizePayload, "acknowledged") ?? false)}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+                <RawResponse envelope={sanitize.authorize} />
 
-                  <h3 className="subhead">Limitations</h3>
-                  <ListBlock
-                    values={readList(inventoryPayload, "limitations")}
-                    empty="No limitations reported."
-                  />
+                <Outcome envelope={sanitize.confirm} />
+                {confirmPayload && (
+                  <div className="kv-grid">
+                    <div className="kv">
+                      <span className="card-label">Recorded step</span>
+                      <strong>
+                        <Value value={readString(confirmPayload, "step")} />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">Phrase accepted</span>
+                      <strong>
+                        {String(readBoolean(confirmPayload, "phraseAccepted") ?? false)}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+                <RawResponse envelope={sanitize.confirm} />
 
-                  <div className="band band-note">
-                    <strong>RAW UID WITHHELD</strong>
+                <Outcome envelope={sanitize.execute} />
+
+                {blocked && executePayload && (
+                  <div className="band band-blocked">
+                    <strong>PURGE BLOCKED | DECISION D-1, OUTCOME B</strong>
                     <span>
-                      {readBoolean(inventoryPayload, "rawUidWithheld")
-                        ? "The Host withholds raw application UIDs from this report by design. Only platform flags are used for classification."
-                        : "The Host did not report rawUidWithheld on this response."}
+                      The destructive trigger is hardware-gated and stays unarmed until it has been
+                      validated on the physical device. This is the expected, frozen outcome - not
+                      an application crash and not a successful sanitization.
                     </span>
+                    <dl className="blocked-facts">
+                      <dt>executionStatus</dt>
+                      <dd>{executeStatus}</dd>
+                      <dt>lifecycleOutcome</dt>
+                      <dd>
+                        <Value value={readString(executePayload, "lifecycleOutcome")} />
+                      </dd>
+                      <dt>verificationStatus</dt>
+                      <dd>
+                        <Value value={readString(executePayload, "verificationStatus")} />
+                      </dd>
+                      <dt>successClaimed</dt>
+                      <dd>{String(readBoolean(executePayload, "successClaimed") ?? false)}</dd>
+                      <dt>executionSuccess</dt>
+                      <dd>{String(readBoolean(executePayload, "executionSuccess") ?? false)}</dd>
+                      <dt>decision</dt>
+                      <dd>
+                        <Value value={readString(executePayload, "decision")} />
+                      </dd>
+                    </dl>
+
+                    <h4>Why it blocked</h4>
+                    <ListBlock
+                      values={readList(executePayload, "blockReasons")}
+                      empty="The Host did not list any block reasons."
+                    />
                   </div>
-                </>
-              )}
+                )}
 
-              <RawResponse envelope={inventory} />
-            </div>
-          </section>
+                {executePayload && !blocked && (
+                  <div className="kv-grid">
+                    <div className="kv">
+                      <span className="card-label">Execution status</span>
+                      <strong>
+                        <Value value={executeStatus} />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">Lifecycle outcome</span>
+                      <strong>
+                        <Value value={readString(executePayload, "lifecycleOutcome")} />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">Success claimed</span>
+                      <strong>{String(readBoolean(executePayload, "successClaimed") ?? false)}</strong>
+                    </div>
+                  </div>
+                )}
 
-          {/* ---- Step 4 ------------------------------------------------ */}
-          <section className={`step ${confirmOk ? "step-done" : ""}`}>
-            <div className="step-head">
-              <span className="step-index">4</span>
-              <h2>Sanitization Flow</h2>
-              <span
-                className={`step-state ${blocked ? "is-blocked" : confirmOk ? "is-ok" : "is-idle"}`}
-              >
-                {blocked
-                  ? "BLOCKED (D-1)"
-                  : executePayload
-                    ? "EXECUTED"
-                    : confirmOk
-                      ? "CONFIRMED"
-                      : authorizeOk
-                        ? "ACKNOWLEDGED"
-                        : startOk
-                          ? "STARTED"
-                          : "NOT RUN"}
-              </span>
-            </div>
+                <RawResponse envelope={sanitize.execute} />
 
-            <div className="step-body">
-              {!scanOk && <p className="hint">Complete a scan first.</p>}
+                {confirmOk && !executePayload && (
+                  <p className="hint">
+                    Ready to execute. SANITIZE_EXECUTE reports the Host&apos;s decision; this screen
+                    will show whatever it returns.
+                  </p>
+                )}
+              </>
+            )}
 
-              <div className="action-row">
+            {/* ---- Step 5 ------------------------------------------------ */}
+            {activeStep === "export" && (
+              <>
                 <button
                   type="button"
-                  className="btn"
-                  disabled={!scanOk || startOk || busy !== null}
-                  onClick={() => void runSanitize("start")}
+                  className="btn btn-primary"
+                  disabled={!scanOk || busy !== null}
+                  onClick={() => void runExport()}
                 >
-                  {busy === "SANITIZE_START" ? "..." : "SANITIZE_START"}
+                  {busy === "EXPORT_REPORT" ? "Writing..." : "Export report"}
                 </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!startOk || authorizeOk || busy !== null}
-                  onClick={() => void runSanitize("authorize")}
-                >
-                  {busy === "SANITIZE_AUTHORIZE" ? "..." : "SANITIZE_AUTHORIZE"}
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!authorizeOk || !phrase || confirmOk || busy !== null}
-                  onClick={() => void runSanitize("confirm")}
-                >
-                  {busy === "SANITIZE_CONFIRM" ? "..." : "SANITIZE_CONFIRM"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  disabled={!confirmOk || busy !== null}
-                  onClick={() => void runSanitize("execute")}
-                >
-                  {busy === "SANITIZE_EXECUTE" ? "..." : "SANITIZE_EXECUTE"}
-                </button>
-              </div>
 
-              <Outcome envelope={sanitize.start} />
-              {startPayload && (
-                <div className="kv-grid">
-                  <div className="kv">
-                    <span className="card-label">Eligible</span>
-                    <strong>{String(readBoolean(startPayload, "eligible") ?? false)}</strong>
+                <Outcome envelope={exported} />
+
+                {exported && (
+                  <div className="kv-grid">
+                    <div className="kv">
+                      <span className="card-label">reportJsonPath</span>
+                      <strong className="path">
+                        <Value value={reportJsonPath} fallback="Not returned" />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">reportMarkdownPath</span>
+                      <strong className="path">
+                        <Value value={reportMarkdownPath} fallback="Not returned" />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">manifestPath</span>
+                      <strong className="path">
+                        <Value value={manifestPath} fallback="Not returned" />
+                      </strong>
+                    </div>
                   </div>
-                  <div className="kv">
-                    <span className="card-label">Operation</span>
-                    <strong>
-                      <Value value={readString(startPayload, "operationId")} />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Current step</span>
-                    <strong>
-                      <Value value={readString(startPayload, "currentStep")} />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Confirmation phrase</span>
-                    <strong>
-                      <Value value={phrase} fallback="Not issued" />
-                    </strong>
-                    <small>Supplied back to SANITIZE_CONFIRM verbatim - never typed here.</small>
-                  </div>
-                </div>
-              )}
-              <RawResponse envelope={sanitize.start} />
+                )}
 
-              <Outcome envelope={sanitize.authorize} />
-              {authorizePayload && (
-                <div className="kv-grid">
-                  <div className="kv">
-                    <span className="card-label">Recorded step</span>
-                    <strong>
-                      <Value value={readString(authorizePayload, "step")} />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Acknowledged</span>
-                    <strong>
-                      {String(readBoolean(authorizePayload, "acknowledged") ?? false)}
-                    </strong>
-                  </div>
-                </div>
-              )}
-              <RawResponse envelope={sanitize.authorize} />
+                {exported && !reportJsonPath && (
+                  <p className="hint">
+                    The Host did not report any artifact paths on this response - check the refusal
+                    above or the decoded response below.
+                  </p>
+                )}
 
-              <Outcome envelope={sanitize.confirm} />
-              {confirmPayload && (
-                <div className="kv-grid">
-                  <div className="kv">
-                    <span className="card-label">Recorded step</span>
-                    <strong>
-                      <Value value={readString(confirmPayload, "step")} />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Phrase accepted</span>
-                    <strong>
-                      {String(readBoolean(confirmPayload, "phraseAccepted") ?? false)}
-                    </strong>
-                  </div>
-                </div>
-              )}
-              <RawResponse envelope={sanitize.confirm} />
-
-              <Outcome envelope={sanitize.execute} />
-
-              {blocked && executePayload && (
-                <div className="band band-blocked">
-                  <strong>PURGE BLOCKED | DECISION D-1, OUTCOME B</strong>
-                  <span>
-                    The destructive trigger is hardware-gated and stays unarmed until it has been
-                    validated on the physical device. This is the expected, frozen outcome - not
-                    an application crash and not a successful sanitization.
-                  </span>
-                  <dl className="blocked-facts">
-                    <dt>executionStatus</dt>
-                    <dd>{executeStatus}</dd>
-                    <dt>lifecycleOutcome</dt>
-                    <dd>
-                      <Value value={readString(executePayload, "lifecycleOutcome")} />
-                    </dd>
-                    <dt>verificationStatus</dt>
-                    <dd>
-                      <Value value={readString(executePayload, "verificationStatus")} />
-                    </dd>
-                    <dt>successClaimed</dt>
-                    <dd>{String(readBoolean(executePayload, "successClaimed") ?? false)}</dd>
-                    <dt>executionSuccess</dt>
-                    <dd>{String(readBoolean(executePayload, "executionSuccess") ?? false)}</dd>
-                    <dt>decision</dt>
-                    <dd>
-                      <Value value={readString(executePayload, "decision")} />
-                    </dd>
-                  </dl>
-
-                  <h4>Why it blocked</h4>
-                  <ListBlock
-                    values={readList(executePayload, "blockReasons")}
-                    empty="The Host did not list any block reasons."
-                  />
-                </div>
-              )}
-
-              {executePayload && !blocked && (
-                <div className="kv-grid">
-                  <div className="kv">
-                    <span className="card-label">Execution status</span>
-                    <strong>
-                      <Value value={executeStatus} />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Lifecycle outcome</span>
-                    <strong>
-                      <Value value={readString(executePayload, "lifecycleOutcome")} />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">Success claimed</span>
-                    <strong>{String(readBoolean(executePayload, "successClaimed") ?? false)}</strong>
-                  </div>
-                </div>
-              )}
-
-              <RawResponse envelope={sanitize.execute} />
-
-              {confirmOk && !executePayload && (
-                <p className="hint">
-                  Ready to execute. SANITIZE_EXECUTE reports the Host&apos;s decision; this screen
-                  will show whatever it returns.
-                </p>
-              )}
-            </div>
-          </section>
-
-          {/* ---- Step 5 ------------------------------------------------ */}
-          <section className={`step ${exported?.status === "OK" ? "step-done" : ""}`}>
-            <div className="step-head">
-              <span className="step-index">5</span>
-              <h2>Export</h2>
-              <span
-                className={`step-state ${
-                  exported?.status === "OK" ? "is-ok" : exported ? "is-error" : "is-idle"
-                }`}
-              >
-                {exported?.status === "OK" ? "WRITTEN" : exported ? "REFUSED" : "NOT RUN"}
-              </span>
-            </div>
-
-            <div className="step-body">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!scanOk || busy !== null}
-                onClick={() => void runExport()}
-              >
-                {busy === "EXPORT_REPORT" ? "Writing..." : "Export report"}
-              </button>
-              {!scanOk && <p className="hint">Complete a scan first.</p>}
-
-              <Outcome envelope={exported} />
-
-              {exported && (
-                <div className="kv-grid">
-                  <div className="kv">
-                    <span className="card-label">reportJsonPath</span>
-                    <strong className="path">
-                      <Value value={reportJsonPath} fallback="Not returned" />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">reportMarkdownPath</span>
-                    <strong className="path">
-                      <Value value={reportMarkdownPath} fallback="Not returned" />
-                    </strong>
-                  </div>
-                  <div className="kv">
-                    <span className="card-label">manifestPath</span>
-                    <strong className="path">
-                      <Value value={manifestPath} fallback="Not returned" />
-                    </strong>
-                  </div>
-                </div>
-              )}
-
-              {exported && !reportJsonPath && (
-                <p className="hint">
-                  The Host did not report any artifact paths on this response - check the refusal
-                  above or the decoded response below.
-                </p>
-              )}
-
-              <RawResponse envelope={exported} />
-            </div>
-          </section>
+                <RawResponse envelope={exported} />
+              </>
+            )}
+          </div>
         </section>
-      </section>
+      </div>
     </main>
   );
 }
