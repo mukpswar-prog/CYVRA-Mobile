@@ -188,20 +188,52 @@
   transform: translateY(-1px);
 }
 
-.step-node.is-active {
-  border-color: var(--orange);
-  box-shadow:
-    0 0 0 3px rgba(255, 122, 0, 0.16),
-    var(--shadow-card);
+/* --------------------------------------------------- stepper stage states -- */
+
+/*
+ * Six stage states, one per token so the colour can never drift from the
+ * palette: steel is NOT STARTED, green is READY, blue is IN PROGRESS (the
+ * only state that can spin the logo), red is FAILED, brand orange is
+ * COMPLETED and amber is a purge blocked by decision D-1 - which is never
+ * painted as a success.
+ */
+.step-node.is-not-started {
+  background: #fafbfc;
+  box-shadow: none;
 }
 
-.step-node.is-complete {
+.step-node.is-ready {
   border-color: var(--ok-line);
 }
 
-.step-node.is-locked {
-  background: #fafbfc;
-  box-shadow: none;
+.step-node.is-progress {
+  border-color: var(--assist-ink);
+  box-shadow:
+    0 0 0 3px rgba(29, 78, 216, 0.14),
+    var(--shadow-card);
+}
+
+.step-node.is-failed {
+  border-color: var(--danger-line);
+  box-shadow:
+    0 0 0 3px rgba(201, 42, 42, 0.12),
+    var(--shadow-card);
+}
+
+.step-node.is-completed {
+  border-color: var(--orange);
+}
+
+.step-node.is-blocked {
+  border-color: var(--amber-line);
+}
+
+/* The stage that is open on screen. Deliberately neutral so the selection
+   ring never competes with the state colour of the node itself. */
+.step-node.is-active {
+  box-shadow:
+    0 0 0 3px rgba(21, 24, 28, 0.1),
+    var(--shadow-card);
 }
 
 .node-top {
@@ -210,6 +242,7 @@
   gap: 9px;
   width: 100%;
   min-width: 0;
+  perspective: 320px;
 }
 
 .node-index {
@@ -227,22 +260,69 @@
   font-weight: 800;
 }
 
-.step-node.is-active .node-index {
-  background: var(--orange);
-  border-color: var(--orange);
-  color: #fff;
+.step-node.is-not-started .node-index {
+  background: #f0f2f4;
+  border-color: var(--line);
+  color: var(--steel);
 }
 
-.step-node.is-complete .node-index {
+.step-node.is-ready .node-index {
   background: var(--ok-ink);
   border-color: var(--ok-ink);
   color: #fff;
 }
 
-.step-node.is-locked .node-index {
-  background: #f0f2f4;
-  border-color: var(--line);
-  color: var(--steel);
+.step-node.is-progress .node-index {
+  background: var(--assist-ink);
+  border-color: var(--assist-ink);
+  color: #fff;
+}
+
+.step-node.is-failed .node-index {
+  background: var(--danger-ink);
+  border-color: var(--danger-ink);
+  color: #fff;
+}
+
+.step-node.is-completed .node-index {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
+}
+
+.step-node.is-blocked .node-index {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber-ink);
+}
+
+/*
+ * The 3D CYVORIQ logo tile. It replaces the step number only while a Host
+ * request is actually in flight - there is no timer behind it, it spins for
+ * exactly as long as the request is outstanding. CSS only, no asset.
+ */
+.node-spin {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  padding: 3px;
+  border: 1px solid var(--assist-ink);
+  border-radius: 50%;
+  background: #fff;
+  object-fit: contain;
+  transform-style: preserve-3d;
+  backface-visibility: visible;
+  animation: cyvra-logo-spin 1.4s linear infinite;
+}
+
+@keyframes cyvra-logo-spin {
+  from {
+    transform: rotateY(0deg);
+  }
+
+  to {
+    transform: rotateY(360deg);
+  }
 }
 
 .node-label {
@@ -256,7 +336,7 @@
   letter-spacing: 0.01em;
 }
 
-.step-node.is-locked .node-label {
+.step-node.is-not-started .node-label {
   color: var(--steel);
 }
 
@@ -269,28 +349,41 @@
   letter-spacing: 0.08em;
 }
 
-.node-chip.is-active {
-  background: var(--orange-soft);
-  border-color: #ffd9b5;
-  color: var(--orange-ink);
-}
-
-.node-chip.is-complete {
-  background: var(--ok-soft);
-  border-color: var(--ok-line);
-  color: var(--ok-ink);
-}
-
-.node-chip.is-locked {
+/* The chip always prints the state word in the state's own colour. */
+.node-chip.is-not-started {
   background: #eef0f2;
   border-color: var(--line);
   color: var(--steel);
 }
 
 .node-chip.is-ready {
-  background: transparent;
-  border-color: var(--line);
-  color: var(--muted);
+  background: var(--ok-ink);
+  border-color: var(--ok-ink);
+  color: #fff;
+}
+
+.node-chip.is-progress {
+  background: var(--assist-ink);
+  border-color: var(--assist-ink);
+  color: #fff;
+}
+
+.node-chip.is-failed {
+  background: var(--danger-ink);
+  border-color: var(--danger-ink);
+  color: #fff;
+}
+
+.node-chip.is-completed {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
+}
+
+.node-chip.is-blocked {
+  background: var(--amber-ink);
+  border-color: var(--amber-ink);
+  color: #fff;
 }
 
 /* A locked stage always states why, right on the stepper. */
@@ -372,28 +465,41 @@
   white-space: nowrap;
 }
 
-.step-state.is-ok {
-  background: var(--ok-soft);
-  border-color: var(--ok-line);
-  color: var(--ok-ink);
-}
-
-.step-state.is-idle {
-  background: #f1f3f5;
+/* The header chip prints the same state word as the stepper node. */
+.step-state.is-not-started {
+  background: #eef0f2;
   border-color: var(--line);
   color: var(--steel);
 }
 
-.step-state.is-error {
-  background: var(--danger-soft);
-  border-color: var(--danger-line);
-  color: var(--danger-ink);
+.step-state.is-ready {
+  background: var(--ok-ink);
+  border-color: var(--ok-ink);
+  color: #fff;
+}
+
+.step-state.is-progress {
+  background: var(--assist-ink);
+  border-color: var(--assist-ink);
+  color: #fff;
+}
+
+.step-state.is-failed {
+  background: var(--danger-ink);
+  border-color: var(--danger-ink);
+  color: #fff;
+}
+
+.step-state.is-completed {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
 }
 
 .step-state.is-blocked {
-  background: var(--amber-soft);
-  border-color: var(--amber-line);
-  color: var(--amber-ink);
+  background: var(--amber-ink);
+  border-color: var(--amber-ink);
+  color: #fff;
 }
 
 .step-body {
@@ -650,20 +756,18 @@
   color: var(--danger-ink);
 }
 
-.btn-ghost {
-  align-self: flex-start;
-  padding-left: 0;
-  padding-right: 0;
-  background: transparent;
-  border-color: transparent;
-  color: var(--steel);
+/* Secondary action: readable, but never competing with the stage's single
+   orange primary. */
+.btn-secondary {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--graphite);
 }
 
-.btn-ghost:hover:not(:disabled) {
-  background: transparent;
-  border-color: transparent;
+.btn-secondary:hover:not(:disabled) {
+  background: #f6f7f8;
+  border-color: var(--graphite);
   color: var(--graphite);
-  text-decoration: underline;
 }
 
 /* ------------------------------------------------------------ outcome bands -- */
@@ -889,6 +993,316 @@
   font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
 }
 
+/* ------------------------------------------------------- plain stage copy -- */
+
+/*
+ * Purpose / What to do now / What happens next for the open stage. Static
+ * operator copy - it explains the stage, it never reports a result, and it
+ * never names a protocol command.
+ */
+.step-copy {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.copy-block {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--steel);
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.copy-block:nth-child(1) {
+  border-left-color: var(--orange);
+}
+
+.copy-block:nth-child(2) {
+  border-left-color: var(--assist-ink);
+}
+
+.copy-block:nth-child(3) {
+  border-left-color: var(--steel);
+}
+
+.copy-block h3 {
+  margin: 0 0 5px;
+  color: var(--steel);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.copy-block p {
+  margin: 0;
+  color: var(--graphite);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/* --------------------------------------------------- workstation + phone -- */
+
+/*
+ * The one-line workstation check. The green treatment is applied only when
+ * the Host answered OK and reported readyToScan; anything else stays neutral
+ * or turns red, so a check that did not pass can never look like a pass.
+ */
+.preflight-line {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafbfc;
+}
+
+.preflight-line strong {
+  color: var(--graphite);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.preflight-mark {
+  position: relative;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--steel);
+}
+
+.preflight-line.is-pending {
+  border-style: dashed;
+}
+
+.preflight-line.is-ok {
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+}
+
+.preflight-line.is-ok .preflight-mark {
+  background: var(--ok-ink);
+}
+
+/* A CSS-drawn tick: no icon font, no extra asset. */
+.preflight-line.is-ok .preflight-mark::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.preflight-line.is-failed {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+}
+
+.preflight-line.is-failed .preflight-mark {
+  background: var(--danger-ink);
+}
+
+.preflight-line.is-failed .preflight-mark::after {
+  content: "!";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+/*
+ * Operator-facing phone status: one plain sentence derived from the Host's
+ * connection state, beside a live count of phones that are genuinely ready.
+ * The count is rendered from deviceState - never assumed.
+ */
+.device-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcfd;
+}
+
+.device-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.device-main .card-label {
+  margin-bottom: 0;
+}
+
+.device-main small {
+  display: block;
+  color: var(--steel);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.device-text {
+  color: var(--graphite);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.ready-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+}
+
+.ready-badge.is-live {
+  border-color: var(--ok-ink);
+  background: var(--ok-soft);
+}
+
+.ready-count {
+  color: var(--graphite);
+  font-size: 1.3rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.ready-badge.is-live .ready-count {
+  color: var(--ok-ink);
+}
+
+.ready-cap {
+  margin-top: 3px;
+  color: var(--steel);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------ help -- */
+
+.help-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+
+.help-head {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+}
+
+.help-head h2 {
+  margin: 0;
+  color: var(--graphite);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.help-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+}
+
+.help-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.help-list li + li {
+  margin-top: 4px;
+}
+
+/*
+ * Engineer-only detail. Collapsed by default, so an operator sees no raw
+ * protocol value unless they deliberately open it.
+ */
+.engineer {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: #fafbfc;
+  overflow: hidden;
+  padding: 0 15px;
+}
+
+.engineer[open] {
+  padding-bottom: 15px;
+}
+
+.engineer > summary {
+  margin: 0 -15px;
+  padding: 12px 15px;
+  color: var(--graphite);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.engineer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.engineer > summary::before {
+  content: ">";
+  display: inline-block;
+  margin-right: 9px;
+  color: var(--steel);
+  font-weight: 800;
+  transition: transform 0.15s ease;
+}
+
+.engineer[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.engineer[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.engineer > * + * {
+  margin-top: 14px;
+}
+
+.exchange {
+  display: flex;
+  flex-direction: column;
+}
+
 /* ------------------------------------------------------------- responsive -- */
 
 @media (max-width: 860px) {
@@ -923,5 +1337,21 @@
 
   .blocked-facts dd {
     margin-bottom: 8px;
+  }
+
+  .step-copy {
+    grid-template-columns: 1fr;
+  }
+
+  .device-panel {
+    align-items: flex-start;
+  }
+
+  .help-head {
+    padding: 16px 20px;
+  }
+
+  .help-body {
+    padding: 18px 20px;
   }
 }
