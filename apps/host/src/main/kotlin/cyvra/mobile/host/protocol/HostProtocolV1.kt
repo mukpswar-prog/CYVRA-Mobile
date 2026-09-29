@@ -18,6 +18,15 @@ enum class HostCommand {
      */
     GET_LICENSE_STATE,
 
+    /**
+     * Read-only inventory of the phones this workstation can currently see over ADB.
+     *
+     * One entry per device ADB reports, carrying only values the Host actually read:
+     * a missing model, make or IMEI is reported as a reason instead of being guessed.
+     * The command never writes to a device and never starts a session.
+     */
+    GET_CONNECTED_DEVICES,
+
     // P2 workflow: scan -> reports -> sanitization lifecycle.
     RUN_SCAN,
     GET_DEVICE_REPORT,

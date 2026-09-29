@@ -19,6 +19,8 @@
 
 /* -------------------------------------------------------- branded header -- */
 
+/* 56px white bar with a bottom border. The right-hand side carries the two
+   status pills and nothing else - no buttons live in the header. */
 .brand-header {
   position: sticky;
   top: 0;
@@ -26,8 +28,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 13px 28px;
+  gap: var(--space-2);
+  min-height: 56px;
+  padding: var(--space-1) var(--space-3);
   background: var(--card);
   border-bottom: 1px solid var(--line);
 }
@@ -35,12 +38,12 @@
 .brand-lockup {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .brand-logo {
-  height: 48px;
+  height: 32px;
   width: auto;
   object-fit: contain;
   object-position: left center;
@@ -49,50 +52,74 @@
 .brand-titles {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0;
   min-width: 0;
 }
 
 .brand-product {
   color: var(--graphite);
-  font-size: 1.02rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .brand-vendor {
-  color: var(--steel);
-  font-size: 0.7rem;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+}
+
+/* Exactly two pills: the engine on this PC, and the phones it can see. */
+.header-pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  gap: 6px;
+  padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--paper);
-  color: var(--steel);
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
+/* ENGINE ONLINE - green. */
 .status-pill.is-online {
   background: var(--ok-soft);
   border-color: var(--ok-line);
   color: var(--ok-ink);
 }
 
+/* ENGINE STARTING - amber, an in-flight state, never a success. */
 .status-pill.is-starting {
-  background: var(--orange-soft);
-  border-color: #ffd9b5;
-  color: var(--orange-ink);
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber-ink);
+}
+
+/* ENGINE OFFLINE - red. */
+.status-pill.is-offline {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+  color: var(--danger-ink);
+}
+
+/* PHONE: NONE - neutral: nothing is wrong, there is simply no phone. */
+.status-pill.is-idle {
+  background: var(--paper);
+  border-color: var(--line);
+  color: var(--muted);
 }
 
 .status-dot {
@@ -103,12 +130,16 @@
 }
 
 .status-pill.is-online .status-dot {
-  box-shadow: 0 0 0 3px rgba(11, 122, 82, 0.16);
+  box-shadow: 0 0 0 3px rgba(47, 158, 68, 0.16);
 }
 
 .status-pill.is-starting .status-dot {
-  box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.18);
+  box-shadow: 0 0 0 3px rgba(252, 211, 77, 0.45);
   animation: cyvra-pulse 1.4s ease-in-out infinite;
+}
+
+.status-pill.is-offline .status-dot {
+  box-shadow: 0 0 0 3px rgba(201, 42, 42, 0.16);
 }
 
 @keyframes cyvra-pulse {
@@ -123,36 +154,49 @@
 
 /* ------------------------------------------------------------- workspace -- */
 
+/* Centered column, max 1120px, every inset on the 8pt grid. */
 .workspace {
   width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 30px 28px 56px;
+  padding: var(--space-3) var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-2);
 }
 
-.eyebrow {
+/* H1 of the workstation, 28/36 600. */
+.page-title {
   margin: 0;
-  color: var(--orange);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  color: var(--graphite);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Section label: 12/16 600, uppercase, 0.08em, #5c6470. */
+.section-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 /* The standing honesty banner: everything below comes from the Host. */
 .workflow-note {
   margin: 0;
-  padding: 14px 16px;
+  padding: var(--space-2);
   border: 1px solid var(--line);
   border-left: 4px solid var(--orange);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--card);
   box-shadow: var(--shadow-card);
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.6;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 /* ---------------------------------------------------------------- stepper -- */
@@ -160,20 +204,20 @@
 .stepper {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--space-1);
 }
 
 .step-node {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 13px;
+  gap: var(--space-1);
+  padding: var(--space-2);
   text-align: left;
   font: inherit;
   color: inherit;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   background: var(--card);
   box-shadow: var(--shadow-card);
   cursor: pointer;
@@ -402,19 +446,19 @@
 
 .wizard-card {
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--card);
-  box-shadow: var(--shadow-raised);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
 .step-head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 24px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+  background: var(--card);
 }
 
 .step-index {
@@ -442,16 +486,18 @@
 .step-head h2 {
   margin: 0;
   color: var(--graphite);
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .step-kicker {
-  color: var(--steel);
-  font-size: 0.7rem;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -515,26 +561,27 @@
 .notice {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 13px 16px;
+  gap: 4px;
+  padding: var(--space-2);
   border: 1px solid var(--line);
   border-left: 4px solid var(--steel);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: #f7f8f9;
 }
 
 .notice-label {
   color: var(--steel);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .notice-text {
-  color: var(--graphite);
-  font-size: 0.85rem;
-  line-height: 1.55;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .notice-gate {
@@ -564,60 +611,64 @@
 }
 
 .kv {
-  padding: 16px;
+  padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: #fbfcfd;
 }
 
+/* Section label metrics, shared by every uppercase label in the app. */
 .card-label {
   display: block;
-  margin-bottom: 9px;
-  color: var(--steel);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  margin-bottom: var(--space-1);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .kv strong {
   display: block;
   color: var(--graphite);
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
   word-break: break-word;
 }
 
 .kv strong.path {
   font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
-  font-size: 0.76rem;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 
 .kv small {
   display: block;
-  margin-top: 7px;
+  margin-top: var(--space-1);
   color: var(--steel);
-  font-size: 0.74rem;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .subhead {
-  margin: 4px 0 0;
-  color: var(--steel);
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .hint {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.55;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .count-grid {
@@ -630,22 +681,23 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
-  padding: 11px 13px;
+  gap: var(--space-1);
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: #fbfcfd;
 }
 
 .count span {
   color: var(--muted);
-  font-size: 0.74rem;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .count strong {
   color: var(--graphite);
-  font-size: 1rem;
+  font-size: 16px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -662,58 +714,68 @@
 }
 
 .field > span {
-  color: var(--steel);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .field input {
-  padding: 11px 13px;
+  min-height: 36px;
+  padding: var(--space-1) 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--card);
   color: var(--ink);
-  font-size: 0.9rem;
+  font-size: 14px;
+  line-height: 20px;
   font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
 
+/* The visible ring itself comes from the global :focus-visible rule. */
 .field input:focus {
-  outline: none;
   border-color: var(--orange);
-  box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.15);
 }
 
 .field small {
   color: var(--steel);
-  font-size: 0.73rem;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .action-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-1);
 }
 
 /* ---------------------------------------------------------------- buttons -- */
 
+/*
+ * 36px tall, 6px radius, 600 weight. Primary is brand orange, secondary is
+ * white with a border, danger is a red outline reserved for the purge.
+ * A disabled control drops to 40% opacity and must always carry a plain
+ * language `title` explaining why - opacity is never the only signal.
+ */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 11px 18px;
+  min-height: 36px;
+  padding: 0 var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--card);
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  color: var(--graphite);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -728,8 +790,15 @@
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* In-row control: same shape, tighter padding so a 44px grid row still holds. */
+.btn-compact {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 
 .btn-primary {
@@ -775,23 +844,29 @@
 .band {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
+  gap: var(--space-1);
+  padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: #fafbfc;
-  font-size: 0.85rem;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .band strong {
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
 .band span {
-  color: var(--muted);
+  color: var(--ink);
+}
+
+/* Retry and friends sit under the message, left aligned. */
+.band .btn {
+  align-self: flex-start;
 }
 
 .band small {
@@ -878,119 +953,316 @@
 }
 
 .band-blocked h4 {
-  margin: 14px 0 6px;
+  margin: var(--space-1) 0 4px;
   color: var(--amber-ink);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-/* ------------------------------------------------------------------ tables -- */
+/* ------------------------------------------------------- device data grid -- */
 
-.check-table {
+/*
+ * The centerpiece: one row per phone the inspection engine can see.
+ * Sticky header, zebra rows, a fixed 44px row, action columns right-aligned
+ * and a hover wash. Nothing in this block invents a value - the cells carry
+ * whatever the Host returned, or the literal "Not reported".
+ */
+.grid-region {
+  overflow: auto;
+  max-height: 60vh;
+  border-top: 1px solid var(--line);
+}
+
+.data-grid {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
 }
 
-.check-table th {
-  padding: 9px 11px;
+.data-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 40px;
+  padding: 0 var(--space-1);
   text-align: left;
-  background: #f6f7f8;
-  color: var(--steel);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  background: var(--card);
   border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.check-table td {
-  padding: 10px 11px;
-  color: var(--muted);
+.data-grid tbody td {
+  height: 44px;
+  padding: 4px var(--space-1);
   border-bottom: 1px solid var(--line);
-  vertical-align: top;
+  vertical-align: middle;
   overflow-wrap: anywhere;
 }
 
-.pill {
-  display: inline-block;
-  padding: 3px 9px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+.data-grid tbody tr:nth-child(even) {
+  background: var(--grid-zebra);
 }
 
-.pill-pass {
+.data-grid tbody tr:hover {
+  background: var(--grid-hover);
+}
+
+/* A phone the workstation cannot work on: greyed, with the reason beside it. */
+.data-grid tbody tr.is-inactive td {
+  color: var(--steel);
+}
+
+.col-index {
+  width: 40px;
+  color: var(--steel);
+  font-variant-numeric: tabular-nums;
+}
+
+.col-action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.situation {
+  display: inline-block;
+  margin-right: var(--space-1);
+  padding: 2px var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.yesno {
+  display: inline-block;
+  font-weight: 600;
+}
+
+.yesno.is-yes {
+  color: var(--ok-ink);
+}
+
+.yesno.is-no {
+  color: var(--steel);
+}
+
+.cell-reason {
+  display: block;
+  margin-top: 2px;
+  color: var(--steel);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.row-status {
+  display: inline-block;
+  padding: 2px var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.row-status.is-not-started {
+  color: var(--steel);
+}
+
+.row-status.is-in-progress {
+  background: var(--assist-soft);
+  border-color: var(--assist-line);
+  color: var(--assist-ink);
+}
+
+.row-status.is-ok {
   background: var(--ok-soft);
   border-color: var(--ok-line);
   color: var(--ok-ink);
 }
 
-.pill-fail {
+/* Inline green tick: success is drawn, not only written. */
+.row-status.is-ok::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 8px;
+  margin-right: 6px;
+  border: solid var(--ok-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.row-status.is-failed {
   background: var(--danger-soft);
   border-color: var(--danger-line);
   color: var(--danger-ink);
 }
 
-.tag {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: #eef0f2;
+/* The Host did not report this value, and the workstation does not guess it. */
+.not-reported {
   color: var(--steel);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-style: italic;
+}
+
+/* Loading: skeleton rows only. There is no progress bar, because no
+   deterministic progress is known. */
+.is-skeleton td {
+  padding: var(--space-1);
+}
+
+.skeleton-bar {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #eef0f2 25%, #f7f8f9 37%, #eef0f2 63%);
+  background-size: 400% 100%;
+  animation: cyvra-skeleton 1.4s ease infinite;
+}
+
+@keyframes cyvra-skeleton {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* Empty state: one plain sentence and the three things to check. */
+.grid-empty {
+  padding: var(--space-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.grid-empty p {
+  margin: 0 0 var(--space-1);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* ------------------------------------------------------------- card shell -- */
+
+.device-grid {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.device-grid-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.device-grid-titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.device-badges {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+}
+
+/* Circular counts: sensed and authorized, both read from the Host. */
+.count-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--muted);
+}
+
+.count-badge strong {
+  color: var(--graphite);
+  font-size: 18px;
+  line-height: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.count-badge span {
+  font-size: 10px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.count-badge.is-authorized {
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+}
+
+.count-badge.is-authorized strong {
+  color: var(--ok-ink);
+}
+
+/* Screen-reader-only text, used by table captions. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .list-plain {
   margin: 0;
   padding-left: 18px;
-  color: var(--muted);
-  font-size: 0.83rem;
-  line-height: 1.7;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
 }
 
-/* --------------------------------------------------------- raw responding -- */
-
-.raw-response {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #f7f8f9;
-}
-
-.raw-response summary {
-  padding: 9px 13px;
+.tag {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-control);
+  background: #eef0f2;
   color: var(--steel);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-  user-select: none;
-}
-
-.raw-response summary:hover {
-  color: var(--graphite);
-}
-
-.raw-response[open] summary {
-  border-bottom: 1px solid var(--line);
-}
-
-.raw-response pre {
-  margin: 0;
-  padding: 13px;
-  overflow-x: auto;
-  color: var(--muted);
-  font-size: 0.7rem;
-  line-height: 1.55;
-  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* ------------------------------------------------------- plain stage copy -- */
@@ -1003,14 +1275,14 @@
 .step-copy {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 10px;
+  gap: var(--space-1);
 }
 
 .copy-block {
-  padding: 12px 14px;
+  padding: var(--space-2);
   border: 1px solid var(--line);
   border-left: 3px solid var(--steel);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: #fbfcfd;
 }
 
@@ -1027,19 +1299,20 @@
 }
 
 .copy-block h3 {
-  margin: 0 0 5px;
-  color: var(--steel);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  margin: 0 0 var(--space-1);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .copy-block p {
   margin: 0;
-  color: var(--graphite);
-  font-size: 0.82rem;
-  line-height: 1.55;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 /* --------------------------------------------------- workstation + phone -- */
@@ -1052,18 +1325,18 @@
 .preflight-line {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 14px 16px;
+  gap: var(--space-1);
+  padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: #fafbfc;
 }
 
 .preflight-line strong {
   color: var(--graphite);
-  font-size: 0.92rem;
-  font-weight: 700;
-  line-height: 1.5;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
 }
 
 .preflight-mark {
@@ -1131,17 +1404,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
+  gap: var(--space-2);
+  padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: #fbfcfd;
 }
 
 .device-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1152,15 +1425,15 @@
 .device-main small {
   display: block;
   color: var(--steel);
-  font-size: 0.74rem;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .device-text {
   color: var(--graphite);
-  font-size: 0.95rem;
-  font-weight: 700;
-  line-height: 1.5;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 
@@ -1207,100 +1480,66 @@
 
 .help-card {
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--card);
-  box-shadow: var(--shadow-raised);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
 .help-head {
-  padding: 16px 24px;
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+  background: var(--card);
 }
 
 .help-head h2 {
   margin: 0;
   color: var(--graphite);
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .help-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px;
+  gap: var(--space-2);
+  padding: var(--space-3);
 }
 
 .help-list {
   margin: 0;
   padding-left: 18px;
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.7;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .help-list li + li {
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
+
+/* ---------------------------------------------------------------- footer -- */
 
 /*
- * Engineer-only detail. Collapsed by default, so an operator sees no raw
- * protocol value unless they deliberately open it.
+ * One left-aligned line and nothing else: the packaged version, the commit
+ * this bundle was built from, the frozen wire protocol, and the vendor.
+ * There are no buttons on this bar.
  */
-.engineer {
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  background: #fafbfc;
-  overflow: hidden;
-  padding: 0 15px;
+.app-footer {
+  border-top: 1px solid var(--line);
+  background: var(--card);
 }
 
-.engineer[open] {
-  padding-bottom: 15px;
-}
-
-.engineer > summary {
-  margin: 0 -15px;
-  padding: 12px 15px;
-  color: var(--graphite);
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-}
-
-.engineer > summary::-webkit-details-marker {
-  display: none;
-}
-
-.engineer > summary::before {
-  content: ">";
-  display: inline-block;
-  margin-right: 9px;
+.app-footer > span {
+  display: block;
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: var(--space-1) var(--space-3);
   color: var(--steel);
-  font-weight: 800;
-  transition: transform 0.15s ease;
-}
-
-.engineer[open] > summary {
-  border-bottom: 1px solid var(--line);
-}
-
-.engineer[open] > summary::before {
-  transform: rotate(90deg);
-}
-
-.engineer > * + * {
-  margin-top: 14px;
-}
-
-.exchange {
-  display: flex;
-  flex-direction: column;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 /* ------------------------------------------------------------- responsive -- */
@@ -1309,12 +1548,12 @@
   .brand-header {
     align-items: flex-start;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px 20px;
+    gap: var(--space-1);
+    padding: var(--space-2);
   }
 
   .workspace {
-    padding: 24px 20px 44px;
+    padding: var(--space-2) var(--space-2) var(--space-3);
   }
 
   .stepper {
@@ -1323,11 +1562,11 @@
 
   .step-head {
     flex-wrap: wrap;
-    padding: 16px 18px;
+    padding: var(--space-2);
   }
 
   .step-body {
-    padding: 18px;
+    padding: var(--space-2);
   }
 
   .blocked-facts {
@@ -1336,7 +1575,7 @@
   }
 
   .blocked-facts dd {
-    margin-bottom: 8px;
+    margin-bottom: var(--space-1);
   }
 
   .step-copy {
@@ -1347,11 +1586,25 @@
     align-items: flex-start;
   }
 
+  .device-grid-head {
+    flex-direction: column;
+  }
+
+  /* The grid keeps its columns and scrolls sideways rather than reflowing
+     into a stack: the column headers are the contract with the operator. */
+  .grid-region {
+    max-height: none;
+  }
+
+  .data-grid {
+    min-width: 760px;
+  }
+
   .help-head {
-    padding: 16px 20px;
+    padding: var(--space-2);
   }
 
   .help-body {
-    padding: 18px 20px;
+    padding: var(--space-2);
   }
 }
