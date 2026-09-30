@@ -4,6 +4,7 @@ mod usb;
 #[cfg(windows)]
 mod wpd;
 
+mod activation;
 mod commands;
 mod host_process;
 
@@ -28,7 +29,9 @@ pub fn run() {
             commands::get_device_state,
             commands::get_wpd_devices,
             commands::scan_wpd_device_metadata,
-            commands::send_host_command
+            commands::send_host_command,
+            activation::commands::activation_launch,
+            activation::commands::activation_submit
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

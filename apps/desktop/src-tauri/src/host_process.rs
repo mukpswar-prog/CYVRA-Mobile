@@ -854,6 +854,37 @@ fn locate_host() -> Result<(PathBuf, PathBuf), String> {
     ))
 }
 
+/// The `<cyvra.home>` the Host is launched with.
+///
+/// The activation store, the exported `entitlement.json` and the Host's own
+/// `-Dcyvra.home=` have to be one directory or the wrapper would be writing a
+/// licence where nobody reads it, so this asks the resolver the launcher uses
+/// first. The fallback exists only for a development tree where the Host has
+/// not been built: it picks the first candidate that actually exists, which is
+/// the root `locate_host` would return once `:host:installDist` has been run,
+/// so the two never disagree in a running product.
+///
+/// Fails rather than guessing a temporary directory: an installation root that
+/// cannot be named is a local fault at the activation layer, not a reason to
+/// keep a licence somewhere the Host will not look.
+pub fn cyvra_home() -> Result<PathBuf, String> {
+    if let Ok((root, _)) = locate_host() {
+        return Ok(root);
+    }
+
+    installation_roots()
+        .into_iter()
+        .find(|root| root.is_dir())
+        .ok_or_else(|| {
+            format!(
+                "CYVRA_HOME_UNRESOLVED: no installation root exists below {} \
+                 and {} does not point at one.",
+                exe_dir().display(),
+                HOME_ENV
+            )
+        })
+}
+
 /// Resolves the Java launcher: bundled runtime, then `JAVA_HOME`, then `PATH`.
 fn resolve_java_executable(resource_root: &Path) -> Result<PathBuf, String> {
     let bundled = resource_root
@@ -1011,6 +1042,25 @@ mod runtime_resolution_tests {
         assert!(
             resource_roots >= 1,
             "no candidate root named 'resources': {roots:?}"
+        );
+    }
+
+    /// `<cyvra.home>` has to be one directory, deterministically, or the
+    /// activation store and the exported entitlement could land somewhere the
+    /// Host never reads. Assert stability rather than a specific path: where
+    /// that root is depends on whether the Host has been built on this machine.
+    #[test]
+    fn cyvra_home_is_one_stable_directory() {
+        let first = cyvra_home();
+        let second = cyvra_home();
+
+        assert_eq!(first, second, "cyvra_home() must be deterministic");
+        assert!(
+            first
+                .as_ref()
+                .map(|root| !root.as_os_str().is_empty())
+                .unwrap_or(false),
+            "cyvra_home() must not resolve to an empty path: {first:?}"
         );
     }
 
