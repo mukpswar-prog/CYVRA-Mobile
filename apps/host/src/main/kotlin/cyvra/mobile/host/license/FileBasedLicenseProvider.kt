@@ -29,6 +29,18 @@ enum class LicenseFileReason {
 
     /** The content is not a structurally complete, internally consistent record. */
     INVALID,
+
+    /**
+     * The document is well-formed but the server signature does not verify
+     * against the bundled public key: edited, truncated, or signed by another key.
+     */
+    SIGNATURE_INVALID,
+
+    /**
+     * The snapshot verifies but the licence is past `validUntil` plus its grace
+     * limit, so the cached entitlement may no longer be relied on.
+     */
+    EXPIRED,
 }
 
 /**
@@ -41,6 +53,24 @@ data class LicenseFileResult(
     val record: CustomerLicenseRecord,
     val reason: LicenseFileReason,
     val sourcePath: String?,
+    /**
+     * Server-authoritative permissions that apply while the entitlement is being
+     * served from a cached snapshot. Read out of the signed snapshot by
+     * [SignedEntitlementProvider]; the `license.json` test/dev seam has no
+     * snapshot, so it keeps the unrestricted default.
+     */
+    val offline: OfflinePermissions = OfflinePermissions.UNRESTRICTED,
+    /**
+     * How long past `validUntil` the snapshot may still be relied on, in seconds.
+     * Zero means the server granted no grace at all.
+     */
+    val graceLimitSeconds: Long = 0L,
+    /**
+     * True when this answer rests on a cached snapshot rather than on a live
+     * server round-trip. Used for provenance: offline data must never be
+     * presented to an operator as if it had just been confirmed.
+     */
+    val cached: Boolean = false,
 ) {
     /** True only when a file was read and validated. Anything else is fail-closed. */
     val isLicensed: Boolean
@@ -65,7 +95,7 @@ class FileBasedLicenseProvider(
     private val homeProvider: () -> String? = {
         System.getProperty(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY)
     },
-) {
+) : LicenseProvider {
 
     private val json = Json {
         /*
@@ -76,7 +106,7 @@ class FileBasedLicenseProvider(
         ignoreUnknownKeys = true
     }
 
-    fun load(): LicenseFileResult {
+    override fun load(): LicenseFileResult {
         val home = homeProvider()?.takeIf { it.isNotBlank() }
             ?: return denied(reason = LicenseFileReason.HOME_PROPERTY_MISSING, sourcePath = null)
 

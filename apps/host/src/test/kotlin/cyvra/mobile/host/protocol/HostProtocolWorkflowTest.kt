@@ -695,7 +695,10 @@ class HostProtocolWorkflowTest {
             message.contains("FILE_MISSING"),
             "the operator message must carry the LicenseFileReason, got: $message",
         )
-        assertTrue(message.contains("license.json"), "message must name the missing file")
+        assertTrue(
+            message.contains("entitlement.json"),
+            "message must name the file production actually reads",
+        )
 
         // The refusal must leave no scan behind, so no report command can answer.
         assertError(session.send(HostCommand.GET_DEVICE_REPORT), "NO_SCAN_SESSION")

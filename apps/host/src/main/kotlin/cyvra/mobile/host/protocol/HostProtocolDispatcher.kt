@@ -3,8 +3,9 @@ package cyvra.mobile.host.protocol
 import cyvra.mobile.core.AuthorizationRequirement
 import cyvra.mobile.core.PreSanitizationRecord
 import cyvra.mobile.core.SanitizationMethodType
-import cyvra.mobile.host.license.FileBasedLicenseProvider
 import cyvra.mobile.host.license.LicenseFileResult
+import cyvra.mobile.host.license.LicenseProvider
+import cyvra.mobile.host.license.SignedEntitlementProvider
 import cyvra.mobile.host.report.HostReportEngine
 import cyvra.mobile.host.report.HostReportStore
 import cyvra.mobile.host.service.HostBootstrap
@@ -251,10 +252,12 @@ class HostProtocolDispatcher(
     /**
      * GET_LICENSE_STATE reports the entitlement the workstation actually has.
      *
-     * Read-only and fail-closed: `present` is true only when [FileBasedLicenseProvider]
-     * read and validated `<cyvra.home>/license.json`. This command cannot activate
-     * anything - it is the Host stating what it found on disk, so a missing or corrupt
-     * file answers `FILE_MISSING` / `UNKNOWN` / `0` rather than a fabricated activation.
+     * Read-only and fail-closed: `present` is true only when a [LicenseProvider]
+     * read, verified and validated `<cyvra.home>/entitlement.json`. This command cannot
+     * activate anything - it is the Host stating what it found on disk, so a missing or
+     * corrupt file, or one whose server signature does not verify, answers
+     * `FILE_MISSING` / `SIGNATURE_INVALID` / `UNKNOWN` / `0` rather than a fabricated
+     * activation.
      *
      * No secrets cross the wire: `licenseId`, `serialNumber`, `customerEmail` and
      * `planName` stay inside the Host. The four keys below are the whole surface.
@@ -404,7 +407,7 @@ class HostProtocolDispatcher(
     /**
      * RUN_SCAN routes to `WorkstationSessionOrchestrator.executeDiagnostic`.
      *
-     * The licence is checked before anything else: a denied [FileBasedLicenseProvider]
+     * The licence is checked before anything else: a denied [cyvra.mobile.host.license.LicenseProvider]
      * result refuses the scan with `LICENSE_REQUIRED` carrying the reason, rather than
      * letting entitlement accounting throw a misleading "no scans remaining" later.
      */
@@ -414,10 +417,30 @@ class HostProtocolDispatcher(
             return errorResponse(
                 request = request,
                 code = LICENSE_REQUIRED,
+                // Names the file the activated product actually reads. `license.json`
+                // is the test/dev seam only, so pointing an operator at it would be
+                // an instruction that can never be satisfied on a shipped build.
                 message = "Scan refused: no usable licence is installed " +
                     "(reason=${license.reason}). Install a valid " +
-                    "${FileBasedLicenseProvider.LICENSE_FILE_NAME} in the installation " +
+                    "${SignedEntitlementProvider.ENTITLEMENT_FILE_NAME} in the installation " +
                     "root to enable scanning.",
+            )
+        }
+
+        /*
+         * Server-authoritative offline rule, read from the signed snapshot and
+         * enforced here rather than in the UI. The snapshot decides; a
+         * workstation running on a cached entitlement cannot widen its own
+         * permissions. With no snapshot restricting it (the test/dev seam) this
+         * is true and the branch never fires.
+         */
+        if (!license.offline.diagnostics) {
+            return errorResponse(
+                request = request,
+                code = "DIAGNOSTICS_LOCKED_OFFLINE",
+                message = "Refused: this workstation is running on a cached entitlement " +
+                    "that does not permit diagnostics. Reconnect to CYVORIQ so the " +
+                    "licence can be refreshed, then try again.",
             )
         }
 
@@ -792,6 +815,30 @@ class HostProtocolDispatcher(
      * device, and the response reports it as the honest outcome rather than an error.
      */
     private fun sanitizeExecuteResponse(request: HostRequest): HostResponse {
+        /*
+         * Server-authoritative offline rule, enforced Host-side from the signed
+         * snapshot flags (never from local configuration). Destructive
+         * sanitization stays locked while the entitlement is being served from
+         * a cached snapshot the server restricted.
+         *
+         * Only an *installed* entitlement can be restricted. With no licence at
+         * all this falls through to the pre-existing session refusals, so an
+         * unlicensed workstation is never told it is running on a cached
+         * entitlement - that would be a claim about a snapshot that does not
+         * exist. The `license.json` test/dev seam is unrestricted, so this
+         * branch never fires there either.
+         */
+        val offlineLicense = licenseResult
+        if (offlineLicense.isLicensed && !offlineLicense.offline.sanitizeExecute) {
+            return errorResponse(
+                request = request,
+                code = "SANITIZE_LOCKED_OFFLINE",
+                message = "Refused: destructive sanitization is not allowed while this " +
+                    "workstation is running on a cached entitlement. Reconnect to CYVORIQ " +
+                    "so the licence can be confirmed, then try again.",
+            )
+        }
+
         val start = lifecycleStart
             ?: return errorResponse(
                 request = request,
