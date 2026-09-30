@@ -80,6 +80,19 @@
   --space-3: 24px;
   --space-4: 32px;
 
+  /* Activation screen (spec section "Sign in & Activate").
+     A different presentation from the workspace - a light-blue field, a white
+     glass card, charcoal ink - but the same palette family: the primary action
+     is still --orange, focus is still --focus, and --danger-* still means the
+     Host refused. Only the backdrop is new, so the operator meets the
+     enterprise shell they already know the moment they are let in. */
+  --act-sky: #e7f1fb;
+  --act-sky-deep: #c9e0f6;
+  --act-glass: rgba(255, 255, 255, 0.78);
+  --act-glass-edge: rgba(255, 255, 255, 0.95);
+  --act-ink: #2f3742;
+  --act-muted: #55606e;
+
   color-scheme: light;
   font-family:
     "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
