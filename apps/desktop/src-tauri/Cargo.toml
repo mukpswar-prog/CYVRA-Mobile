@@ -24,5 +24,24 @@ tauri-plugin-log = "2"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 
+[dev-dependencies]
+# Property-based testing for the state machines (ledger chain, activation
+# transitions). Used only under `cargo test`, never linked into a shippable
+# bundle.
+proptest = "1"
+
 [target.'cfg(windows)'.dependencies]
-windows = { version = "=0.61.3", features = ["Win32_Devices_DeviceAndDriverInstallation", "Win32_Devices_PortableDevices", "Win32_Devices_Usb", "Win32_Foundation", "Win32_System_Com"] }
+windows = { version = "=0.61.3", features = [
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Devices_PortableDevices",
+    "Win32_Devices_Usb",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    # Activation layer: DPAPI for the device token at rest.
+    "Win32_Security_Cryptography",
+    # Activation layer: machine fingerprint (registry MachineGuid,
+    # raw SMBIOS firmware table, system-volume serial).
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_Storage_FileSystem",
+] }

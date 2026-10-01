@@ -4,8 +4,10 @@ mod usb;
 #[cfg(windows)]
 mod wpd;
 
+mod activation;
 mod commands;
 mod host_process;
+mod ledger;
 
 /// Console entry point used by the packaging gate and the installer preflight.
 ///
@@ -28,7 +30,10 @@ pub fn run() {
             commands::get_device_state,
             commands::get_wpd_devices,
             commands::scan_wpd_device_metadata,
-            commands::send_host_command
+            commands::send_host_command,
+            activation::commands::activation_launch,
+            activation::commands::activation_submit,
+            commands::ledger_read
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

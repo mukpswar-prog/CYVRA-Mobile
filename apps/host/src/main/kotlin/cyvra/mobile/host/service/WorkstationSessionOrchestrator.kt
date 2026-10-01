@@ -147,9 +147,38 @@ class WorkstationSessionOrchestrator(
     ): WorkstationDiagnosticExecutionResult {
         val sessionUuid = "CYVRA-SESSION-${UUID.randomUUID().toString().take(12).uppercase()}"
 
-        // 1. Transactionally commit scan entitlement
-        val tx = licenseService.commitScanForSession(sessionUuid, serial)
+        /*
+         * 1. Reserve the scan as a committed-pending transaction.
+         *
+         * The balance is deliberately untouched: §14 makes RUN_SCAN a
+         * reservation, not a purchase. Only a certificate that actually
+         * exists may cost the customer a scan, and that happens in
+         * `HostProtocolDispatcher.finalReportResponse`, not here.
+         */
+        licenseService.commitScanForSession(sessionUuid, serial)
 
+        return try {
+            collectReservedDiagnostic(sessionUuid, serial, operatorId, deviceSideInventory)
+        } catch (error: Throwable) {
+            /*
+             * Evidence collection, assessment or report generation failed, so
+             * this session will never reach a certificate. Release the
+             * reservation instead of leaving it pending forever - that is what
+             * makes "an abandoned scan is not debited" a state the ledger can
+             * point at rather than merely an event that did not occur.
+             */
+            licenseService.abandonScan(sessionUuid)
+            throw error
+        }
+    }
+
+    /** The work done *inside* a reserved scan session. */
+    private fun collectReservedDiagnostic(
+        sessionUuid: String,
+        serial: String,
+        operatorId: String,
+        deviceSideInventory: ApplicationInventoryEvidence?,
+    ): WorkstationDiagnosticExecutionResult {
         // 2. Collect evidence via generic ADB provider
         val evidenceProvider = AdbGenericEvidenceProvider(adbClient, serial, sessionUuid)
         val genericEvidence = evidenceProvider.collectAll()
@@ -193,8 +222,23 @@ class WorkstationSessionOrchestrator(
         val reportJson = reportEngine.exportToJson(report)
         val reportMarkdown = reportEngine.renderMarkdown(report)
 
-        // 5. Finalize scan consumption upon successful report creation
-        val updatedLicense = licenseService.finalizeScanDebit(tx.transactionId)
+        /*
+         * 5. Nothing is spent here.
+         *
+         * §14 makes RUN_SCAN a *reservation*, not a purchase: the transaction is
+         * committed-pending and the entitlement balance is untouched, because a
+         * report that is never delivered, a scan the operator abandons, or a
+         * session whose Final Report is never generated must not have cost the
+         * customer anything. The debit happens in finalReportResponse, at the
+         * moment a certificate actually exists, and nowhere earlier.
+         *
+         * `updatedLicense` therefore reports the balance as it still stands.
+         * Returning the pre-debit figure is not cosmetic: RUN_SCAN's response
+         * carries it, and a workstation that claimed to have spent a scan on a
+         * report it had not yet written would be reporting a transaction that
+         * had not happened.
+         */
+        val updatedLicense = licenseService.getLicense()
 
         val descriptor = WorkstationDeviceDescriptor(
             serial = serial,

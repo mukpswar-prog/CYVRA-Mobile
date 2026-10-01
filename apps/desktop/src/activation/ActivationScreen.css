@@ -1,0 +1,249 @@
+/*
+ * CYVRA Mobile - "Sign in & Activate" screen.
+ *
+ * The one screen in the product that does not use the paper-and-graphite
+ * enterprise shell: a light-blue field, a large CYVRA mark, a white glass card
+ * and a deep-orange primary action, so activation reads as a distinct moment
+ * before the operator reaches the workspace. Everything else - the 8pt grid,
+ * the focus ring, the semantic tones - is inherited unchanged.
+ *
+ * Presentation only. What is *said* here comes entirely from the Rust state
+ * machine as one of six strings; this file never invents wording, never
+ * decides whether a licence is good, and never softens a verdict.
+ */
+
+.activation {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-2);
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--act-sky) 0%, var(--act-sky-deep) 100%);
+  color: var(--act-ink);
+}
+
+/* ------------------------------------------------------------- brand lockup */
+
+.activation-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: center;
+}
+
+/* The focal point: deliberately far larger than the 32px header mark the
+   workspace uses, because this screen is the product's front door. */
+.activation-logo {
+  width: min(340px, 70vw);
+  height: auto;
+  object-fit: contain;
+}
+
+.activation-title {
+  margin: 0;
+  color: var(--act-ink);
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.activation-subtitle {
+  margin: 0;
+  color: var(--act-muted);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+/* ------------------------------------------------------------------- the card */
+
+.activation-card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--act-glass);
+  border: 1px solid var(--act-glass-edge);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-raised);
+  backdrop-filter: blur(16px);
+}
+
+.activation-heading {
+  margin: 0;
+  color: var(--act-ink);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+/*
+ * Exactly one of the six verdicts, verbatim, as the Rust layer produced it.
+ * Nothing else may occupy this slot: a seventh sentence here would be the
+ * application inventing a licence outcome.
+ */
+.activation-message {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-control);
+  color: var(--danger-ink);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------- fields */
+
+.activation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activation-field > label {
+  color: var(--act-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.activation-field input {
+  height: 44px;
+  padding: 0 var(--space-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--act-ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.activation-field input::placeholder {
+  color: var(--steel);
+}
+
+/* ------------------------------------------------------------------- terms */
+
+.activation-terms {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.activation-terms input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--orange);
+}
+
+.activation-terms-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.activation-terms-body > label {
+  color: var(--act-ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.activation-link {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--act-ink);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.activation-terms-sheet {
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--space-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.activation-terms-sheet h3 {
+  margin: 0 0 var(--space-1);
+  color: var(--graphite);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.activation-terms-sheet pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+/* ---------------------------------------------------------------- primary CTA */
+
+.activation-submit {
+  min-height: 48px;
+  background: var(--orange);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.activation-submit:hover:not(:disabled) {
+  background: var(--orange-ink);
+}
+
+/* Disabled is grey, never orange and never green: an unavailable action must
+   not read as a brand-forward or a successful one. */
+.activation-submit:disabled {
+  background: var(--steel);
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------- help */
+
+.activation-help {
+  align-self: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--act-muted);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.activation-help-note {
+  margin: 0;
+  color: var(--act-muted);
+  font-size: 13px;
+  line-height: 19px;
+  text-align: center;
+}

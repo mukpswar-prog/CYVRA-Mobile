@@ -60,4 +60,15 @@ export default defineConfig(({ command }) => ({
   define: {
     __CYVRA_BUILD_COMMIT__: JSON.stringify(buildCommit(command)),
   },
+  server: {
+    watch: {
+      // The Rust build tree lives under this project's root, and vite would
+      // otherwise crawl all of it. That is not a small directory, and the cost
+      // was concrete: the dev server blocked its event loop for minutes while
+      // scanning (HTTP requests hung, so the webview never loaded), and a
+      // locked `target/debug/deps/*.dll` being rewritten by cargo crashed the
+      // watcher outright with `EBUSY`, taking `tauri dev` down with it.
+      ignored: ['**/src-tauri/target/**', '**/src-tauri/.resources/**'],
+    },
+  },
 }))

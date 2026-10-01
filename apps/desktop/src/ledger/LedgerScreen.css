@@ -1,0 +1,193 @@
+/*
+ * Transaction Ledger view - presentation only.
+ *
+ * Same CYVORIQ token set as the rest of the workstation surface: the table,
+ * bands and badges are the ones already defined in App.css, restyled only
+ * where this view needs something they do not carry. Nothing here decides
+ * what is shown - every value comes from ledger.jsonl through LedgerScreen.
+ */
+
+/* Top-level switch between the two desktop views. A bar of its own rather
+   than a button in the brand header: that header carries status and nothing
+   else, and navigation is neither status nor brand. */
+.screen-nav {
+  position: sticky;
+  top: 56px;
+  z-index: 9;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+
+.screen-nav-inner {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+}
+
+.screen-nav-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
+}
+
+.screen-nav-btn:hover:not(:disabled) {
+  background: var(--paper);
+  color: var(--graphite);
+}
+
+.screen-nav-btn.is-active {
+  background: var(--orange-soft);
+  border-color: var(--orange);
+  color: var(--orange-ink);
+}
+
+.screen-nav-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ head -- */
+
+.ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------- findings -- */
+
+.ledger-problems {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ------------------------------------------------------------------ table -- */
+
+.ledger-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ledger-grid {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.ledger-grid thead th {
+  text-align: left;
+}
+
+.ledger-grid tbody td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.ledger-seq {
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite);
+  font-weight: 600;
+}
+
+/* UTC is shown exactly as written. Never reformatted: converting an audit
+   timestamp to a local zone is how two people end up disagreeing about when
+   something happened. */
+.ledger-at {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.ledger-event {
+  display: block;
+  color: var(--graphite);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.ledger-event-code {
+  display: block;
+  color: var(--steel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+}
+
+.ledger-subject {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.muted-cell {
+  color: var(--steel);
+  font-family: inherit;
+  font-style: italic;
+}
+
+.ledger-chain {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.chain-line {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--steel);
+}
+
+.chain-line b {
+  color: var(--muted);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+/* ------------------------------------------------------------ provenance -- */
+
+/* LIVE and OFFLINE are two different claims about the same file, so they are
+   given different colours *and* different words: colour alone would make the
+   distinction unreadable to anyone who cannot separate the two. */
+.prov-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.prov-live {
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+  color: var(--ok-ink);
+}
+
+.prov-offline {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber-ink);
+}

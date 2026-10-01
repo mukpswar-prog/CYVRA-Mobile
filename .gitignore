@@ -30,6 +30,8 @@ apps/android/**/build/
 apps/host/.gradle/
 apps/host/.kotlin/
 apps/host/build/
+# jqwik's shrink-failure database. Local tooling state, never source.
+apps/host/.jqwik-database
 apps/android/local.properties
 apps/android/.idea/
 # Studio/Gradle 9 "updateDaemonJvm" writes this and can pin JDK 25.
