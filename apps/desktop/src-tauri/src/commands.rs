@@ -2,7 +2,9 @@ use std::{collections::HashMap, sync::Mutex};
 
 use serde::Serialize;
 
-use crate::host_process::{HostInfo, HostProcessManager};
+use crate::activation::{entitlement, state, store};
+use crate::host_process::{self, HostInfo, HostProcessManager};
+use crate::ledger::{self, Clock};
 
 #[cfg(windows)]
 use crate::usb::{enumerate::enumerate_usb_devices, model::UsbObservationState};
@@ -205,12 +207,199 @@ pub async fn send_host_command(
      * concurrent requests would interleave their bytes and each read the
      * other's answer. Serialising here is what makes the wire protocol true.
      */
-    let mut manager = state
-        .manager
-        .lock()
-        .map_err(|_| "HOST_STATE_LOCK_FAILED".to_string())?;
+    let line = {
+        let mut manager = state
+            .manager
+            .lock()
+            .map_err(|_| "HOST_STATE_LOCK_FAILED".to_string())?;
 
-    manager.send_host_command(&command, &payload)
+        manager.send_host_command(&command, &payload)?
+    };
+
+    /*
+     * Scan transactions are recorded on this side of the wire rather than by
+     * the Host, because this is the only place that sees both halves: the
+     * command asked for and the answer actually given. The Host stays a pure
+     * protocol engine and the ledger keeps exactly one writer.
+     *
+     * It runs after the host lock is released - the ledger takes its own file
+     * lock, and holding two locks across a disk write in acquisition order is
+     * how an accidental lock order gets baked in.
+     */
+    let recorded = {
+        let command = command.clone();
+        let line = line.clone();
+        tauri::async_runtime::spawn_blocking(move || record_scan_ledger(&command, &line)).await
+    };
+
+    match recorded {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => log::warn!("scan ledger entry not written: {error}"),
+        Err(error) => log::warn!("scan ledger task failed: {error}"),
+    }
+
+    Ok(line)
+}
+
+/// Whether the Host is running on the restricted offline lease right now.
+///
+/// Answered by comparing the snapshot the Host was actually handed in
+/// `entitlement.json` against the offline lease the server signed at
+/// activation. That file is the only source that can settle the question
+/// without guessing, because it is the very document the Host reads to decide
+/// what it is allowed to do.
+///
+/// `false` when the comparison cannot be made. Reaching that would mean there
+/// is no activation store or no entitlement file - and no scan could have been
+/// performed in that condition - so this is a fallback for a fault rather than
+/// a second answer. It is written here so the provenance label on a scan row
+/// cannot drift from the licence state that scan was performed under.
+fn on_offline_lease(home: &std::path::Path) -> bool {
+    store::read(home)
+        .ok()
+        .flatten()
+        .and_then(|stored| entitlement::on_offline_lease(home, &stored.offline_lease.signature))
+        .unwrap_or(false)
+}
+
+/// Appends the ledger entry a scan exchange implies, if it implies one.
+///
+/// Only two commands ever move an entitlement, and only a `status: "OK"`
+/// answer means the Host actually did the work: a refused or failed
+/// `RUN_SCAN` reserves nothing, and a `GET_FINAL_REPORT` that did not produce
+/// a certificate spends nothing. Recording from the status rather than from
+/// the request is what keeps the ledger from claiming spends that never
+/// happened.
+fn record_scan_ledger(command: &str, line: &str) -> Result<(), ledger::LedgerError> {
+    let request = match command {
+        "RUN_SCAN" => ledger::LedgerRequest::new(ledger::LedgerEvent::ScanCommitted),
+        "GET_FINAL_REPORT" => ledger::LedgerRequest::new(ledger::LedgerEvent::ScanDebited)
+            // One certificate, one spend, however many times it is fetched.
+            .unique(),
+        _ => return Ok(()),
+    };
+
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+        return Ok(());
+    };
+    if value.get("status").and_then(|status| status.as_str()) != Some("OK") {
+        return Ok(());
+    }
+
+    let payload = value.get("payload");
+    let subject = match command {
+        "RUN_SCAN" => payload.and_then(|it| it.get("sessionUuid")),
+        _ => payload.and_then(|it| it.get("certificateId")),
+    };
+
+    let name = match subject.and_then(|it| it.as_str()) {
+        Some(name) => name,
+        // An OK answer that names no session or certificate cannot be tied to
+        // a transaction, so nothing is claimed about one.
+        None => return Ok(()),
+    };
+
+    let home = host_process::cyvra_home().map_err(|_| ledger::LedgerError::HomeUnavailable)?;
+    let clock = ledger::SystemClock;
+    let request = request.subject(name).offline(on_offline_lease(&home));
+    ledger::append(&home, request, &clock)?;
+
+    /*
+     * A settled scan is recorded in two places on purpose.
+     *
+     * The revision ledger says *what happened* - the immutable history the
+     * desktop view renders. The entitlement journal says *what it cost*, and
+     * is what the Host reads back on its next boot, because the signed
+     * `payload` it cannot edit. One file proves the spend occurred; the other
+     * makes it stick. Neither is sufficient alone.
+     *
+     * A journal failure is reported and then allowed through: the certificate
+     * has already been written and handed to the operator, so refusing their
+     * report over a disk error would punish them for it. What they would get
+     * is a restored balance on the next launch - and an audit line in
+     * `ledger.jsonl` naming the spend, which is exactly the discrepancy an
+     * auditor is meant to find rather than have papered over.
+     */
+    if command == "GET_FINAL_REPORT" {
+        match entitlement::record_debit(&home, name, &state::iso8601(clock.now_unix())) {
+            Ok(debit) => log::info!("entitlement settled: {}", debit.subject),
+            Err(error) => log::warn!("entitlement debit not persisted: {error}"),
+        }
+    }
+
+    Ok(())
+}
+
+/// Reads the revision ledger for the "Transaction Ledger" view.
+///
+/// Returns the entries **and** the verdict of recomputing their hash chain
+/// separately, rather than refusing the read when the chain does not hold. An
+/// operator looking at a tampered ledger needs to see what it says - and be
+/// told plainly that it no longer checks out - far more than they need an
+/// empty screen with no explanation.
+///
+/// `verified` is `null` when the file does not exist yet: an installation that
+/// has never recorded an event has an *absent* ledger, not a broken one, and
+/// calling that "unverified" would cry wolf before there was anything to see.
+#[tauri::command]
+pub async fn ledger_read() -> LedgerReadResult {
+    let home = match host_process::cyvra_home() {
+        Ok(root) => root,
+        Err(error) => {
+            return LedgerReadResult {
+                entries: Vec::new(),
+                verified: None,
+                error: Some(error),
+                raw: None,
+            }
+        }
+    };
+
+    let entries = match ledger::read_entries(&home) {
+        Ok(entries) => entries,
+        Err(error) => {
+            return LedgerReadResult {
+                entries: Vec::new(),
+                verified: Some(false),
+                error: Some(error.to_string()),
+                raw: ledger::read_raw(&home),
+            }
+        }
+    };
+
+    if entries.is_empty() {
+        return LedgerReadResult {
+            entries: Vec::new(),
+            verified: None,
+            error: None,
+            raw: ledger::read_raw(&home),
+        };
+    }
+
+    let verified = ledger::verify_chain(&entries).is_ok();
+
+    LedgerReadResult {
+        entries,
+        verified: Some(verified),
+        error: None,
+        raw: ledger::read_raw(&home),
+    }
+}
+
+/// What the ledger view is allowed to see: the entries, whether they chain,
+/// and a read failure if the file could not be opened at all.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LedgerReadResult {
+    pub entries: Vec<ledger::LedgerEntry>,
+    /// `Some(true)`/`Some(false)` once a ledger exists, `None` when there is none.
+    pub verified: Option<bool>,
+    pub error: Option<String>,
+    /// The file verbatim, so the view can parse `ledger.jsonl` for itself.
+    ///
+    /// `None` when there is no file, which is not a failure: an installation
+    /// that has never recorded an event has no history yet, not a missing one.
+    pub raw: Option<String>,
 }
 
 /// Evaluates device connection state using authoritative Windows USB truth.

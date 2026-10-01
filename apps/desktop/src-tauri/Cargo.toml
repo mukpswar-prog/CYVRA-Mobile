@@ -24,6 +24,12 @@ tauri-plugin-log = "2"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 
+[dev-dependencies]
+# Property-based testing for the state machines (ledger chain, activation
+# transitions). Used only under `cargo test`, never linked into a shippable
+# bundle.
+proptest = "1"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "=0.61.3", features = [
     "Win32_Devices_DeviceAndDriverInstallation",

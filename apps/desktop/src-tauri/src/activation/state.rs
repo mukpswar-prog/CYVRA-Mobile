@@ -50,6 +50,7 @@ use crate::activation::api::{
 };
 use crate::activation::store::{StoreError, StoredActivation};
 use crate::activation::{device_fingerprint, entitlement, store, FingerprintError};
+use crate::ledger::{self, FixedClock, LedgerError, LedgerEvent, LedgerRequest};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -85,12 +86,16 @@ pub enum Launch {
 ///
 /// The audit result travels back to the caller rather than being swallowed: a
 /// full disk must never deny a paying customer entry, but it must never be
-/// silent either.
+/// silent either. The revision ledger is carried for the same reason - it is
+/// an accounting record, and an accounting record that vanishes quietly is
+/// worse than one that reports it could not be written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchOutcome {
     pub launch: Launch,
     /// The line written to the audit trail, or the reason it could not be.
     pub audit: Result<AuditLine, AuditError>,
+    /// The ledger entry appended for this decision, or why there is none.
+    pub ledger: Result<(), LedgerError>,
 }
 
 /// One line in the activation audit trail.
@@ -434,6 +439,7 @@ fn no_home() -> LaunchOutcome {
     LaunchOutcome {
         launch: Launch::LocalFault,
         audit: Err(AuditError::HomeUnavailable),
+        ledger: Err(LedgerError::HomeUnavailable),
     }
 }
 
@@ -456,9 +462,62 @@ pub(crate) fn local_fault(home: &Path, now_unix: u64, code: &'static str) -> Lau
 }
 
 /// Writes the line, then reports whether it made it.
+///
+/// The ledger entry rides along here rather than being appended by each caller:
+/// every one of these paths is a *decision*, and the mapping from a decision to
+/// its place in the revision ledger belongs in one function where it can be
+/// read next to the audit event it derives from.
 fn record(home: &Path, line: AuditLine, launch: Launch) -> LaunchOutcome {
     let audit = append_audit(home, &line).map(|()| line.clone());
-    LaunchOutcome { launch, audit }
+    let ledger = match ledger_request(&line) {
+        Some(request) => ledger::append(home, request, &FixedClock::new(line.at_unix))
+            .map(|entry| log_ledger(&entry)),
+        None => Ok(()),
+    };
+    LaunchOutcome {
+        launch,
+        audit,
+        ledger,
+    }
+}
+
+/// Which of the six ledger events this decision is, if any.
+///
+/// A refusal, a screen-shown and a local fault are *not* ledger events: the
+/// ledger records what was done to the licence (bound, revalidated, spent on
+/// grace), and none of those three happened. Only the four state changes that
+/// alter the workstation's standing with the server are appended.
+fn ledger_request(line: &AuditLine) -> Option<LedgerRequest> {
+    match line.event {
+        AuditEvent::FirstActivation => Some(LedgerRequest::new(LedgerEvent::Activation)),
+        AuditEvent::AuthorizedDeviceRevalidation => {
+            Some(LedgerRequest::new(LedgerEvent::Revalidation))
+        }
+        // Offline by construction: both describe entry on cached state, which
+        // is exactly the provenance the ledger view has to label.
+        AuditEvent::OfflineGraceEntry => {
+            Some(LedgerRequest::new(LedgerEvent::GraceEntered).offline(true))
+        }
+        AuditEvent::OfflineGraceExpired => {
+            Some(LedgerRequest::new(LedgerEvent::GraceExpired).offline(true))
+        }
+        AuditEvent::ActivationRefused
+        | AuditEvent::ActivationScreenShown
+        | AuditEvent::LocalFault => None,
+    }
+}
+
+/// The ledger's failures are logged, never raised.
+///
+/// It is a record of what happened, not a gate on whether it may happen: a
+/// full disk must not keep a licensed operator out of their own application,
+/// and this module already treats the audit trail the same way.
+fn log_ledger(entry: &ledger::LedgerEntry) {
+    log::debug!(
+        "ledger entry {} appended: {}",
+        entry.seq,
+        entry.event.as_str()
+    );
 }
 
 /// Stable machine codes for storage failures. Audit only, never displayed.
@@ -595,6 +654,130 @@ mod tests {
             transcript[0]
         );
         assert!(transcript[0].contains("AUTHORIZED_DEVICE_REVALIDATION"));
+    }
+
+    // ------------------------------------------------------------------
+    // The revision ledger
+    // ------------------------------------------------------------------
+
+    fn ledger_events(home: &Path) -> Vec<crate::ledger::LedgerEvent> {
+        ledger::read_entries(home)
+            .expect("ledger readable")
+            .into_iter()
+            .map(|entry| entry.event)
+            .collect()
+    }
+
+    #[test]
+    fn a_first_binding_is_recorded_in_the_ledger_as_a_live_event() {
+        let home = temp_home();
+
+        let outcome = activate(&home, &FakeLicenseApiClient::default(), &request(), SERVER_NOW);
+
+        assert!(outcome.ledger.is_ok(), "the ledger result must come back, not vanish");
+        assert_eq!(ledger_events(&home), vec![crate::ledger::LedgerEvent::Activation]);
+
+        let entries = ledger::read_entries(&home).unwrap();
+        assert!(
+            !entries[0].offline,
+            "an online binding is a live event, never cached state"
+        );
+        ledger::verify_chain(&entries).expect("the chain must hold from genesis");
+    }
+
+    #[test]
+    fn every_successful_revalidation_is_its_own_ledger_entry() {
+        let home = temp_home();
+        seed(&home);
+
+        launch(&home, &FakeLicenseApiClient::default(), SERVER_NOW + 60);
+        launch(&home, &FakeLicenseApiClient::default(), SERVER_NOW + 120);
+
+        assert_eq!(
+            ledger_events(&home),
+            vec![
+                crate::ledger::LedgerEvent::Revalidation,
+                crate::ledger::LedgerEvent::Revalidation,
+            ],
+            "each launch that the server confirmed is a separate fact"
+        );
+    }
+
+    #[test]
+    fn riding_the_grace_window_is_recorded_as_offline_state() {
+        let home = temp_home();
+        seed(&home);
+        let api = FakeLicenseApiClient::default().unreachable();
+
+        let outcome = launch(&home, &api, SERVER_NOW + 60);
+
+        assert_eq!(outcome.launch, Launch::Enter { offline: true });
+        assert_eq!(
+            ledger_events(&home),
+            vec![crate::ledger::LedgerEvent::GraceEntered]
+        );
+
+        let entries = ledger::read_entries(&home).unwrap();
+        assert!(
+            entries[0].offline,
+            "grace is cached state by definition, and the view labels it as such"
+        );
+    }
+
+    #[test]
+    fn grace_running_out_is_recorded_on_every_refused_launch() {
+        let home = temp_home();
+        seed(&home);
+        let api = FakeLicenseApiClient::default().unreachable();
+
+        let past = SERVER_NOW + GRACE_24H + 1;
+        let first = launch(&home, &api, past);
+        let second = launch(&home, &api, past + 60);
+
+        for outcome in [&first, &second] {
+            assert!(matches!(outcome.launch, Launch::Refused { .. }));
+        }
+
+        assert_eq!(
+            ledger_events(&home),
+            vec![
+                crate::ledger::LedgerEvent::GraceExpired,
+                crate::ledger::LedgerEvent::GraceExpired,
+            ]
+        );
+        let entries = ledger::read_entries(&home).unwrap();
+        assert!(entries.iter().all(|entry| entry.offline));
+        ledger::verify_chain(&entries).expect("chain must hold");
+    }
+
+    #[test]
+    fn a_refusal_reaches_the_audit_trail_but_never_the_ledger() {
+        let home = temp_home();
+        let api =
+            FakeLicenseApiClient::default().activate_answers(vec![fake::refused(FailureKind::InvalidLicence)]);
+
+        let outcome = activate(&home, &api, &request(), SERVER_NOW);
+
+        // The audit line still lands: a refusal is a decision worth keeping.
+        assert_eq!(event_of(&outcome), AuditEvent::ActivationRefused);
+        // The ledger does not move: it records what was *done* to the licence,
+        // and the server saying no is not something this machine did.
+        assert!(
+            ledger_events(&home).is_empty(),
+            "the ledger records acts, not refusals"
+        );
+        assert!(outcome.ledger.is_ok());
+    }
+
+    #[test]
+    fn the_ledger_verdict_travels_back_instead_of_being_swallowed() {
+        let home = temp_home();
+
+        let outcome = activate(&home, &FakeLicenseApiClient::default(), &request(), SERVER_NOW);
+
+        // Same contract as the audit line: a full disk must never deny a
+        // paying customer entry, and must never be silent about it either.
+        assert_eq!(outcome.ledger, Ok(()));
     }
 
     // ------------------------------------------------------------------
