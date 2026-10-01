@@ -43,6 +43,13 @@
       "when": 1789126500000,
       "tag": "0005_mobile_licences",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790863606076,
+      "tag": "0006_dashing_vertigo",
+      "breakpoints": true
     }
   ]
 }
