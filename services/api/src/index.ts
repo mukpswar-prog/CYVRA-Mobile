@@ -16,6 +16,7 @@ import {
 } from "./crypto";
 import { mailConfigured, mailFromHost, sendOtpEmail } from "./email";
 import { adminRoutes } from "./admin";
+import { activationRoutes } from "./activation";
 import { evidenceRoutes } from "./evidence";
 import { licenseRoutes } from "./license";
 import { reportRoutes } from "./reports";
@@ -242,6 +243,11 @@ app.route("/evidence", evidenceRoutes);
 app.route("/reports", reportRoutes);
 app.route("/license", licenseRoutes);
 app.route("/admin", adminRoutes);
+// Desktop activation. Unauthenticated - it authenticates on the licence key.
+// Path matches `Endpoints::default().activate` = "v1/activation"
+// (live_client.rs:105), which is the desktop's *assumed* path and is
+// overridable there if the deployed route ever has to differ.
+app.route("/v1", activationRoutes);
 
 app.post("/auth/logout", async (c) => {
   const db = c.get("db");
