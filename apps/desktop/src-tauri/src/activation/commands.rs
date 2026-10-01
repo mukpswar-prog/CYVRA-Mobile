@@ -10,7 +10,7 @@
 //! against a licence is the version *this binary* bundles, so a modified
 //! frontend cannot tick a box and claim whichever document it likes.
 
-use crate::activation::client::PlaceholderLicenseApiClient;
+use crate::activation::live_client;
 use crate::activation::state::{self, LaunchOutcome};
 use crate::host_process;
 use serde::Serialize;
@@ -123,7 +123,7 @@ pub async fn activation_launch() -> ActivationDecision {
     decide(|| {
         state::launch(
             &home(),
-            &PlaceholderLicenseApiClient,
+            live_client::production_client(),
             state::system_now_unix(),
         )
     })
@@ -166,7 +166,7 @@ pub async fn activation_submit(
                 }
             };
 
-        state::activate(&home, &PlaceholderLicenseApiClient, &request, now)
+        state::activate(&home, live_client::production_client(), &request, now)
     })
     .await
 }
