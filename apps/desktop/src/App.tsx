@@ -3,6 +3,8 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import cyvoriqLogo from "./assets/cyvoriq-solutions.png";
+import { LedgerScreen } from "./ledger/LedgerScreen";
+import type { LedgerReadResult } from "./ledger/parseLedger";
 
 /**
  * Commit this bundle was built from, injected by `vite.config.ts`.
@@ -441,6 +443,16 @@ function SerialProvenance({
 type DeviceView = { text: string; ready: boolean };
 
 /**
+ * Which of the workstation's two top-level views is on screen.
+ *
+ * Navigation only, exactly like [StepKey]: it decides what is rendered and
+ * nothing else. Neither view is gated on the other - an operator may open the
+ * ledger mid-scan and come back to find the scan exactly where it was, because
+ * the ledger is a reader and reading it does not touch anything.
+ */
+type ScreenKey = "workflow" | "ledger";
+
+/**
  * Turns the Host's connection enums into one plain sentence for the operator.
  *
  * The raw enums (NO_DEVICE, USB_DETECTED, ADB_DETECTED, ADB_UNAVAILABLE,
@@ -548,6 +560,52 @@ function App() {
 
   /** Which stage of the wizard is on screen. Navigation only: it gates nothing. */
   const [activeStep, setActiveStep] = useState<StepKey>("connect");
+
+  /** Which top-level view is on screen. Navigation only, like `activeStep`. */
+  const [screen, setScreen] = useState<ScreenKey>("workflow");
+
+  /** The ledger file as the bridge last read it. */
+  const [ledger, setLedger] = useState<LedgerReadResult | null>(null);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+
+  /**
+   * Re-reads `logs/ledger.jsonl`.
+   *
+   * Deliberately does **not** go through `send`: the ledger is not a Host
+   * command and asking the Host about it would both blur the line between the
+   * two and fail whenever no Host is attached - a workstation must be able to
+   * show its own history with the inspection engine stopped.
+   */
+  const refreshLedger = useCallback(async () => {
+    setLedgerLoading(true);
+    setLedgerError(null);
+
+    try {
+      setLedger(await invoke<LedgerReadResult>("ledger_read"));
+    } catch (error) {
+      setLedger(null);
+      setLedgerError(String(error));
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, []);
+
+  /**
+   * Switches view, reading the ledger on the way in.
+   *
+   * Deliberately driven from the click rather than from an effect: arriving at
+   * the ledger is something the operator *does*, and doing it where they do it
+   * starts no work before they have asked for any - and starts it exactly once,
+   * instead of once per mount and once per dependency change.
+   */
+  const openScreen = useCallback(
+    (next: ScreenKey) => {
+      setScreen(next);
+      if (next === "ledger") void refreshLedger();
+    },
+    [refreshLedger],
+  );
 
   /**
    * Single entry point to the Rust bridge.
@@ -1228,6 +1286,40 @@ function App() {
         </div>
       </header>
 
+      {/* The workstation's two top-level views. Its own bar rather than a
+          button in the brand header: that header carries status, and status is
+          not navigation. */}
+      <nav className="screen-nav" aria-label="Workstation views">
+        <div className="screen-nav-inner">
+          <button
+            type="button"
+            className={`screen-nav-btn${screen === "workflow" ? " is-active" : ""}`}
+            aria-current={screen === "workflow" ? "page" : undefined}
+            onClick={() => openScreen("workflow")}
+          >
+            Inspection
+          </button>
+          <button
+            type="button"
+            className={`screen-nav-btn${screen === "ledger" ? " is-active" : ""}`}
+            aria-current={screen === "ledger" ? "page" : undefined}
+            onClick={() => openScreen("ledger")}
+          >
+            Transaction Ledger
+          </button>
+        </div>
+      </nav>
+
+      {screen === "ledger" ? (
+        <LedgerScreen
+          loading={ledgerLoading}
+          error={ledgerError}
+          raw={ledger?.raw ?? null}
+          verified={ledger?.verified ?? null}
+          decodedCount={ledger?.entries.length ?? 0}
+          onRefresh={() => void refreshLedger()}
+        />
+      ) : (
       <div className="workspace">
         <h1 className="page-title">Connected device inspection &amp; purge</h1>
 
@@ -2051,6 +2143,7 @@ function App() {
           </div>
         </section>
       </div>
+      )}
 
       {/* One line, one purpose: which build is this workstation running. */}
       <footer className="app-footer">
