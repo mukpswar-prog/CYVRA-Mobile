@@ -177,9 +177,18 @@ fn windows_machine_guid() -> String {
 fn windows_smbios_uuid() -> Result<String, FingerprintError> {
     use windows::Win32::System::SystemInformation::{GetSystemFirmwareTable, FIRMWARE_TABLE_PROVIDER};
 
-    /// `'RSMB'` as a little-endian DWORD, which is how Windows names the raw
-    /// SMBIOS firmware table.
-    const PROVIDER: u32 = u32::from_le_bytes(*b"RSMB");
+    /// `'RSMB'` as the DWORD `FIRMWARE_TABLE_PROVIDER` expects: each ASCII
+    /// byte in *descending* significance, so the literal reads the same left to
+    /// right in the register as it does on the page - `'R'<<24 | 'S'<<16 |
+    /// 'M'<<8 | 'B'`. That is `from_be_bytes` over the four bytes.
+    ///
+    /// `from_le_bytes` produced `0x424D5352`, which `GetSystemFirmwareTable`
+    /// rejects with `ERROR_INVALID_FUNCTION` (verified: 0 bytes returned while
+    /// `0x52534D42` returns the 1742-byte table, and the `'ACPI'` analogue
+    /// `0x41435049` returns 268). Every fingerprint therefore failed with
+    /// `FirmwareTableUnavailable`, and since `activation_request` requires one,
+    /// no workstation could ever submit an activation.
+    const PROVIDER: u32 = u32::from_be_bytes(*b"RSMB");
 
     // A real SMBIOS table is a few KB; 64 KiB is far beyond any plausible
     // maximum and avoids a probe-then-allocate dance whose return-value
@@ -282,8 +291,15 @@ fn windows_system_volume_serial() -> String {
     use windows::Win32::Storage::FileSystem::GetVolumeInformationW;
 
     let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_string());
+    // `GetVolumeInformationW` wants a root directory that carries its colon
+    // and a trailing backslash (`C:\`). The colon is deliberately trimmed below
+    // and has to be put back by the format string; with just `"{}\\"` the call
+    // received `C\`, failed with 0x80070002, returned no serial, and every
+    // fingerprint then died as `system volume serial` missing. Like the SMBIOS
+    // provider DWORD, this was unreachable until that first defect was fixed,
+    // so `device_fingerprint()` had never once succeeded.
     let root = format!(
-        "{}\\",
+        "{}:\\",
         system_root
             .split('\\')
             .next()
