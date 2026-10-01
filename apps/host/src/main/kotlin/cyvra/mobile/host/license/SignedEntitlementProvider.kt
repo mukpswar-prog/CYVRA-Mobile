@@ -12,6 +12,7 @@ import java.security.spec.X509EncodedKeySpec
 import java.time.Instant
 import java.util.Base64
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -110,6 +111,14 @@ class SignedEntitlementProvider(
         val offline = offlinePermissionsOf(payload)
             ?: return denied(LicenseFileReason.INVALID, sourcePath)
 
+        /*
+         * 4. The workstation's own consumption journal is applied last, after
+         *    the signature has already been proved, and can only reduce what
+         *    the server granted - never widen it. See [settledRecord].
+         */
+        val settled = settledRecord(record, envelope)
+            ?: return denied(LicenseFileReason.INVALID, sourcePath)
+
         val validUntil = instantOf(payload, KEY_VALID_UNTIL)
             ?: return denied(LicenseFileReason.INVALID, sourcePath)
         val serverTime = instantOf(payload, KEY_SERVER_TIME)
@@ -126,12 +135,89 @@ class SignedEntitlementProvider(
         }
 
         return LicenseFileResult(
-            record = record,
+            record = settled,
             reason = LicenseFileReason.LOADED,
             sourcePath = sourcePath,
             offline = offline,
             graceLimitSeconds = grace,
             cached = true,
+        )
+    }
+
+    /**
+     * Folds this workstation's settled scans into the server's record.
+     *
+     * `debits` lives **beside** the signed `payload`, never inside it, so the
+     * verification above is untouched: the server signed what it *granted*,
+     * and this only ever takes away from it. The journal therefore cannot mint
+     * entitlement - it can only account for scans that were actually taken -
+     * while still surviving a Host restart, which the signed payload alone
+     * could not do.
+     *
+     * A journal that cannot be read is denied rather than skipped. Ignoring a
+     * malformed array would quietly hand back every scan it described, and
+     * that is the same rule this provider applies everywhere else: a defect is
+     * a failed check, never a passed one.
+     *
+     * Deliberately does **not** re-hash the entries. Reconstructing the exact
+     * bytes the Rust writer produced would mean two languages agreeing on
+     * string escaping - the precise disagreement storing `payload` verbatim
+     * exists to avoid, and one that would deny a paying customer over a
+     * formatting difference. Structural integrity is checked here (dense
+     * `seq`, unbroken `prev` links, one entry per certificate); byte-level
+     * tamper evidence is the job of `logs/ledger.jsonl`, which recomputes its
+     * own chain on the Rust side.
+     *
+     * Returns `null` only when the journal is malformed. Absent or empty is a
+     * perfectly ordinary "nothing spent yet" and passes the record through
+     * unchanged.
+     */
+    private fun settledRecord(
+        record: CustomerLicenseRecord,
+        envelope: JsonObject,
+    ): CustomerLicenseRecord? {
+        val node = envelope[KEY_DEBITS] ?: return record
+        val items = node as? JsonArray ?: return null
+        if (items.isEmpty()) return record
+
+        var expectedSeq = 1
+        var previousHash: String? = null
+        val certificates = mutableSetOf<String>()
+
+        for (item in items) {
+            val entry = item as? JsonObject ?: return null
+            val seq = (entry[KEY_SEQ] as? JsonPrimitive)?.intOrNull ?: return null
+            val at = (entry[KEY_AT] as? JsonPrimitive)?.contentOrNull ?: return null
+            val subject =
+                (entry[KEY_SUBJECT] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: return null
+            val prev = (entry[KEY_PREV] as? JsonPrimitive)?.contentOrNull ?: return null
+            val hash = (entry[KEY_HASH] as? JsonPrimitive)?.contentOrNull ?: return null
+
+            if (at.isBlank() || hash.isBlank()) return null
+            // Dense from 1, hanging off genesis, each entry naming the hash of
+            // the one before it: a gap or a reordering is a tampered journal.
+            if (seq != expectedSeq) return null
+            if (prev != (previousHash ?: GENESIS)) return null
+            // One certificate, one spend. A repeated subject would be the
+            // double-charge this whole mechanism exists to prevent, so it is
+            // refused rather than silently de-duplicated.
+            if (!certificates.add(subject)) return null
+
+            expectedSeq += 1
+            previousHash = hash
+        }
+
+        /*
+         * The remaining balance is clamped at zero and the used count is
+         * *derived* from it, so `used + remaining == entitlement` always holds
+         * and no journal can push either figure outside the entitlement the
+         * server signed for.
+         */
+        val remaining = (record.scansRemaining - certificates.size).coerceAtLeast(0)
+        return record.copy(
+            scansUsed = record.deviceScanEntitlement - remaining,
+            scansRemaining = remaining,
         )
     }
 
@@ -268,6 +354,21 @@ class SignedEntitlementProvider(
         private const val KEY_SCHEMA = "schema"
         private const val KEY_PAYLOAD = "payload"
         private const val KEY_SIGNATURE = "signature"
+
+        /**
+         * The workstation-local settlement journal, sitting outside the signed
+         * payload so verification of the server's grant is unaffected.
+         */
+        private const val KEY_DEBITS = "debits"
+        private const val KEY_SEQ = "seq"
+        private const val KEY_AT = "at"
+        private const val KEY_SUBJECT = "subject"
+        private const val KEY_PREV = "prev"
+        private const val KEY_HASH = "hash"
+
+        /** `prev` of the first journal entry, matching the Rust ledger. */
+        private const val GENESIS =
+            "0000000000000000000000000000000000000000000000000000000000000000"
 
         private const val KEY_LICENSE_ID = "licenseId"
         private const val KEY_SERIAL_NUMBER = "serialNumber"

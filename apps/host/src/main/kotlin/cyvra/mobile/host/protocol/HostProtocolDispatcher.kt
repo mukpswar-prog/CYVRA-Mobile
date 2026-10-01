@@ -998,6 +998,25 @@ class HostProtocolDispatcher(
             )
         }
 
+        /*
+         * §14: this is the moment a scan is spent.
+         *
+         * A certificate now exists on disk - a verified condition report or a
+         * purge certificate, D-1 OUTCOME B included, because both are reports
+         * the customer asked for and received. That is the only condition under
+         * which an entitlement may be taken; RUN_SCAN merely reserved one.
+         *
+         * The debit is keyed on the session and is idempotent inside
+         * [HostLicenseService], so fetching this report a second time - a
+         * retry, a double-click, a client resending a request whose answer was
+         * lost - reports the same balance and spends nothing further. The
+         * response therefore states what was done rather than asserting a
+         * fresh count: `debitApplied` is false on every repeat, and the
+         * operator sees the truth either way.
+         */
+        val sessionUuid = lastScan?.sessionUuid
+        val debitApplied = sessionUuid != null && licenseService.debitForSession(sessionUuid)
+
         return okResponse(
             request,
             buildJsonObject {
@@ -1013,6 +1032,8 @@ class HostProtocolDispatcher(
                 put("certificateMarkdownPath", written.markdownPath)
                 put("manifestPath", written.manifestPath)
                 put("artifactsWritten", true)
+                put("debitApplied", debitApplied)
+                put("scansRemaining", licenseService.getLicense().scansRemaining)
                 put(
                     "manifest",
                     buildJsonObject {

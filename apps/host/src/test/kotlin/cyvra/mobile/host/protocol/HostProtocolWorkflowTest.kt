@@ -409,7 +409,9 @@ class HostProtocolWorkflowTest {
         assertEquals("COMPLETED", str(scan, "scanStatus"))
         val reportId = assertNotNull(str(scan, "reportId"))
         assertEquals(SERIAL, str(scan, "serial"))
-        assertEquals(24, int(scan, "scansRemaining"))
+        // §14: RUN_SCAN *reserves* a scan, it does not spend one. The balance
+        // is unchanged until a certificate actually exists.
+        assertEquals(25, int(scan, "scansRemaining"))
         assertEquals(HostResponseStatus.OK, scan.status)
 
         // --- GET_DEVICE_REPORT ---------------------------------------
@@ -737,9 +739,10 @@ class HostProtocolWorkflowTest {
             assertError(session.send(command), "NO_SCAN_SESSION")
         }
 
-        // Nothing was consumed: entitlement accounting only moves on a successful scan.
+        // Nothing was consumed by the refusals above, nor by the scan that
+        // follows: §14 only spends when a certificate exists.
         val scan = session.scan()
-        assertEquals(24, int(scan, "scansRemaining"))
+        assertEquals(25, int(scan, "scansRemaining"))
     }
 
     // ------------------------------------------------------------------
@@ -854,6 +857,10 @@ class HostProtocolWorkflowTest {
         assertEquals(false, bool(finalReport, "sanitizationSuccessClaimed"))
         assertTrue(str(finalReport, "certificateId").orEmpty().startsWith("CYVRA-CERT"))
         assertNotNull(obj(finalReport, "certificate"))
+        // §14: D-1 OUTCOME B still produces a certificate, so it still spends.
+        // A blocked run is a report the customer paid to receive.
+        assertEquals(true, bool(finalReport, "debitApplied"))
+        assertEquals(24, int(finalReport, "scansRemaining"))
         val manifest = assertNotNull(obj(finalReport, "manifest"))
         assertEquals(
             reportEngine.computeSha256(assertNotNull(str(finalReport, "certificateJson"))),
@@ -962,6 +969,9 @@ class HostProtocolWorkflowTest {
         assertEquals("BLOCKED_NOT_EXECUTED", str(finalReport, "lifecycleOutcome"))
         assertEquals(false, bool(finalReport, "sanitizationSuccessClaimed"))
         assertEquals(true, bool(finalReport, "artifactsWritten"))
+        // §14: the moment a certificate exists is the moment the scan is spent.
+        assertEquals(true, bool(finalReport, "debitApplied"))
+        assertEquals(24, int(finalReport, "scansRemaining"))
         assertEquals(
             str(scan, "reportId"),
             str(finalReport, "verificationReportReference"),

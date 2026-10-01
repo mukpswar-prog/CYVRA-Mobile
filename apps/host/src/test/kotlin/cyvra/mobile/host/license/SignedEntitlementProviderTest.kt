@@ -14,6 +14,10 @@ import java.security.KeyPairGenerator
 import java.security.Signature
 import java.time.Instant
 import java.util.Base64
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
@@ -78,13 +82,53 @@ class SignedEntitlementProviderTest {
         return Base64.getEncoder().encodeToString(signature.sign())
     }
 
-    private fun envelope(payloadText: String, signer: KeyPair = serverKey): String =
-        buildJsonObject {
-            put("schema", SignedEntitlementProvider.SCHEMA)
-            put("issuedAt", serverTime.toString())
-            put("payload", payloadText)
-            put("signature", sign(signer, payloadText))
-        }.toString()
+    private fun envelope(
+        payloadText: String,
+        signer: KeyPair = serverKey,
+        debits: JsonArray? = null,
+    ): String = buildJsonObject {
+        put("schema", SignedEntitlementProvider.SCHEMA)
+        put("issuedAt", serverTime.toString())
+        put("payload", payloadText)
+        put("signature", sign(signer, payloadText))
+        if (debits != null) put("debits", debits)
+    }.toString()
+
+    private val genesis = "0".repeat(64)
+
+    /**
+     * A well-formed settlement journal for [subjects], chained exactly the way
+     * the Rust writer chains it: dense `seq` from 1, `prev` of the first entry
+     * on genesis, each `prev` the `hash` of its predecessor.
+     */
+    private fun chain(vararg subjects: String): JsonArray = run {
+        var prev = genesis
+        JsonArray(subjects.mapIndexed { index, subject ->
+            val hash = "hash-${index + 1}"
+            val entry = buildJsonObject {
+                put("seq", index + 1)
+                put("at", "2026-09-30T11:00:${index.toString().padStart(2, '0')}Z")
+                put("subject", subject)
+                put("prev", prev)
+                put("hash", hash)
+            }
+            prev = hash
+            entry
+        })
+    }
+
+    private fun entry(
+        seq: Int,
+        subject: String,
+        prev: String,
+        hash: String,
+    ): JsonObject = buildJsonObject {
+        put("seq", seq)
+        put("at", "2026-09-30T11:00:00Z")
+        put("subject", subject)
+        put("prev", prev)
+        put("hash", hash)
+    }
 
     private fun writeEntitlement(home: File, body: String): File {
         home.mkdirs()
@@ -391,6 +435,144 @@ class SignedEntitlementProviderTest {
 
         assertEquals(HostResponseStatus.ERROR, response.status)
         assertEquals("NO_SANITIZE_SESSION", response.error?.code)
+    }
+
+    // ------------------------------------------------------------------
+    // §14 settlement journal (the envelope-level `debits` array)
+    // ------------------------------------------------------------------
+
+    private fun rawEnvelope(payloadText: String, debits: JsonElement): String = buildJsonObject {
+        put("schema", SignedEntitlementProvider.SCHEMA)
+        put("issuedAt", serverTime.toString())
+        put("payload", payloadText)
+        put("signature", sign(serverKey, payloadText))
+        put("debits", debits)
+    }.toString()
+
+    @Test
+    fun `settles recorded beside the signed payload reduce the balance without touching the grant`() {
+        val home = tempHome()
+        writeEntitlement(home, envelope(payloadText(), debits = chain("CERT-A", "CERT-B")))
+
+        val result = providerAt(home).load()
+
+        // The signature covers `payload` only and `payload` is byte-identical to
+        // what was signed, so verification is unaffected by the journal's
+        // presence - which is the entire reason the journal lives outside it.
+        assertEquals(LicenseFileReason.LOADED, result.reason)
+        assertTrue(result.isLicensed)
+        assertEquals(15, result.record.scansRemaining)
+        assertEquals(10, result.record.scansUsed)
+        assertEquals(
+            25,
+            result.record.scansUsed + result.record.scansRemaining,
+            "the entitlement is still the one the server signed for",
+        )
+    }
+
+    @Test
+    fun `an absent or empty journal leaves the signed grant exactly as issued`() {
+        val home = tempHome()
+        writeEntitlement(home, envelope(payloadText(), debits = JsonArray(emptyList())))
+
+        val result = providerAt(home).load()
+
+        assertEquals(LicenseFileReason.LOADED, result.reason)
+        assertEquals(8, result.record.scansUsed)
+        assertEquals(17, result.record.scansRemaining)
+    }
+
+    @Test
+    fun `more settlements than the grant allows clamp the balance instead of going negative`() {
+        val home = tempHome()
+        val many = (1..20).map { "CERT-$it" }.toTypedArray()
+        writeEntitlement(home, envelope(payloadText(), debits = chain(*many)))
+
+        val result = providerAt(home).load()
+
+        assertEquals(0, result.record.scansRemaining, "the floor is zero, never below")
+        assertEquals(25, result.record.scansUsed, "used is derived, so it cannot exceed the grant")
+    }
+
+    @Test
+    fun `a journal that is not an array is refused rather than silently skipped`() {
+        val home = tempHome()
+        writeEntitlement(home, rawEnvelope(payloadText(), JsonPrimitive("garbage")))
+
+        val result = providerAt(home).load()
+
+        // Skipping it would hand back every scan it described, so an unreadable
+        // journal fails the whole check rather than being treated as "no spend".
+        assertEquals(LicenseFileReason.INVALID, result.reason)
+        assertFalse(result.isLicensed)
+    }
+
+    @Test
+    fun `an entry missing a field is refused rather than partially applied`() {
+        val home = tempHome()
+        val truncated = JsonArray(
+            listOf(
+                buildJsonObject {
+                    put("seq", 1)
+                    put("at", "2026-09-30T11:00:00Z")
+                    put("subject", "CERT-A")
+                    put("prev", genesis)
+                    // `hash` deliberately absent
+                },
+            ),
+        )
+        writeEntitlement(home, rawEnvelope(payloadText(), truncated))
+
+        val result = providerAt(home).load()
+
+        assertEquals(LicenseFileReason.INVALID, result.reason)
+        assertFalse(result.isLicensed)
+    }
+
+    @Test
+    fun `the same certificate twice in a journal is refused as a double charge`() {
+        val home = tempHome()
+        writeEntitlement(home, envelope(payloadText(), debits = chain("CERT-A", "CERT-A")))
+
+        val result = providerAt(home).load()
+
+        assertEquals(LicenseFileReason.INVALID, result.reason)
+        assertFalse(result.isLicensed)
+    }
+
+    @Test
+    fun `a gap in the sequence is refused`() {
+        val home = tempHome()
+        val gapped = JsonArray(
+            listOf(
+                entry(seq = 1, subject = "CERT-A", prev = genesis, hash = "hash-1"),
+                entry(seq = 3, subject = "CERT-C", prev = "hash-1", hash = "hash-3"),
+            ),
+        )
+        writeEntitlement(home, rawEnvelope(payloadText(), gapped))
+
+        val result = providerAt(home).load()
+
+        assertEquals(LicenseFileReason.INVALID, result.reason)
+        assertFalse(result.isLicensed)
+    }
+
+    @Test
+    fun `a broken chain is refused`() {
+        val home = tempHome()
+        val broken = JsonArray(
+            listOf(
+                entry(seq = 1, subject = "CERT-A", prev = genesis, hash = "hash-1"),
+                // Names genesis instead of its predecessor: an entry spliced in.
+                entry(seq = 2, subject = "CERT-B", prev = genesis, hash = "hash-2"),
+            ),
+        )
+        writeEntitlement(home, rawEnvelope(payloadText(), broken))
+
+        val result = providerAt(home).load()
+
+        assertEquals(LicenseFileReason.INVALID, result.reason)
+        assertFalse(result.isLicensed)
     }
 
     private fun resultWith(
