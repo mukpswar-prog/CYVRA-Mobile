@@ -43,6 +43,20 @@ pub enum FailureKind {
 }
 
 impl FailureKind {
+    /// All six, in declaration order.
+    ///
+    /// One place to iterate them, so a test that wants to prove "every verdict
+    /// is one of these six" does not have to restate the list and risk drifting
+    /// from it.
+    pub const ALL: [FailureKind; 6] = [
+        FailureKind::InvalidUser,
+        FailureKind::InvalidLicence,
+        FailureKind::LicenceNotActive,
+        FailureKind::LicenceExpired,
+        FailureKind::AlreadyBoundToAnotherComputer,
+        FailureKind::NetworkError,
+    ];
+
     /// The exact operator-facing wording. The single place these strings exist.
     pub fn as_str(self) -> &'static str {
         match self {

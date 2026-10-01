@@ -23,6 +23,22 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Resolve the licence transport once, here, before Tauri builds anything.
+    //
+    // Two reasons this is the right place rather than inside a command:
+    //
+    // * `live_client::production_client` caches its answer in a `OnceLock`, so
+    //   the first resolution decides the mode for the process's whole life -
+    //   building it early means a misconfigured endpoint fails at startup
+    //   rather than on the operator's first attempt.
+    // * The live client owns a blocking HTTP client. Constructing one is only
+    //   unambiguously safe on a thread that is not inside an async runtime, and
+    //   this is the main thread before the runtime exists.
+    //
+    // With `CYVRA_ACTIVATION_BASE_URL` unset - the shipped state - this only
+    // resolves to the placeholder and costs nothing.
+    let _licence_transport = activation::live_client::production_client();
+
     let app = tauri::Builder::default()
         .manage(commands::HostState::new())
         .invoke_handler(tauri::generate_handler![

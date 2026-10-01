@@ -32,6 +32,14 @@ pub mod store;
 /// accident and nothing can be activated at all.
 pub mod client;
 
+/// The transport that can reach a server, when one is configured.
+///
+/// Not the shipped default. [`live_client::production_client`] returns the
+/// placeholder above unless `CYVRA_ACTIVATION_BASE_URL` has been set, so an
+/// unconfigured build behaves exactly as it did before this module existed and
+/// cannot say "yes" to anybody.
+pub mod live_client;
+
 /// Tauri commands the activation screen drives.
 pub mod commands;
 

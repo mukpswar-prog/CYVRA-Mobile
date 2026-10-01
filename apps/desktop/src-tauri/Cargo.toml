@@ -23,12 +23,29 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
+# Licence transport (W1.5).
+#
+# `default-features = false` drops `default-tls`, so the binary links no
+# OpenSSL and no SecureChannel/Schannel binding: TLS is `rustls` + webpki
+# roots, which builds identically on every target and ships no system TLS
+# dependency. `blocking` is required because `LicenseApiClient` is a
+# synchronous trait (api.rs:147-163) and every call already runs off the
+# async runtime on `tauri::async_runtime::spawn_blocking` (commands.rs:106).
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "json",
+    "rustls-tls",
+] }
 
 [dev-dependencies]
 # Property-based testing for the state machines (ledger chain, activation
 # transitions). Used only under `cargo test`, never linked into a shippable
 # bundle.
 proptest = "1"
+# In-process HTTP server for the licence-client tests, and the async runtime
+# it needs. Dev-only: neither reaches a shippable bundle.
+tokio = { version = "1", features = ["rt", "macros"] }
+wiremock = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "=0.61.3", features = [
