@@ -66,6 +66,7 @@ import {
   signEntitlement,
   type EntitlementPolicy,
   type Now,
+  type SerialForSigning,
 } from "./entitlementSigner";
 
 /**
@@ -252,16 +253,32 @@ export function buildActivationRoutes(
         return c.json({ code: "INVALID_LICENCE", message: "No such licence key." }, 404);
       }
 
-      // PHASE 3 - state checks. The union is PENDING | ISSUED | REVOKED
-      // (admin.ts `SerialStatus`); only ISSUED may activate. Note that the
-      // brief's "READY_TO_GENERATE" is not a state this schema has ever had,
-      // so there is nothing to accept for it.
+      // PHASE 3 - state checks. `licence_status_enum` is now a ten-value union
+      // (see `database/src/schema.ts`); only ISSUED may activate, because
+      // ACTIVE and beyond mean a host already holds it. Every other state is
+      // "not issued yet" from this route's point of view.
       if (serial.status !== "ISSUED") {
         const message =
           serial.status === "REVOKED"
             ? "This licence has been revoked."
             : "This licence has not been issued yet.";
         return c.json({ code: "LICENCE_NOT_ACTIVE", message }, 403);
+      }
+
+      // `public_number` is nullable so a DRAFT record can exist before
+      // generate-key (decision A1). A DRAFT record cannot be reached above -
+      // `findByKey` matched on a non-null key - so this states an invariant
+      // rather than handling a routine case. It is written out rather than
+      // hidden behind `!`, because the signer downstream takes a plain
+      // `string` and a `!` would erase exactly the case worth naming.
+      //
+      // Bound to a local on purpose: TypeScript narrows `serial.publicNumber`
+      // as a *reference*, but keeps `serial`'s declared `string | null` when
+      // the object itself is passed on. The local carries the invariant to the
+      // call site; the property narrowing would not.
+      const issuedKey = serial.publicNumber;
+      if (issuedKey === null) {
+        return c.json({ code: "INVALID_LICENCE", message: "No such licence key." }, 404);
       }
 
       // Expiry. `mobile_serials` has no expiry column, so the window comes from
@@ -331,9 +348,31 @@ export function buildActivationRoutes(
       };
       const clock: Now = () => activatedAt;
 
-      const entitlement = await signEntitlement(serial, policy, privateKey, clock);
+      /*
+       * The exact subset `signEntitlement` builds a payload from, spelled out
+       * rather than passing `serial` whole.
+       *
+       * Two reasons. First, as above, the null-guard does not travel with the
+       * object. Second, `SerialForSigning` is a deliberate ten-field subset:
+       * handing it the full row would make every future column on
+       * `mobile_serials` a silent input to a signed payload the host verifies.
+       */
+      const signingSerial: SerialForSigning = {
+        id: serial.id,
+        publicNumber: issuedKey,
+        status: serial.status,
+        customerEmail: serial.customerEmail,
+        customerFullName: serial.customerFullName,
+        companyName: serial.companyName,
+        deviceMax: serial.deviceMax,
+        devicesBound: serial.devicesBound,
+        issuedAt: serial.issuedAt,
+        createdAt: serial.createdAt,
+      };
+
+      const entitlement = await signEntitlement(signingSerial, policy, privateKey, clock);
       const offlineLease = await signEntitlement(
-        serial,
+        signingSerial,
         leasePolicy,
         privateKey,
         clock,

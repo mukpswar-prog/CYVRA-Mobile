@@ -6,6 +6,7 @@ import {
   staffOperators,
   staffOtpChallenges,
   staffSessions,
+  type LicenceStatus,
 } from "@cyvra/database/schema";
 import { isUuid } from "@cyvra/evidence";
 import {
@@ -24,6 +25,7 @@ import {
   isLicenceSlab,
   licenceDraftError,
   parseLicenceKey,
+  planCodeFor,
   type LicenceKind,
   type LicenceSlabMax,
 } from "./licenceKey";
@@ -44,7 +46,17 @@ export const SUPER_ADMIN_EMAIL = "ceo@cyvoriq.com";
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 
-type SerialStatus = "PENDING" | "ISSUED" | "REVOKED";
+/**
+ * Licence lifecycle state.
+ *
+ * W5 retyped this from the old three-value union `{PENDING, ISSUED, REVOKED}`
+ * to the full ten-state `licence_status_enum`. The only rename is
+ * `PENDING -> PAYMENT_PENDING`; the other two literals are unchanged.
+ *
+ * It is an alias, not a new name, and the union is derived from the pgEnum, so
+ * the API layer and the database cannot drift apart.
+ */
+type SerialStatus = LicenceStatus;
 
 function iso(value: Date | null): string | null {
   return value ? value.toISOString() : null;
@@ -65,7 +77,10 @@ function csvCell(value: string | number | null | undefined): string {
 }
 
 function jsonSerial(row: typeof mobileSerials.$inferSelect) {
-  const parsed = parseLicenceKey(row.publicNumber);
+  // `public_number` is NULL while a record sits in DRAFT with no key allocated
+  // yet (decision A1). Parse only when there is something to parse - returning
+  // `null` is the honest projection of "no key exists", not a masked key.
+  const parsed = row.publicNumber === null ? null : parseLicenceKey(row.publicNumber);
   return {
     serialId: row.id,
     publicNumber: row.publicNumber,
@@ -73,6 +88,8 @@ function jsonSerial(row: typeof mobileSerials.$inferSelect) {
     status: row.status,
     customerKind: row.customerKind,
     deviceMax: row.deviceMax,
+    planCode: row.planCode,
+    hostBindingStatus: row.hostBindingStatus,
     slabLabel: parsed?.slabLabel ?? `1-${row.deviceMax}`,
     brandScope: row.brandScope,
     customerEmail: row.customerEmail,
@@ -99,8 +116,15 @@ function jsonSerial(row: typeof mobileSerials.$inferSelect) {
  * 8-hex fingerprint of the licence key, matching the plan's `serialFp`
  * convention (Appendix A). Distinguishes one queue row from another without
  * the row carrying the key itself.
+ *
+ * `null` for a record that has not generated a key yet: there is nothing to
+ * fingerprint, and hashing a placeholder would hand the UI a value that looks
+ * like a real `serialFp`.
  */
-async function serialFingerprint(publicNumber: string): Promise<string> {
+async function serialFingerprint(
+  publicNumber: string | null,
+): Promise<string | null> {
+  if (publicNumber === null) return null;
   return (await sha256Hex(publicNumber)).slice(0, 8);
 }
 
@@ -135,7 +159,10 @@ export function maskSerialKey(publicNumber: string): string {
 /** Exported for tests: the list response must never carry a recoverable key. */
 export async function jsonSerialList(row: typeof mobileSerials.$inferSelect) {
   const { publicNumber, licenceKey: _fullKey, ...rest } = jsonSerial(row);
-  const masked = maskSerialKey(publicNumber);
+  // No key yet -> nothing to mask and nothing to fingerprint. Both stay null
+  // rather than becoming a fabricated `CYVRA-***`, which would read as a real
+  //-but-unavailable key to the operator.
+  const masked = publicNumber === null ? null : maskSerialKey(publicNumber);
   return {
     ...rest,
     licenceKey: masked,
@@ -172,7 +199,7 @@ async function isApprovedOperator(db: Database, email: string): Promise<boolean>
     .from(staffOperators)
     .where(eq(staffOperators.email, email))
     .limit(1);
-  return row?.status === "APPROVED";
+  return row?.status === "ACTIVE";
 }
 
 async function lookupStaffEmail(
@@ -476,7 +503,7 @@ adminRoutes.post("/staff", async (c) => {
     .from(staffOperators)
     .where(eq(staffOperators.email, email))
     .limit(1);
-  if (existing && existing.status === "APPROVED") {
+  if (existing && existing.status === "ACTIVE") {
     return c.json({
       operator: {
         staffId: existing.id,
@@ -493,7 +520,7 @@ adminRoutes.post("/staff", async (c) => {
     const [updated] = await db
       .update(staffOperators)
       .set({
-        status: "APPROVED",
+        status: "ACTIVE",
         nominatedBy: admin.email,
         nominatedAt: now,
         revokedAt: null,
@@ -515,7 +542,7 @@ adminRoutes.post("/staff", async (c) => {
   await db.insert(staffOperators).values({
     id,
     email,
-    status: "APPROVED",
+    status: "ACTIVE",
     nominatedBy: admin.email,
     nominatedAt: now,
   });
@@ -523,7 +550,7 @@ adminRoutes.post("/staff", async (c) => {
     operator: {
       staffId: id,
       email,
-      status: "APPROVED",
+      status: "ACTIVE",
       nominatedBy: admin.email,
       nominatedAt: iso(now),
     },
@@ -655,7 +682,7 @@ adminRoutes.post("/serials", async (c) => {
   const row = {
     id,
     publicNumber,
-    status: "PENDING" as SerialStatus,
+    status: "PAYMENT_PENDING" as SerialStatus,
     customerEmail,
     userId: null,
     paymentNoted,
@@ -663,6 +690,26 @@ adminRoutes.post("/serials", async (c) => {
     issuedAt: null,
     revokedAt: null,
     createdAt,
+    // W5: the creator finally survives creation. `issued_by` used to be the
+    // only actor column and was overwritten at issue time, so the creator's
+    // identity was destroyed by every successful issuance - see migration 0007
+    // section C3 for the rows where that loss is permanent.
+    createdBy: admin.email,
+    // The key is still allocated by this route. Moving allocation to
+    // `POST /serials/:id/generate-key` is Phase 1 (state machine); until then
+    // "created" and "generated" genuinely happen in the same request, and
+    // recording both is accurate rather than aspirational.
+    generatedBy: admin.email,
+    approvedBy: null,
+    hostBindingStatus: "NOT_BOUND",
+    planCode: planCodeFor(deviceMax),
+    // Validity window is not assigned until issuance (Phase 1). NULL is the
+    // truthful value for a record that has no window yet; backfilling one here
+    // would invent a start date the system never recorded.
+    validityStartsAt: null,
+    validityEndsAt: null,
+    updatedBy: null,
+    rowVersion: 1,
     customerKind: kind,
     deviceMax,
     brandScope,
@@ -682,10 +729,37 @@ adminRoutes.post("/serials", async (c) => {
     hostFingerprint: null,
     firstActivatedAt: null,
     deviceTokenHash: null,
-  };
+    // `satisfies` rather than a plain annotation: it checks that every column
+    // the table now has is accounted for here (which is what caught the nine
+    // W5 columns when this was first written) without widening the string
+    // literals the way annotating the variable would.
+  } satisfies typeof mobileSerials.$inferInsert;
   await db.insert(mobileSerials).values(row);
   return c.json({ serial: jsonSerial(row) }, 201);
 });
+
+/**
+ * The key a signing or emailing path must operate on.
+ *
+ * `public_number` is nullable so a DRAFT record can exist with no key
+ * (decision A1). Every path that reaches here - signing an entitlement,
+ * emailing a licence - has already passed issuance, and issuance allocates the
+ * key, so `null` is an invariant violation rather than a routine case: the
+ * state machine would have allowed a signature over a record that never
+ * generated anything.
+ *
+ * It throws instead of coercing to `""` or a placeholder. An entitlement signed
+ * over an empty serial still verifies on the host and then names nothing, which
+ * is a worse outcome than a 503 with a message that says what is wrong.
+ */
+function requireIssuedKey(row: typeof mobileSerials.$inferSelect): string {
+  if (row.publicNumber === null) {
+    throw new SigningConfigError(
+      "licence has no key; refusing to sign or send an entitlement for a record that was never generated",
+    );
+  }
+  return row.publicNumber;
+}
 
 /**
  * Result of the commit phase of `/issue`.
@@ -719,7 +793,7 @@ async function signedEnvelopeFor(
   return signEntitlement(
     {
       id: row.id,
-      publicNumber: row.publicNumber,
+      publicNumber: requireIssuedKey(row),
       status: row.status,
       customerEmail: row.customerEmail,
       customerFullName: row.customerFullName,
@@ -817,6 +891,22 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
     return c.json({ error: "Revoked serials cannot be issued." }, 409);
   }
 
+  const row = outcome.row;
+  /*
+   * `/issue` allocates the key in the same transaction that commits the status
+   * change, so an issued row always carries one and this is unreachable today.
+   * It is checked because the alternative is worse than a 503: an empty
+   * `licenceKey` would send a real customer an email naming no licence at all,
+   * while `parseLicenceKey` silently returning null would dress the failure up
+   * as a normal `1-N` slab label, as though nothing were wrong.
+   */
+  if (row.publicNumber === null) {
+    return c.json(
+      { error: "Licence has no key; issuance cannot be completed." },
+      503,
+    );
+  }
+
   /*
    * PHASE 2 - the replay guard, and only then the email.
    *
@@ -841,7 +931,6 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
    * network I/O, and holding a database transaction open across an SMTP round
    * trip is how a connection pool dies under load.
    */
-  const row = outcome.row;
   const parsed = parseLicenceKey(row.publicNumber);
   const mail = await sendLicenceEmail(c.env, {
     email: row.customerEmail,

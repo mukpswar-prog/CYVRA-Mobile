@@ -56,6 +56,66 @@ export function slabLabel(max: LicenceSlabMax): string {
   return `1-${max}`;
 }
 
+/**
+ * Commercial plan codes, mirroring `plan_code_enum` in
+ * `database/src/schema.ts`.
+ *
+ * `CAP-10` is declared but unreachable: `LICENCE_SLABS` contains no 10, so no
+ * key can ever carry `-1-10`. It stays reserved until the slab is added - which
+ * means editing `LICENCE_SLABS` **and** `LICENCE_KEY_RE` together, in their own
+ * commit with their own tests. It is deliberately NOT synthesised here, because
+ * returning `CAP-10` for a slab that cannot be issued would be the schema
+ * claiming an entitlement the key does not encode.
+ *
+ * `CAP-3` and `CAP-7` are LEGACY: reachable from records created before the
+ * commercial plan list existed, never offered to new ones. Mapping slab 3 to
+ * `CAP-5` instead would change what the customer bought while their key still
+ * reads `-1-3`.
+ */
+export type PlanCode =
+  | "CAP-1"
+  | "CAP-3"
+  | "CAP-5"
+  | "CAP-7"
+  | "CAP-10"
+  | "CAP-25"
+  | "CAP-50";
+
+/** Plan codes issuable to a newly created record (excludes the legacy pair). */
+export const ISSUABLE_PLAN_CODES = [
+  "CAP-1",
+  "CAP-5",
+  "CAP-10",
+  "CAP-25",
+  "CAP-50",
+] as const;
+
+const PLAN_BY_SLAB: Readonly<Record<LicenceSlabMax, PlanCode>> = {
+  1: "CAP-1",
+  3: "CAP-3",
+  5: "CAP-5",
+  7: "CAP-7",
+  25: "CAP-25",
+  50: "CAP-50",
+};
+
+/**
+ * Plan code for a device slab. Total over `LICENCE_SLABS`; throws otherwise.
+ *
+ * Callers must have already run `isLicenceSlab` - this throwing is a guard
+ * against a future caller that maps an unvalidated `deviceMax` straight into a
+ * NOT NULL column, not a routine error path.
+ */
+export function planCodeFor(slabMax: number): PlanCode {
+  const code = PLAN_BY_SLAB[slabMax as LicenceSlabMax];
+  if (!code) {
+    throw new Error(
+      `no plan code for slab ${slabMax}; deviceMax must be validated with isLicenceSlab first.`,
+    );
+  }
+  return code;
+}
+
 export function utcDateParts(at: Date): { dd: string; mm: string; yyyy: string } {
   const dd = String(at.getUTCDate()).padStart(2, "0");
   const mm = String(at.getUTCMonth() + 1).padStart(2, "0");

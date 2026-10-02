@@ -349,7 +349,7 @@ class SignedEntitlementProvider(
          * control plane is wired in.
          */
         const val SERVER_PUBLIC_KEY_B64: String =
-    "MCowBQYDK2VwAyEAUM2pNrv+Hszyo9rujw50XpSRSOSoAWiZEKm1oKQ/phQ="
+            "MCowBQYDK2VwAyEAUM2pNrv+Hszyo9rujw50XpSRSOSoAWiZEKm1oKQ/phQ="
 
         private const val KEY_SCHEMA = "schema"
         private const val KEY_PAYLOAD = "payload"
