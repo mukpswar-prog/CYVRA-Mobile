@@ -44,6 +44,22 @@ function row(overrides: Partial<Row> = {}): Row {
     emailedAt: null,
     emailMessageId: null,
     emailError: null,
+    hostFingerprint: null,
+    firstActivatedAt: null,
+    deviceTokenHash: null,
+    // W5 columns (migration 0007_w5_admin_control_plane). Omitting any of
+    // these makes the fixture `Partial`-incomplete: every property then comes
+    // only from `overrides`, so it widens to `T | undefined` and stops being a
+    // faithful `mobile_serials` row.
+    createdBy: "ceo@cyvoriq.com",
+    generatedBy: "ceo@cyvoriq.com",
+    approvedBy: "ceo@cyvoriq.com",
+    hostBindingStatus: "NOT_BOUND",
+    planCode: "CAP-5",
+    validityStartsAt: null,
+    validityEndsAt: null,
+    updatedBy: null,
+    rowVersion: 1,
     ...overrides,
   };
 }
@@ -66,6 +82,12 @@ test("maskSerialKey fails safe on anything it does not recognise", () => {
 
 test("the list projection drops BOTH aliases of the full key", async () => {
   const source = row();
+  // `public_number` is nullable from W5 so a DRAFT record can exist with no key
+  // (decision A1). This fixture carries one, and asserting that it is absent
+  // from the projection is meaningless otherwise - hence the explicit check
+  // rather than a `?? ""`, which would make the leak assertion trivially true.
+  const fullKey = source.publicNumber;
+  assert.ok(fullKey !== null, "fixture must carry a key");
   const listed = (await jsonSerialList(source)) as Record<string, unknown>;
 
   assert.ok(
@@ -75,7 +97,7 @@ test("the list projection drops BOTH aliases of the full key", async () => {
   assert.equal(listed.licenceKey, "CYVRA*************-1-5");
 
   const asJson = JSON.stringify(listed);
-  assert.ok(!asJson.includes(source.publicNumber), "full key leaked");
+  assert.ok(!asJson.includes(fullKey), "full key leaked");
   assert.ok(!asJson.includes("A3F1"), "uniqueness nibble leaked");
   assert.ok(!asJson.includes("01102026"), "issue date leaked");
 });
@@ -120,6 +142,8 @@ test("the report projection drops BOTH aliases of the full key", async () => {
   // that actually leaves the box as an attachment, so redacting only the queue
   // protected nothing that mattered.
   const source = row();
+  const fullKey = source.publicNumber;
+  assert.ok(fullKey !== null, "fixture must carry a key");
   const reported = await reportRows([source]);
 
   assert.equal(reported.length, 1);
@@ -132,7 +156,7 @@ test("the report projection drops BOTH aliases of the full key", async () => {
   assert.equal(line.licenceKey, "CYVRA*************-1-5");
 
   const asJson = JSON.stringify(reported);
-  assert.ok(!asJson.includes(source.publicNumber), "full key leaked into the report");
+  assert.ok(!asJson.includes(fullKey), "full key leaked into the report");
   assert.ok(!asJson.includes("A3F1"), "uniqueness nibble leaked");
   assert.ok(!asJson.includes("01102026"), "issue date leaked");
 });

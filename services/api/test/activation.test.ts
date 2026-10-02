@@ -75,6 +75,16 @@ function serial(overrides: Partial<ActivationSerial> = {}): ActivationSerial {
     hostFingerprint: null,
     firstActivatedAt: null,
     deviceTokenHash: null,
+    // W5 columns (migration 0007_w5_admin_control_plane).
+    createdBy: "ceo@cyvoriq.com",
+    generatedBy: "ceo@cyvoriq.com",
+    approvedBy: "ceo@cyvoriq.com",
+    hostBindingStatus: "NOT_BOUND",
+    planCode: "CAP-5",
+    validityStartsAt: null,
+    validityEndsAt: null,
+    updatedBy: null,
+    rowVersion: 1,
     ...overrides,
   };
 }
@@ -340,7 +350,7 @@ test("a revoked licence is 403 LICENCE_NOT_ACTIVE, not 404", async () => {
 test("a licence that was never issued is 403 LICENCE_NOT_ACTIVE", async () => {
   const { privateKeyB64 } = await keypair();
   const res = await post(
-    new FakeRepo(serial({ status: "PENDING" })),
+    new FakeRepo(serial({ status: "PAYMENT_PENDING" })),
     privateKeyB64,
     request(),
   );
@@ -438,7 +448,7 @@ test("every refusal the route can send carries one of the six codes", async () =
       repo: new FakeRepo(serial()),
     },
     { body: request(), repo: new FakeRepo(serial({ status: "REVOKED" })) },
-    { body: request(), repo: new FakeRepo(serial({ status: "PENDING" })) },
+    { body: request(), repo: new FakeRepo(serial({ status: "PAYMENT_PENDING" })) },
     {
       body: request({ device_fingerprint: FP_B }),
       repo: new FakeRepo(serial({ hostFingerprint: FP_A })),
