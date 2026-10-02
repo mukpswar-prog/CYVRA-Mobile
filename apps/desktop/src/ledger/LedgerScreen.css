@@ -144,8 +144,13 @@
   font-style: italic;
 }
 
+/* Must remain a table-cell. Declaring `display: block` here pulled this column
+   out of the table's layout model, so row height was computed from the other
+   five cells alone: the two 64-character hashes wrap to about six lines inside
+   a row sized for two, and the surplus painted over the rows above and below
+   it. The spans inside carry their own `display: block` - that is where the
+   declaration belongs. */
 .ledger-chain {
-  display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   line-height: 16px;

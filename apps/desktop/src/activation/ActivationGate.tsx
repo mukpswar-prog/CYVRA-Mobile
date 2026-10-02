@@ -42,6 +42,28 @@ async function decide(command: string, args?: Record<string, unknown>) {
 }
 
 /**
+ * The launch decision is a fact about the workstation, not about whichever
+ * component asks for it, so it is resolved once and shared by every mount.
+ *
+ * `activation_launch` appends a `GRACE_ENTERED` ledger entry every time it
+ * runs, and React StrictMode mounts, tears down and re-runs effects in
+ * development. The `live` flag in the effect below stops the abandoned mount
+ * from writing state, but it cannot un-send an `invoke` that has already been
+ * dispatched: two mounts therefore meant two entries stamped in the same
+ * second, recording one launch as two facts that never happened. Holding the
+ * promise here makes the second mount await the first instead of asking Rust
+ * to launch again.
+ */
+let launchDecision: Promise<ActivationDecision> | null = null;
+
+function launchOnce(): Promise<ActivationDecision> {
+  if (launchDecision === null) {
+    launchDecision = decide("activation_launch");
+  }
+  return launchDecision;
+}
+
+/**
  * Holds the existing application hostage until the launch sequence says let in.
  *
  * Wraps `<App/>` rather than editing it, so the frozen inspection core stays
@@ -56,7 +78,7 @@ export function ActivationGate({ children }: { children: ReactNode }) {
     let live = true;
 
     void (async () => {
-      const next = await decide("activation_launch");
+      const next = await launchOnce();
       if (live) setDecision(next);
     })();
 
