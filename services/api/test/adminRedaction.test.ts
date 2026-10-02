@@ -15,7 +15,7 @@ import { test } from "node:test";
 
 import { mobileSerials } from "@cyvra/database/schema";
 
-import { jsonSerialList, maskSerialKey } from "../src/admin.js";
+import { jsonSerialList, maskSerialKey, reportRows, toCsv } from "../src/admin.js";
 
 type Row = typeof mobileSerials.$inferSelect;
 
@@ -107,4 +107,63 @@ test("two keys of the same slab stay distinguishable by fingerprint", async () =
   // rows collapsing into one indistinguishable line in the queue.
   assert.equal(a.licenceKey, b.licenceKey);
   assert.notEqual(a.serialFp, b.serialFp);
+});
+
+// ---------------------------------------------------------------------------
+// The report - a second bulk surface under the same auth
+// ---------------------------------------------------------------------------
+
+test("the report projection drops BOTH aliases of the full key", async () => {
+  // This is the assertion that would have caught the original defect: the
+  // report route mapped `reportRows -> jsonSerial` while `/serials` mapped
+  // `jsonSerialList`. Same `requireAdmin`, same rows - and the CSV is the copy
+  // that actually leaves the box as an attachment, so redacting only the queue
+  // protected nothing that mattered.
+  const source = row();
+  const reported = await reportRows([source]);
+
+  assert.equal(reported.length, 1);
+  const line = reported[0] as unknown as Record<string, unknown>;
+
+  assert.ok(
+    !("publicNumber" in line),
+    "publicNumber must not be present in a report row",
+  );
+  assert.equal(line.licenceKey, "CYVRA*************-1-5");
+
+  const asJson = JSON.stringify(reported);
+  assert.ok(!asJson.includes(source.publicNumber), "full key leaked into the report");
+  assert.ok(!asJson.includes("A3F1"), "uniqueness nibble leaked");
+  assert.ok(!asJson.includes("01102026"), "issue date leaked");
+});
+
+test("the report keeps rows distinguishable once the key is masked", async () => {
+  const reported = await reportRows([
+    row({ publicNumber: "CYVRA01102026SA3F1-1-5" }),
+    row({ publicNumber: "CYVRA01102026SB7E2-1-5" }),
+  ]);
+
+  const [a, b] = reported as unknown as Record<string, unknown>[];
+  // Both mask to the same string, so without `serialFp` an export would compare
+  // like with like and reconciliation would appear to succeed on wrong data.
+  assert.equal(a!.licenceKey, b!.licenceKey, "the mask collapses both keys");
+  assert.notEqual(a!.serialFp, b!.serialFp, "the fingerprint is what keeps them apart");
+});
+
+test("every CSV column resolves against a projected row, and carries no key", async () => {
+  const reported = await reportRows([row()]);
+  const line = reported[0]!;
+  const csv = toCsv(reported);
+
+  // `toCsv` looks each header up on the row, so a header that no longer matches
+  // a field renders as an EMPTY cell - which reads as "this customer has no
+  // value" rather than "this column is broken". That failure mode is silent.
+  const headers = csv.split("\n")[0]!.split(",");
+  for (const header of headers) {
+    assert.ok(header in line, `column "${header}" resolves to nothing`);
+  }
+
+  assert.ok(headers.includes("serialFp"), "fingerprint column keeps masked rows apart");
+  assert.ok(!csv.includes("CYVRA01102026SA3F1"), "full key leaked into the CSV");
+  assert.ok(csv.includes("CYVRA*************-1-5"), "the masked key should still render");
 });
