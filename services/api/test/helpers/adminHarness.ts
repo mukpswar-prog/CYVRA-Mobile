@@ -36,10 +36,11 @@ import {
   auditEvents,
   mobileSerials,
   payments,
+  staffOtpChallenges,
   staffOperators,
   staffSessions,
 } from "@cyvra/database/schema";
-import { adminRoutes } from "../../src/admin.ts";
+import { adminRoutes, SUPER_ADMIN_EMAIL } from "../../src/admin.ts";
 import { sha256Hex } from "../../src/crypto.ts";
 import { generateLicenceKey, planCodeFor } from "../../src/licenceKey.ts";
 
@@ -58,9 +59,22 @@ export interface Harness {
     operator: { id: string; email: string; status: string; role: string } | null;
     licence: Row | null;
     payment: Row | null;
+    /** The one `staff_otp_challenges` row; consumed and re-read across calls. */
+    challenge: Row | null;
+    /** Answer for `select({ total: count() })`; see `HarnessSpec.totalCount`. */
+    totalCount: number | null;
   };
   readonly writes: RecordedWrite[];
   readonly reads: string[];
+  /**
+   * Every `.limit()` / `.offset()` pair the caller passed, in call order.
+   *
+   * The double does not slice rows - it holds one - so without this a handler
+   * that dropped its `.limit(pageSize)` would look identical to one that sent
+   * it. The last entry for a table is the complete one, because the routes
+   * always chain `.limit().offset()`.
+   */
+  readonly paged: { table: string; limit: number | null; offset: number | null }[];
   readonly database: unknown;
 }
 
@@ -76,11 +90,23 @@ export interface HarnessSpec {
   operator?: { id: string; email: string; status: string; role: string } | null;
   licence?: Row | null;
   payment?: Row | null;
+  /** Pre-existing OTP challenge, so a test can skip the `/auth/request` leg. */
+  challenge?: Row | null;
+  /**
+   * What `select({ total: count() })` reports for `mobile_serials`.
+   *
+   * Deliberately separate from `licence`, because the whole point of the
+   * Phase 2 pagination contract is the case where the count is *larger* than
+   * what one response carries. Left unset it answers honestly for the single
+   * row the double holds, so an ordinary test does not have to think about it.
+   */
+  totalCount?: number;
 }
 
 const tableNames = new Map<unknown, string>([
   [staffSessions, "staff_sessions"],
   [staffOperators, "staff_operators"],
+  [staffOtpChallenges, "staff_otp_challenges"],
   [mobileSerials, "mobile_serials"],
   [payments, "payments"],
   [auditEvents, "audit_events"],
@@ -111,9 +137,31 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
     operator: spec.operator ?? null,
     licence: spec.licence ?? null,
     payment: spec.payment ?? null,
+    challenge: spec.challenge ?? null,
+    totalCount: spec.totalCount ?? null,
   };
   const writes: RecordedWrite[] = [];
   const reads: string[] = [];
+  const paged: Harness["paged"] = [];
+
+  /**
+   * Is this projection a count rather than a column projection?
+   *
+   * `select({ total: count() })` is the pagination total;
+   * `select({ id: mobileSerials.id })` is `uniqueLicenceKey` probing whether a
+   * key is already taken. They differ in what was asked for, not in which
+   * route asked, so the check is about the query's shape - if a Drizzle upgrade
+   * changes it, the detection fails closed to "a column projection", the total
+   * comes back 0, and a test asserting a non-zero total fails loudly instead of
+   * quietly agreeing with a broken double.
+   */
+  const isCount = (fields: unknown): boolean =>
+    fields !== undefined &&
+    Object.values(fields as Record<string, unknown>).some(
+      (value) =>
+        (value as { constructor?: { name?: string } } | null)?.constructor
+          ?.name === "SQL",
+    );
 
   const rowsFor = (table: string, fields: unknown): Row[] => {
     switch (table) {
@@ -121,6 +169,8 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
         return state.session ? [state.session as Row] : [];
       case "staff_operators":
         return state.operator ? [state.operator as Row] : [];
+      case "staff_otp_challenges":
+        return state.challenge ? [state.challenge as Row] : [];
       case "payments":
         return state.payment ? [state.payment as Row] : [];
       case "mobile_serials":
@@ -129,6 +179,14 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
         // whether a key is already taken, and the honest answer for a key that
         // has never been allocated is "no such row".
         if (fields === undefined) return state.licence ? [state.licence] : [];
+        if (isCount(fields)) {
+          return [
+            {
+              total:
+                state.totalCount ?? (state.licence === null ? 0 : 1),
+            } as Row,
+          ];
+        }
         return [];
       default:
         return [];
@@ -146,6 +204,16 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
       state.licence = { ...(state.licence ?? {}), ...values };
     } else if (table === "payments") {
       state.payment = { ...(state.payment ?? {}), ...values };
+    } else if (table === "staff_operators") {
+      // The staff lifecycle changes status on a row the double already holds,
+      // so the next read in the same test - and `returning()` on this very
+      // update - has to see it. Without this `POST /staff/:id/suspend` answered
+      // 404 because its UPDATE returned no row.
+      state.operator = { ...(state.operator ?? {}), ...values } as NonNullable<
+        Harness["state"]["operator"]
+      >;
+    } else if (table === "staff_otp_challenges") {
+      state.challenge = { ...(state.challenge ?? {}), ...values };
     }
   };
 
@@ -187,12 +255,32 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
     rows: Row[],
     condition: unknown,
   ): Promise<Row[]> => {
-    if (table !== "staff_sessions" || rows.length === 0) return rows;
-    const expected = await expectedSessionHash();
-    if (expected === null) return rows;
-    const presented = paramOf(condition);
-    if (presented === undefined) return rows;
-    return presented === expected ? rows : [];
+    if (rows.length === 0) return rows;
+    if (table === "staff_sessions") {
+      const expected = await expectedSessionHash();
+      if (expected === null) return rows;
+      const presented = paramOf(condition);
+      if (presented === undefined) return rows;
+      return presented === expected ? rows : [];
+    }
+    /*
+     * `staff_operators` is narrowed by whatever scalar was bound.
+     *
+     * Every admin route that reads this table does it with `eq(email, ...)` or
+     * `eq(id, ...)` - "does this nominee exist", "is this staffId real". The
+     * double used to answer "yes" to any of them from the one row it holds,
+     * which meant inviting `alice@cyvoriq.com` while the actor's own row was
+     * loaded came back as "alice is already ACTIVE". A double that answers a
+     * different question than the one asked cannot catch a lifecycle bug.
+     *
+     * No bound value -> no narrowing, so `GET /staff` still lists what it holds.
+     */
+    if (table === "staff_operators") {
+      const key = paramOf(condition);
+      if (key === undefined || key === null) return rows;
+      return rows.filter((row) => row.email === key || row.id === key);
+    }
+    return rows;
   };
 
   const handle = (inTransaction: boolean): Record<string, unknown> => {
@@ -202,6 +290,8 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
       let table = "";
       let rows: Row[] = [];
       let condition: unknown;
+      let limitValue: number | null = null;
+      let offsetValue: number | null = null;
       const b: Record<string, unknown> = {
         from(target: unknown) {
           table = nameOf(target);
@@ -216,14 +306,28 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
         orderBy() {
           return b;
         },
-        offset() {
+        offset(value?: number) {
+          offsetValue = value ?? null;
+          paged.push({ table, limit: limitValue, offset: offsetValue });
           return b;
         },
         for() {
           return b;
         },
-        limit() {
-          return filter(table, rows, condition);
+        /*
+         * Returns the builder, not a promise.
+         *
+         * Drizzle's `.limit()` is itself chainable, and `GET /serials` chains
+         * `.limit().offset()` - so a double that resolved at `.limit()` made
+         * that route throw `.offset is not a function` under test, i.e. the
+         * listing route was never exercised by the suite. Resolution happens
+         * at `then()`, which every `await` in the handlers already goes
+         * through, so awaiting `.limit(1)` behaves exactly as it did.
+         */
+        limit(value?: number) {
+          limitValue = value ?? null;
+          paged.push({ table, limit: limitValue, offset: offsetValue });
+          return b;
         },
         returning() {
           return filter(table, rows, condition);
@@ -246,6 +350,8 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
         }
         if (table === "mobile_serials") return state.licence ? [state.licence] : [];
         if (table === "payments") return state.payment ? [state.payment] : [];
+        if (table === "staff_operators") return state.operator ? [state.operator as Row] : [];
+        if (table === "staff_otp_challenges") return state.challenge ? [state.challenge] : [];
         return [];
       };
       const b: Record<string, unknown> = {
@@ -270,12 +376,21 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
       const table = nameOf(target);
       let values: Row = {};
       let applied = false;
+      /*
+       * Returns the row that was inserted.
+       *
+       * Only `POST /auth/request` reads it - `insert(staffOtpChallenges)
+       * .values(...).returning({ id })` - and it needs the challenge id to hand
+       * back to the caller. The handler supplies `id` explicitly rather than
+       * leaning on a database default, so the double can answer honestly with
+       * what it was given.
+       */
       const commit = (): Row[] => {
         if (!applied) {
           applied = true;
           write(inTransaction, "insert", table, values);
         }
-        return [];
+        return [{ ...values }];
       };
       const b: Record<string, unknown> = {
         values(next: Row) {
@@ -301,7 +416,7 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
     return self;
   };
 
-  return { state, writes, reads, database: handle(false) };
+  return { state, writes, reads, paged, database: handle(false) };
 }
 
 /**
@@ -442,6 +557,42 @@ export function staffHarness(
     session: { email, expiresAt: new Date(Date.now() + 60_000) },
     sessionToken: STAFF_TOKEN,
     operator: { id: "33333333-3333-4333-8333-333333333333", email, status: "ACTIVE", role },
+    ...overrides,
+  });
+}
+
+/** A `staff_operators` row with an explicit lifecycle status. */
+export function operatorRow(overrides: Row = {}): Row {
+  const at = new Date("2026-10-01T09:00:00.000Z");
+  return {
+    id: "44444444-4444-4444-8444-444444444444",
+    email: "alice@cyvoriq.com",
+    status: "INVITED",
+    role: "OPERATOR",
+    nominatedBy: "ceo@cyvoriq.com",
+    nominatedAt: at,
+    emailVerifiedAt: null,
+    suspendedAt: null,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
+/**
+ * A Super Admin session acting on somebody else's staff row.
+ *
+ * `staffHarness` puts the session identity and the managed row on the same
+ * single record, which is right for "does my own permission allow this" and
+ * wrong for the lifecycle routes, where the Super Admin invites, approves,
+ * suspends or revokes *another* address. The Super Admin needs no row of their
+ * own (`lookupStaffSession` resolves the address), so `operator` defaults to
+ * null and is set to the target instead.
+ */
+export function superAdminHarness(overrides: HarnessSpec = {}): Harness {
+  return fakeDb({
+    session: { email: SUPER_ADMIN_EMAIL, expiresAt: new Date(Date.now() + 60_000) },
+    sessionToken: STAFF_TOKEN,
+    operator: null,
     ...overrides,
   });
 }
