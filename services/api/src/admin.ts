@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import {
@@ -26,6 +26,7 @@ import {
   staffLifecycleStatus,
 } from "./admin/principal";
 import {
+  LIMITED_AUDIT_ROLES,
   requireAuthenticated,
   requirePermission,
   requireStaffPermission,
@@ -40,7 +41,10 @@ import {
   actionFor,
   assertRouteAuditCoverage,
   auditEntry,
+  auditFiltersFor,
   auditMiddleware,
+  parseAuditQuery,
+  readAuditEvents,
   requireAuditContext,
   selfServiceAuditContext,
   type StaffAuditContext,
@@ -124,7 +128,10 @@ function csvCell(value: string | number | null | undefined): string {
   return text;
 }
 
-function jsonSerial(row: typeof mobileSerials.$inferSelect) {
+function jsonSerial(
+  row: typeof mobileSerials.$inferSelect,
+  paymentStatus: PaymentStatus | null = null,
+) {
   // `public_number` is NULL while a record sits in DRAFT with no key allocated
   // yet (decision A1). Parse only when there is something to parse - returning
   // `null` is the honest projection of "no key exists", not a masked key.
@@ -149,6 +156,41 @@ function jsonSerial(row: typeof mobileSerials.$inferSelect) {
     state: row.state,
     userId: row.userId,
     paymentNoted: row.paymentNoted,
+    /*
+     * FINANCIAL TRUTH (design plan 5 / 7).
+     *
+     * This lives on `payments`, not on this row: plan 7 forbids collapsing the
+     * two, so `licence_status` may only move as a *transactional consequence*
+     * of `payments.status`. Projecting it here is what lets the registry
+     * render §5's "Payment Status" column and lets the drawer's Payment
+     * section be a fact rather than a guess the browser has to make - and a
+     * browser guessing a financial state is precisely what plan 19 forbids.
+     *
+     * `null` means "no payment record exists", which is NOT "pending".
+     * `POST /serials` writes the row as PENDING (admin.ts, create route), so
+     * an absent row only occurs on a record created outside this API, and
+     * rendering it as PENDING would be inventing a financial state.
+     *
+     * The default parameter is deliberate: `adminRedaction.test.ts` calls this
+     * projection with one argument, and a *required* parameter would run as
+     * `undefined` there - which `JSON.stringify` drops and `toCsv` renders as
+     * an empty cell reading "this customer has no value" instead of "this
+     * column is broken". `null` stays visible and stays honest.
+     */
+    paymentStatus,
+    /*
+     * §5 columns 15 and 16 - Activation Date, Expiry / Renewal Date.
+     *
+     * Both are nullable by design rather than by omission: `first_activated_at`
+     * is written once on the first successful binding and never again, and
+     * `validity_*` was never backfilled for pre-W5 rows (migration 0007 leaves
+     * them NULL rather than defaulting them to "now"). An empty cell is the
+     * honest rendering of a window nobody ever recorded; a defaulted date
+     * would be fabricated data in an append-only-adjacent record.
+     */
+    firstActivatedAt: iso(row.firstActivatedAt),
+    validityStartsAt: iso(row.validityStartsAt),
+    validityEndsAt: iso(row.validityEndsAt),
     devicesBound: row.devicesBound,
     issuedBy: row.issuedBy,
     issuedAt: iso(row.issuedAt),
@@ -205,8 +247,11 @@ export function maskSerialKey(publicNumber: string): string {
  * The full key is available only from `GET /admin/serials/:serialId`.
  */
 /** Exported for tests: the list response must never carry a recoverable key. */
-export async function jsonSerialList(row: typeof mobileSerials.$inferSelect) {
-  const { publicNumber, licenceKey: _fullKey, ...rest } = jsonSerial(row);
+export async function jsonSerialList(
+  row: typeof mobileSerials.$inferSelect,
+  paymentStatus: PaymentStatus | null = null,
+) {
+  const { publicNumber, licenceKey: _fullKey, ...rest } = jsonSerial(row, paymentStatus);
   // No key yet -> nothing to mask and nothing to fingerprint. Both stay null
   // rather than becoming a fabricated `CYVRA-***`, which would read as a real
   //-but-unavailable key to the operator.
@@ -336,6 +381,77 @@ async function paymentStatusFor(
 }
 
 /**
+ * Payment status for a whole page, in ONE query.
+ *
+ * WHY NOT A JOIN
+ * --------------
+ * `payments.licence_id` carries an FK and a btree index but no UNIQUE
+ * constraint (migration 0007), so a join could multiply rows - and `count(*)`
+ * over a multiplied set reports a register larger than the one it served,
+ * which is the exact inversion of the promise `search.ts` makes about
+ * `total`/`hasMore`. The same reasoning is written out at `search.ts`'s
+ * `paymentPredicate`, which uses `EXISTS` for precisely this reason. An
+ * `inArray` over the page's ids is one row in, one row out per licence.
+ *
+ * WHY THE ORDERING MATTERS
+ * ------------------------
+ * `desc(createdAt), desc(id)` with first-sighting-wins reproduces
+ * `paymentStatusFor` above character for character, so a licence rendered in
+ * the table and the same licence opened in the drawer can never show two
+ * different payment states. Two functions that disagreed about "current" would
+ * be worse than one function that was wrong, because only one of them would be
+ * visible at a time.
+ *
+ * WHY `null` AND NOT `"PENDING"`
+ * ------------------------------
+ * An id with no payment row means the row was never created - not that money
+ * is outstanding. Fabricating `PENDING` would put a financial claim into a
+ * response that no query ever made.
+ *
+ * Callers pass the page's ids; an empty page costs no query at all.
+ */
+async function paymentStatusesFor(
+  db: Pick<Database, "select">,
+  serialIds: readonly string[],
+): Promise<Map<string, PaymentStatus | null>> {
+  const out = new Map<string, PaymentStatus | null>();
+  for (const id of serialIds) out.set(id, null);
+  if (serialIds.length === 0) return out;
+
+  const rows = await db
+    .select({ licenceId: payments.licenceId, status: payments.status })
+    .from(payments)
+    .where(inArray(payments.licenceId, [...serialIds]))
+    .orderBy(desc(payments.createdAt), desc(payments.id));
+
+  /*
+   * Read the real answers FIRST, and only then fill the gaps.
+   *
+   * The obvious shape - seed every id with `null`, then overwrite - is wrong in
+   * a way that only shows up at runtime: seeding puts the key in the map, so
+   * `!out.has(id)` is false for every row read back and the status is never
+   * written. The projection would then answer `null` for a licence that was
+   * paid in full, on every list response, while the drawer (which goes through
+   * `paymentStatusFor`) showed PAID. A table and its drawer disagreeing about
+   * money is the single most damaging inconsistency this console could have,
+   * and it would have looked like "no payment recorded" rather than a bug.
+   */
+  const seen = new Set<string>();
+  for (const row of rows) {
+    // First sighting wins: rows arrive newest-first, so this is the current
+    // status and never the historical one - the same rule R4 gave
+    // `paymentStatusFor`, which must not be reinterpreted here.
+    if (seen.has(row.licenceId)) continue;
+    seen.add(row.licenceId);
+    out.set(row.licenceId, row.status);
+  }
+  for (const id of serialIds) {
+    if (!out.has(id)) out.set(id, null);
+  }
+  return out;
+}
+
+/**
  * The context every licence transition in this file is judged against.
  *
  * `actorKind` is hard-coded to `"admin"` because that is the only value an
@@ -455,8 +571,13 @@ function parseReportDate(raw: string, endOfDay: boolean): Date | null {
  * `maskSerialKey` / `jsonSerialList` are exported. Not an HTTP surface: the
  * report route is the only caller.
  */
-export async function reportRows(rows: (typeof mobileSerials.$inferSelect)[]) {
-  return Promise.all(rows.map((row) => jsonSerialList(row)));
+export async function reportRows(
+  rows: (typeof mobileSerials.$inferSelect)[],
+  paymentById: ReadonlyMap<string, PaymentStatus | null> = new Map(),
+) {
+  return Promise.all(
+    rows.map((row) => jsonSerialList(row, paymentById.get(row.id) ?? null)),
+  );
 }
 
 /**
@@ -469,6 +590,11 @@ export function toCsv(rows: Awaited<ReturnType<typeof jsonSerialList>>[]): strin
     "licenceKey",
     "serialFp",
     "status",
+    // Placed against `status` on purpose: §5's column 10 is the workflow
+    // truth and column 9 is the financial truth, and an auditor reconciling an
+    // export reads the two side by side. Burying payment further down would
+    // make the file answer "is this issued" without answering "was it paid".
+    "paymentStatus",
     "customerKind",
     "slabLabel",
     "deviceMax",
@@ -486,6 +612,11 @@ export function toCsv(rows: Awaited<ReturnType<typeof jsonSerialList>>[]): strin
     "createdAt",
     "issuedAt",
     "revokedAt",
+    // §5 columns 15 and 16. NULL renders as an empty cell, which is the
+    // correct reading of "no window was ever recorded" - see `jsonSerial`.
+    "firstActivatedAt",
+    "validityStartsAt",
+    "validityEndsAt",
     "emailedAt",
     "emailMessageId",
     "emailError",
@@ -843,6 +974,62 @@ async function issueStaffOtp(
  * has no session, `lookupStaffSession` requires ACTIVE, and every write route
  * in this file requires a permission. Inviting somebody confers nothing.
  */
+/**
+ * THE AUDIT TRAIL - design plan 20, and the read `rbac.ts` declared before
+ * there was a route to serve it.
+ *
+ * GET, so `assertRouteAuditCoverage` skips it: reading the trail does not write
+ * to it. Whether a *read of the trail* should itself be recorded is plan 20's
+ * call and is deliberately not decided here - that would add an entry to
+ * `CONDITIONAL_ROUTES`, which `audit.test.ts` pins to exactly one route.
+ *
+ * ONE ROUTE, TWO SURFACES. `?entityId=<uuid>` is one licence's history for the
+ * drawer's timeline; with no `entityId` it is the global activity page. Two
+ * routes would mean two copies of the validator, of the §41 scoping and of the
+ * pagination, and a third place for them to drift apart.
+ *
+ * The LIMITATION LIVES IN THE DATA LAYER. See `readAuditEvents`: it is applied
+ * where the WHERE clause is built, so no handler added later can forget it.
+ */
+adminRoutes.get("/audit", async (c) => {
+  const principal = await requirePermission("audit:read")(c);
+  if ("error" in principal) return c.json({ error: principal.error }, principal.status);
+
+  const parsed = parseAuditQuery(new URL(c.req.url).searchParams);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+  const spec = parsed.spec;
+
+  // Narrowed once, before any use: a service principal holds `audit:read` but
+  // has no role and no staff row, and `LIMITED_AUDIT_ROLES` is a list of roles.
+  const staffRole = principal.kind === "staff" ? principal.role : null;
+  const principalActorId = principal.kind === "staff" ? principal.actorId : null;
+  const limited = staffRole !== null && LIMITED_AUDIT_ROLES.includes(staffRole);
+
+  const result = await readAuditEvents(c.get("db"), spec, {
+    limited,
+    actorId: limited ? principalActorId : null,
+  });
+  if (!result.ok) return c.json({ error: result.error }, 400);
+
+  return c.json({
+    superAdmin: SUPER_ADMIN_EMAIL,
+    actor: principal.kind === "staff" ? principal.email : null,
+    events: result.events,
+    filters: auditFiltersFor(spec),
+    pagination: paginationFor(spec, result.events.length, result.total),
+    /*
+     * The UI must be able to SAY why an operator sees three rows.
+     *
+     * §41 marks operator audit access LIMITED, and a page that silently shows
+     * a subset looks like a broken query rather than a policy. Surfacing the
+     * scope turns "where is the rest of my audit log?" into "you are seeing
+     * your own activity", which is an answer instead of a support ticket.
+     */
+    scope: limited ? "self" : "all",
+    scopeActorId: limited ? principalActorId : null,
+  });
+});
+
 adminRoutes.post("/staff", async (c) => {
   // §41: "Manage staff - Super Admin only". The matrix says the same thing the
   // old `admin.email !== SUPER_ADMIN_EMAIL` check did, but it says it once,
@@ -1332,7 +1519,18 @@ adminRoutes.get("/serials", async (c) => {
   const spec = parsed.spec;
 
   const db = c.get("db");
-  const where = serialQueryWhere(spec);
+  /*
+   * ONE clock read, shared by the row query and the count query below.
+   *
+   * The two run in the same `Promise.all`, so they already start together, but
+   * the point is structural rather than lucky: if each computed its own horizon
+   * a licence whose window opened between them would be counted on one side and
+   * not selected on the other, and `total` would describe a set the rows do not
+   * come from. Every number the pager renders has to come from the same instant
+   * or the pager is guessing.
+   */
+  const now = new Date();
+  const where = serialQueryWhere(spec, now);
 
   const [rows, totalRows] = await Promise.all([
     db
@@ -1345,11 +1543,19 @@ adminRoutes.get("/serials", async (c) => {
     db.select({ total: count() }).from(mobileSerials).where(where),
   ]);
 
+  // One extra query for the whole page, never one per row: at 100 rows a
+  // per-row lookup would turn a list into 101 round trips, and a list that
+  // gets slower as it gets longer is a list people stop paging through -
+  // which is how a truncated-looking table becomes a habit.
+  const paymentById = await paymentStatusesFor(db, rows.map((row) => row.id));
+
   return c.json({
     superAdmin: SUPER_ADMIN_EMAIL,
     actor: admin.email,
     // Keys are never in a list response: masked + fingerprinted only.
-    serials: await Promise.all(rows.map(jsonSerialList)),
+    serials: await Promise.all(
+      rows.map((row) => jsonSerialList(row, paymentById.get(row.id) ?? null)),
+    ),
     filters: filtersFor(spec),
     pagination: paginationFor(spec, rows.length, totalRows[0]?.total ?? 0),
   });
@@ -1381,7 +1587,7 @@ adminRoutes.get("/serials/:serialId", async (c) => {
   return c.json({
     superAdmin: SUPER_ADMIN_EMAIL,
     actor: admin.email,
-    serial: jsonSerial(row),
+    serial: jsonSerial(row, await paymentStatusFor(db, serialId)),
     serialFp: await serialFingerprint(row.publicNumber),
   });
 });
@@ -3230,7 +3436,13 @@ adminRoutes.get("/serials/:serialId/export", async (c) => {
   const frame = await requireAuditContext(c);
   if ("error" in frame) return c.json({ error: frame.error }, frame.status);
   const generatedAt = new Date();
-  const mapped = await reportRows([row]);
+  // Single licence, single payment row - a one-entry map rather than the batch
+  // lookup, so the export and the drawer read the same value through the same
+  // ordering rule without paying for a query that could only ever return one.
+  const mapped = await reportRows(
+    [row],
+    new Map([[row.id, await paymentStatusFor(db, serialId)]]),
+  );
 
   await db.transaction(async (tx) => {
     await writeAudit(
@@ -3280,7 +3492,10 @@ adminRoutes.get("/reports/licences", async (c) => {
     .from(mobileSerials)
     .where(and(gte(mobileSerials.createdAt, from), lte(mobileSerials.createdAt, to)))
     .orderBy(desc(mobileSerials.createdAt));
-  const mapped = await reportRows(rows);
+  const mapped = await reportRows(
+    rows,
+    await paymentStatusesFor(db, rows.map((row) => row.id)),
+  );
   if ((c.req.query("format") ?? "") === "csv") {
     /*
      * Plan 53, "SECURITY OF XLS EXPORT": "Require authentication. Enforce role
