@@ -17,7 +17,7 @@ import {
   SanitizationPage,
   StationPage,
 } from "./site/Pages";
-import { AdminApp } from "./site/AdminApp";
+import { AdminApp } from "./admin/AdminApp";
 import { isAdminHost } from "./site/hosts";
 import { usePath } from "./site/router";
 import { WorkspaceApp } from "./site/WorkspaceApp";
