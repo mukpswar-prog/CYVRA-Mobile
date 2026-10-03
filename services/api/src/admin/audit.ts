@@ -47,14 +47,18 @@
  */
 
 import type { Context, MiddlewareHandler } from "hono";
+import { and, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 import {
   auditActionEnum,
   auditEvents,
+  staffOperators,
   staffRoleEnum,
 } from "@cyvra/database/schema";
+import { isUuid } from "@cyvra/evidence";
 import type { Database } from "../db";
 import type { Env } from "../env";
 import { authenticate, isAuthError, type StaffRole } from "./principal";
+import { PAGE_SIZES, type PageSize } from "./search";
 
 /** The `audit_action_enum` vocabulary, derived from the pgEnum. */
 export type AuditAction = (typeof auditActionEnum.enumValues)[number];
@@ -520,3 +524,391 @@ export function auditEntry(
 
 /** Re-exported so handlers need only one import for the whole engine. */
 export { staffRoleEnum };
+
+/* ========================================================================== *
+ * W5 PHASE 2b - READING THE TRAIL (design plan 20)
+ * ==========================================================================
+ *
+ * WHY THIS LIVES HERE AND NOWHERE ELSE
+ * ------------------------------------
+ * `audit.test.ts` asserts that exactly one file under `src/` contains the token
+ * `auditEvents`, and that it is this one; a second assertion forbids `admin.ts`
+ * from containing it at all, comment included. The rule exists so the trail has
+ * a single insertion path - and it has the same effect on the read path: the
+ * query against `audit_events` cannot be copy-pasted into a handler that
+ * forgets the scoping below.
+ *
+ * WHY `LIMITED` IS APPLIED HERE
+ * -----------------------------
+ * §41 marks "View audit" for operators as LIMITED rather than yes or no, and
+ * `LIMITED_AUDIT_ROLES` (../rbac) declares which roles that means. The list's
+ * own comment asked that "the route that eventually serves it must consult this
+ * list rather than re-deciding what LIMITED meant". This is that route's data
+ * layer, and the scoping is a parameter here rather than a `if` in the handler
+ * for one reason: a restriction expressed in a handler can be bypassed by
+ * adding a second handler, whereas one expressed where the WHERE clause is
+ * built applies to every caller of this function by construction.
+ *
+ * THE READING IS NEWEST-FIRST AND PAGED
+ * -------------------------------------
+ * `desc(created_at), desc(id)` - the same tie-break `GET /serials` uses. Two
+ * events written in the same millisecond still have a total order, so a pager
+ * cannot show one row twice or skip it between pages.
+ *
+ * ONE CONDITIONS ARRAY, USED TWICE
+ * --------------------------------
+ * Rows and `count()` take the same `where`. Building it twice by hand is how a
+ * list and its total come to disagree, which would make `hasMore` a lie - the
+ * promise `search.ts` makes for the registry, kept here for the trail.
+ */
+
+/** A parsed, validated `GET /admin/audit` query. Nothing here is unvalidated. */
+export interface AuditQuerySpec {
+  /** One licence's history - the drawer. `null` is the global trail. */
+  readonly entityId: string | null;
+  readonly entityType: string | null;
+  readonly action: readonly AuditAction[];
+  /** Resolved to a `staff_operators.id` inside the read, never here. */
+  readonly actorEmail: string | null;
+  readonly from: Date | null;
+  readonly to: Date | null;
+  readonly page: number;
+  readonly pageSize: PageSize;
+}
+
+/**
+ * Who the caller is allowed to see.
+ *
+ * `limited` comes from `LIMITED_AUDIT_ROLES` at the route; `actorId` is that
+ * caller's own staff row. The pair is passed as one object so that "limited"
+ * can never be set without an answer to "limited to whom".
+ */
+export interface AuditScope {
+  readonly limited: boolean;
+  readonly actorId: string | null;
+}
+
+/** One row of the trail, as the drawer and the activity page both render it. */
+export interface AuditedEvent {
+  readonly id: string;
+  readonly actorId: string | null;
+  readonly actorRole: StaffRole;
+  /**
+   * From `staff_operators`, LEFT JOINed - never from the request.
+   *
+   * `audit_events` has NO `actor_email` column (schema.ts:613-640), so a name
+   * is only reachable by joining the staff row. `actor_id` is NULL for the
+   * super admin before their first nomination, and for a service principal, so
+   * this is genuinely `null` there. Rendering `null` as "pre-nomination" or
+   * "service credential" is correct; rendering it as any address at all would
+   * be attributing an action to somebody who may not have performed it.
+   */
+  readonly actorEmail: string | null;
+  readonly action: AuditAction;
+  readonly entityType: string;
+  readonly entityId: string;
+  readonly previousState: Record<string, unknown> | null;
+  readonly newState: Record<string, unknown> | null;
+  readonly ipAddress: string | null;
+  readonly reason: string | null;
+  readonly createdAt: string;
+}
+
+const AUDIT_ACTIONS: readonly string[] = auditActionEnum.enumValues;
+
+/**
+ * `from`/`to`, as UTC.
+ *
+ * A date picker sends `YYYY-MM-DD` and means the whole of that day, while a
+ * machine client sends a full timestamp and means exactly what it says. Both
+ * parse; anything else is refused. Reading a bare date as UTC midnight-to-
+ * midnight rather than as the server's local day is what keeps an export's
+ * range identical for an operator in IST and one in UTC - a day boundary that
+ * moves under the reader is the same class of defect as a silently clamped
+ * `pageSize`.
+ */
+function readBoundary(
+  params: URLSearchParams,
+  key: string,
+  endOfDay: boolean,
+): { ok: true; value: Date | null } | { ok: false; error: string } {
+  const raw = (params.get(key) ?? "").trim();
+  if (raw === "") return { ok: true, value: null };
+
+  let value: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    value = new Date(endOfDay ? `${raw}T23:59:59.999Z` : `${raw}T00:00:00.000Z`);
+  } else {
+    value = new Date(raw);
+  }
+  if (Number.isNaN(value.getTime())) {
+    return { ok: false, error: `"${key}" must be an ISO date or timestamp.` };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * Parse `GET /admin/audit`'s query, or refuse it with a sentence an operator
+ * can act on.
+ *
+ * Same three guarantees as `parseSerialQuery`: `pageSize` is one of three named
+ * sizes rather than a range to clamp, an unknown token names itself, and a
+ * malformed range is a 400 rather than a page of everything.
+ */
+export function parseAuditQuery(
+  params: URLSearchParams,
+): { ok: true; spec: AuditQuerySpec } | { ok: false; error: string } {
+  const entityIdRaw = (params.get("entityId") ?? "").trim();
+  if (entityIdRaw !== "" && !isUuid(entityIdRaw)) {
+    return { ok: false, error: "entityId must be a UUID." };
+  }
+  const entityTypeRaw = (params.get("entityType") ?? "").trim();
+
+  const actorRaw = (params.get("actor") ?? "").trim().toLowerCase();
+
+  const actionTokens = params.getAll("action");
+  const actions: AuditAction[] = [];
+  const unknownActions: string[] = [];
+  for (const entry of actionTokens) {
+    for (const part of entry.split(",")) {
+      const token = part.trim().toUpperCase();
+      if (!token) continue;
+      const canonical = AUDIT_ACTIONS.find((value) => value === token);
+      if (canonical === undefined) {
+        unknownActions.push(part.trim());
+        continue;
+      }
+      if (!actions.includes(canonical as AuditAction)) {
+        actions.push(canonical as AuditAction);
+      }
+    }
+  }
+  if (unknownActions.length > 0) {
+    return {
+      ok: false,
+      error:
+        `Unknown value for "action": ${unknownActions.join(", ")}. ` +
+        `Allowed: ${AUDIT_ACTIONS.join(", ")}.`,
+    };
+  }
+
+  const from = readBoundary(params, "from", false);
+  if (!from.ok) return { ok: false, error: from.error };
+  const to = readBoundary(params, "to", true);
+  if (!to.ok) return { ok: false, error: to.error };
+  if (from.value !== null && to.value !== null && from.value > to.value) {
+    return { ok: false, error: '"from" must not be after "to".' };
+  }
+
+  const pageRaw = (params.get("page") ?? "").trim();
+  let page = 1;
+  if (pageRaw !== "") {
+    if (!/^\d+$/.test(pageRaw)) {
+      return { ok: false, error: '"page" must be a positive whole number.' };
+    }
+    page = Number(pageRaw);
+    if (page < 1) return { ok: false, error: '"page" starts at 1.' };
+  }
+
+  const sizeRaw = (params.get("pageSize") ?? "").trim();
+  let pageSize: PageSize = 25;
+  if (sizeRaw !== "") {
+    const parsed = Number(sizeRaw);
+    if (!PAGE_SIZES.includes(parsed as PageSize)) {
+      return {
+        ok: false,
+        error: `"pageSize" must be one of ${PAGE_SIZES.join(", ")}; got "${sizeRaw}".`,
+      };
+    }
+    pageSize = parsed as PageSize;
+  }
+
+  return {
+    ok: true,
+    spec: {
+      entityId: entityIdRaw === "" ? null : entityIdRaw,
+      entityType: entityTypeRaw === "" ? null : entityTypeRaw,
+      action: actions,
+      actorEmail: actorRaw === "" ? null : actorRaw,
+      from: from.value,
+      to: to.value,
+      page,
+      pageSize,
+    },
+  };
+}
+
+/**
+ * The parsed query, echoed back to the client and recorded with the request.
+ *
+ * Omitted when absent rather than sent empty: `{action: []}` says the caller
+ * filtered on action and matched everything, when the truth is that action was
+ * never part of the question.
+ */
+export function auditFiltersFor(spec: AuditQuerySpec): Record<string, unknown> {
+  const filters: Record<string, unknown> = {};
+  if (spec.entityId !== null) filters.entityId = spec.entityId;
+  if (spec.entityType !== null) filters.entityType = spec.entityType;
+  if (spec.action.length > 0) filters.action = [...spec.action];
+  if (spec.actorEmail !== null) filters.actor = spec.actorEmail;
+  if (spec.from !== null) filters.from = spec.from.toISOString();
+  if (spec.to !== null) filters.to = spec.to.toISOString();
+  return filters;
+}
+
+function auditConditions(spec: AuditQuerySpec): SQL[] {
+  const conditions: SQL[] = [];
+  if (spec.entityId !== null) conditions.push(eq(auditEvents.entityId, spec.entityId));
+  if (spec.entityType !== null) conditions.push(eq(auditEvents.entityType, spec.entityType));
+  if (spec.action.length > 0) {
+    // ONE condition for the whole selection, not a chain of `eq`, so the same
+    // array can be handed to the count query unchanged. An OR built as
+    // separate conditions and then `and`-ed would ask for rows that are both
+    // `STAFF_INVITED` and `KEY_GENERATED` and match nothing.
+    conditions.push(inArray(auditEvents.action, [...spec.action]));
+  }
+  if (spec.from !== null) conditions.push(gte(auditEvents.createdAt, spec.from));
+  if (spec.to !== null) conditions.push(lte(auditEvents.createdAt, spec.to));
+  return conditions;
+}
+
+export type AuditReadResult =
+  | { readonly ok: true; readonly events: AuditedEvent[]; readonly total: number }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * Read a page of the trail, scoped to what the caller may see.
+ *
+ * Fail-closed on `actor`: an operator whose own staff row cannot be found
+ * returns zero rows rather than every row. Returning the full trail because
+ * the scoping key was missing would turn a lookup failure into an
+ * authorisation failure in the most damaging direction.
+ */
+export async function readAuditEvents(
+  db: Pick<Database, "select">,
+  spec: AuditQuerySpec,
+  scope: AuditScope,
+): Promise<AuditReadResult> {
+  /*
+   * §41 LIMITED, first and unconditional.
+   *
+   * Checked before anything else so that a caller with no staff row cannot
+   * reach the unrestricted path by accident: "the rows they produced
+   * themselves" has no answer without an identity, and the empty page is that
+   * answer. Returning the full trail on a failed lookup would turn a
+   * bookkeeping gap into an authorisation failure in the worst direction.
+   *
+   * Copied into a local rather than re-reading `scope.actorId` at each use so
+   * that the narrowing from this check survives to the WHERE clause below - the
+   * compiler cannot infer "limited implies identified" from a boolean flag,
+   * and neither can a later reader.
+   */
+  let ownActorId: string | null = null;
+  if (scope.limited) {
+    if (scope.actorId === null) {
+      return { ok: true, events: [], total: 0 };
+    }
+    ownActorId = scope.actorId;
+  }
+
+  const conditions = auditConditions(spec);
+
+  /*
+   * `actor=<email>` resolves here, against the database, never in the parser.
+   *
+   * The parser stays value-in/value-out with no Context, no database and no
+   * clock - the same contract `parseSerialQuery` keeps. Resolving rather than
+   * matching the email against a denormalised column also matters because
+   * `audit_events` has no email column at all: the join key is `actor_id`.
+   *
+   * An address that names no staff row is refused. Silently matching nothing
+   * would render as "this person did nothing", which is a claim about a human
+   * being and is exactly the sort of negative the trail must not invent.
+   */
+  let requestedActorId: string | null = null;
+  if (spec.actorEmail !== null) {
+    const [row] = await db
+      .select({ id: staffOperators.id })
+      .from(staffOperators)
+      .where(eq(staffOperators.email, spec.actorEmail))
+      .limit(1);
+    if (!row) {
+      return { ok: false, error: `Unknown "actor": ${spec.actorEmail}.` };
+    }
+    requestedActorId = row.id;
+  }
+
+  /*
+   * AND, not override.
+   *
+   * A requested actor narrows a LIMITED caller's view; it can never widen it,
+   * because both conditions end up in the same array. Asking for somebody
+   * else's rows while LIMITED therefore yields an empty page, which is the
+   * correct reading of "show me theirs" from a seat that may only see its own.
+   */
+  if (ownActorId !== null) {
+    conditions.push(eq(auditEvents.actorId, ownActorId));
+  }
+  if (requestedActorId !== null) {
+    conditions.push(eq(auditEvents.actorId, requestedActorId));
+  }
+
+  return runAuditQuery(db, spec, conditions);
+}
+
+async function runAuditQuery(
+  db: Pick<Database, "select">,
+  spec: AuditQuerySpec,
+  conditions: SQL[],
+): Promise<AuditReadResult> {
+  const where = conditions.length === 0 ? undefined : (and(...conditions) ?? undefined);
+  const offset = (spec.page - 1) * spec.pageSize;
+
+  const [rows, totalRows] = await Promise.all([
+    db
+      .select({
+        id: auditEvents.id,
+        actorId: auditEvents.actorId,
+        actorRole: auditEvents.actorRole,
+        actorEmail: staffOperators.email,
+        action: auditEvents.action,
+        entityType: auditEvents.entityType,
+        entityId: auditEvents.entityId,
+        previousState: auditEvents.previousState,
+        newState: auditEvents.newState,
+        ipAddress: auditEvents.ipAddress,
+        reason: auditEvents.reason,
+        createdAt: auditEvents.createdAt,
+      })
+      .from(auditEvents)
+      // `staff_operators.id` is a primary key, so this is at most one row per
+      // audit row and cannot inflate the count - the same reasoning
+      // `search.ts` gives for preferring `EXISTS` over a join on `payments`,
+      // where the key was NOT unique.
+      .leftJoin(staffOperators, eq(auditEvents.actorId, staffOperators.id))
+      .where(where)
+      .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
+      .limit(spec.pageSize)
+      .offset(offset),
+    db.select({ total: count() }).from(auditEvents).where(where),
+  ]);
+
+  return {
+    ok: true,
+    events: rows.map((row) => ({
+      id: row.id,
+      actorId: row.actorId,
+      actorRole: row.actorRole,
+      actorEmail: row.actorEmail,
+      action: row.action,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      previousState: row.previousState,
+      newState: row.newState,
+      ipAddress: row.ipAddress,
+      reason: row.reason,
+      createdAt: row.createdAt.toISOString(),
+    })),
+    total: totalRows[0]?.total ?? 0,
+  };
+}

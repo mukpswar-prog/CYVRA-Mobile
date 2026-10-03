@@ -48,7 +48,7 @@
  * correctness fix, not hardening theatre.
  */
 
-import { and, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import {
   hostBindingStatusEnum,
   licenceStatusEnum,
@@ -73,6 +73,19 @@ const HOST_BINDING_STATUSES = hostBindingStatusEnum.enumValues;
  * refuse.
  */
 const CUSTOMER_KINDS = ["SINGLE", "BULK"] as const;
+
+/**
+ * Delivery state, derived from two columns on the row itself.
+ *
+ * `SENT` means a message went out and came back clean: `emailed_at` is set and
+ * `email_error` is not. `FAILED` means the attempt was made and the provider
+ * rejected it, which is exactly what `email_error` records.
+ *
+ * These two are mutually exclusive by construction, so the predicate built
+ * from them must be an OR and never an AND - see `serialQueryConditions`.
+ */
+export const DELIVERY_STATUSES = ["SENT", "FAILED"] as const;
+export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
 
 export type PlanCode = (typeof planCodeEnum.enumValues)[number];
 export type HostBindingStatus = (typeof hostBindingStatusEnum.enumValues)[number];
@@ -100,6 +113,17 @@ export interface SerialQuerySpec {
   readonly planCode: readonly PlanCode[];
   readonly customerKind: readonly string[];
   readonly hostBinding: readonly HostBindingStatus[];
+  readonly delivery: readonly DeliveryStatus[];
+  /**
+   * Days ahead to look, NOT a resolved window.
+   *
+   * The module's header promises no clock, and that promise is load-bearing:
+   * `search.test.ts` asserts the generated SQL against fixed inputs. Parsing an
+   * integer here and letting the route inject `now` keeps both true - the
+   * arithmetic happens once, in the one place that owns "when is now", and the
+   * predicate is still a pure function of `(spec, now)`.
+   */
+  readonly validityEndsWithinDays: number | null;
   readonly page: number;
   readonly pageSize: PageSize;
 }
@@ -108,8 +132,16 @@ export type SerialQueryResult =
   | { readonly ok: true; readonly spec: SerialQuerySpec }
   | { readonly ok: false; readonly error: string };
 
-/** 1-based page offset in rows. Derived rather than stored, so it cannot drift. */
-export function offsetOf(spec: SerialQuerySpec): number {
+/**
+ * 1-based page offset in rows. Derived rather than stored, so it cannot drift.
+ *
+ * The parameter is structural rather than `SerialQuerySpec`: this reads only
+ * `page` and `pageSize`, and `./admin/audit` builds its own spec shape over the
+ * same `PAGE_SIZES`/`Pagination` contract. Widening a parameter type changes no
+ * caller and no behaviour - every existing call still typechecks and still
+ * produces byte-identical output.
+ */
+export function offsetOf(spec: { readonly page: number; readonly pageSize: PageSize }): number {
   return (spec.page - 1) * spec.pageSize;
 }
 
@@ -167,6 +199,40 @@ function readTokenList(
     };
   }
   return { ok: true, values };
+}
+
+/**
+ * `validityEndsWithinDays`, as an integer - or refused.
+ *
+ * §65's "Expiring Soon" KPI is one filtered list call whose `pagination.total`
+ * is the whole answer, so this number has to be validated at the edge rather
+ * than interpreted downstream: `?validityEndsWithinDays=abc` must be a 400 that
+ * says so, never 25 rows of everything.
+ *
+ * Deliberately not a date. A relative window keeps the clock out of this
+ * module - the route resolves it against one `now` shared by the row query and
+ * the count query, so a licence crossing the horizon mid-request cannot make
+ * `total` disagree with the rows beside it.
+ */
+function readExpiryWindow(
+  params: URLSearchParams,
+): { ok: true; days: number | null } | { ok: false; error: string } {
+  const raw = (params.get("validityEndsWithinDays") ?? "").trim();
+  if (raw === "") return { ok: true, days: null };
+  if (!/^\d+$/.test(raw)) {
+    return {
+      ok: false,
+      error: '"validityEndsWithinDays" must be a whole number of days.',
+    };
+  }
+  const days = Number(raw);
+  if (days < 1 || days > 3650) {
+    return {
+      ok: false,
+      error: `"validityEndsWithinDays" must be between 1 and 3650; got "${raw}".`,
+    };
+  }
+  return { ok: true, days };
 }
 
 function readPage(
@@ -247,6 +313,12 @@ export function parseSerialQuery(params: URLSearchParams): SerialQueryResult {
   const hostBinding = readTokenList(params, "hostBinding", HOST_BINDING_STATUSES);
   if (!hostBinding.ok) return { ok: false, error: hostBinding.error };
 
+  const delivery = readTokenList(params, "delivery", DELIVERY_STATUSES);
+  if (!delivery.ok) return { ok: false, error: delivery.error };
+
+  const expiry = readExpiryWindow(params);
+  if (!expiry.ok) return { ok: false, error: expiry.error };
+
   const page = readPage(params);
   if (!page.ok) return { ok: false, error: page.error };
 
@@ -259,6 +331,8 @@ export function parseSerialQuery(params: URLSearchParams): SerialQueryResult {
       planCode: planCode.values as readonly PlanCode[],
       customerKind: customerKind.values,
       hostBinding: hostBinding.values as readonly HostBindingStatus[],
+      delivery: delivery.values as readonly DeliveryStatus[],
+      validityEndsWithinDays: expiry.days,
       page: page.page,
       pageSize: page.pageSize,
     },
@@ -323,8 +397,16 @@ function paymentPredicate(statuses: readonly PaymentStatus[]): SQL | undefined {
  * caller can pass the *same* list to both the row query and the count query.
  * Building it twice by hand is how a filtered list and its total come to
  * disagree, which would make `hasMore` a lie.
+ *
+ * `now` is OPTIONAL in signature and REQUIRED in effect: it is dereferenced
+ * only inside the expiry-window branch, so the 22 existing one-argument calls
+ * in `search.test.ts` keep working untouched, while a window supplied without
+ * a clock throws rather than quietly matching nothing. Silence would be the
+ * worst answer here - an empty "Expiring Soon" card and an empty card that
+ * means "nothing expires soon" are indistinguishable, and an operator would
+ * reasonably believe the first one.
  */
-export function serialQueryConditions(spec: SerialQuerySpec): SQL[] {
+export function serialQueryConditions(spec: SerialQuerySpec, now?: Date): SQL[] {
   const conditions: SQL[] = [];
 
   const search = searchPredicate(spec);
@@ -344,12 +426,61 @@ export function serialQueryConditions(spec: SerialQuerySpec): SQL[] {
   const payment = paymentPredicate(spec.paymentStatus);
   if (payment) conditions.push(payment);
 
+  if (spec.validityEndsWithinDays !== null) {
+    if (!now) {
+      throw new Error(
+        'serialQueryConditions: "now" is required when validityEndsWithinDays is set.',
+      );
+    }
+    const horizon = new Date(
+      now.getTime() + spec.validityEndsWithinDays * 86_400_000,
+    );
+    /*
+     * BOTH bounds, and the lower one matters as much as the upper.
+     *
+     * `lte` alone would also match a licence that expired last year, putting a
+     * long-dead record into an "Expiring Soon" card and quietly inflating the
+     * number until it means nothing.
+     *
+     * NULL never satisfies either comparison, so a pre-W5 row with no stored
+     * window is excluded automatically - which is correct (a licence with no
+     * expiry date cannot be expiring) and is exactly the predicate the partial
+     * index `idx_mobile_serials_validity_ends_at` is built on, so the query
+     * stays on the index rather than falling back to a scan.
+     */
+    conditions.push(
+      gte(mobileSerials.validityEndsAt, now),
+      lte(mobileSerials.validityEndsAt, horizon),
+    );
+  }
+
+  /*
+   * Delivery is an OR, never an AND.
+   *
+   * `delivery=SENT,FAILED` is a natural thing for a UI to emit - "show me
+   * every licence whose delivery I should look at" - and AND-ing two mutually
+   * exclusive predicates would produce `email_error IS NULL AND email_error IS
+   * NOT NULL`, which matches no rows at all. That would render as "no delivery
+   * problems", i.e. the exact opposite of the truth, with a 200 and a zero
+   * count. Refusing to build the predicate instead of building a contradictory
+   * one is the same discipline `readTokenList` applies to unknown tokens.
+   */
+  if (spec.delivery.includes("FAILED")) {
+    conditions.push(isNotNull(mobileSerials.emailError));
+  } else if (spec.delivery.includes("SENT")) {
+    const sent = and(
+      isNotNull(mobileSerials.emailedAt),
+      isNull(mobileSerials.emailError),
+    );
+    if (sent) conditions.push(sent);
+  }
+
   return conditions;
 }
 
 /** `and(...)` over the conditions, or `undefined` when there are none. */
-export function serialQueryWhere(spec: SerialQuerySpec): SQL | undefined {
-  const conditions = serialQueryConditions(spec);
+export function serialQueryWhere(spec: SerialQuerySpec, now?: Date): SQL | undefined {
+  const conditions = serialQueryConditions(spec, now);
   return conditions.length === 0 ? undefined : (and(...conditions) ?? undefined);
 }
 
@@ -378,7 +509,7 @@ export interface Pagination {
 }
 
 export function paginationFor(
-  spec: SerialQuerySpec,
+  spec: { readonly page: number; readonly pageSize: PageSize },
   returned: number,
   total: number,
 ): Pagination {
@@ -412,5 +543,13 @@ export function filtersFor(spec: SerialQuerySpec): Record<string, unknown> {
   if (spec.planCode.length > 0) filters.planCode = [...spec.planCode];
   if (spec.customerKind.length > 0) filters.customerKind = [...spec.customerKind];
   if (spec.hostBinding.length > 0) filters.hostBinding = [...spec.hostBinding];
+  if (spec.delivery.length > 0) filters.delivery = [...spec.delivery];
+  // Omitted entirely when absent, never `null` and never `0`: an audit row
+  // reading `{validityEndsWithinDays: null}` says somebody asked about expiry
+  // and got no answer, when the truth is that expiry was never part of the
+  // question. Same reasoning the existing five filters use.
+  if (spec.validityEndsWithinDays !== null) {
+    filters.validityEndsWithinDays = spec.validityEndsWithinDays;
+  }
   return filters;
 }

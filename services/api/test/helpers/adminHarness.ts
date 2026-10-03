@@ -61,6 +61,13 @@ export interface Harness {
     payment: Row | null;
     /** The one `staff_otp_challenges` row; consumed and re-read across calls. */
     challenge: Row | null;
+    /**
+     * The trail, as `readAuditEvents` reads it: rows already carrying the
+     * LEFT JOIN's output, because the double does not perform joins.
+     */
+    auditRows: Row[];
+    /** Answer for `select({ total: count() })` over `audit_events`. */
+    auditTotalCount: number | null;
     /** Answer for `select({ total: count() })`; see `HarnessSpec.totalCount`. */
     totalCount: number | null;
   };
@@ -101,6 +108,25 @@ export interface HarnessSpec {
    * row the double holds, so an ordinary test does not have to think about it.
    */
   totalCount?: number;
+  /**
+   * The `audit_events` rows `GET /admin/audit` may return, in `audit_events`
+   * columns plus the joined `actorEmail`.
+   *
+   * Deliberately a list rather than a single row: the whole point of the
+   * Phase 2b trail is that a page can hold more than one event, and a double
+   * holding one could not distinguish a working `desc(created_at), desc(id)`
+   * from an unordered read that happens to agree when there is only one row.
+   */
+  auditRows?: Row[];
+  /**
+   * What `select({ total: count() })` reports for `audit_events`.
+   *
+   * Kept separate from `auditRows` for the same reason `totalCount` is
+   * separate from `licence`: the contract under test is that `total` can
+   * exceed `returned`, and a double that derived one from the other could
+   * never express the case the pager exists for.
+   */
+  auditTotalCount?: number;
 }
 
 const tableNames = new Map<unknown, string>([
@@ -138,6 +164,8 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
     licence: spec.licence ?? null,
     payment: spec.payment ?? null,
     challenge: spec.challenge ?? null,
+    auditRows: spec.auditRows ?? [],
+    auditTotalCount: spec.auditTotalCount ?? null,
     totalCount: spec.totalCount ?? null,
   };
   const writes: RecordedWrite[] = [];
@@ -173,6 +201,20 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
         return state.challenge ? [state.challenge as Row] : [];
       case "payments":
         return state.payment ? [state.payment as Row] : [];
+      case "audit_events":
+        // Count first: `readAuditEvents` issues a bare `count()` projection
+        // for the pager alongside the column projection for the page itself,
+        // and answering that with the rows would make `total` equal to
+        // `returned` on every request - the one thing the pager contract
+        // exists to rule out.
+        if (isCount(fields)) {
+          return [
+            {
+              total: state.auditTotalCount ?? state.auditRows.length,
+            } as Row,
+          ];
+        }
+        return state.auditRows;
       case "mobile_serials":
         // A bare `select()` is a handler reading the whole row. A projection
         // (`select({ id: mobileSerials.id })`) is `uniqueLicenceKey` probing
@@ -304,6 +346,22 @@ export function fakeDb(spec: HarnessSpec = {}): Harness {
           return b;
         },
         orderBy() {
+          return b;
+        },
+        /*
+         * Accepted, and deliberately does not narrow anything.
+         *
+         * `readAuditEvents` joins `staff_operators` to reach `actor_email`,
+         * which does not exist on `audit_events`. Performing a join is not
+         * something this double can honestly do, and guessing at it from a
+         * bound scalar would be the failure mode the `staff_operators` filter
+         * was written to avoid: answering a different question than the one
+         * asked. The fixture therefore carries the join's output instead (see
+         * `HarnessSpec.auditRows`), and the WHERE clause that decides *whose*
+         * rows are visible is asserted against rendered SQL in
+         * `test/auditRead.test.ts`, where it can be read rather than inferred.
+         */
+        leftJoin() {
           return b;
         },
         offset(value?: number) {
