@@ -1,8 +1,9 @@
 import { and, count, desc, eq, gte, lte } from "drizzle-orm";
 import { deleteCookie, setCookie } from "hono/cookie";
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import {
   mobileSerials,
+  payments,
   staffOperators,
   staffOtpChallenges,
   staffSessions,
@@ -18,6 +19,38 @@ import {
 import { mailConfigured, sendLicenceEmail, sendOtpEmail } from "./email";
 import type { Database } from "./db";
 import type { Env } from "./env";
+import {
+  SUPER_ADMIN_EMAIL,
+  isApprovedOperator,
+  isCyvoriqEmail,
+} from "./admin/principal";
+import {
+  requireAuthenticated,
+  requirePermission,
+  requireStaffPermission,
+} from "./admin/rbac";
+import {
+  AGGREGATE_ENTITY_ID,
+  ENTITY_LICENCE,
+  ENTITY_LICENCE_EXPORT,
+  ENTITY_STAFF_OPERATOR,
+  ROUTE,
+  actionFor,
+  assertRouteAuditCoverage,
+  auditEntry,
+  auditMiddleware,
+  requireAuditContext,
+  type StaffAuditContext,
+  writeAudit,
+} from "./admin/audit";
+import {
+  failureHttpStatus,
+  failureMessage,
+  transition,
+  type PaymentStatus,
+  type TransitionContext,
+  type TransitionError,
+} from "./admin/state-machine";
 import {
   LICENCE_KEY_RE,
   LICENCE_PREFIX,
@@ -42,7 +75,14 @@ import {
   staffCookieOptions,
 } from "./session";
 
-export const SUPER_ADMIN_EMAIL = "ceo@cyvoriq.com";
+/*
+ * `SUPER_ADMIN_EMAIL` and `isCyvoriqEmail` used to be defined here. They live
+ * in `./admin/principal` now, because `principal` resolves identities and must
+ * not import this module - doing so would make the module graph a cycle.
+ * Re-exported so `staff.test.ts` and any other importer keeps its path.
+ */
+export { SUPER_ADMIN_EMAIL, isCyvoriqEmail };
+
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -64,10 +104,6 @@ function iso(value: Date | null): string | null {
 
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
-}
-
-export function isCyvoriqEmail(email: string): boolean {
-  return email.endsWith("@cyvoriq.com");
 }
 
 function csvCell(value: string | number | null | undefined): string {
@@ -191,67 +227,24 @@ function readPageParams(query: URLSearchParams): { limit: number; offset: number
   };
 }
 
-async function isApprovedOperator(db: Database, email: string): Promise<boolean> {
-  if (email === SUPER_ADMIN_EMAIL) return true;
-  if (!isCyvoriqEmail(email)) return false;
-  const [row] = await db
-    .select({ status: staffOperators.status })
-    .from(staffOperators)
-    .where(eq(staffOperators.email, email))
-    .limit(1);
-  return row?.status === "ACTIVE";
-}
-
-async function lookupStaffEmail(
-  db: Database,
-  token: string | undefined,
-): Promise<string | null> {
-  if (!token) return null;
-  const tokenHash = await sha256Hex(token);
-  const [row] = await db
-    .select()
-    .from(staffSessions)
-    .where(eq(staffSessions.tokenHash, tokenHash))
-    .limit(1);
-  if (!row || row.expiresAt.getTime() <= Date.now()) return null;
-  if (!(await isApprovedOperator(db, row.email))) return null;
-  return row.email;
-}
-
-async function requireAdmin(
-  c: Context<{ Bindings: Env; Variables: { db: Database } }>,
-): Promise<{ email: string } | { error: string; status: 401 | 503 }> {
-  const db = c.get("db");
-  const staffEmail = await lookupStaffEmail(db, readStaffToken(c));
-  if (staffEmail) return { email: staffEmail };
-
-  const configured = (c.env.ADMIN_API_TOKEN ?? "").trim();
-  const header = c.req.header("Authorization") ?? "";
-  const token =
-    header.slice(0, 7).toLowerCase() === "bearer " ? header.slice(7).trim() : "";
-  if (!token) {
-    return { error: "Admin token required.", status: 401 };
-  }
-  if (!configured) {
-    return { error: "ADMIN_API_TOKEN is not configured.", status: 503 };
-  }
-  const expected = await sha256Hex(configured);
-  const got = await sha256Hex(token);
-  if (!timingSafeEqualHex(expected, got)) {
-    return { error: "Admin token required.", status: 401 };
-  }
-  const email = normalizeEmail(c.req.header("X-Admin-Email") ?? "");
-  if (!(await isApprovedOperator(db, email))) {
-    return {
-      error: `X-Admin-Email must be ${SUPER_ADMIN_EMAIL} or a nominated @cyvoriq.com operator.`,
-      status: 401,
-    };
-  }
-  return { email };
-}
+/*
+ * `isApprovedOperator`, `lookupStaffEmail` and `requireAdmin` used to live
+ * here. They moved to `./admin/principal`, and `requireAdmin` was replaced by
+ * `requireRole` / `requirePermission` / `requireStaffPermission` from
+ * `./admin/rbac`.
+ *
+ * The important deletion is the last three lines of the old `requireAdmin`:
+ *
+ *     const email = normalizeEmail(c.req.header("X-Admin-Email") ?? "");
+ *     if (!(await isApprovedOperator(db, email))) ...
+ *     return { email };
+ *
+ * A browser-supplied header was being used as the actor's identity. That is
+ * the E3 defect; see `./admin/principal` for what replaces it.
+ */
 
 async function uniqueLicenceKey(
-  db: Database,
+  db: Pick<Database, "select">,
   kind: LicenceKind,
   slabMax: LicenceSlabMax,
   at: Date,
@@ -266,6 +259,120 @@ async function uniqueLicenceKey(
     if (!existing) return key;
   }
   throw new Error("Could not allocate a unique licence key.");
+}
+
+/**
+ * The payment status a `TransitionContext` should report for this licence.
+ *
+ * Read on `idx_payments_licence_id`, inside the caller's transaction, so the
+ * precondition check sees the same snapshot of the world as the mutation it is
+ * guarding - no window in which a payment is confirmed between the check and
+ * the write, or a refund lands between them.
+ *
+ * Always supplied rather than left undefined, even on edges with no payment
+ * precondition. Leaving it out would make a future edge that *does* care fail
+ * closed while reporting `actual: null`, i.e. claiming "there is no payment"
+ * when there may well be one - a refusal that points the operator at the wrong
+ * thing. `null` here means genuinely absent, and it is what the machine means
+ * when it says `PAID` was not observed.
+ *
+ * A licence with no `payments` row returns `null`. After Phase 1 every licence
+ * is created with one, so this is the marker of a row that predates that rule
+ * rather than a routine case.
+ */
+async function paymentStatusFor(
+  tx: Pick<Database, "select">,
+  licenceId: string,
+): Promise<PaymentStatus | null> {
+  const [payment] = await tx
+    .select({ status: payments.status })
+    .from(payments)
+    .where(eq(payments.licenceId, licenceId))
+    .limit(1);
+  return payment?.status ?? null;
+}
+
+/**
+ * The context every licence transition in this file is judged against.
+ *
+ * `actorKind` is hard-coded to `"admin"` because that is the only value an
+ * HTTP route may ever claim - the two `system` edges (`ISSUED -> ACTIVE`,
+ * `ACTIVE -> EXPIRED`) are unreachable from here by construction rather than
+ * by remembering to pass the right string at each of the five call sites.
+ *
+ * There is deliberately no way to ask for `"system"` from a route.
+ */
+function adminTransitionContext(input: {
+  paymentStatus: PaymentStatus | null;
+  keyPresent: boolean;
+  reason?: string | null;
+}): TransitionContext {
+  return {
+    actorKind: "admin",
+    paymentStatus: input.paymentStatus,
+    keyPresent: input.keyPresent,
+    reason: input.reason ?? null,
+  };
+}
+
+/**
+ * §37's "Reason", as typed by the client.
+ *
+ * Returns `""` for anything that is not a string, rather than coercing: a
+ * reason of `0` or `false` should be refused as missing, and coercing would
+ * write `"0"` into an immutable audit row forever.
+ *
+ * The emptiness check itself belongs to the state machine (`ReasonRequired`),
+ * so that this function cannot disagree with what the transition requires.
+ */
+function readReason(body: unknown): string {
+  const value = (body as { reason?: unknown } | null | undefined)?.reason;
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * A payment amount, as `payments.amount` stores it: an unbounded `numeric`
+ * whose Drizzle type is `string | null`.
+ *
+ * Strict by design. A number is rendered to exactly two decimals; a string is
+ * accepted only if it is already a plain decimal with at most two places.
+ * Anything else - a negative value, `"12.345"`, an object, `"abc"` - returns
+ * `null` and the field is simply left unset rather than stored. `numeric`
+ * would raise at the driver for some of those, but not all, and a value that
+ * survives only because the database happened to tolerate it is not validated.
+ */
+function readAmount(value: unknown): string | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return null;
+    return value.toFixed(2);
+  }
+  if (typeof value === "string" && /^\d{1,10}(\.\d{1,2})?$/.test(value.trim())) {
+    return value.trim();
+  }
+  return null;
+}
+
+/** A free-text payment reference. Empty is `null`, and 200 characters is enough. */
+function readReference(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, 200) : null;
+}
+
+/**
+ * `mobile_serials.customer_kind` is a `text` column, so TypeScript reports
+ * `string` where the domain has exactly two values. `POST /serials` validates
+ * through `licenceDraftError`, so anything else can only arrive by a write
+ * that skipped the API.
+ *
+ * Narrowed rather than cast because this runs at the one moment a key is
+ * generated: `kindCode()` maps the kind to a single character inside the key
+ * itself, and an unrecognised value would produce a credential whose format
+ * depends on whatever happens to be in the database - readable by nobody,
+ * detected by nobody, emailed to a customer.
+ */
+function readLicenceKind(value: string): LicenceKind | null {
+  return value === "SINGLE" || value === "BULK" ? value : null;
 }
 
 function parseReportDate(raw: string, endOfDay: boolean): Date | null {
@@ -344,6 +451,21 @@ export const adminRoutes = new Hono<{
   Bindings: Env;
   Variables: { db: Database };
 }>();
+
+/*
+ * Captures the audit frame (actor, IP, route) for every admin request before
+ * any handler runs. Registered ahead of the routes so the frame exists by the
+ * time one is needed.
+ *
+ * It never rejects anything: `/auth/*` runs before a session exists and must
+ * still work, and the 401/403 belongs to the route's own gate. An
+ * unauthenticated caller simply gets no frame, and a handler that goes on to
+ * write an audit row will fail closed.
+ *
+ * The actor comes from `authenticate()` - a verified staff session - never
+ * from `X-Admin-Email` (E3). See `./admin/audit` and `./admin/principal`.
+ */
+adminRoutes.use("*", auditMiddleware());
 
 adminRoutes.post("/auth/request", async (c) => {
   const email = normalizeEmail(
@@ -456,17 +578,26 @@ adminRoutes.post("/auth/logout", async (c) => {
 });
 
 adminRoutes.get("/me", async (c) => {
-  const admin = await requireAdmin(c);
+  const admin = await requireAuthenticated()(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   return c.json({
+    // `null` only for a service principal, which has no person behind it (E3).
     email: admin.email,
-    superAdmin: admin.email === SUPER_ADMIN_EMAIL,
+    role: admin.kind === "staff" ? admin.role : null,
+    superAdmin: admin.kind === "staff" && admin.role === "SUPER_ADMIN",
     superAdminEmail: SUPER_ADMIN_EMAIL,
   });
 });
 
 adminRoutes.get("/staff", async (c) => {
-  const admin = await requireAdmin(c);
+  /*
+   * §41 has no "View staff" row - only "Manage staff", which is SUPER_ADMIN
+   * alone. The roster itself carries no secrets (address, status, nominator),
+   * and the write paths below are gated on `staff:manage`, so reading it is
+   * allowed to every authenticated principal. That keeps the admin UI's staff
+   * panel working for a LICENCE_ADMIN while only the owner can change it.
+   */
+  const admin = await requirePermission("serial:read")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const db = c.get("db");
   const rows = await db
@@ -475,10 +606,14 @@ adminRoutes.get("/staff", async (c) => {
     .orderBy(desc(staffOperators.nominatedAt));
   return c.json({
     superAdmin: SUPER_ADMIN_EMAIL,
+    actor: admin.email,
     operators: rows.map((row) => ({
       staffId: row.id,
       email: row.email,
       status: row.status,
+      // §41's matrix is enforced on it; surfacing it lets the UI stop
+      // guessing a role from the address.
+      role: row.role,
       nominatedBy: row.nominatedBy,
       nominatedAt: iso(row.nominatedAt),
       revokedAt: iso(row.revokedAt),
@@ -487,11 +622,11 @@ adminRoutes.get("/staff", async (c) => {
 });
 
 adminRoutes.post("/staff", async (c) => {
-  const admin = await requireAdmin(c);
+  // §41: "Manage staff - Super Admin only". The matrix says the same thing the
+  // old `admin.email !== SUPER_ADMIN_EMAIL` check did, but it says it once,
+  // for every route, in a table that can be read.
+  const admin = await requireStaffPermission("staff:manage")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
-  if (admin.email !== SUPER_ADMIN_EMAIL) {
-    return c.json({ error: "Only ceo@cyvoriq.com can nominate operators." }, 403);
-  }
   const body = (await c.req.json().catch(() => ({}))) as { email?: string };
   const email = normalizeEmail(body.email ?? "");
   if (!isCyvoriqEmail(email) || email === SUPER_ADMIN_EMAIL) {
@@ -503,35 +638,66 @@ adminRoutes.post("/staff", async (c) => {
     .from(staffOperators)
     .where(eq(staffOperators.email, email))
     .limit(1);
+  // Already live: nothing changes, so nothing is audited. Returning the row
+  // instead of a second insert is what makes a repeated nomination idempotent.
   if (existing && existing.status === "ACTIVE") {
     return c.json({
       operator: {
         staffId: existing.id,
         email: existing.email,
         status: existing.status,
+        role: existing.role,
         nominatedBy: existing.nominatedBy,
         nominatedAt: iso(existing.nominatedAt),
       },
       replayed: true,
     });
   }
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
   const now = new Date();
+
+  const audit = (entityId: string, previous: Record<string, unknown>, next: Record<string, unknown>) =>
+    auditEntry(frame, {
+      action: actionFor(ROUTE.createStaff),
+      entityType: ENTITY_STAFF_OPERATOR,
+      entityId,
+      previousState: previous,
+      newState: next,
+    });
+
   if (existing) {
-    const [updated] = await db
-      .update(staffOperators)
-      .set({
-        status: "ACTIVE",
-        nominatedBy: admin.email,
-        nominatedAt: now,
-        revokedAt: null,
-      })
-      .where(eq(staffOperators.id, existing.id))
-      .returning();
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(staffOperators)
+        .set({
+          status: "ACTIVE",
+          nominatedBy: admin.email,
+          nominatedAt: now,
+          revokedAt: null,
+        })
+        .where(eq(staffOperators.id, existing.id))
+        .returning();
+      if (!row) return null;
+      // Row and trail in one unit: a nomination that is not recorded must not
+      // have happened, and a recorded nomination must have happened.
+      await writeAudit(
+        tx,
+        audit(
+          row.id,
+          { status: existing.status, role: existing.role, nominatedBy: existing.nominatedBy },
+          { status: row.status, role: row.role, nominatedBy: row.nominatedBy },
+        ),
+      );
+      return row;
+    });
+    if (!updated) return c.json({ error: "Operator not found." }, 404);
     return c.json({
       operator: {
         staffId: updated.id,
         email: updated.email,
         status: updated.status,
+        role: updated.role,
         nominatedBy: updated.nominatedBy,
         nominatedAt: iso(updated.nominatedAt),
       },
@@ -539,12 +705,21 @@ adminRoutes.post("/staff", async (c) => {
     });
   }
   const id = crypto.randomUUID();
-  await db.insert(staffOperators).values({
-    id,
-    email,
-    status: "ACTIVE",
-    nominatedBy: admin.email,
-    nominatedAt: now,
+  await db.transaction(async (tx) => {
+    await tx.insert(staffOperators).values({
+      id,
+      email,
+      status: "ACTIVE",
+      // `role` is deliberately not accepted from the request body: who may do
+      // what is decided by §41 on the server, never by a field the browser
+      // chose (plan 19: "Never trust ... role=admin").
+      nominatedBy: admin.email,
+      nominatedAt: now,
+    });
+    await writeAudit(
+      tx,
+      audit(id, { status: null }, { status: "ACTIVE", nominatedBy: admin.email }),
+    );
   });
   return c.json({
     operator: {
@@ -559,11 +734,8 @@ adminRoutes.post("/staff", async (c) => {
 });
 
 adminRoutes.post("/staff/:staffId/revoke", async (c) => {
-  const admin = await requireAdmin(c);
+  const admin = await requireStaffPermission("staff:manage")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
-  if (admin.email !== SUPER_ADMIN_EMAIL) {
-    return c.json({ error: "Only ceo@cyvoriq.com can revoke operators." }, 403);
-  }
   const staffId = c.req.param("staffId");
   if (!isUuid(staffId)) return c.json({ error: "staffId must be a UUID." }, 400);
   const db = c.get("db");
@@ -573,11 +745,43 @@ adminRoutes.post("/staff/:staffId/revoke", async (c) => {
     .where(eq(staffOperators.id, staffId))
     .limit(1);
   if (!existing) return c.json({ error: "Operator not found." }, 404);
-  const [updated] = await db
-    .update(staffOperators)
-    .set({ status: "REVOKED", revokedAt: new Date() })
-    .where(eq(staffOperators.id, staffId))
-    .returning();
+  // Already revoked: return the same answer without writing again, so a
+  // double-click or a retried request cannot put two revocations in the trail
+  // for one decision (plan 48).
+  if (existing.status === "REVOKED") {
+    return c.json({
+      operator: {
+        staffId: existing.id,
+        email: existing.email,
+        status: existing.status,
+        revokedAt: iso(existing.revokedAt),
+      },
+      replayed: true,
+    });
+  }
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+  const revokedAt = new Date();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(staffOperators)
+      .set({ status: "REVOKED", revokedAt })
+      .where(eq(staffOperators.id, staffId))
+      .returning();
+    if (!row) return null;
+    await writeAudit(
+      tx,
+      auditEntry(frame, {
+        action: actionFor(ROUTE.revokeStaff),
+        entityType: ENTITY_STAFF_OPERATOR,
+        entityId: row.id,
+        previousState: { status: existing.status, role: existing.role },
+        newState: { status: row.status, role: row.role },
+      }),
+    );
+    return row;
+  });
+  if (!updated) return c.json({ error: "Operator not found." }, 404);
   return c.json({
     operator: {
       staffId: updated.id,
@@ -585,11 +789,12 @@ adminRoutes.post("/staff/:staffId/revoke", async (c) => {
       status: updated.status,
       revokedAt: iso(updated.revokedAt),
     },
+    replayed: false,
   });
 });
 
 adminRoutes.get("/serials", async (c) => {
-  const admin = await requireAdmin(c);
+  const admin = await requirePermission("serial:read")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const db = c.get("db");
   const { limit, offset } = readPageParams(new URL(c.req.url).searchParams);
@@ -622,7 +827,7 @@ adminRoutes.get("/serials", async (c) => {
  * filter, and the recon report flagged exactly that on `GET /serials`.
  */
 adminRoutes.get("/serials/:serialId", async (c) => {
-  const admin = await requireAdmin(c);
+  const admin = await requirePermission("serial:read")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const serialId = c.req.param("serialId");
   if (!isUuid(serialId)) {
@@ -645,7 +850,9 @@ adminRoutes.get("/serials/:serialId", async (c) => {
 });
 
 adminRoutes.post("/serials", async (c) => {
-  const admin = await requireAdmin(c);
+  // §41: create licence = Super Admin / Licence Admin / Operator. An AUDITOR
+  // is refused here, which is the first place the read-only rule bites.
+  const admin = await requireStaffPermission("serial:create")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
   const customerEmail = normalizeEmail(String(body.customerEmail ?? ""));
@@ -672,20 +879,38 @@ adminRoutes.post("/serials", async (c) => {
 
   const createdAt = new Date();
   const db = c.get("db");
-  let publicNumber: string;
-  try {
-    publicNumber = await uniqueLicenceKey(db, kind, deviceMax, createdAt);
-  } catch {
-    return c.json({ error: "Could not allocate a unique licence key." }, 500);
-  }
+
+  /*
+   * DECISION A1 - NO KEY IS ALLOCATED AT CREATION ANY MORE.
+   *
+   * `uniqueLicenceKey` used to run here, which is why the comment below the
+   * `generatedBy` column could say "created and generated genuinely happen in
+   * the same request". A1 rules that records are created with no key and that
+   * `POST /serials/:id/generate-key` allocates one, and §49 agrees: the path to
+   * `KEY_GENERATED` runs through `READY_TO_GENERATE`, which cannot be reached
+   * from a record that already holds a key.
+   *
+   * So `public_number` is NULL until the Green Key Rule has been satisfied
+   * server-side. That is also what makes the rule enforceable: there is no
+   * key to hand out before payment is confirmed, rather than a key that exists
+   * and merely happens not to have been shown.
+   */
   const id = crypto.randomUUID();
   const row = {
     id,
-    publicNumber,
+    // A1: no key until `generate-key` runs. NULL is the truthful projection of
+    // "nothing has been generated", and `jsonSerial` already returns null for
+    // it rather than a masked placeholder.
+    publicNumber: null,
     status: "PAYMENT_PENDING" as SerialStatus,
     customerEmail,
     userId: null,
     paymentNoted,
+    // `issued_by` is NOT NULL in the schema (a pre-W5 column), so it must name
+    // somebody from the first moment. It names the creator until issuance
+    // overwrites it with the actual issuer. Real fixes need `created_by` to
+    // carry the meaning and `issued_by` to be nullable - migration 0008, not
+    // Phase 1.
     issuedBy: admin.email,
     issuedAt: null,
     revokedAt: null,
@@ -695,11 +920,10 @@ adminRoutes.post("/serials", async (c) => {
     // identity was destroyed by every successful issuance - see migration 0007
     // section C3 for the rows where that loss is permanent.
     createdBy: admin.email,
-    // The key is still allocated by this route. Moving allocation to
-    // `POST /serials/:id/generate-key` is Phase 1 (state machine); until then
-    // "created" and "generated" genuinely happen in the same request, and
-    // recording both is accurate rather than aspirational.
-    generatedBy: admin.email,
+    // NULL until `POST /serials/:id/generate-key`. Allocation moved there in
+    // Phase 1 (decision A1), so `generated_by` now records the person who
+    // actually generated a key instead of the person who typed a form.
+    generatedBy: null,
     approvedBy: null,
     hostBindingStatus: "NOT_BOUND",
     planCode: planCodeFor(deviceMax),
@@ -734,8 +958,376 @@ adminRoutes.post("/serials", async (c) => {
     // W5 columns when this was first written) without widening the string
     // literals the way annotating the variable would.
   } satisfies typeof mobileSerials.$inferInsert;
-  await db.insert(mobileSerials).values(row);
+
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+
+  /*
+   * ONE TRANSACTION, THREE WRITES, NO PARTIAL CREATION.
+   *
+   *   1. the licence row,
+   *   2. its payment row,
+   *   3. the audit row for the creation.
+   *
+   * The payment row is not optional. §50 models PAYMENTS as one row per
+   * licence and the schema comment on `payments` repeats it: financial truth
+   * lives there, and `licence_status` may only move to PAYMENT_CONFIRMED as a
+   * transactional consequence of `payments.status = 'PAID'` (decision A3).
+   * Creating a licence with no payment row would leave a record that can never
+   * satisfy the Green Key Rule, because there would be nothing to ever mark
+   * PAID - the generate-key route would refuse it forever.
+   *
+   * `amount`, `reference`, `confirmed_by` and `confirmed_at` are left NULL
+   * because the form did not record them as facts. `status` starts PENDING,
+   * which is what §12's "Save as Pending" means; §64's "Confirm Payment" is
+   * what moves it to PAID, and it is that action which is auditable.
+   *
+   * Ordering matters only in that all three share the handle: if the audit row
+   * cannot be written, the licence does not exist either.
+   */
+  await db.transaction(async (tx) => {
+    await tx.insert(mobileSerials).values(row);
+    await tx.insert(payments).values({
+      licenceId: id,
+      status: "PENDING",
+    });
+    await writeAudit(
+      tx,
+      auditEntry(frame, {
+        action: actionFor(ROUTE.createSerial),
+        entityType: ENTITY_LICENCE,
+        entityId: id,
+        // No previous state: the row did not exist. A creation has no "before".
+        previousState: null,
+        newState: {
+          status: "PAYMENT_PENDING",
+          planCode: row.planCode,
+          deviceMax: row.deviceMax,
+          // Recorded explicitly so the trail shows the licence was created
+          // without a key, not that a key went missing later.
+          publicNumber: null,
+        },
+      }),
+    );
+  });
   return c.json({ serial: jsonSerial(row) }, 201);
+});
+
+/**
+ * §64 - "PAYMENT DONE" SHOULD NOT BE A SIMPLE CHECKBOX.
+ *
+ * Instead of ticking a box, the operator presses a controlled status action,
+ * and this endpoint is that action. It performs **two** edges of §49 in one
+ * transaction:
+ *
+ *     PAYMENT_PENDING -> PAYMENT_CONFIRMED -> READY_TO_GENERATE
+ *
+ * WHY BOTH, AND WHY IN ONE TRANSACTION
+ * ------------------------------------
+ * §13 (QUICK APPROVAL WORKFLOW) says the row "immediately changes" to
+ * `Generate Key [GREEN]` once the payment is confirmed, and §21/§65 count a
+ * KPI named "Ready to Generate". A KPI counts rows sitting in a state, so
+ * `READY_TO_GENERATE` has to be somewhere a licence can *rest* - if this route
+ * stopped at `PAYMENT_CONFIRMED` nothing would ever reach
+ * `READY_TO_GENERATE`, and the Generate Key button would have no state to key
+ * off. So the resting state after confirmation is `READY_TO_GENERATE`, and
+ * `PAYMENT_CONFIRMED` is the marker this route passes through.
+ *
+ * Both edges are still checked individually by `transition()`. Collapsing them
+ * into a single invented `PAYMENT_PENDING -> READY_TO_GENERATE` edge would have
+ * meant teaching the map something §49 does not contain, which is the whole
+ * thing the map exists to prevent.
+ *
+ * ONE AUDIT ROW, NOT TWO: §20's worked example records "Payment changed
+ * PENDING -> PAID" as a single event for a single click. The row's action is
+ * `PAYMENT_CONFIRMED` - *why* it changed - while `previous_state` and
+ * `new_state` record the whole hop, `PAYMENT_PENDING` -> `READY_TO_GENERATE`.
+ * An audit trail that inserted a synthetic intermediate row would be reporting
+ * an internal checkpoint as though somebody had done something.
+ *
+ * DECISION A3 IS ENFORCED HERE: `payments.status` is written to `PAID` first,
+ * in this same transaction, and only then is `PAYMENT_CONFIRMED` granted. The
+ * licence status can never become a claim about money that was not actually
+ * recorded as received - which is exactly what A3's "transactional consequence"
+ * wording demands.
+ */
+adminRoutes.post("/serials/:serialId/confirm-payment", async (c) => {
+  const admin = await requireStaffPermission("payment:confirm")(c);
+  if ("error" in admin) return c.json({ error: admin.error }, admin.status);
+  const serialId = c.req.param("serialId");
+  if (!isUuid(serialId)) {
+    return c.json({ error: "serialId must be a UUID." }, 400);
+  }
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const amount = readAmount(body.amount);
+  const reference = readReference(body.reference);
+  const db = c.get("db");
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+
+  const outcome = await db.transaction(
+    async (tx): Promise<ConfirmOutcome> => {
+      const [licence] = await tx
+        .select()
+        .from(mobileSerials)
+        .where(eq(mobileSerials.id, serialId))
+        .for("update")
+        .limit(1);
+      if (!licence) return { kind: "not-found" };
+
+      // Already past the point of confirmation -> the work is done. Checked
+      // before anything is written so a retry produces no second audit row.
+      if (licence.status !== "DRAFT" && licence.status !== "PAYMENT_PENDING") {
+        return { kind: "replay", row: licence };
+      }
+
+      const [payment] = await tx
+        .select()
+        .from(payments)
+        .where(eq(payments.licenceId, serialId))
+        .limit(1);
+      const previousPaymentStatus = payment?.status ?? null;
+
+      /*
+       * Write the money first.
+       *
+       * `payments.licence_id` has no UNIQUE constraint (0007 gives it an FK
+       * and a btree index only), so an upsert is not available and would fail
+       * outright if it were attempted. The row lock taken on `licence` above
+       * is what makes this safe instead: two concurrent confirmations
+       * serialise, so the second reads the row the first wrote and takes the
+       * update branch rather than inserting a duplicate - which is what keeps
+       * migration 0007's assertion E (`payments` = one row per licence) true
+       * after this route starts being used.
+       */
+      if (!payment) {
+        await tx.insert(payments).values({
+          licenceId: serialId,
+          status: "PAID",
+          amount,
+          reference,
+          confirmedBy: admin.email,
+          confirmedAt: new Date(),
+        });
+      } else if (payment.status !== "PAID" || payment.confirmedAt === null) {
+        await tx
+          .update(payments)
+          .set({
+            status: "PAID",
+            // Supplied values win; anything not supplied keeps whatever the
+            // row already held rather than being nulled out by omission.
+            amount: amount ?? payment.amount,
+            reference: reference ?? payment.reference,
+            confirmedBy: admin.email,
+            confirmedAt: payment.confirmedAt ?? new Date(),
+          })
+          .where(eq(payments.id, payment.id));
+      }
+
+      const paymentStatus = await paymentStatusFor(tx, serialId);
+
+      const first = transition(
+        licence.status,
+        "PAYMENT_CONFIRMED",
+        adminTransitionContext({
+          paymentStatus,
+          keyPresent: licence.publicNumber !== null,
+        }),
+      );
+      if (!first.ok) return { kind: "forbidden", error: first.error };
+
+      const second = transition(
+        "PAYMENT_CONFIRMED",
+        "READY_TO_GENERATE",
+        adminTransitionContext({
+          paymentStatus,
+          keyPresent: licence.publicNumber !== null,
+        }),
+      );
+      if (!second.ok) return { kind: "forbidden", error: second.error };
+
+      const [row] = await tx
+        .update(mobileSerials)
+        .set({ status: "READY_TO_GENERATE", updatedBy: admin.email })
+        .where(eq(mobileSerials.id, serialId))
+        .returning();
+      if (!row) return { kind: "not-found" };
+
+      await writeAudit(
+        tx,
+        auditEntry(frame, {
+          action: actionFor(ROUTE.confirmPayment),
+          entityType: ENTITY_LICENCE,
+          entityId: row.id,
+          previousState: {
+            status: licence.status,
+            paymentStatus: previousPaymentStatus,
+          },
+          newState: {
+            status: row.status,
+            paymentStatus,
+            confirmedBy: admin.email,
+          },
+        }),
+      );
+      return { kind: "confirmed", row };
+    },
+  );
+
+  if (outcome.kind === "not-found") return c.json({ error: "Serial not found." }, 404);
+  if (outcome.kind === "replay") {
+    return c.json({
+      serial: jsonSerial(outcome.row),
+      replayed: true,
+      message: REPLAY_MESSAGE,
+    });
+  }
+  if (outcome.kind === "forbidden") {
+    const refusal = refused(outcome.error);
+    return c.json(refusal.body, refusal.status);
+  }
+  return c.json({ serial: jsonSerial(outcome.row), replayed: false });
+});
+
+/**
+ * §8 - THE GREEN KEY-GENERATION RULE, ENFORCED SERVER-SIDE.
+ *
+ *     IF: Payment Status = PAID ...
+ *     THEN: Generate Key button = GREEN / ENABLED
+ *     OTHERWISE: Generate Key button = DISABLED / GREY
+ *
+ * §8 describes a button colour. A disabled button is a statement the browser
+ * makes about itself, and plan 19 is explicit that the browser's statements
+ * are not evidence: "The browser should request an operation. The server must
+ * decide whether that operation is permitted." A caller who skips the UI and
+ * POSTs straight to this endpoint must get the same answer the grey button
+ * gave - and it does, as **403**, because `READY_TO_GENERATE -> KEY_GENERATED`
+ * carries `requiresPaidPayment` and the state machine refuses the edge when
+ * `payments.status` is anything but `PAID`.
+ *
+ * This is also the only place in the codebase that allocates a key. Decision
+ * A1 moved allocation out of `POST /serials`, so a record that has not passed
+ * this gate holds `public_number = NULL` - there is no key to leak before
+ * payment, rather than a key that exists and merely happens not to have been
+ * displayed.
+ */
+adminRoutes.post("/serials/:serialId/generate-key", async (c) => {
+  const admin = await requireStaffPermission("key:generate")(c);
+  if ("error" in admin) return c.json({ error: admin.error }, admin.status);
+  const serialId = c.req.param("serialId");
+  if (!isUuid(serialId)) {
+    return c.json({ error: "serialId must be a UUID." }, 400);
+  }
+  const db = c.get("db");
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+
+  const outcome = await db.transaction(
+    async (tx): Promise<GenerateOutcome> => {
+      const [licence] = await tx
+        .select()
+        .from(mobileSerials)
+        .where(eq(mobileSerials.id, serialId))
+        // §47: "Two administrators must not be able to issue the same licence
+        // simultaneously... Only one request succeeds." The same lock that
+        // protects issue protects generation - without it both callers could
+        // read `public_number IS NULL` and allocate two different keys, and
+        // §48's "must not accidentally create multiple valid licence
+        // credentials" would be violated by construction.
+        .for("update")
+        .limit(1);
+      if (!licence) return { kind: "not-found" };
+
+      // §48 idempotency: a key already exists, so hand back the same one.
+      // The check precedes `transition()` deliberately - `transition(ISSUED,
+      // KEY_GENERATED)` is correctly forbidden, but a retry of a successful
+      // generation is not a request to regenerate, and answering it with 409
+      // would punish the browser for losing its connection (§48's exact
+      // scenario). `ACTIVE` and the rest are excluded: see ALREADY_GENERATED.
+      if (licence.publicNumber !== null && ALREADY_GENERATED.has(licence.status)) {
+        return { kind: "replay", row: licence };
+      }
+
+      const verdict = transition(
+        licence.status,
+        "KEY_GENERATED",
+        adminTransitionContext({
+          paymentStatus: await paymentStatusFor(tx, serialId),
+          keyPresent: licence.publicNumber !== null,
+        }),
+      );
+      if (!verdict.ok) return { kind: "forbidden", error: verdict.error };
+
+      const kind = readLicenceKind(licence.customerKind);
+      const slabMax = licence.deviceMax;
+      if (!kind || !isLicenceSlab(slabMax)) {
+        // Neither value is recoverable by the operator and neither belongs in
+        // a customer-facing message. 500 rather than 4xx: the request is
+        // perfectly reasonable, the *record* is not what the API believes it
+        // can produce, and only a human looking at the row can repair it.
+        return { kind: "bad-record" };
+      }
+
+      const at = new Date();
+      const publicNumber = await uniqueLicenceKey(tx, kind, slabMax, at);
+      const [row] = await tx
+        .update(mobileSerials)
+        .set({
+          publicNumber,
+          generatedBy: admin.email,
+          updatedBy: admin.email,
+        })
+        .where(eq(mobileSerials.id, serialId))
+        .returning();
+      if (!row) return { kind: "not-found" };
+
+      await writeAudit(
+        tx,
+        auditEntry(frame, {
+          action: actionFor(ROUTE.generateKey),
+          entityType: ENTITY_LICENCE,
+          entityId: row.id,
+          previousState: {
+            status: licence.status,
+            // `null` before, never the key itself: an audit row is a record of
+            // what happened, not a second place a licence credential lives.
+            publicNumber: null,
+          },
+          newState: {
+            status: row.status,
+            publicNumberFingerprint: await serialFingerprint(publicNumber),
+            generatedBy: admin.email,
+          },
+        }),
+      );
+      return { kind: "generated", row };
+    },
+  );
+
+  if (outcome.kind === "not-found") return c.json({ error: "Serial not found." }, 404);
+  if (outcome.kind === "bad-record") {
+    return c.json(
+      {
+        error:
+          "Licence record has an unrecognised plan or customer kind; a key cannot be generated for it. Inspect the record.",
+      },
+      500,
+    );
+  }
+  if (outcome.kind === "replay") {
+    return c.json({
+      serial: jsonSerial(outcome.row),
+      replayed: true,
+      message: REPLAY_MESSAGE,
+    });
+  }
+  if (outcome.kind === "forbidden") {
+    const refusal = refused(outcome.error);
+    // 403 for `PaymentNotPaid` - the Green Key Rule - 409 when the record's
+    // state simply is not one generation can start from.
+    return c.json(refusal.body, refusal.status);
+  }
+  return c.json({ serial: jsonSerial(outcome.row), replayed: false });
 });
 
 /**
@@ -771,8 +1363,193 @@ function requireIssuedKey(row: typeof mobileSerials.$inferSelect): string {
 type IssueOutcome =
   | { kind: "not-found" }
   | { kind: "revoked" }
+  | { kind: "forbidden"; error: TransitionError }
   | { kind: "replay"; row: typeof mobileSerials.$inferSelect }
   | { kind: "issued"; row: typeof mobileSerials.$inferSelect };
+
+/**
+ * Turn a state-machine refusal into the HTTP answer for it.
+ *
+ * One place decides the status, so `/issue`, `/revoke`, `/suspend` and
+ * `/generate-key` cannot drift into disagreeing about what "not allowed"
+ * means. `allowed` is surfaced for an `unknown-edge` refusal so the client can
+ * offer the operator the states that *would* work instead of a bare rejection.
+ */
+function refused(error: TransitionError): {
+  body: { error: string; allowed?: readonly LicenceStatus[] };
+  status: 400 | 403 | 409 | 503;
+} {
+  return {
+    body:
+      error.kind === "ForbiddenTransition"
+        ? { error: failureMessage(error), allowed: error.allowed }
+        : { error: failureMessage(error) },
+    status: failureHttpStatus(error),
+  };
+}
+
+/**
+ * Result of a guarded, audited transition used by `/revoke` and `/suspend`.
+ *
+ * Like `IssueOutcome`, control flow is returned rather than thrown so that a
+ * guard unwinds the transaction with nothing written, instead of relying on a
+ * rollback that would also swallow a genuine database error. `previous` is
+ * carried alongside `row` so the audit entry can record the real before-state
+ * from the row that was read, rather than a value the handler guessed.
+ */
+type TransitionOutcome =
+  | { kind: "not-found" }
+  | { kind: "replay"; row: typeof mobileSerials.$inferSelect }
+  | { kind: "forbidden"; error: TransitionError }
+  | {
+      kind: "changed";
+      row: typeof mobileSerials.$inferSelect;
+      previous: typeof mobileSerials.$inferSelect;
+    };
+
+/**
+ * Run a guarded, audited licence transition in one transaction.
+ *
+ * Shared by `/revoke` and `/suspend` so the three things that must be true of
+ * every state change - the edge is legal for an admin, the mutation and its
+ * audit row commit together, the trail carries the true previous state - are
+ * written once rather than three times and counted on to stay identical.
+ *
+ * `replayWhen(row)` decides what "already done" means for this action. The
+ * check runs *before* `transition()` and before `writeAudit`, which is why a
+ * repeated request yields no second audit row: it never reaches the insert.
+ */
+async function transactLicence(
+  db: Database,
+  serialId: string,
+  frame: StaffAuditContext,
+  route: string,
+  set: (
+    row: typeof mobileSerials.$inferSelect,
+    at: Date,
+  ) => Partial<typeof mobileSerials.$inferInsert>,
+  replayWhen: (row: typeof mobileSerials.$inferSelect) => boolean,
+  reason?: string | null,
+): Promise<TransitionOutcome> {
+  return db.transaction(async (tx): Promise<TransitionOutcome> => {
+    const [previous] = await tx
+      .select()
+      .from(mobileSerials)
+      .where(eq(mobileSerials.id, serialId))
+      /*
+       * Row lock, and it is load-bearing rather than defensive.
+       *
+       * The replay check below reads `previous.status`; under READ COMMITTED
+       * two administrators clicking Revoke in the same instant would both read
+       * "not revoked yet", both pass, and both write an audit row for one
+       * decision. `FOR UPDATE` serialises them, and Postgres re-evaluates the
+       * predicate against the *updated* row version when the lock is handed
+       * over - so the second caller reads REVOKED and takes the replay branch.
+       *
+       * Without this the replay guard is a TOCTOU that only shows up under
+       * concurrency, which is exactly where it would matter most.
+       */
+      .for("update")
+      .limit(1);
+    if (!previous) return { kind: "not-found" };
+    if (replayWhen(previous)) return { kind: "replay", row: previous };
+
+    const verdict = transition(
+      previous.status,
+      targetStatus(route),
+      adminTransitionContext({
+        paymentStatus: await paymentStatusFor(tx, serialId),
+        keyPresent: previous.publicNumber !== null,
+        reason,
+      }),
+    );
+    if (!verdict.ok) return { kind: "forbidden", error: verdict.error };
+
+    const at = new Date();
+    const [row] = await tx
+      .update(mobileSerials)
+      .set(set(previous, at))
+      .where(eq(mobileSerials.id, serialId))
+      .returning();
+    if (!row) return { kind: "not-found" };
+
+    await writeAudit(
+      tx,
+      auditEntry(frame, {
+        action: actionFor(route),
+        entityType: ENTITY_LICENCE,
+        entityId: row.id,
+        previousState: {
+          status: previous.status,
+          revokedAt: previous.revokedAt ? previous.revokedAt.toISOString() : null,
+        },
+        newState: {
+          status: row.status,
+          revokedAt: row.revokedAt ? row.revokedAt.toISOString() : null,
+          updatedBy: row.updatedBy,
+        },
+        reason: reason ?? null,
+      }),
+    );
+    return { kind: "changed", row, previous };
+  });
+}
+
+/** The state each audited route is trying to reach. One declaration per route. */
+function targetStatus(route: string): LicenceStatus {
+  switch (route) {
+    case ROUTE.revoke:
+      return "REVOKED";
+    case ROUTE.suspend:
+      return "SUSPENDED";
+    default:
+      throw new Error(`No target state declared for route ${route}.`);
+  }
+}
+
+/**
+ * §47's sentence, returned with every replay so a client that raced another
+ * administrator is told what happened rather than handed a bare 200 it might
+ * mistake for fresh work: "Refresh the record to see the current state."
+ *
+ * Used for idempotent retries too (§48). The server cannot distinguish a
+ * network retry from a second administrator - both arrive after the operation
+ * completed - so both get the same honest answer: it is already done, look at
+ * what is actually there.
+ */
+const REPLAY_MESSAGE =
+  "This licence was already processed by another administrator. Refresh the record to see the current state.";
+
+/** Outcomes for `POST /serials/:serialId/confirm-payment`. */
+type ConfirmOutcome =
+  | { kind: "not-found" }
+  | { kind: "replay"; row: typeof mobileSerials.$inferSelect }
+  | { kind: "forbidden"; error: TransitionError }
+  | { kind: "confirmed"; row: typeof mobileSerials.$inferSelect };
+
+/** Outcomes for `POST /serials/:serialId/generate-key`. */
+type GenerateOutcome =
+  | { kind: "not-found" }
+  /** The row's `customer_kind` is neither `SINGLE` nor `BULK` - see below. */
+  | { kind: "bad-record" }
+  | { kind: "replay"; row: typeof mobileSerials.$inferSelect }
+  | { kind: "forbidden"; error: TransitionError }
+  | { kind: "generated"; row: typeof mobileSerials.$inferSelect };
+
+/**
+ * States from which a *new* key would already exist.
+ *
+ * Generation genuinely happened before these, so a repeated request is a retry
+ * and gets §48's idempotent answer. `ACTIVE`, `SUSPENDED`, `EXPIRED` and
+ * `REVOKED` are deliberately absent: the licence has moved on to something
+ * generation has no business touching, and answering 409 with the states that
+ * *would* be legal is more useful than handing back a key for a revoked
+ * credential.
+ */
+const ALREADY_GENERATED: ReadonlySet<LicenceStatus> = new Set<LicenceStatus>([
+  "KEY_GENERATED",
+  "ISSUED",
+]);
 
 /**
  * Signs an issued serial, or throws [`SigningConfigError`] (mapped to 503).
@@ -810,7 +1587,10 @@ async function signedEnvelopeFor(
 }
 
 adminRoutes.post("/serials/:serialId/issue", async (c) => {
-  const admin = await requireAdmin(c);
+  // §41: "Approve / issue" = Super Admin or Licence Admin. An OPERATOR or an
+  // AUDITOR is refused here even though they can read the record perfectly
+  // well - seeing a licence and issuing it are different permissions.
+  const admin = await requireStaffPermission("licence:issue")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const serialId = c.req.param("serialId");
   if (!isUuid(serialId)) {
@@ -852,18 +1632,54 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
    * The guards re-read inside the transaction, which also closes the TOCTOU
    * the old code had between its standalone SELECT and its UPDATE.
    */
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+
   const outcome = await db.transaction(
     async (tx): Promise<IssueOutcome> => {
       const [current] = await tx
         .select()
         .from(mobileSerials)
         .where(eq(mobileSerials.id, serialId))
+        // Same reason as `transactLicence`: the replay check below reads
+        // `current.status`, so the row must not change between that read and
+        // the UPDATE, or two concurrent issues would both send an email.
+        .for("update")
         .limit(1);
       if (!current) return { kind: "not-found" };
       if (current.status === "REVOKED") return { kind: "revoked" };
+      /*
+       * IDEMPOTENT REPLAY (plan 48).
+       *
+       * Returns before the transition, before the UPDATE and before
+       * `writeAudit`, so a retried request produces no second state change,
+       * no second audit row, and never reaches `sendLicenceEmail` - the
+       * double-send guard is structural (which branch you land on) rather than
+       * a flag someone can forget to set. The signature is stable because
+       * `signedEnvelopeFor` pins its clock to the row's own `issuedAt`.
+       */
       if (current.status === "ISSUED" && current.issuedAt) {
         return { kind: "replay", row: current };
       }
+
+      /*
+       * §49: the ONLY edge into ISSUED is KEY_GENERATED -> ISSUED.
+       *
+       * Anything else - a record still in PAYMENT_PENDING because somebody
+       * skipped payment, one in READY_TO_GENERATE because no key was
+       * generated - is refused here, inside the transaction that would have
+       * written it, so refusal costs nothing and there is no window where a
+       * licence was issued without having been generated.
+       */
+      const verdict = transition(
+        current.status,
+        "ISSUED",
+        adminTransitionContext({
+          paymentStatus: await paymentStatusFor(tx, serialId),
+          keyPresent: current.publicNumber !== null,
+        }),
+      );
+      if (!verdict.ok) return { kind: "forbidden", error: verdict.error };
 
       const issuedAt = new Date();
       const [updated] = await tx
@@ -880,6 +1696,26 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
         .where(eq(mobileSerials.id, serialId))
         .returning();
       if (!updated) return { kind: "not-found" };
+
+      // Same `tx` as the UPDATE: the trail and the issuance commit together or
+      // not at all, so there can be no issued licence nobody recorded.
+      await writeAudit(
+        tx,
+        auditEntry(frame, {
+          action: actionFor(ROUTE.issue),
+          entityType: ENTITY_LICENCE,
+          entityId: updated.id,
+          previousState: {
+            status: current.status,
+            issuedAt: current.issuedAt ? current.issuedAt.toISOString() : null,
+          },
+          newState: {
+            status: updated.status,
+            issuedAt: issuedAt.toISOString(),
+            issuedBy: admin.email,
+          },
+        }),
+      );
       return { kind: "issued", row: updated };
     },
   );
@@ -890,15 +1726,20 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
   if (outcome.kind === "revoked") {
     return c.json({ error: "Revoked serials cannot be issued." }, 409);
   }
+  if (outcome.kind === "forbidden") {
+    const refusal = refused(outcome.error);
+    return c.json(refusal.body, refusal.status);
+  }
 
   const row = outcome.row;
   /*
-   * `/issue` allocates the key in the same transaction that commits the status
-   * change, so an issued row always carries one and this is unreachable today.
-   * It is checked because the alternative is worse than a 503: an empty
-   * `licenceKey` would send a real customer an email naming no licence at all,
-   * while `parseLicenceKey` silently returning null would dress the failure up
-   * as a normal `1-N` slab label, as though nothing were wrong.
+   * The transaction above already required `keyPresent` on the
+   * KEY_GENERATED -> ISSUED edge, so `row.publicNumber` cannot be null on this
+   * branch. It is checked again because the cost of being wrong here is not a
+   * wrong status code but a real customer receiving an email that names no
+   * licence at all - and `parseLicenceKey` silently returning null would dress
+   * that failure up as a normal `1-N` slab label, as though nothing were wrong.
+   * Defence in depth at the point where it would actually hurt.
    */
   if (row.publicNumber === null) {
     return c.json(
@@ -920,6 +1761,11 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
     return c.json({
       serial: jsonSerial(outcome.row),
       replayed: true,
+      // §47's sentence. The server cannot tell a second administrator from a
+      // browser that lost its connection after the operation completed (§48),
+      // so both are told the same thing: it is already done, look at what is
+      // actually there.
+      message: REPLAY_MESSAGE,
       emailed: outcome.row.emailedAt !== null,
       emailError: outcome.row.emailError,
       ...envelope,
@@ -972,37 +1818,107 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
   });
 });
 
+/**
+ * §37 - REVOKE: permanent invalidation of a licence credential.
+ *
+ * §37 lists four things both this and `/suspend` require: **Reason**,
+ * Confirmation, Authorized role, Audit event. The first and last are enforced
+ * here; the role is `licence:revoke` in §41; Confirmation is a client concern
+ * (a dialog), which is exactly why it cannot be the thing this endpoint relies
+ * on.
+ *
+ * Note for the current UI: the Revoke button in `AdminApp.tsx` sends no body,
+ * so it will now be refused with 400 until Phase 4/5 adds a reason prompt.
+ * That is the server honouring §37 rather than the server breaking - see the
+ * note in `transactLicence` on why the refusal happens before anything is
+ * written.
+ */
 adminRoutes.post("/serials/:serialId/revoke", async (c) => {
-  const admin = await requireAdmin(c);
+  const admin = await requireStaffPermission("licence:revoke")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const serialId = c.req.param("serialId");
   if (!isUuid(serialId)) {
     return c.json({ error: "serialId must be a UUID." }, 400);
   }
-  const db = c.get("db");
-  const [existing] = await db
-    .select()
-    .from(mobileSerials)
-    .where(eq(mobileSerials.id, serialId))
-    .limit(1);
-  if (!existing) return c.json({ error: "Serial not found." }, 404);
-  if (existing.status === "REVOKED" && existing.revokedAt) {
-    return c.json({ serial: jsonSerial(existing), replayed: true });
+  const reason = readReason(await c.req.json().catch(() => ({})));
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+
+  const outcome = await transactLicence(
+    c.get("db"),
+    serialId,
+    frame,
+    ROUTE.revoke,
+    (_row, at) => ({ status: "REVOKED", revokedAt: at, updatedBy: admin.email }),
+    (row) => row.status === "REVOKED" && row.revokedAt !== null,
+    reason,
+  );
+
+  if (outcome.kind === "not-found") return c.json({ error: "Serial not found." }, 404);
+  if (outcome.kind === "replay") {
+    return c.json({
+      serial: jsonSerial(outcome.row),
+      replayed: true,
+      message: REPLAY_MESSAGE,
+    });
   }
-  const revokedAt = new Date();
-  const [updated] = await db
-    .update(mobileSerials)
-    .set({
-      status: "REVOKED",
-      revokedAt,
-    })
-    .where(eq(mobileSerials.id, serialId))
-    .returning();
-  return c.json({ serial: jsonSerial(updated), replayed: false });
+  if (outcome.kind === "forbidden") {
+    const refusal = refused(outcome.error);
+    return c.json(refusal.body, refusal.status);
+  }
+  return c.json({ serial: jsonSerial(outcome.row), replayed: false });
+});
+
+/**
+ * §37 - SUSPEND: temporary administrative stop.
+ *
+ * Distinct from revoke, which is permanent; §37 calls them "different actions"
+ * and the state machine reflects it - `SUSPENDED -> ACTIVE` exists so a stop
+ * can be lifted, and it is one of only two edges that return a licence to
+ * service.
+ *
+ * `reason` is required for the same §37 reason. Suspending a paying customer's
+ * production host without saying why is not recoverable: the customer asks,
+ * and the trail must answer.
+ */
+adminRoutes.post("/serials/:serialId/suspend", async (c) => {
+  const admin = await requireStaffPermission("licence:suspend")(c);
+  if ("error" in admin) return c.json({ error: admin.error }, admin.status);
+  const serialId = c.req.param("serialId");
+  if (!isUuid(serialId)) {
+    return c.json({ error: "serialId must be a UUID." }, 400);
+  }
+  const reason = readReason(await c.req.json().catch(() => ({})));
+  const frame = await requireAuditContext(c);
+  if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+
+  const outcome = await transactLicence(
+    c.get("db"),
+    serialId,
+    frame,
+    ROUTE.suspend,
+    (_row, _at) => ({ status: "SUSPENDED", updatedBy: admin.email }),
+    (row) => row.status === "SUSPENDED",
+    reason,
+  );
+
+  if (outcome.kind === "not-found") return c.json({ error: "Serial not found." }, 404);
+  if (outcome.kind === "replay") {
+    return c.json({
+      serial: jsonSerial(outcome.row),
+      replayed: true,
+      message: REPLAY_MESSAGE,
+    });
+  }
+  if (outcome.kind === "forbidden") {
+    const refusal = refused(outcome.error);
+    return c.json(refusal.body, refusal.status);
+  }
+  return c.json({ serial: jsonSerial(outcome.row), replayed: false });
 });
 
 adminRoutes.get("/reports/licences", async (c) => {
-  const admin = await requireAdmin(c);
+  const admin = await requirePermission("report:export")(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const fromRaw = (c.req.query("from") ?? "").trim();
   const toRaw = (c.req.query("to") ?? "").trim();
@@ -1019,6 +1935,37 @@ adminRoutes.get("/reports/licences", async (c) => {
     .orderBy(desc(mobileSerials.createdAt));
   const mapped = await reportRows(rows);
   if ((c.req.query("format") ?? "") === "csv") {
+    /*
+     * Plan 53, "SECURITY OF XLS EXPORT": "Require authentication. Enforce role
+     * permissions. Generate reports server-side. Log report generation."
+     *
+     * The trail is written BEFORE the file. A CSV of the whole licence
+     * register is the copy that actually leaves the building as an
+     * attachment, so if the audit row cannot be committed nothing goes out -
+     * over-logging is recoverable, a silent export is not.
+     *
+     * The default JSON projection below is an ordinary read and is not
+     * audited, which is why this route sits in `CONDITIONAL_ROUTES`.
+     */
+    const frame = await requireAuditContext(c);
+    if ("error" in frame) return c.json({ error: frame.error }, frame.status);
+    await db.transaction(async (tx) => {
+      await writeAudit(
+        tx,
+        auditEntry(frame, {
+          action: actionFor(ROUTE.exportLicences),
+          entityType: ENTITY_LICENCE_EXPORT,
+          entityId: AGGREGATE_ENTITY_ID,
+          previousState: null,
+          newState: {
+            format: "csv",
+            from: from.toISOString(),
+            to: to.toISOString(),
+            rowCount: mapped.length,
+          },
+        }),
+      );
+    });
     return c.body(toCsv(mapped), 200, {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="cyvra-mobile-licences.csv"`,
@@ -1032,3 +1979,18 @@ adminRoutes.get("/reports/licences", async (c) => {
     rows: mapped,
   });
 });
+
+/*
+ * MODULE-LOAD ASSERTION.
+ *
+ * Every POST/PUT/PATCH/DELETE route above must be classified as audited or
+ * explicitly exempt, and every key in the audit registry must name a route
+ * that really exists. If either is false this import throws, which means a new
+ * state-changing route cannot be added without its audit action being decided
+ * - by a person, in `ROUTE_ACTION_MAP` - and a renamed route cannot quietly
+ * stop being audited while its stale action sits in the map forever.
+ *
+ * This runs once, at startup, rather than being discovered in production as a
+ * licence change that nobody can explain afterwards.
+ */
+assertRouteAuditCoverage(adminRoutes.routes);
