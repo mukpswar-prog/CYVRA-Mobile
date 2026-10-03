@@ -56,6 +56,7 @@
  */
 
 import {
+  hostBindingStatusEnum,
   licenceStatusEnum,
   paymentStatusEnum,
   type LicenceStatus,
@@ -224,6 +225,73 @@ export const LICENCE_EDGES: readonly LicenceEdge[] = Object.freeze([
   }),
 ] as LicenceEdge[]);
 
+/**
+ * THE SUPER ADMIN PAYMENT WAIVER - one conditional edge, ruled by the operator
+ * of this repo.
+ * ===========================================================================
+ *
+ *     "Super admin should have the power to issue licence to any user or
+ *      customer, bypassing payment done or not, doesn't matter. Any user
+ *      below him is the admin user but not super admin user."
+ *
+ * WHERE THE BYPASS HAS TO SIT
+ * ---------------------------
+ * `POST /serials/:id/confirm-payment` is the route that *writes*
+ * `payments.status = 'PAID'` (it upserts the payment row and then walks
+ * `PAYMENT_PENDING -> PAYMENT_CONFIRMED -> READY_TO_GENERATE`). So there is no
+ * world in which payment is PAID while the licence is still stalled: a licence
+ * that has never been confirmed sits in `PAYMENT_PENDING` with its payment
+ * `PENDING`, and the only admin edges out of `PAYMENT_PENDING` are the ones
+ * that first record money as received.
+ *
+ * Therefore "issue it anyway" cannot be expressed by waiving a precondition on
+ * an existing edge - `PAYMENT_PENDING -> KEY_GENERATED` does not exist in the
+ * 13-edge map. It has to be added, conditionally.
+ *
+ * WHY IT LIVES IN A SECOND TABLE
+ * ------------------------------
+ * `LICENCE_EDGES` stays frozen at the 13 edges of §49 so that the exhaustive
+ * 10x10 matrix assertion - 11 admin-legal / 89 refused, 13 edges, 2 system -
+ * keeps describing exactly the map it described in Phase 1. This edge is
+ * invisible unless `ctx.paymentWaived === true`, which only the Super Admin can
+ * cause, so the un-waived matrix does not move by a single cell.
+ *
+ * TWO THINGS THIS WAIVER MUST NEVER DO
+ * ------------------------------------
+ * 1. It never sets `payments.status = 'PAID'`. Faking payment state is on the
+ *    frozen no-shortcuts list, and it would put money in the books that never
+ *    arrived. The waiver is a *separate boolean*; `paymentStatus` is passed
+ *    through untouched, and `PaymentNotPaid.actual` still reports `PENDING`.
+ * 2. It never writes `PAYMENT_CONFIRMED`. Decision A3 says that state may only
+ *    be reached as a transactional consequence of a PAID payment row, so the
+ *    bypass jumps straight over it: the record honestly remains in a workflow
+ *    where payment was never confirmed, and the audit row says a waiver was
+ *    used.
+ *
+ * `requiresPaidPayment` is `true` here as well, which looks redundant for an
+ * edge that exists only under a waiver. It is not: the flag documents that this
+ * edge is a payment edge, and it keeps the waiver satisfying the *same*
+ * predicate as every other payment edge rather than a special-cased one.
+ */
+export const WAIVED_EDGES: readonly LicenceEdge[] = Object.freeze([
+  Object.freeze({
+    from: "PAYMENT_PENDING",
+    to: "KEY_GENERATED",
+    cls: "admin",
+    requiresPaidPayment: true,
+    requiresKey: false,
+    requiresReason: false,
+  }),
+] as LicenceEdge[]);
+
+/** The single conditional edge, if the waiver is in force. */
+function waivedEdgeFor(
+  from: LicenceStatus,
+  to: LicenceStatus,
+): LicenceEdge | undefined {
+  return WAIVED_EDGES.find((edge) => edge.from === from && edge.to === to);
+}
+
 /** The 10 states, as an immutable list. Derived from the pgEnum. */
 export const LICENCE_STATES: readonly LicenceStatus[] = Object.freeze([
   ...licenceStatusEnum.enumValues,
@@ -261,6 +329,25 @@ export interface TransitionContext {
   /** Whether `public_number` currently holds a key. */
   readonly keyPresent?: boolean;
   readonly reason?: string | null;
+  /**
+   * The Super Admin payment waiver (see `WAIVED_EDGES`).
+   *
+   * Optional and defaulting to false so that every existing call site, and the
+   * exhaustive matrix, keeps meaning exactly what it meant before the feature
+   * existed - nothing in this module can waive payment by omitting a field
+   * versus passing `false`.
+   *
+   * Note what it does NOT do: it does not alter `paymentStatus`. A waived
+   * transition still reports the payment it actually observed, so the caller
+   * and the audit row both see `PENDING` and know a waiver rather than a
+   * payment is what let the key be generated.
+   *
+   * Constructing this is `adminTransitionContext`'s job in `admin.ts`, which is
+   * where the role check lives. The state machine deliberately knows nothing
+   * about roles: it answers "is a waiver in force", never "who is allowed to
+   * ask for one".
+   */
+  readonly paymentWaived?: boolean;
 }
 
 /**
@@ -332,13 +419,23 @@ export function edgeFor(
  * With `actorKind: "admin"` the two system edges are excluded, so this is
  * exactly the set an admin route is allowed to target - which is what the
  * refusal message hands back to the caller.
+ *
+ * The third parameter adds `WAIVED_EDGES` to the answer. It defaults to
+ * `false`, so the list is the same 13-edge map for every existing caller; it is
+ * passed only from `transition()` when a waiver is actually in force, because a
+ * refusal that offers `PAYMENT_CONFIRMED` to a Super Admin who is deliberately
+ * not recording payment would be offering the one thing they came to avoid.
  */
 export function allowedTargets(
   from: LicenceStatus,
   actorKind: TransitionActor = "admin",
+  paymentWaived = false,
 ): readonly LicenceStatus[] {
+  const edges = paymentWaived
+    ? [...(EDGES_BY_FROM.get(from) ?? []), ...WAIVED_EDGES.filter((e) => e.from === from)]
+    : (EDGES_BY_FROM.get(from) ?? []);
   return Object.freeze(
-    (EDGES_BY_FROM.get(from) ?? [])
+    edges
       .filter((edge) => actorKind === "system" || edge.cls !== "system")
       .map((edge) => edge.to),
   );
@@ -355,13 +452,19 @@ export function allowedTargets(
  * precondition refusals, because telling an operator "payment is not PAID"
  * when the edge does not exist in the first place would send them chasing a
  * condition that was never going to help.
+ *
+ * Edge resolution consults `LICENCE_EDGES` first and only falls back to
+ * `WAIVED_EDGES` when `ctx.paymentWaived === true`. Reading the unconditional
+ * table first is what makes the waiver additive: a request without one gets
+ * byte-for-byte the Phase 1 answer for all 100 (from, to) pairs.
  */
 export function transition(
   from: LicenceStatus,
   to: LicenceStatus,
   ctx: TransitionContext,
 ): TransitionResult {
-  const allowed = allowedTargets(from, ctx.actorKind);
+  const waived = ctx.paymentWaived === true;
+  const allowed = allowedTargets(from, ctx.actorKind, waived);
 
   if (from === to) {
     return {
@@ -376,7 +479,7 @@ export function transition(
     };
   }
 
-  const edge = edgeFor(from, to);
+  const edge = edgeFor(from, to) ?? (waived ? waivedEdgeFor(from, to) : undefined);
   if (!edge) {
     return {
       ok: false,
@@ -403,7 +506,16 @@ export function transition(
     };
   }
 
-  if (edge.requiresPaidPayment && ctx.paymentStatus !== "PAID") {
+  /*
+   * THE GREEN KEY RULE, WITH ITS ONE EXCEPTION.
+   *
+   * `waived` short-circuits the check but deliberately does not touch
+   * `ctx.paymentStatus`, so `PaymentNotPaid.actual` below still reports the
+   * truth when the waiver is absent - and when it is present, the caller's
+   * audit row reads `paymentStatus` straight from the same context and records
+   * `PENDING` alongside `paymentWaived: true`.
+   */
+  if (edge.requiresPaidPayment && !waived && ctx.paymentStatus !== "PAID") {
     return {
       ok: false,
       error: {
@@ -481,3 +593,146 @@ export function failureMessage(error: TransitionError): string {
       }
   }
 }
+
+/* ========================================================================== *
+ * HOST BINDING - plan 10 ("one-host binding") and plan 35 ("HOST REBIND POLICY")
+ * ========================================================================== *
+ *
+ * A SECOND STATE MACHINE, AND WHY IT IS NOT FOLDED INTO THE FIRST
+ * --------------------------------------------------------------
+ * `host_binding_status` has its own four values and its own authority: §49
+ * says nothing about it, and `NOT_BOUND -> BOUND` is explicitly reserved for
+ * `POST /v1/activation`, which no admin route may take. Putting it through
+ * `transition()` would mean either inventing edges §49 never listed or making
+ * a licence-status check answer a question about host binding. So the two
+ * machines stay separate, and this one is deliberately small: two admin
+ * actions, four states, no payment, no key, no reason gate.
+ *
+ * THE §35 WORKFLOW, AS EDGES
+ * --------------------------
+ *     Customer requests rebind   -> admin reviews reason
+ *     Existing binding marked    -> BOUND           -> REBIND_REQUEST
+ *     Old binding invalidated    -> REBIND_REQUEST  -> NOT_BOUND
+ *     New host activation allowed
+ *
+ * "Old binding invalidated" is the load-bearing part: approving clears
+ * `host_fingerprint` (the one-host limit's subject) and `device_token_hash`
+ * (the bearer secret's digest), which is what actually allows a *different*
+ * workstation to activate. `first_activ_at` is deliberately left alone - plan
+ * 10 says it is "set once, on the first successful binding, never
+ * overwritten", and a rebind is not a first binding.
+ *
+ * NO REPLAY DETECTION ON APPROVAL
+ * -------------------------------
+ * Unlike `issue`, approving twice cannot duplicate a credential, so §48 does
+ * not demand it - and there is no column that could distinguish "already
+ * approved" from "never requested": both are `NOT_BOUND`. Inventing a
+ * detector here would mean writing a guess into an immutable audit trail.
+ * Therefore only `REBIND_REQUEST` is approvable and everything else is 409,
+ * which is the honest answer to a double click: it already happened, go and
+ * look. `request` *does* detect replay, because `REBIND_REQUEST -> same` is
+ * unambiguous.
+ */
+
+/** The four values of `host_binding_enum`, as a type. Derived from the pgEnum. */
+export type HostBindingStatus =
+  (typeof hostBindingStatusEnum.enumValues)[number];
+
+export type HostBindingAction = "request" | "approve";
+
+export interface HostBindingRefusal {
+  readonly kind: "NoBinding" | "Locked" | "NotRequested";
+  readonly current: HostBindingStatus;
+  readonly message: string;
+}
+
+export type HostBindingResult =
+  | {
+      readonly ok: true;
+      readonly next: HostBindingStatus;
+      /** True when the action was already done - no write, no audit row. */
+      readonly replay: boolean;
+    }
+  | { readonly ok: false; readonly refusal: HostBindingRefusal };
+
+/**
+ * The host-binding table, in the same shape as `LICENCE_EDGES` so the test can
+ * enumerate it mechanically.
+ *
+ * `replay: true` marks the self-edge `REBIND_REQUEST -> REBIND_REQUEST`, the
+ * one case where "already there" means *say so quietly* rather than *refuse*.
+ */
+export const HOST_BINDING_TRANSITIONS: readonly {
+  readonly action: HostBindingAction;
+  readonly from: HostBindingStatus;
+  readonly to: HostBindingStatus;
+  readonly replay: boolean;
+}[] = Object.freeze([
+  Object.freeze({ action: "request", from: "BOUND", to: "REBIND_REQUEST", replay: false }),
+  Object.freeze({
+    action: "request",
+    from: "REBIND_REQUEST",
+    to: "REBIND_REQUEST",
+    replay: true,
+  }),
+  Object.freeze({ action: "approve", from: "REBIND_REQUEST", to: "NOT_BOUND", replay: false }),
+]);
+
+function refused(
+  kind: HostBindingRefusal["kind"],
+  current: HostBindingStatus,
+  message: string,
+): HostBindingResult {
+  return { ok: false, refusal: { kind, current, message } };
+}
+
+/**
+ * Evaluate one host-binding action. Pure and total over all 4 states x 2
+ * actions, exactly as `transition()` is over 10 x 10.
+ */
+export function transitionHostBinding(
+  action: HostBindingAction,
+  current: HostBindingStatus,
+): HostBindingResult {
+  const hit = HOST_BINDING_TRANSITIONS.find(
+    (edge) => edge.action === action && edge.from === current,
+  );
+  if (hit) return { ok: true, next: hit.to, replay: hit.replay };
+
+  // Checked after the table rather than before: a locked binding is a distinct
+  // problem with a distinct remedy, and reporting "no binding" for it would
+  // send the operator to look for a binding that is right there.
+  if (current === "LOCKED") {
+    return refused(
+      "Locked",
+      current,
+      "This licence's host binding is locked. Unlock it before requesting or approving a rebind.",
+    );
+  }
+
+  if (action === "request") {
+    return refused(
+      "NoBinding",
+      current,
+      "This licence has never been bound to a host, so there is nothing to rebind.",
+    );
+  }
+  return refused(
+    "NotRequested",
+    current,
+    current === "BOUND"
+      ? "This licence's current host is still bound. Request the rebind first."
+      : "No rebind request is pending for this licence; it is either already approved or was never bound.",
+  );
+}
+
+/**
+ * The HTTP status every host-binding refusal is answered with.
+ *
+ * They are all statements about the record's current state disagreeing with
+ * the request - never about who asked (that is `requirePermission`'s 403) and
+ * never about a missing field (400). Re-fetching is the remedy in every case,
+ * which is precisely what 409 means. Declared here so the handler and the test
+ * read the same number rather than two literals that could drift apart.
+ */
+export const HOST_BINDING_CONFLICT_STATUS = 409 as const;

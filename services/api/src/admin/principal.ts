@@ -275,8 +275,9 @@ export async function lookupStaffSession(
 /**
  * Is this address allowed to sign in / act at all?
  *
- * Used by the OTP routes, which run before any session exists and therefore
- * before `resolvePrincipal` can help.
+ * Used by `POST /auth/logout`'s siblings only in the sense of answering "is
+ * this person an operator at all". It is **not** the OTP gate any more - see
+ * `staffLifecycleStatus` for that, and the note on why the two differ.
  */
 export async function isApprovedOperator(
   db: Database,
@@ -290,6 +291,91 @@ export async function isApprovedOperator(
     .where(eq(staffOperators.email, email))
     .limit(1);
   return row?.status === "ACTIVE";
+}
+
+/**
+ * The lifecycle status of an address, before any session exists.
+ *
+ * WHY THIS EXISTS ALONGSIDE `isApprovedOperator`
+ * ----------------------------------------------
+ * Phase 1 used `isApprovedOperator` as the OTP gate, and it answered
+ * `true` only for `ACTIVE`. That was correct while creating a staff row and
+ * letting it in were the same moment. Phase 2 splits them: `POST /staff` now
+ * creates the row at `INVITED`, the invitee verifies their own email
+ * (`EMAIL_VERIFIED`), and only a Super Admin's approval makes them `ACTIVE`.
+ *
+ * Under the old gate an invitee could never have requested a code - the very
+ * step that proves they own the address was refused because they had not yet
+ * proven they own the address. So the OTP routes ask this instead, which
+ * answers for all six statuses rather than for one:
+ *
+ *   INVITED        -> may request and verify; must NOT be given a session;
+ *   EMAIL_VERIFIED -> may request and verify again; no session;
+ *   ACTIVE         -> may request, verify and receive a session;
+ *   SUSPENDED      -> may do nothing. Explicitly, not by omission;
+ *   REVOKED        -> may do nothing.
+ *
+ * Five statuses, because `staff_status_enum` has five - note that `DRAFT` is a
+ * *licence* state (ruling R1) and has no counterpart here, so there is no
+ * sixth branch waiting to be forgotten.
+ *
+ * The refusal is carried as a `reason` rather than as `false`, because the
+ * two failures deserve different sentences: "your account is suspended" tells
+ * the operator to go and find the Super Admin, whereas "not nominated" tells
+ * them they never had an account. Blurring them is how a suspended employee
+ * spends an afternoon believing they were never invited.
+ */
+export interface StaffLifecycle {
+  readonly allowed: boolean;
+  /** The database's status, or `null` for the super admin (who has no row). */
+  readonly status: string | null;
+  /** Operator-facing refusal. `null` when `allowed`. */
+  readonly reason: string | null;
+}
+
+export async function staffLifecycleStatus(
+  db: Database,
+  email: string,
+): Promise<StaffLifecycle> {
+  if (!isCyvoriqEmail(email)) {
+    return {
+      allowed: false,
+      status: null,
+      reason: "Only @cyvoriq.com emails can sign in to ops.",
+    };
+  }
+  // Address-derived, never row-derived: the owner is nominated by nobody and
+  // therefore revocable by nobody (plan 16), so there is no status to read.
+  if (email === SUPER_ADMIN_EMAIL) {
+    return { allowed: true, status: null, reason: null };
+  }
+  const [row] = await db
+    .select({ status: staffOperators.status })
+    .from(staffOperators)
+    .where(eq(staffOperators.email, email))
+    .limit(1);
+
+  if (!row) {
+    return {
+      allowed: false,
+      status: null,
+      reason: "This email is not nominated by ceo@cyvoriq.com.",
+    };
+  }
+  if (row.status === "SUSPENDED" || row.status === "REVOKED") {
+    return {
+      allowed: false,
+      status: row.status,
+      reason:
+        row.status === "SUSPENDED"
+          ? "This account is suspended. Ask ceo@cyvoriq.com to reactivate it."
+          : "This account has been revoked and cannot sign in again.",
+    };
+  }
+  // INVITED / EMAIL_VERIFIED / ACTIVE / DRAFT: the address is in good
+  // standing, and whether a *session* follows is decided later by
+  // `lookupStaffSession`, which still requires ACTIVE.
+  return { allowed: true, status: row.status, reason: null };
 }
 
 /**

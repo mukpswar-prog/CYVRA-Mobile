@@ -106,12 +106,19 @@ export const ROUTE = {
   authVerify: "POST /auth/verify",
   authLogout: "POST /auth/logout",
   createSerial: "POST /serials",
+  updateSerial: "PATCH /serials/:serialId",
   confirmPayment: "POST /serials/:serialId/confirm-payment",
   generateKey: "POST /serials/:serialId/generate-key",
   issue: "POST /serials/:serialId/issue",
+  resendLicence: "POST /serials/:serialId/resend",
   suspend: "POST /serials/:serialId/suspend",
   revoke: "POST /serials/:serialId/revoke",
+  requestRebind: "POST /serials/:serialId/rebind/request",
+  approveRebind: "POST /serials/:serialId/rebind/approve",
+  exportSerial: "GET /serials/:serialId/export",
   createStaff: "POST /staff",
+  approveStaff: "POST /staff/:staffId/approve",
+  suspendStaff: "POST /staff/:staffId/suspend",
   revokeStaff: "POST /staff/:staffId/revoke",
   exportLicences: "GET /reports/licences",
 } as const;
@@ -124,21 +131,47 @@ export const ROUTE = {
  * cannot be registered without `assertRouteAuditCoverage` throwing during
  * module load, which turns "we forgot the audit log" from a production
  * discovery into a failed import.
+ *
+ * NOT HERE, ON PURPOSE - `GET /serials/:serialId` (view) and
+ * `GET /serials/:serialId/activation` (view-activation). Both are two of §14's
+ * twelve actions, and both are gated by `requirePermission`, but neither writes
+ * anything: there is no `audit_action_enum` value for "somebody looked", and
+ * inventing one would put a row in an append-only trail that asserts an event
+ * which never happened. The third GET in that list,
+ * `GET /serials/:serialId/export`, *is* mapped because taking a copy out of the
+ * building is an event.
  */
 export const ROUTE_ACTION_MAP: Readonly<Record<string, AuditAction>> =
   Object.freeze({
     [ROUTE.createSerial]: "SERIAL_CREATED",
+    [ROUTE.updateSerial]: "SERIAL_UPDATED",
     [ROUTE.confirmPayment]: "PAYMENT_CONFIRMED",
     [ROUTE.generateKey]: "KEY_GENERATED",
     [ROUTE.issue]: "LICENCE_ISSUED",
+    [ROUTE.resendLicence]: "LICENCE_RESENT",
     [ROUTE.suspend]: "LICENCE_SUSPENDED",
     [ROUTE.revoke]: "LICENCE_REVOKED",
+    [ROUTE.requestRebind]: "REBIND_REQUESTED",
+    [ROUTE.approveRebind]: "REBIND_APPROVED",
+    // Host binding has its own lifecycle (plan 10/35), independent of
+    // `licence_status`; the two rebind routes are audited on the enum that
+    // exists for them rather than being forced onto a licence action.
     [ROUTE.createStaff]: "STAFF_INVITED",
+    /*
+     * `POST /auth/verify` writes `STAFF_INVITED` for the same invitation it
+     * started: ruling R2 (see below) chose the reuse over a migration, so the
+     * whole invitation lifecycle is one action and `previous_state` /
+     * `new_state` carry the part the action name cannot.
+     */
+    [ROUTE.authVerify]: "STAFF_INVITED",
+    [ROUTE.approveStaff]: "STAFF_ROLE_CHANGED",
+    [ROUTE.suspendStaff]: "STAFF_SUSPENDED",
     [ROUTE.revokeStaff]: "STAFF_REVOKED",
     // Audited only when the caller actually takes a copy out of the building -
     // see `CONDITIONAL_ROUTES`. A JSON read of the same endpoint is not an
     // export and must not appear in the trail as one.
     [ROUTE.exportLicences]: "EXPORT_GENERATED",
+    [ROUTE.exportSerial]: "EXPORT_GENERATED",
   });
 
 /**
@@ -156,10 +189,26 @@ export const CONDITIONAL_ROUTES: ReadonlySet<string> = new Set([
  * State-changing routes that are declared exempt, each for a stated reason.
  *
  * These are session lifecycle endpoints: they create and destroy *sessions*,
- * not business records, and plan 20's examples are all licence and payment
- * events. They are listed explicitly rather than excluded by a rule so that
- * the exemption is visible and reviewable - and so that adding a fourth auth
- * endpoint still forces a conscious decision here.
+ * and plan 20's examples are all licence and payment events. They are listed
+ * explicitly rather than excluded by a rule so that the exemption is visible
+ * and reviewable - and so that adding a fourth auth endpoint still forces a
+ * conscious decision here.
+ *
+ * `POST /auth/verify` appears in BOTH this set and `ROUTE_ACTION_MAP`, and the
+ * two entries describe two different concerns rather than contradicting each
+ * other:
+ *
+ *   - The **session** it mints is exempt. Signing in is not a business event,
+ *     and one audit row per sign-in would bury the licence trail under traffic.
+ *     That is what exempts it from check 1 above.
+ *   - The **`INVITED -> EMAIL_VERIFIED` promotion** it performs on
+ *     `staff_operators` is a business record changing state, and Phase 2
+ *     requires every staff transition to be audited. It is mapped so that the
+ *     handler's action comes from `actionFor()` like every other route's.
+ *
+ * Removing it from `AUTH_ROUTES` would make sign-in auditable and lose the
+ * stated reason; removing it from the map would leave the promotion writing a
+ * literal nobody chose. Both lists earn their keep.
  */
 export const AUTH_ROUTES: ReadonlySet<string> = new Set([
   ROUTE.authRequest,
@@ -324,6 +373,44 @@ export async function auditContextFor(
     actorRole: principal.kind === "staff" ? principal.role : null,
     actorEmail: principal.email,
     ipAddress: clientIp(c),
+    route: c.req.path,
+  };
+}
+
+/**
+ * A frame for an action taken **on one's own record, before a session exists**.
+ *
+ * `POST /auth/verify` promotes an invitee from `INVITED` to `EMAIL_VERIFIED`,
+ * and Phase 2 requires every staff transition to be audited. But the route that
+ * performs it is the sign-in route: at that moment `authenticate()` has no
+ * session to name, so `requireAuditContext` would correctly answer 401 and the
+ * promotion would be unrecordable.
+ *
+ * The identity passed in is read from `staff_operators` by `principal.ts`, not
+ * from the request - the OTP proves control of the address, and the row is what
+ * says who holds it. `actor_role` therefore still comes from the database,
+ * which is the invariant `requireAuditContext` exists to protect; this helper
+ * is the same invariant with a different source of the same fact rather than a
+ * looser one. The request contributes only the client IP and the path.
+ *
+ * `auditEvents.actor_id` is nullable for exactly this case: a super admin
+ * pre-nomination has no row to point at, and fabricating one to satisfy a
+ * column would be the defect E3 removed.
+ */
+export async function selfServiceAuditContext(
+  c: Context<{ Bindings: Env; Variables: { db: Database } }>,
+  identity: {
+    readonly actorId: string | null;
+    readonly actorRole: StaffRole;
+    readonly actorEmail: string;
+  },
+): Promise<StaffAuditContext> {
+  const frame = await auditContextFor(c);
+  return {
+    actorId: identity.actorId,
+    actorRole: identity.actorRole,
+    actorEmail: identity.actorEmail,
+    ipAddress: frame?.ipAddress ?? clientIp(c),
     route: c.req.path,
   };
 }

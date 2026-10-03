@@ -262,6 +262,33 @@ export function requireStaffPermission(
   };
 }
 
+/**
+ * May this principal waive payment and generate a key for an unpaid licence?
+ *
+ * §8's Green Key Rule has exactly one exception, ruled by the operator of this
+ * repo: the Super Admin may issue to any customer "bypassing payment done or
+ * not", and - the half that actually constrains the code - *everybody below
+ * them is an admin user but not a super admin user*, so nobody else may.
+ *
+ * Deliberately a role check rather than a `Permission`:
+ *
+ *   - `PERMISSION_MATRIX` is a transcription of §41 and §41 has no "waive
+ *     payment" row. Inventing one would put a capability in the matrix that
+ *     the plan never granted, which is the same species of error as the
+ *     `*` footnote we already ruled against.
+ *   - The waiver is not an ordinary capability to be distributed. It is a
+ *     named exception to a financial control, so it belongs to one seat and
+ *     should still belong to that seat if §41 is ever re-cut.
+ *
+ * A service principal holds no role and therefore cannot waive. This answers
+ * "may they ask", never "may they ask silently": the route additionally
+ * requires an explicit `waivePayment: true` in the body, so the Green Key Rule
+ * remains the default answer even for the Super Admin.
+ */
+export function mayWaivePayment(principal: Principal): boolean {
+  return principal.kind === "staff" && principal.role === "SUPER_ADMIN";
+}
+
 /** Guards against a typo quietly creating a role nothing can hold. */
 function assertRoles(roles: readonly StaffRole[]): void {
   if (roles.length === 0) {
