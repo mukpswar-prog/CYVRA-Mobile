@@ -96,8 +96,8 @@ else
   echo "[g1] RESEND_API_KEY unset — preview OTP fallback stays on (code in JSON, no email)"
 fi
 
-echo "[g1] deploying Worker $WORKER_NAME with API_ENV=preview"
-pnpm --filter @cyvra/api exec wrangler deploy --var API_ENV:preview
+echo "[g1] deploying Worker $WORKER_NAME (API_ENV=production, from wrangler.jsonc)"
+pnpm --filter @cyvra/api exec wrangler deploy
 
 WORKER_URL="$(pnpm --filter @cyvra/api exec wrangler deployments list 2>/dev/null | head -n 20 || true)"
 echo "[g1] recent Worker deployments:"
@@ -123,6 +123,6 @@ pnpm --filter @cyvra/web build
   pnpm exec wrangler pages deploy ../../apps/web/dist --project-name="$PAGES_NAME" --branch=g0-g3-preview
 )
 
-echo "[g1] After Pages URL is known, set Worker APP_ORIGIN (a var, not a git-committed value):"
-echo "  cd services/api && pnpm exec wrangler deploy --var API_ENV:preview --var APP_ORIGIN:https://<preview>.cyvra-mobile.pages.dev"
+echo "[g1] Vars live in services/api/wrangler.jsonc — set APP_ORIGIN there, then deploy:"
+echo "  cd services/api && pnpm exec wrangler deploy"
 echo "[g1] then reopen the Pages preview and run the OTP registration flow."
