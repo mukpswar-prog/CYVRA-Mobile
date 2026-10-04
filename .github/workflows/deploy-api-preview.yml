@@ -36,8 +36,7 @@ jobs:
           # shellcheck disable=SC1091
           . scripts/sanitize-cf-token.sh
           pnpm --filter @cyvra/api exec wrangler whoami
-          pnpm --filter @cyvra/api exec wrangler deploy \
-            --var API_ENV:preview \
-            --var APP_ORIGIN:https://cyvra-mobile.pages.dev
+          # Vars come from services/api/wrangler.jsonc (single source of truth).
+          pnpm --filter @cyvra/api exec wrangler deploy
       - name: Prove health and G7 gate
         run: bash scripts/prove-live-api.sh

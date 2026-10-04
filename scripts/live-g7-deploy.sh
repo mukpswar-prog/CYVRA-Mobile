@@ -87,7 +87,7 @@ echo "[g7] putting ADMIN_API_TOKEN on Worker cyvra-mobile-api (value not printed
 printf '%s' "$ADMIN_API_TOKEN" | pnpm --filter @cyvra/api exec wrangler secret put ADMIN_API_TOKEN
 unset ADMIN_API_TOKEN
 
-echo "[g7] deploying preview Worker (API_ENV=preview)"
+echo "[g7] deploying Worker (API_ENV=production, from wrangler.jsonc)"
 bash scripts/deploy-api-preview.sh
 
 echo

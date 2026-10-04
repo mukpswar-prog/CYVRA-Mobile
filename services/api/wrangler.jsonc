@@ -22,9 +22,14 @@
       "localConnectionString": "postgres://cyvra:cyvra@127.0.0.1:5432/cyvra_mobile"
     }
   ],
+  // Single source of truth for deploy-time vars: the dashboard already reads
+  // API_ENV as "production", and the deploy workflow no longer passes --var
+  // overrides. Local `wrangler dev` still gets localhost:5173 from APP_ORIGIN.
   "vars": {
+    // TODO: must move to "https://cyvoriq.co.in" once the customer web Pages
+    // project goes live; until then the CORS allow-list is keyed on localhost.
     "APP_ORIGIN": "http://localhost:5173",
-    "API_ENV": "development"
+    "API_ENV": "production"
   },
   // New product hostname only. Never api.cyvra.co.in or mobile.cyvra.co.in.
   "routes": [
