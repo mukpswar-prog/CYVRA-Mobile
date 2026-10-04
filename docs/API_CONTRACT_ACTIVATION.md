@@ -2,8 +2,10 @@
 
 **Extracted from code at commit HEAD — real endpoint wiring is a separate future task (W1.5).**
 
+> **Status, 2026-10-04: W1.5 landed.** Endpoint wiring exists on both sides and **§2 has been rewritten to match it**. §1 and §12 have *not* been rewritten and still describe the pre-wiring state; where they conflict with §2, §2 is current. See the note at the top of §2 for the line-number convention it uses.
+
 - HEAD at extraction: `973d486db45e1c385a279a9f9ca7b0aa356274b6` (`973d486 chore: remove vestigial .python-version pin`).
-- Every claim below cites the file and line it came from. Line numbers refer to that commit.
+- Every claim below cites the file and line it came from. Line numbers refer to that commit, **except in §2, which cites the tree as of 2026-10-04**.
 - Nothing in this document is a design or a proposal. Where the code does not answer a question, it says so.
 
 ---
@@ -25,33 +27,44 @@ The production licence client is `PlaceholderLicenseApiClient`, and it can never
 
 ## 2. Transport: what exists today vs what is required later
 
-### What exists today: nothing
+> **This section was brought forward on 2026-10-04.** Every other section is still the extraction made at `973d486`; §2 alone has been rewritten, because the wiring it reported as missing now exists on both sides. Line numbers in this section refer to the tree as of 2026-10-04, not to `973d486`. §1 and §12 are **not** rewritten and still describe the pre-wiring state.
+
+### What exists today: the wiring
 
 | Element | Present in code? | Evidence |
 |---|---|---|
-| URL | No | `client.rs:4-5` — "no URL"; `apps/desktop/src-tauri/src/activation/api.rs:5-6` — "nothing in this crate hardcodes a URL"; test `client.rs:119-131` fails if the client's `Debug` output ever grows `http`, `https`, `cyvoriq`, `Url` or `host`. |
-| TLS | No | `client.rs:5` — "no TLS". |
-| HTTP client dependency | No | `apps/desktop/src-tauri/Cargo.toml:18-47` lists only `serde_json`, `serde`, `log`, `tauri`, `tauri-plugin-log`, `sha2`, `chrono`, `proptest` (dev), and the Windows `windows` crate. No `reqwest`/`ureq`/`hyper` or any other HTTP crate. |
-| Wire encoding | Not chosen | The trait is synchronous Rust (`api.rs:147-163`); no serialization format for transport exists anywhere. |
-| Endpoint hostname in desktop code | Only in comments/tests | `client.rs:3` (doc comment), `client.rs:125` (test token list), `mod.rs:29` (doc comment). |
+| URL | **Yes** | `apps/desktop/src-tauri/src/activation/live_client.rs`: `Endpoints::default()` gives `v1/activation` and `v1/activation/revalidate`, joined onto a base URL read from `CYVRA_ACTIVATION_BASE_URL` and defaulting to `DEFAULT_BASE_URL = "https://api.cyvoriq.co.in"`. Server side: `services/api/src/index.ts:250` — `app.route("/v1", activationRoutes)`. |
+| TLS | **Yes** | `parse_base` (`live_client.rs`) admits only `http`/`https` and rejects embedded credentials; the shipped default is `https`. |
+| HTTP client dependency | **Yes** | `apps/desktop/src-tauri/Cargo.toml:34` — `reqwest` (blocking), used by `LiveLicenseApiClient::once`. `wiremock` at `Cargo.toml:48` serves the transport tests. |
+| Wire encoding | **JSON, snake_case** | Request `ActivationRequest` via `serde_json`; revalidation body `WireRevalidate { device_token, device_fingerprint }`. Response `WireSuccess`, failure `WireFailure { code }` or `{ error: { code } }`. The server transcribes both shapes from this decoder rather than inventing its own (`services/api/src/activation.ts`, header comment). |
+| Endpoint hostname in desktop code | **Yes, as a constant** | `DEFAULT_BASE_URL` in `live_client.rs`, overridable by `CYVRA_ACTIVATION_BASE_URL`. |
+| `revalidate` authentication | **Yes — the device token** | Sent in the body of `POST /v1/activation/revalidate`; the server resolves the serial by `sha256(device_token)` (`ActivationRepo.findByDeviceTokenHash`). This answers §12 item 3, which recorded the scheme as unknown. |
+
+The trait remains a seam and the state-machine tests still run against the in-process fake (`fake` module), never a network. What changed is that `live_client::production_client` is now a real transport *by default*: an unset `CYVRA_ACTIVATION_BASE_URL` dials production rather than falling through to the placeholder.
+
+**Both routes are POSTs.** The desktop builds a JSON body and calls `.post(url)` (`live_client.rs`, `once`). A `GET` to either path falls through to Hono's 404 — which is exactly how the revalidation route was reported missing.
 
 The trait is "a seam, not a concrete transport" (`api.rs:3-6`): every state-machine test runs against an in-process fake (`api.rs:3-5`, `fake` module wired at `mod.rs:38-40`), never against a network.
 
-### What is required later (and is unspecified)
+### What is still unspecified
 
-A real implementation must provide: a URL on `cyvoriq.co.in` (named as the future target in `client.rs:3` and `mod.rs:29`, but the path is **unknown — not specified in code**), a transport dependency, TLS, an encoding of `ActivationRequest`, a mapping from server answers to `ActivationOutcome`, and a definition of how `revalidate(device_token, device_fingerprint)` authenticates (**unknown — not specified in code**). See §12.
+The rows above are implemented now; what remains genuinely open is cross-referenced to §12 rather than restated, because §12 itself is **not** rewritten:
 
-### Existing `cyvoriq.co.in` references in the repo — all placeholders or unrelated
+- §12 item 4, in part: the mapping from a server condition to each of the six verdicts exists (`services/api/src/activation.ts`), but `INVALID_USER` has no producing condition beyond a missing `email` on `/v1/activation`, and `/v1/activation/revalidate` never emits it.
+- §12 item 3, in part: *authentication* is settled — the device token, presented in the body. *Replay protection* is not: a captured token is usable until the licence stops being valid, bounded only by the `device_fingerprint` comparison. There is no nonce, no expiry and no revocation on the token itself.
+- §12 item 5's representation mismatch (absolute `grace_expires_at_unix` against relative `graceLimitSeconds`) is unchanged; both are now derived from `ENTITLEMENT_GRACE_SECONDS`, one absolute and one relative.
 
-- `apps/desktop/src-tauri/src/activation/client.rs:3`, `mod.rs:29` — comments naming the future endpoint; not a URL.
+### Existing `cyvoriq.co.in` references in the repo
+
+- `apps/desktop/src-tauri/src/activation/live_client.rs` — `DEFAULT_BASE_URL`, a real URL (`https://api.cyvoriq.co.in`), overridable by `CYVRA_ACTIVATION_BASE_URL`. `client.rs` and `mod.rs` still carry prose about the future endpoint, but the endpoint itself is now a constant, not a comment.
 - `apps/desktop/src-tauri/src/activation/client.rs:125` — a test asserting the placeholder contains *no* transport detail (`"cyvoriq"` is one of the forbidden tokens).
-- `GUIDELINE.md:69` / `scripts/attach-api-cyvoriq.sh:3,61` — `api.cyvoriq.co.in` is the Mobile API hostname on Cloudflare Worker `cyvra-mobile-api`; `scripts/prove-live-api.sh:41-49` probes `https://api.cyvoriq.co.in/health`. This is the web/mobile API, not a desktop activation route.
+- `GUIDELINE.md:69` / `scripts/attach-api-cyvoriq.sh:3,61` — `api.cyvoriq.co.in` is the Mobile API hostname on Cloudflare Worker `cyvra-mobile-api`; `scripts/prove-live-api.sh:41-49` probes `https://api.cyvoriq.co.in/health`. **Since 2026-10-04 this is also the desktop activation host**: `DEFAULT_BASE_URL` points at it and `/v1/activation*` is served by that same Worker. It was accurate at extraction to call it the web/mobile API only.
 - `apps/web/.env.example:5` — `VITE_API_URL=https://api.cyvoriq.co.in` (web frontend build-time variable).
 - `apps/android/app/src/main/java/cyvra/mobile/MainActivity.kt:54` — a log line containing `POST https://api.cyvoriq.co.in/evidence/batches`.
 - `services/api/src/license.ts:13-61` — the Worker's only entitlement-shaped route: `GET /`, session-authenticated via `requireUser` (`license.ts:14-15`), returning a record without `validUntil`, `serverTime`, `graceLimitSeconds` or `offline`. It does **not** accept `ActivationRequest` fields (email + licence key + fingerprint); it is not the activation endpoint.
 - `services/api/src/admin.ts:149-164,626` — admin-side licence key generation and CSV reporting; server-internal, not a client route.
 
-None of these is an activation endpoint. **No route anywhere in the repo accepts `ActivationRequest` or returns `ActivationSuccess`.**
+None of the *web* references above is an activation endpoint, and `services/api/src/license.ts` still is not one. **As extracted at `973d486` this sentence read: "No route anywhere in the repo accepts `ActivationRequest` or returns `ActivationSuccess`." That was true then and is false now:** `services/api/src/activation.ts` accepts `ActivationRequest` on `POST /v1/activation` and returns `ActivationSuccess` on both it and `POST /v1/activation/revalidate`.
 
 ---
 

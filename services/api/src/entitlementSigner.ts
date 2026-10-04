@@ -109,10 +109,20 @@ export interface SerialForSigning {
  * `LicenseEntitlementStatus` (CustomerDesktopModels.kt L9-16) is a closed set.
  * Anything unmapped becomes `UNKNOWN` rather than an invented `ACTIVE`: a
  * serial nobody has issued yet is not an entitlement.
+ *
+ * `ACTIVE` is mapped for the same reason `ISSUED` is. The two states both mean
+ * "a host holds this licence" (`state-machine.ts`: `ISSUED -> ACTIVE` is the
+ * system edge the workstation drives, `SUSPENDED -> ACTIVE` an admin one), and
+ * the Host does not merely *prefer* `ACTIVE` - `HostLicenseService.kt:115`
+ * `check`s it and `HostUpgradeAccountingEngine.kt:145` does the same. Falling
+ * through to `UNKNOWN` here would make the signature verifiable and the
+ * entitlement unusable: a returning workstation revalidating an `ACTIVE`
+ * licence would be handed a record its own Host refuses to boot on.
  */
 export function entitlementStatusFor(serialStatus: string): string {
   switch (serialStatus.toUpperCase()) {
     case "ISSUED":
+    case "ACTIVE":
       return "ACTIVE";
     case "REVOKED":
       return "REVOKED";

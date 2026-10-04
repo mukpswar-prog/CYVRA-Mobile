@@ -1,11 +1,11 @@
-//! A licence transport that can actually reach a server - when one is configured.
+//! A licence transport that can actually reach the production server.
 //!
 //! This is the W1.5 counterpart to [`crate::activation::client`]: that module is
-//! a seam with no wire, this one has a wire but no default URL. Production only
-//! ever uses it once [`BASE_URL_ENV`] has been set, so a build with no endpoint
-//! configured behaves exactly as it did before - [`crate::activation::client`]'
-//! [`crate::activation::api::FailureKind::NetworkError`] to everything, which is
-//! [`crate::activation::api::Reachability::Unreachable`] and nothing else.
+//! a seam with no wire, this one has a wire **and a default URL**. Production
+//! dials [`DEFAULT_BASE_URL`] whenever [`BASE_URL_ENV`] says nothing, so an
+//! installed exe can activate a workstation out of the box; the environment
+//! variable exists to aim a development build somewhere else, not to turn the
+//! transport on.
 //!
 //! # What is specified and what is assumed
 //!
@@ -68,17 +68,55 @@ use std::time::Duration;
 // Configuration
 // ---------------------------------------------------------------------------
 
-/// Environment variable that opts a build into this client.
+/// Environment variable that points a build somewhere other than production.
 ///
-/// Read once, on first use. Absent (or empty, or unparseable) means the
-/// shipped [`crate::activation::client::PlaceholderLicenseApiClient`] stays in
-/// place and the application cannot activate anybody - which is the default,
-/// and deliberately so.
+/// Read once, on first use. **Absent or blank means this build dials
+/// [`DEFAULT_BASE_URL`]**, so an installed exe activates without anybody
+/// configuring anything - which is what "the shipped state" now means.
+///
+/// A value that *is* present but cannot be parsed leaves the build on the
+/// [`crate::activation::client::PlaceholderLicenseApiClient`], which cannot say
+/// "yes" to anybody. An unusable override therefore fails closed, loudly and
+/// in the log, instead of quietly becoming production.
 ///
 /// The value is a base URL such as `https://api.cyvoriq.co.in/`. It carries no
 /// credential: a URL with a user or password embedded is rejected by
 /// [`ConfigError::`] rather than accepted quietly.
+///
+/// Use it to aim a development build at a local server:
+/// `CYVRA_ACTIVATION_BASE_URL=http://127.0.0.1:8787/`.
 pub const BASE_URL_ENV: &str = "CYVRA_ACTIVATION_BASE_URL";
+
+/// The endpoint a build dials when [`BASE_URL_ENV`] says nothing.
+///
+/// This is the release default, and it is a constant rather than something
+/// injected at build time because the release pipeline sets no environment for
+/// a Tauri bundle: an installed exe inherits its environment from whatever
+/// launched it, and a customer's shell does not carry ours.
+///
+/// It is here because its absence was defect D1. With no default,
+/// [`production_client`] fell through to the placeholder, which answers
+/// [`crate::activation::api::FailureKind::NetworkError`] to every call, so the
+/// installed exe died on "network error" no matter how healthy the API was -
+/// and no operator could have diagnosed it, because nothing in the product ever
+/// mentioned an endpoint.
+pub const DEFAULT_BASE_URL: &str = "https://api.cyvoriq.co.in";
+
+/// The endpoint this build should dial, given whatever the environment holds.
+///
+/// * **unset or blank** -> [`DEFAULT_BASE_URL`]. A blank value counts as unset:
+///   it is the shape a commented-out-but-present line in a `.env` leaves
+///   behind, and treating it as "no endpoint" reinstates the very defect this
+///   function exists to prevent.
+/// * **anything else, taken literally** - even when it cannot be parsed.
+///   [`LiveLicenseApiClient::configured`] is what refuses a bad value, so a
+///   typo'd override fails closed on the placeholder rather than silently
+///   dialling production instead of the staging box the operator meant.
+pub fn shipped_base_url(from_env: Option<&str>) -> &str {
+    from_env
+        .filter(|raw| !raw.trim().is_empty())
+        .unwrap_or(DEFAULT_BASE_URL)
+}
 
 /// Request paths, appended to the configured base URL.
 ///
@@ -661,8 +699,9 @@ fn normalise_base(base: &mut reqwest::Url) {
 // The production selection
 // ---------------------------------------------------------------------------
 
-/// The client production uses: the live one if an endpoint is configured, and
-/// the placeholder otherwise.
+/// The client production uses: the live one, pointed at [`DEFAULT_BASE_URL`
+/// unless [`BASE_URL_ENV`] overrides it, and the placeholder only when that
+/// override is present but unusable.
 ///
 /// Resolved once and cached, because building an HTTP client per command would
 /// rebuild its connection pool - and thread - every time. The first resolution
@@ -670,14 +709,16 @@ fn normalise_base(base: &mut reqwest::Url) {
 /// exists, which is the one context where constructing a blocking HTTP client
 /// is unambiguously safe.
 ///
-/// Unconfigured is the shipped state, and it is the state that cannot say yes.
+/// Absent configuration used to mean "cannot say yes", which is what made a
+/// release build unusable; it now means "dial production". The placeholder
+/// remains reachable, but only from a build whose explicit override is broken.
 pub fn production_client() -> &'static dyn LicenseApiClient {
     static RESOLVED: OnceLock<Option<LiveLicenseApiClient>> = OnceLock::new();
     static PLACEHOLDER: PlaceholderLicenseApiClient = PlaceholderLicenseApiClient;
 
     let resolved = RESOLVED.get_or_init(|| {
         let raw = std::env::var(BASE_URL_ENV).ok();
-        LiveLicenseApiClient::configured(raw.as_deref(), SystemClock)
+        LiveLicenseApiClient::configured(Some(shipped_base_url(raw.as_deref())), SystemClock)
     });
 
     match resolved {
@@ -1398,6 +1439,68 @@ mod tests {
         assert_eq!(parsed["email"], "fixture@local.invalid");
 
         server.verify().await;
+    }
+
+    // -----------------------------------------------------------------------
+    // The shipped default - defect D1
+    // -----------------------------------------------------------------------
+
+    /// The release build must dial production with no configuration at all.
+    ///
+    /// Deliberately *not* asserted through [`production_client`]: that
+    /// `OnceLock` is process-wide and
+    /// `a_configured_environment_variable_makes_production_post_for_real` claims
+    /// it first on purpose, so a second caller would either steal it or - now
+    /// that the default is real - put a live HTTP client on the wire to
+    /// production from inside `cargo test`.
+    #[test]
+    fn the_shipped_default_is_the_production_api_and_actually_builds() {
+        assert_eq!(DEFAULT_BASE_URL, "https://api.cyvoriq.co.in");
+        assert!(
+            LiveLicenseApiClient::new(DEFAULT_BASE_URL, still_clock()).is_ok(),
+            "the shipped default must be a URL this client can build, not a string nobody can dial"
+        );
+    }
+
+    #[test]
+    fn an_unconfigured_build_dials_the_shipped_default() {
+        // This is the defect in one line: an installed exe inherits no
+        // `CYVRA_ACTIVATION_BASE_URL`, so before this it fell through to the
+        // placeholder and answered `network error` to every call.
+        assert_eq!(shipped_base_url(None), DEFAULT_BASE_URL);
+        assert_eq!(shipped_base_url(Some("")), DEFAULT_BASE_URL);
+        assert_eq!(shipped_base_url(Some("   \t ")), DEFAULT_BASE_URL);
+    }
+
+    #[test]
+    fn a_development_override_still_wins() {
+        // `BASE_URL_ENV` exists so a dev build can point at a local server; D1
+        // must not have turned it into decoration.
+        assert_eq!(
+            shipped_base_url(Some("http://127.0.0.1:8787/")),
+            "http://127.0.0.1:8787/"
+        );
+        assert_eq!(
+            shipped_base_url(Some("https://staging.example/")),
+            "https://staging.example/"
+        );
+    }
+
+    #[test]
+    fn a_mistyped_override_is_handed_through_rather_than_silently_becoming_production() {
+        // `shipped_base_url` must not "helpfully" fall back to production when
+        // an override is merely unusable: an operator who typo'd their staging
+        // box would then be dialling a customer's production API and never know.
+        // It hands the value through unchanged, and `configured` is what refuses
+        // it - which leaves the build on the placeholder, loudly, rather than
+        // on somebody else's server.
+        let handed_through = shipped_base_url(Some("staging.example"));
+        assert_eq!(handed_through, "staging.example");
+        assert_ne!(handed_through, DEFAULT_BASE_URL);
+        assert!(
+            LiveLicenseApiClient::new(handed_through, still_clock()).is_err(),
+            "an unparseable override must fail construction, so the placeholder stays in place"
+        );
     }
 
     #[tokio::test]

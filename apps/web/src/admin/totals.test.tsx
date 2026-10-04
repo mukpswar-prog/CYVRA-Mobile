@@ -59,13 +59,13 @@ function mockCounts(failures: string[] = []) {
       filters: {},
       pagination: {
         page: 1,
-        pageSize: 1,
+        pageSize: 25,
         offset: 0,
-        returned: 1,
+        returned: 0,
         total,
-        totalPages: total,
-        hasMore: total > 1,
-        nextPage: total > 1 ? 2 : null,
+        totalPages: total === 0 ? 0 : Math.ceil(total / 25),
+        hasMore: total > 25,
+        nextPage: total > 25 ? 2 : null,
       },
     };
   });

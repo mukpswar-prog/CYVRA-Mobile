@@ -13,10 +13,10 @@
  * Pending" reads as *nothing needs doing*, which is the worst possible failure
  * mode for a number whose job is to tell somebody that something needs doing.
  *
- * So each figure is `GET /admin/serials?...&pageSize=1` -> `pagination.total`.
- * One row of payload, the whole answer in `total`, and the count is produced by
- * the same WHERE clause that would produce the rows - so a KPI and the table
- * behind it can never disagree.
+ * So each figure is `GET /admin/serials?...&pageSize=25` -> `pagination.total`.
+ * The smallest page the contract accepts, the whole answer in `total`, and the
+ * count is produced by the same WHERE clause that would produce the rows - so a
+ * KPI and the table behind it can never disagree.
  *
  * The requests are deduplicated before they are fired: "Payment pending" is
  * both the second KPI and the first queue item, and it is one number, so it is

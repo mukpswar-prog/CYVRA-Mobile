@@ -1,9 +1,9 @@
-//! The production [`LicenseApiClient`] for this package: a seam with no wire.
+//! The transport with no wire: a seam that fails closed on every call.
 //!
-//! Real endpoint wiring against `cyvoriq.co.in` is an explicit later task, so
-//! what ships here is a client that is *complete as a type* and *incomplete as
-//! a feature*. It has no URL, no TLS and no dependency it could reach out with;
-//! it fails closed on every call instead.
+//! Endpoint wiring lives in [`crate::activation::live_client`], which is what a
+//! healthy shipped build runs. What ships here is a client that is *complete as
+//! a type* and *deliberately incomplete as a feature*: it has no URL, no TLS
+//! and no dependency it could reach out with, and it fails closed instead.
 //!
 //! The distinction that matters: this is not "offline". A workstation that is
 //! genuinely offline may still enter on its grace window. This client is the

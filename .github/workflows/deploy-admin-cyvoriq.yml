@@ -36,6 +36,9 @@ jobs:
           set -euo pipefail
           cd services/api
           pnpm exec wrangler pages project create cyvoriq-admin --production-branch=main || true
+          # Detached HEAD here, so wrangler cannot infer a branch and would
+          # silently ship a Preview. Pin main to match --production-branch=main.
           pnpm exec wrangler pages deploy ../../apps/web/dist \
             --project-name=cyvoriq-admin \
+            --branch=main \
             --commit-dirty=true
