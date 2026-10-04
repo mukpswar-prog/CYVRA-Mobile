@@ -301,6 +301,7 @@ test("a validity window that has already elapsed is refused, not backdated", asy
 
 test("an unmapped serial status degrades to UNKNOWN, never to ACTIVE", () => {
   assert.equal(entitlementStatusFor("ISSUED"), "ACTIVE");
+  assert.equal(entitlementStatusFor("ACTIVE"), "ACTIVE");
   assert.equal(entitlementStatusFor("REVOKED"), "REVOKED");
   assert.equal(entitlementStatusFor("PENDING"), "UNKNOWN");
   assert.equal(entitlementStatusFor(""), "UNKNOWN");

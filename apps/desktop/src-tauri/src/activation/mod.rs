@@ -24,20 +24,21 @@ pub mod fingerprint;
 pub mod state;
 pub mod store;
 
-/// The production transport: a seam with no wire behind it yet.
+/// The transport with no wire behind it: `network error` to everything.
 ///
-/// Real `cyvoriq.co.in` endpoint wiring is deliberately out of scope for this
-/// package. Until it lands, a shipped build has a client that answers
-/// `network error` to everything it is asked, so nothing can be activated by
-/// accident and nothing can be activated at all.
+/// Endpoint wiring now lives in [`live_client`], so this is no longer what a
+/// healthy shipped build runs - it is the fail-closed fallback for a build
+/// whose `CYVRA_ACTIVATION_BASE_URL` is set but unusable. Nothing in here can
+/// ever say "yes", which is still the point: a build that cannot reach the
+/// licensing service must never be mistaken for an approving one.
 pub mod client;
 
-/// The transport that can reach a server, when one is configured.
+/// The transport that reaches the licensing service. **This is the shipped path.**
 ///
-/// Not the shipped default. [`live_client::production_client`] returns the
-/// placeholder above unless `CYVRA_ACTIVATION_BASE_URL` has been set, so an
-/// unconfigured build behaves exactly as it did before this module existed and
-/// cannot say "yes" to anybody.
+/// [`live_client::production_client`] dials [`live_client::DEFAULT_BASE_URL`]
+/// when `CYVRA_ACTIVATION_BASE_URL` is unset, so an installed exe can activate
+/// with no configuration. It falls back to the placeholder above only when that
+/// variable is set to something unusable.
 pub mod live_client;
 
 /// Tauri commands the activation screen drives.

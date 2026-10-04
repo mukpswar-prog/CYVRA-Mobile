@@ -105,6 +105,10 @@ class FakeRepo implements ActivationRepo {
     return this.row && this.row.publicNumber === publicNumber ? this.row : null;
   }
 
+  async findByDeviceTokenHash(deviceTokenHash: string): Promise<ActivationSerial | null> {
+    return this.row && this.row.deviceTokenHash === deviceTokenHash ? this.row : null;
+  }
+
   async claimBinding(params: ClaimParams): Promise<boolean> {
     const row = this.row;
     if (!row) return false;
@@ -130,6 +134,9 @@ class LoserRepo implements ActivationRepo {
   constructor(private row: ActivationSerial) {}
   async findByKey(): Promise<ActivationSerial | null> {
     return this.row;
+  }
+  async findByDeviceTokenHash(): Promise<ActivationSerial | null> {
+    return null;
   }
   async claimBinding(): Promise<boolean> {
     return false;
