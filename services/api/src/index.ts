@@ -17,6 +17,7 @@ import {
 import { mailConfigured, mailFromHost, sendOtpEmail } from "./email";
 import { adminRoutes } from "./admin";
 import { activationRoutes } from "./activation";
+import { entitlementRoutes } from "./entitlement";
 import { evidenceRoutes } from "./evidence";
 import { licenseRoutes } from "./license";
 import { reportRoutes } from "./reports";
@@ -248,6 +249,18 @@ app.route("/admin", adminRoutes);
 // (live_client.rs:105), which is the desktop's *assumed* path and is
 // overridable there if the deployed route ever has to differ.
 app.route("/v1", activationRoutes);
+// The customer's own entitlement, for the dashboard.
+//
+// Same `/v1` prefix - this adds no new route group, only a new path under the
+// one that exists. It is deliberately *not* folded into `activationRoutes`:
+// that module authenticates on a device token presented by the desktop, this
+// one on the customer's browser session, and putting a browser credential in
+// the desktop protocol's file would make the two auth models look
+// interchangeable when they are not.
+//
+// `GET /license` below is superseded by this route but stays mounted until a
+// hygiene commit retires it.
+app.route("/v1", entitlementRoutes);
 
 app.post("/auth/logout", async (c) => {
   const db = c.get("db");

@@ -1,0 +1,9 @@
+{
+  "_readme": "Published installer manifest. Single source of truth for the version and SHA-256 the customer dashboard shows. Rewritten IN PLACE by the release job in the same commit that uploads the assets, so a manifest can never describe a build that was not released. Served at /build-manifest.json and read by GET /v1/me/entitlement. Until a release exists this file states `unavailable`; it never invents a version or a digest.",
+  "state": "unavailable",
+  "version": null,
+  "sha256": null,
+  "sizeBytes": null,
+  "url": null,
+  "releasedAt": null
+}
