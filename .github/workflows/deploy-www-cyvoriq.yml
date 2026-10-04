@@ -44,8 +44,11 @@ jobs:
           pnpm --filter @cyvra/api exec wrangler whoami
           # Run from repo root so Worker wrangler.jsonc is not picked up.
           # Needs Account → Cloudflare Pages → Edit on token cyvoriq-mobile.
+          # Detached HEAD here, so wrangler cannot infer a branch and would
+          # silently ship a Preview. Pin main so manual runs hit Production.
           if ! pnpm --filter @cyvra/api exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/dist" \
             --project-name=cyvoriq-www \
+            --branch=main \
             --commit-dirty=true; then
             echo "[www] Pages API 10000 = token cyvoriq-mobile is missing Account → Cloudflare Pages → Edit."
             echo "[www] Edit that token (do not Roll erase tokens). Same GitHub secret. Re-run this workflow."

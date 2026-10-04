@@ -149,8 +149,13 @@ export function buildSerialQuery(state: SerialQueryState): string {
 }
 
 /**
- * Count-only request: one row, so the response's `pagination.total` is the
- * whole answer and the row payload is 1/25th of a normal page.
+ * Count-only request: `pagination.total` is the whole answer.
+ *
+ * The server refuses rather than clamps, and `parseSerialQuery` accepts only
+ * 25, 50 or 100 (`PAGE_SIZES` in services/api/src/admin/search.ts). So the
+ * smallest count this contract allows is `pageSize=25`: asking for 1 is a 400
+ * that names the allowed values, and every figure in the strip therefore came
+ * back as an em dash. One page of payload, the whole answer in `total`.
  *
  * This is the ONLY way the console is permitted to obtain a number. The
  * alternative - fetching pages and counting what came back - is wrong the
@@ -159,7 +164,7 @@ export function buildSerialQuery(state: SerialQueryState): string {
  */
 export function countSerials(query: string): Promise<SerialListResponse> {
   const params = new URLSearchParams(query);
-  params.set("pageSize", "1");
+  params.set("pageSize", "25");
   params.delete("page");
   return adminRequest<SerialListResponse>(`/admin/serials?${params.toString()}`);
 }
