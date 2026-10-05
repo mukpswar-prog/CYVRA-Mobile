@@ -162,9 +162,9 @@ export interface NavItem {
 export const NAV: readonly NavItem[] = Object.freeze([
   { id: "dashboard", label: "Dashboard", permission: "serial:read", icon: "▦" },
   { id: "licences", label: "Licences", permission: "serial:read", icon: "▤" },
-  { id: "staff", label: "Staff", permission: "serial:read", icon: "◇" },
+  { id: "staff", label: "Staff & Roles", permission: "serial:read", icon: "◇" },
   { id: "reports", label: "Reports", permission: "report:export", icon: "⇩" },
-  { id: "audit", label: "Audit", permission: "audit:read", icon: "≡" },
+  { id: "audit", label: "Audit Log", permission: "audit:read", icon: "≡" },
 ]);
 
 /** Nav items this role may open, in display order. */

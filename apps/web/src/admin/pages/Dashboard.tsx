@@ -10,7 +10,7 @@
  *
  * `useServerTotals` fires one request per distinct query, in parallel, and
  * deduplicates the overlap between the strip and the queue (both show "Payment
- * pending" and "Ready to generate"). That is 8 requests for 10 figures, not 10.
+ * pending" and "Ready to issue"). That is 8 requests for 10 figures, not 10.
  */
 import { useCallback, useMemo } from "react";
 import type { SerialQueryState } from "../client";

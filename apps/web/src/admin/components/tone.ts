@@ -31,7 +31,7 @@ const LICENCE_STATUS: Record<string, BadgeView> = {
   DRAFT: { text: "Draft", tone: "neutral" },
   PAYMENT_PENDING: { text: "Payment pending", tone: "amber" },
   PAYMENT_CONFIRMED: { text: "Payment confirmed", tone: "blue" },
-  READY_TO_GENERATE: { text: "Ready to generate", tone: "blue" },
+  READY_TO_GENERATE: { text: "Ready to issue", tone: "blue" },
   KEY_GENERATED: { text: "Key generated", tone: "blue" },
   ISSUED: { text: "Issued", tone: "violet" },
   ACTIVE: { text: "Active", tone: "green" },

@@ -123,7 +123,7 @@ const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
   PAYMENT_PENDING: "Payment pending",
   PAYMENT_CONFIRMED: "Payment confirmed",
-  READY_TO_GENERATE: "Ready to generate",
+  READY_TO_GENERATE: "Ready to issue",
   KEY_GENERATED: "Key generated",
   ISSUED: "Issued",
   ACTIVE: "Active",
@@ -173,7 +173,7 @@ const SPECS: Record<RowActionId, ActionSpec> = {
     stateReason: (row, ctx) => {
       // §49's waived edge: PAYMENT_PENDING -> KEY_GENERATED, Super Admin alone.
       if (ctx.isSuperAdmin && row.status === "PAYMENT_PENDING") return null;
-      if (row.status !== "READY_TO_GENERATE") return notIn(row, ["Ready to generate"]);
+      if (row.status !== "READY_TO_GENERATE") return notIn(row, ["Ready to issue"]);
       return null;
     },
     // §63: GREEN iff PAID, and never green on a waiver - see `tone.ts`.
