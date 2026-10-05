@@ -92,6 +92,19 @@ interface SerialBody {
   validityStartsAt: string | null;
   validityEndsAt: string | null;
   devicesBound: number;
+  /**
+   * Who created the row (`jsonSerial.createdBy`, design freeze §29).
+   *
+   * `null` on every row written before W5, where `issued_by` was the only
+   * actor column and a successful issuance overwrote the creator with the
+   * issuer. Shown in the drawer only: §13/§65 keep the table's column set
+   * where it is, and §56 already carries it in the XLSX export.
+   */
+  createdBy: string | null;
+  /**
+   * `string | null` because `jsonSerial` withholds it until `issued_at`
+   * exists: an unissued record has no issuer to name.
+   */
   issuedBy: string | null;
   issuedAt: string | null;
   revokedAt: string | null;

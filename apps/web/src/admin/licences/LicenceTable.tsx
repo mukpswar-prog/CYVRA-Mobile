@@ -90,7 +90,16 @@ export function formatDateTime(value: string | null): string {
 
 /* ----------------------------------------------------------------- columns */
 
-function dash(value: string | null | undefined): ReactNode {
+/**
+ * An absent cell value as an em dash, so a blank can never be mistaken for a
+ * populated one. Exported because `LicenceDrawer`'s "Created by" / "Issued by"
+ * rows must fall back exactly the way this column does.
+ *
+ * The glyph is left exactly as it was: this helper feeds every `COLUMNS` cell,
+ * so its output is part of how the registry table looks, and §13/§65 keep that
+ * table as it is.
+ */
+export function dash(value: string | null | undefined): ReactNode {
   return value && value !== "" ? value : <span className="muted">—</span>;
 }
 

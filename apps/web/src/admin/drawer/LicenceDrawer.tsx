@@ -43,7 +43,7 @@ import {
 } from "../components/tone";
 import { beforeReveal } from "../key";
 import { rowActions, type ActionableLicence, type RowActionId } from "../licences/actions";
-import { formatDateTime, formatDate } from "../licences/LicenceTable";
+import { dash, formatDateTime, formatDate } from "../licences/LicenceTable";
 import type { StaffRole } from "../permissions";
 import type { AuditEvent, LicenceRecord } from "../types";
 
@@ -314,7 +314,26 @@ export function LicenceDrawer({
                   </Row>
                   <Row label="Created">{formatDateTime(record.createdAt)}</Row>
                   <Row label="Issued">{formatDateTime(record.issuedAt)}</Row>
-                  <Row label="Issued by">{record.issuedBy}</Row>
+                  {/*
+                   * DESIGN FREEZE §29 - THE TWO ACTORS, SIDE BY SIDE.
+                   *
+                   * `Issued by` used to render `record.issuedBy` bare. That was
+                   * harmless while the column was NOT NULL and always held a
+                   * name, and it started producing an empty `<dd>` the moment
+                   * migration 0008 made the column nullable: "no issuer yet"
+                   * and "field failed to load" looked identical. `dash()`
+                   * restores the table's own answer to that ambiguity.
+                   *
+                   * `Created by` is new here and deliberately stays out of the
+                   * table: §13/§65 fix that column set, while §29 asks the
+                   * detail view to show who made the record, and §56 already
+                   * gives the XLSX export its own Created By column. A record
+                   * the software created on a customer's behalf therefore
+                   * reads `registration@cyvoriq.co.in` here rather than
+                   * appearing to have no author at all.
+                   */}
+                  <Row label="Created by">{dash(record.createdBy)}</Row>
+                  <Row label="Issued by">{dash(record.issuedBy)}</Row>
                   <Row label="Expiry">
                     {expiryTone(record.validityEndsAt) ? (
                       <>
