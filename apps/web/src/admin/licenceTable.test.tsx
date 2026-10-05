@@ -56,6 +56,7 @@ function listItem(overrides: Partial<LicenceListItem> = {}): LicenceListItem {
     validityStartsAt: null,
     validityEndsAt: null,
     devicesBound: 0,
+    createdBy: null,
     issuedBy: null,
     issuedAt: null,
     revokedAt: null,
