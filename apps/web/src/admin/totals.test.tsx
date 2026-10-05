@@ -5,7 +5,7 @@
  * The brief's rule, tested from three directions:
  *
  * 1. DEDUPLICATION. `KPIS + QUEUE` describe ten figures but eight distinct
- *    queries, because "Payment pending" and "Ready to generate" appear in both
+ *    queries, because "Payment pending" and "Ready to issue" appear in both
  *    and are one number each. The assertion is on the REQUEST COUNT, so a
  *    regression shows up as a network-shape failure rather than as a
  *    double-fetch somebody notices in a profile months later.

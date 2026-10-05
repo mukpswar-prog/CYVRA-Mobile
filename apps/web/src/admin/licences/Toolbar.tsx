@@ -29,7 +29,7 @@ export const LICENCE_STATUSES: readonly ChoiceOption[] = Object.freeze([
   { value: "DRAFT", label: "Draft" },
   { value: "PAYMENT_PENDING", label: "Payment pending" },
   { value: "PAYMENT_CONFIRMED", label: "Payment confirmed" },
-  { value: "READY_TO_GENERATE", label: "Ready to generate" },
+  { value: "READY_TO_GENERATE", label: "Ready to issue" },
   { value: "KEY_GENERATED", label: "Key generated" },
   { value: "ISSUED", label: "Issued" },
   { value: "ACTIVE", label: "Active" },

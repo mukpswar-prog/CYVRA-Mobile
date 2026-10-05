@@ -69,7 +69,7 @@ export const KPIS: readonly KpiDef[] = Object.freeze([
   },
   {
     id: "ready",
-    label: "Ready to generate",
+    label: "Ready to issue",
     tone: "ready",
     patch: { status: ["READY_TO_GENERATE"] },
   },
@@ -94,7 +94,7 @@ export const KPIS: readonly KpiDef[] = Object.freeze([
  */
 export const QUEUE: readonly QueueDef[] = Object.freeze([
   { id: "payment", label: "Payment pending", tone: "amber", patch: { status: ["PAYMENT_PENDING"] } },
-  { id: "ready", label: "Ready to generate", tone: "blue", patch: { status: ["READY_TO_GENERATE"] } },
+  { id: "ready", label: "Ready to issue", tone: "blue", patch: { status: ["READY_TO_GENERATE"] } },
   { id: "approval", label: "Awaiting approval", tone: "blue", patch: { status: ["KEY_GENERATED"] } },
   { id: "delivery", label: "Failed delivery", tone: "red", patch: { delivery: ["FAILED"] } },
   { id: "rebind", label: "Rebind requested", tone: "amber", patch: { hostBinding: ["REBIND_REQUEST"] } },
