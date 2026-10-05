@@ -26,7 +26,7 @@ describe("maskSerialKey", () => {
   });
 
   it("matches on every slab the key format allows", () => {
-    for (const slab of ["1", "3", "5", "7", "25", "50"]) {
+    for (const slab of ["1", "3", "5", "7", "10", "25", "50"]) {
       // Kind B, hex body `00A0` - four hex digits, exactly as the format
       // defines them: `CYVRA` + dd + mm + yyyy + kind + hex4 + `-1-` + slab.
       expect(maskSerialKey(`CYVRA01102026B00A0-1-${slab}`)).toBe(

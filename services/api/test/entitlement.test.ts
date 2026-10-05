@@ -53,9 +53,27 @@ const MASKED = "CYVRA*************-1-25";
 const SERIAL_ID = "30c5638d-e17d-43ee-9f0f-eddb4bba3696";
 
 /** Two distinct signed-in customers, so scoping has something to distinguish. */
-const USER: EntitlementUser = { id: "u-1", email: EMAIL, companyName: "Example Ltd" };
+const USER: EntitlementUser = {
+  id: "u-1",
+  email: EMAIL,
+  companyName: "Example Ltd",
+  fullName: "Test Customer",
+  addressLine1: "1 Test Road",
+  addressLine2: null,
+  pincode: "560001",
+  state: "Karnataka",
+};
 /** Deliberately has no company name, so a missing one must survive as null. */
-const OTHER_USER: EntitlementUser = { id: "u-2", email: OTHER_EMAIL, companyName: null };
+const OTHER_USER: EntitlementUser = {
+  id: "u-2",
+  email: OTHER_EMAIL,
+  companyName: null,
+  fullName: "Other Customer",
+  addressLine1: null,
+  addressLine2: null,
+  pincode: null,
+  state: null,
+};
 
 const ISSUED_AT = new Date("2026-09-01T12:00:00.000Z");
 const CREATED_AT = new Date("2026-09-01T11:00:00.000Z");
@@ -243,6 +261,71 @@ test("a customer with no serial gets 404, not a preview licence", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Ensure-on-session: the backfill that repairs accounts registered before the
+// bridge existed. `buildEntitlementRoutes({ repo })` deliberately does NOT opt
+// into it, so every read-only test above still drives a route that cannot
+// write; production wires it in `entitlementRoutes`.
+// ---------------------------------------------------------------------------
+
+test("a signed-in customer with no row gets it created on this dashboard load", async () => {
+  const repo = repoFor(null);
+  let ensured: EntitlementUser | null = null;
+
+  const res = await buildEntitlementRoutes({
+    repo,
+    ensureSerial: async (_c, user) => {
+      ensured = user;
+      return {
+        serial: serial({
+          customerEmail: user.email,
+          userId: user.id,
+          status: "PAYMENT_PENDING",
+          publicNumber: null,
+          planCode: "CAP-1",
+          deviceMax: 1,
+        }),
+        paymentStatus: "PENDING",
+      };
+    },
+  }).request(PATH, { headers: bearer(TOKEN) }, ENV);
+
+  assert.equal(res.status, 200, "the next authenticated load is what repairs it");
+  assert.equal((ensured as EntitlementUser | null)?.email, EMAIL);
+  assert.equal((ensured as EntitlementUser | null)?.id, "u-1");
+
+  const body = (await res.json()) as Record<string, any>;
+  assert.equal(body.licence.status, "PAYMENT_PENDING");
+  assert.equal(body.licence.maskedSerial, null, "a row with no key reports no key");
+  assert.equal(body.customer.email, EMAIL);
+});
+
+test("the bridge is never consulted when the customer already has a row", async () => {
+  let called = 0;
+  const res = await buildEntitlementRoutes({
+    repo: repoFor({ serial: serial(), paymentStatus: "PAID" }),
+    ensureSerial: async () => {
+      called += 1;
+      return null;
+    },
+  }).request(PATH, { headers: bearer(TOKEN) }, ENV);
+
+  assert.equal(res.status, 200);
+  assert.equal(called, 0, "an existing row must not trigger a write path at all");
+});
+
+test("a bridge failure is 503, never a 404 claiming no licence exists", async () => {
+  const res = await buildEntitlementRoutes({
+    repo: repoFor(null),
+    ensureSerial: async () => {
+      throw new Error("database unreachable");
+    },
+  }).request(PATH, { headers: bearer(TOKEN) }, ENV);
+
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { error: "Entitlement is unavailable." });
+});
+
+// ---------------------------------------------------------------------------
 // The projection: no key, no operator vocabulary, no invented numbers
 // ---------------------------------------------------------------------------
 
@@ -414,12 +497,18 @@ test("the scan segment is the R-1 gated state and can hold no number", async () 
   );
 });
 
-test("CAP-10 is never emitted, for any slab the key format can carry", async () => {
-  assert.equal(
-    (LICENCE_SLABS as readonly number[]).includes(10),
-    false,
-    "no key can encode a slab of 10, so no projection may claim one",
-  );
+test("a plan code may only ever describe its own slab", async () => {
+  // Until 05 Oct 2026 the first assertion below was the whole test: `CAP-10 is
+  // never emitted`, because `LICENCE_SLABS` contained no 10, so a `CAP-10` the
+  // projection produced would name a plan no key could encode. Slab 10 joined
+  // `LICENCE_SLABS` and `LICENCE_KEY_RE` together (design-freeze RULE 4), which
+  // retires that half of it.
+  //
+  // The half worth keeping is the reason the assertion existed at all: a
+  // borrowed code. `CAP-1` sitting on a `-1-5` row, or the reserved `CAP-10`
+  // sitting on some other slab, is a projection that misstates what the
+  // customer bought while their key still reads `-1-<their slab>`.
+  const emitted = new Set<string>();
 
   for (const slab of LICENCE_SLABS) {
     const repo = repoFor({
@@ -430,10 +519,24 @@ test("CAP-10 is never emitted, for any slab the key format can carry", async () 
     assert.equal(res.status, 200);
 
     const body = (await res.json()) as Record<string, any>;
-    assert.notEqual(body.plan.code, "CAP-10", `slab ${slab} claimed the unreachable plan code`);
     assert.equal(body.plan.slab, `1-${slab}`);
-    assert.equal(body.plan.code, planCodeFor(slab));
+    assert.equal(body.plan.code, planCodeFor(slab), `slab ${slab} must carry its own plan code`);
+    assert.equal(body.plan.label, `${slab} Device Scans`);
+    if (body.plan.code === "CAP-10") {
+      assert.equal(
+        slab,
+        10,
+        "CAP-10 belongs to the slab a `-1-10` key encodes, and to nothing else",
+      );
+    }
+    emitted.add(body.plan.code as string);
   }
+
+  assert.equal(
+    emitted.has("CAP-10"),
+    (LICENCE_SLABS as readonly number[]).includes(10),
+    "CAP-10 is emitted exactly when the key format can carry slab 10",
+  );
 });
 
 // ---------------------------------------------------------------------------

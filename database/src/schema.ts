@@ -33,7 +33,7 @@ import {
 // PLAN CODE, AND WHY CAP-3 / CAP-7 ARE IN HERE
 // ---------------------------------------------
 // `plan_code_enum` is derived from `mobile_serials.device_max`, whose canonical
-// slab set is `[1, 3, 5, 7, 25, 50]` (`services/api/src/licenceKey.ts:28`).
+// slab set is `[1, 3, 5, 7, 10, 25, 50]` (`services/api/src/licenceKey.ts:28`).
 // The commercial plan list is CAP-1/5/10/25/50, but slabs 3 and 7 predate it
 // and are encoded inside licence keys real customers already hold (`-1-3`,
 // `-1-7`). Re-mapping 3->5 or 7->10 would silently change an entitlement the
@@ -105,11 +105,22 @@ export const paymentStatusEnum = pgEnum("payment_status_enum", [
   "CANCELLED",
 ]);
 
+/**
+ * The four roles of design plan 41, plus `SYSTEM`.
+ *
+ * `SYSTEM` is NOT a staff role and can never be held by a `staff_operators`
+ * row - `POST /staff` refuses it. It exists for exactly one column:
+ * `audit_events.actor_role`, which is NOT NULL, so that an event the software
+ * performed on a customer's behalf (the registration bridge) can be recorded
+ * truthfully instead of being pinned on whichever staff member happens to be
+ * nearest. See `services/api/src/bridge.ts` for the ruling.
+ */
 export const staffRoleEnum = pgEnum("staff_role_enum", [
   "SUPER_ADMIN",
   "LICENCE_ADMIN",
   "OPERATOR",
   "AUDITOR",
+  "SYSTEM",
 ]);
 
 /** `ACTIVE` replaces the pre-W5 literal `APPROVED`; backfilled in 0007. */
@@ -180,6 +191,17 @@ export const emailOtpChallenges = pgTable(
     addressLine2: text("address_line2"),
     pincode: text("pincode"),
     state: text("state"),
+    /**
+     * The device slab the customer picked, snapshotted for the same reason the
+     * profile fields are: `/auth/request` parses it and `/auth/verify` applies
+     * it, and a value that had to survive the round trip in the client's memory
+     * would be a value the client could change its mind about.
+     *
+     * NULL means the registration form offered no plan - which is every
+     * registration today, because no checkout step exists yet. The bridge then
+     * falls back to `REGISTRATION_DEFAULT_SLAB`.
+     */
+    deviceMax: integer("device_max"),
     // SHA-256 hex of the one-time code. Plaintext codes are never persisted.
     codeHash: text("code_hash").notNull(),
     attempts: integer("attempts").notNull().default(0),
@@ -423,7 +445,19 @@ export const mobileSerials = pgTable(
     customerEmail: text("customer_email").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     paymentNoted: text("payment_noted").notNull(),
-    issuedBy: text("issued_by").notNull(),
+    /**
+     * Who issued the licence. NULL from creation until `POST .../issue` writes
+     * it beside `issued_at`.
+     *
+     * It was `NOT NULL` from 0004 until migration 0008, which forced every
+     * *create* to name an issuer before anything had been issued and made the
+     * column carry two meanings: issuer on issued rows, creator on rows nobody
+     * had issued yet (migration 0007 section 6e recovers that creator into
+     * `created_by` for the rows where it survives). 0008 drops the constraint;
+     * `jsonSerial` still gates the projected value on `issued_at`, because a
+     * pre-0008 never-issued row still holds its creator in here.
+     */
+    issuedBy: text("issued_by"),
     issuedAt: timestamp("issued_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })

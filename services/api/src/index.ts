@@ -25,7 +25,9 @@ import type { Env } from "./env";
 import {
   parseRegistration,
   profileColumns,
+  REGISTRATION_DEFAULT_SLAB,
 } from "./registration";
+import { ensureSerialForUser } from "./bridge";
 import { isAllowedOrigin } from "./origins";
 import {
   SESSION_COOKIE,
@@ -97,6 +99,10 @@ app.post("/auth/request", async (c) => {
       email: profile.email,
       codeHash,
       expiresAt,
+      // Snapshotted with the profile for the same reason the profile is
+      // snapshotted: `/auth/verify` applies whatever this row recorded, so a
+      // plan cannot be changed between asking for a code and entering it.
+      deviceMax: profile.deviceMax,
       ...profileColumns(profile),
     })
     .returning({ id: emailOtpChallenges.id });
@@ -204,6 +210,45 @@ app.post("/auth/verify", async (c) => {
         ...profile,
       })
       .where(eq(users.id, user.id));
+  }
+
+  /*
+   * WORKSTREAM A - THE LICENCE-CREATION BRIDGE.
+   *
+   * The verified user now gets the `PAYMENT_PENDING` record the admin console's
+   * registry, KPI strip and Needs Action queue read, so registering reflects in
+   * the admin instead of vanishing into `users`. Everything the row carries is
+   * copied from the `users` row rather than from the OTP challenge's snapshot,
+   * so a profile corrected after registration still produces a correct licence.
+   *
+   * This runs for every sign-in, not only new ones, and that is deliberate: it
+   * is what repairs accounts registered before this bridge existed. On an
+   * account that already has a row it performs no insert, no payment row and no
+   * audit row.
+   *
+   * A failure here is logged and swallowed. Registration must not be turned into
+   * an error page by the row it is meant to produce, and the ensure-on-session
+   * backfill in `GET /v1/me/entitlement` is the repair path for exactly this
+   * case - a customer who signs in and loads their dashboard still gets their
+   * record created.
+   */
+  try {
+    await ensureSerialForUser(c, {
+      email: user.email,
+      userId: user.id,
+      fullName: profile.fullName,
+      companyName: profile.companyName,
+      addressLine1: profile.addressLine1,
+      addressLine2: profile.addressLine2,
+      pincode: profile.pincode,
+      state: profile.state,
+      deviceMax: challenge.deviceMax ?? REGISTRATION_DEFAULT_SLAB,
+    });
+  } catch (error) {
+    console.error(
+      "[auth/verify] licence bridge failed:",
+      error instanceof Error ? error.message : error,
+    );
   }
 
   const token = generateSessionToken();

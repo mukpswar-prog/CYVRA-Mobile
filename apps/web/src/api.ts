@@ -272,7 +272,13 @@ export interface MobileSerial {
   state: string | null;
   paymentNoted: string;
   devicesBound: number;
-  issuedBy: string;
+  /** Who created the row. `null` on pre-W5 rows, where the value was destroyed. */
+  createdBy: string | null;
+  /**
+   * `string | null` because `jsonSerial` withholds it until `issued_at` exists:
+   * an unissued record has no issuer to name.
+   */
+  issuedBy: string | null;
   issuedAt: string | null;
   revokedAt: string | null;
   createdAt: string | null;

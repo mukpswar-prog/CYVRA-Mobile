@@ -32,9 +32,11 @@
  *
  * ## Scoping, and why it is by email
  *
- * `mobile_serials.user_id` exists but `admin.ts` writes `userId: null` on
- * create, because the registration-to-serial bridge does not exist yet. Email
- * is therefore the only join that works today.
+ * `mobile_serials.user_id` is written by the registration bridge from the moment
+ * a row is created, but rows an operator created before it existed still carry
+ * NULL, so email remains the only join that works for *both* populations today.
+ * Flipping this to `user_id` is a deliberate follow-up, not a requirement of the
+ * bridge.
  *
  * The ownership check is repeated in the projection rather than trusted to the
  * query: a repository that hands back another customer's row must still produce
@@ -67,15 +69,20 @@
  * mistake an absent counter for a zero.
  */
 
-import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { mobileSerials, payments, type LicenceStatus } from "@cyvra/database/schema";
+import { mobileSerials, type LicenceStatus } from "@cyvra/database/schema";
 import type { Database } from "./db";
 import type { Env } from "./env";
 import type { PaymentStatus } from "./admin/state-machine";
 import { maskSerialKey } from "./admin";
+import {
+  ensureSerialForUser,
+  findSerialForCustomer,
+  type BridgeContext,
+} from "./bridge";
 import { isLicenceSlab, slabLabel } from "./licenceKey";
 import { planNameFor } from "./entitlementSigner";
+import { REGISTRATION_DEFAULT_SLAB } from "./registration";
 import { readSessionToken } from "./session";
 import { lookupSessionUser } from "./user";
 import committedBuild from "../../../apps/web/public/build-manifest.json";
@@ -176,10 +183,23 @@ const PAYMENT_SENTENCES: Record<PaymentStatus, string> = {
  */
 const SCANS_STATE = "available-after-first-scan";
 
+/**
+ * The signed-in customer, as the session reports them.
+ *
+ * The profile fields are not decoration: the ensure-on-session backfill copies
+ * them onto the licence row it creates, and `lookupSessionUser` already reads
+ * them. Projecting them away here and re-reading the row inside the bridge would
+ * be a second trip to the database for data this query had in its hands.
+ */
 export interface EntitlementUser {
   id: string;
   email: string;
   companyName: string | null;
+  fullName: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  pincode: string | null;
+  state: string | null;
 }
 
 export interface EntitlementRow {
@@ -213,25 +233,19 @@ function dbEntitlementRepo(db: Database): EntitlementRepo {
       const user = await lookupSessionUser(db, token);
       return user === null
         ? null
-        : { id: user.id, email: user.email, companyName: user.companyName };
+        : {
+            id: user.id,
+            email: user.email,
+            companyName: user.companyName,
+            fullName: user.fullName,
+            addressLine1: user.addressLine1,
+            addressLine2: user.addressLine2,
+            pincode: user.pincode,
+            state: user.state,
+          };
     },
     async findForEmail(email) {
-      const [serial] = await db
-        .select()
-        .from(mobileSerials)
-        .where(eq(mobileSerials.customerEmail, email))
-        .orderBy(desc(mobileSerials.createdAt))
-        .limit(1);
-      if (!serial) return null;
-      // One `payments` row per serial (schema.ts), newest wins if a migration
-      // ever leaves more than one behind.
-      const [payment] = await db
-        .select()
-        .from(payments)
-        .where(eq(payments.licenceId, serial.id))
-        .orderBy(desc(payments.createdAt))
-        .limit(1);
-      return { serial, paymentStatus: payment?.status ?? null };
+      return findSerialForCustomer(db, email);
     },
   };
 }
@@ -240,6 +254,20 @@ export interface EntitlementDeps {
   repo?: EntitlementRepo;
   /** Defaults to the committed `apps/web/public/build-manifest.json`. */
   build?: unknown;
+  /**
+   * Ensure-on-session: create the customer's licence record when they are
+   * signed in and do not have one.
+   *
+   * Optional, and deliberately absent from `buildEntitlementRoutes({ repo })`'s
+   * default - a read-only route must stay read-only when a test drives it, and
+   * the production wiring below is what opts into the write. The seam exists so
+   * "no serial" can be repaired by the customer's next dashboard load rather
+   * than being a permanent 404 for everyone who registered before the bridge.
+   */
+  ensureSerial?: (
+    c: BridgeContext,
+    user: EntitlementUser,
+  ) => Promise<EntitlementRow | null>;
 }
 
 /**
@@ -342,6 +370,27 @@ export function buildEntitlementRoutes(
       return c.json({ error: "Entitlement is unavailable." }, 503);
     }
 
+    // ENFORCE-ON-SESSION. A signed-in customer with no row is not a permanent
+    // "Licence not found" - it is a record the bridge has not reached yet: an
+    // account registered before this code existed, or a sign-in whose bridge
+    // write failed and was logged rather than allowed to break the login. Either
+    // way the next authenticated dashboard load is where it gets repaired.
+    //
+    // A failure here answers 503, not 404: we do not know that there is no
+    // licence, only that we could not establish one. 404 would turn a transient
+    // database error into a claim about the customer's record.
+    if (row === null && deps.ensureSerial !== undefined) {
+      try {
+        row = await deps.ensureSerial(c, user);
+      } catch (error) {
+        console.error(
+          "[me/entitlement] licence bridge failed:",
+          error instanceof Error ? error.message : error,
+        );
+        return c.json({ error: "Entitlement is unavailable." }, 503);
+      }
+    }
+
     // Ownership is re-checked here rather than trusted to the query above. A
     // row belonging to somebody else is "not found" for this caller - not 403,
     // which would confirm the row exists.
@@ -357,5 +406,29 @@ export function buildEntitlementRoutes(
   return routes;
 }
 
-/** The production route. Both reads resolve per request from `c.get("db")`. */
-export const entitlementRoutes = buildEntitlementRoutes();
+/**
+ * The production route.
+ *
+ * Both reads resolve per request from `c.get("db")`, and the ensure-on-session
+ * backfill is wired here rather than in `buildEntitlementRoutes`'s default so
+ * that a test which passes only `{ repo }` gets a route that reads and never
+ * writes. Same reason `dbEntitlementRepo` exists as a per-request value: the
+ * write has to be something this module opted into, not something every caller
+ * inherits.
+ */
+export const entitlementRoutes = buildEntitlementRoutes({
+  ensureSerial: async (c, user) =>
+    ensureSerialForUser(c, {
+      email: user.email,
+      userId: user.id,
+      fullName: user.fullName,
+      companyName: user.companyName,
+      addressLine1: user.addressLine1,
+      addressLine2: user.addressLine2,
+      pincode: user.pincode,
+      state: user.state,
+      // No plan picker exists, so a backfilled row takes the registration
+      // default rather than a slab nobody chose.
+      deviceMax: REGISTRATION_DEFAULT_SLAB,
+    }),
+});

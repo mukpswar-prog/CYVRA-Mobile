@@ -237,10 +237,11 @@ export function requirePermission(
  *
  * Every state-changing route uses this rather than `requirePermission`, for
  * two reasons that are the same reason: `audit_events.actor_role` is NOT NULL
- * and a service principal has no role to put in it; and `issued_by`,
- * `created_by` and `nominated_by` are NOT NULL text columns that must record a
- * person. Returning `StaffPrincipal` proves both at compile time, so a handler
- * assigns `admin.email` with no cast and no non-null assertion.
+ * and a service principal has no role to put in it; and the actor columns a
+ * handler writes here - `created_by`, `issued_by`, `nominated_by` - must name
+ * the person who acted, not an API token. Returning `StaffPrincipal` proves
+ * that at compile time, so a handler assigns `admin.email` with no cast and no
+ * non-null assertion.
  */
 export function requireStaffPermission(
   ...permissions: readonly Permission[]
