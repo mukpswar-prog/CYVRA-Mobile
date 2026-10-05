@@ -212,6 +212,30 @@ describe("the projection's default parameter", () => {
   });
 });
 
+describe("Issued By vs Created By - design freeze §6 / §56", () => {
+  it("withholds Issued By on an unissued row, even one still holding its creator", async () => {
+    // Migration 0008 dropped the NOT NULL on `issued_by`, but it did not (and
+    // must not) rewrite rows that already exist: every never-issued row written
+    // before 0008 still carries its CREATOR in that column, because that was
+    // the only actor column until W5 split it out (migration 0007 section 6e
+    // copied it into `created_by` and left the original alone).
+    //
+    // So gating on "is the column non-empty" would report a creator as an
+    // issuer for exactly the records that predate this change. The gate is
+    // `issued_at`, because that is the fact the column header describes.
+    const unissued = (await jsonSerialList(
+      licenceRow({ issuedBy: "ceo@cyvoriq.com" }),
+    )) as Record<string, unknown>;
+    assert.equal(unissued.issuedBy, null, "an issuer must not be named pre-issuance");
+    assert.equal(unissued.createdBy, "ceo@cyvoriq.com", "the creator is not lost");
+
+    const issued = (await jsonSerialList(
+      licenceRow({ issuedBy: "licadmin@cyvoriq.com", issuedAt: new Date("2026-10-02T10:00:00.000Z") }),
+    )) as Record<string, unknown>;
+    assert.equal(issued.issuedBy, "licadmin@cyvoriq.com", "and issuance still reports itself");
+  });
+});
+
 describe("the CSV export", () => {
   it("carries the four new columns, and payment beside licence status", async () => {
     const row = licenceRow(WINDOW);
@@ -234,6 +258,17 @@ describe("the CSV export", () => {
     // Status); an auditor reconciling a file reads the two together, so the
     // columns sit together rather than payment trailing at the end.
     assert.equal(cells.indexOf("paymentStatus"), cells.indexOf("status") + 1);
+
+    // Design freeze §56 lists Created By as its own column beside Issued By.
+    // `issuedBy` deliberately projects empty on an unissued record, so
+    // `createdBy` is what keeps the file able to answer "who made this row"
+    // for a request that has not reached issuance yet.
+    assert.ok(cells.includes("createdBy"), `CSV header is missing createdBy: ${header}`);
+    assert.equal(
+      (mapped[0] as unknown as Record<string, unknown>).createdBy,
+      "ceo@cyvoriq.com",
+      "and the value reaches the row the header prints from",
+    );
 
     assert.ok(data.includes("PAID"), "the payment value must reach the file");
     assert.ok(data.includes("2027-10-01T10:00:00.000Z"), "and so must the window");

@@ -517,6 +517,10 @@ export function licenceRow(overrides: Row = {}): Row {
     status: "KEY_GENERATED",
     publicNumber: generateLicenceKey({ at, kind: "SINGLE", slabMax: 1 }),
     generatedBy: "auditor@cyvoriq.com",
+    // W5 actor column. `issued_by` stays NULL because nothing has issued this
+    // row, and `created_by` is what the export reads for "who made it" - see
+    // `jsonSerial`.
+    createdBy: "ceo@cyvoriq.com",
     issuedBy: null,
     issuedAt: null,
     revokedAt: null,

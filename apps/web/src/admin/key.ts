@@ -26,7 +26,7 @@
  */
 
 /** Copied from `services/api/src/licenceKey.ts`. Change both or neither. */
-const LICENCE_KEY_RE = /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(1|3|5|7|25|50)$/;
+const LICENCE_KEY_RE = /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(1|3|5|7|10|25|50)$/;
 
 /** Copied from `services/api/src/licenceKey.ts`. */
 const LICENCE_PREFIX = "CYVRA";

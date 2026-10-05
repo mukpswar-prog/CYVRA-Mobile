@@ -9,7 +9,7 @@
  *   11092026  issue/create date UTC (ddmmyyyy)
  *   S         SINGLE user  (B = BULK)
  *   A3F1      4-digit hex uniqueness
- *   1-1       device slab (allowed: 1-1, 1-3, 1-5, 1-7, 1-25, 1-50)
+ *   1-1       device slab (allowed: 1-1, 1-3, 1-5, 1-7, 1-10, 1-25, 1-50)
  *
  * Same key may be used on devices of the same brand up to `max`.
  * 1-1 is single-user, single-device only (not BULK). Email only. Not a Windows Erase licence.
@@ -25,18 +25,24 @@ export const LICENCE_PREFIX = "CYVRA";
  * would silently break `-1-3` keys that real customers already hold, which is
  * what `licenceKey.test.ts:43-44` exists to catch.
  */
-export const LICENCE_SLABS = [1, 3, 5, 7, 25, 50] as const;
+export const LICENCE_SLABS = [1, 3, 5, 7, 10, 25, 50] as const;
 export type LicenceSlabMax = (typeof LICENCE_SLABS)[number];
 export type LicenceKind = "SINGLE" | "BULK";
 
 /**
  * Second, independent definition of the slab set - see the warning on
  * `LICENCE_SLABS`. The two MUST change together or a key will format but never
- * parse. `50` sits last and the trailing `$` anchors the match, so `-1-5` still
- * fails to reach end-of-string and backtracks to `50`.
+ * parse.
+ *
+ * The alternation is listed in the same numeric order as `LICENCE_SLABS`, and
+ * the trailing `$` is what makes the ambiguous prefixes safe rather than lucky:
+ * for `-1-10` the engine tries `1`, finds `0` where `$` demanded the end, and
+ * backtracks into `10`; for `-1-50` the same backtrack reaches `50`. A slab
+ * that is a strict prefix of another (`1` of `10`, `5` of `50`) therefore
+ * parses correctly because the anchor refuses the short match.
  */
 export const LICENCE_KEY_RE =
-  /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(1|3|5|7|25|50)$/;
+  /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(1|3|5|7|10|25|50)$/;
 
 export function kindCode(kind: LicenceKind): "S" | "B" {
   return kind === "BULK" ? "B" : "S";
@@ -60,12 +66,12 @@ export function slabLabel(max: LicenceSlabMax): string {
  * Commercial plan codes, mirroring `plan_code_enum` in
  * `database/src/schema.ts`.
  *
- * `CAP-10` is declared but unreachable: `LICENCE_SLABS` contains no 10, so no
- * key can ever carry `-1-10`. It stays reserved until the slab is added - which
- * means editing `LICENCE_SLABS` **and** `LICENCE_KEY_RE` together, in their own
- * commit with their own tests. It is deliberately NOT synthesised here, because
- * returning `CAP-10` for a slab that cannot be issued would be the schema
- * claiming an entitlement the key does not encode.
+ * `CAP-10` became reachable when slab 10 joined `LICENCE_SLABS` and
+ * `LICENCE_KEY_RE` together (05 Oct 2026: design-freeze RULE 4 fixes the
+ * standard plans at 1, 5, 10, 25, 50, and a standard plan the key cannot
+ * encode is a gap rather than a plan). Until that edit the two were always
+ * changed in the same change, because a `PlanCode` no key can produce is the
+ * schema claiming an entitlement the key does not encode.
  *
  * `CAP-3` and `CAP-7` are LEGACY: reachable from records created before the
  * commercial plan list existed, never offered to new ones. Mapping slab 3 to
@@ -81,7 +87,12 @@ export type PlanCode =
   | "CAP-25"
   | "CAP-50";
 
-/** Plan codes issuable to a newly created record (excludes the legacy pair). */
+/**
+ * Plan codes issuable to a newly created record (excludes the legacy pair).
+ *
+ * Must stay aligned with `ISSUABLE_SLABS` below: same five values, same order.
+ * One lists codes, the other lists the slabs they encode.
+ */
 export const ISSUABLE_PLAN_CODES = [
   "CAP-1",
   "CAP-5",
@@ -90,11 +101,34 @@ export const ISSUABLE_PLAN_CODES = [
   "CAP-50",
 ] as const;
 
+/**
+ * Slabs a **newly created** record may be born on.
+ *
+ * This is `ISSUABLE_PLAN_CODES` with the LEGACY pair removed, and it now equals
+ * the design freeze's five standard plans exactly: 1, 5, 10, 25, 50 (RULE 4).
+ *
+ * `3` and `7` are excluded on policy, not on capability. `LICENCE_SLABS` keeps
+ * them because real customers already hold `-1-3` / `-1-7` keys and
+ * `PLAN_BY_SLAB` keeps them so those records still map - but `schema.ts` states
+ * the rule outright, "reachable by backfill, never issuable to new records", so
+ * a registration arriving today must not be born on a plan the product does
+ * not sell. An *operator* reopening a legacy record still can: that is
+ * `licenceDraftError`, which validates against `LICENCE_SLABS`.
+ */
+export const ISSUABLE_SLABS = [1, 5, 10, 25, 50] as const;
+export type IssuableSlabMax = (typeof ISSUABLE_SLABS)[number];
+
+/** Whether a brand-new record may claim this slab. Total over `ISSUABLE_SLABS`. */
+export function isIssuableSlab(max: number): max is IssuableSlabMax {
+  return (ISSUABLE_SLABS as readonly number[]).includes(max);
+}
+
 const PLAN_BY_SLAB: Readonly<Record<LicenceSlabMax, PlanCode>> = {
   1: "CAP-1",
   3: "CAP-3",
   5: "CAP-5",
   7: "CAP-7",
+  10: "CAP-10",
   25: "CAP-25",
   50: "CAP-50",
 };
@@ -139,7 +173,7 @@ export function formatLicenceKey(params: {
     throw new Error("hex4 must be 4 hexadecimal digits.");
   }
   if (!isLicenceSlab(params.slabMax)) {
-    throw new Error("slab must be 1-1, 1-3, 1-5, 1-7, 1-25 or 1-50.");
+    throw new Error("slab must be 1-1, 1-3, 1-5, 1-7, 1-10, 1-25 or 1-50.");
   }
   if (params.slabMax === 1 && params.kind !== "SINGLE") {
     throw new Error("1-device keys are single-user only.");
@@ -200,7 +234,7 @@ export function licenceDraftError(input: {
     return "customerKind must be SINGLE or BULK.";
   }
   if (!isLicenceSlab(input.deviceMax)) {
-    return "deviceMax slab must be 1, 3, 5, 7, 25 or 50 (1-1 / 1-3 / 1-5 / 1-7 / 1-25 / 1-50).";
+    return "deviceMax slab must be 1, 3, 5, 7, 10, 25 or 50 (1-1 / 1-3 / 1-5 / 1-7 / 1-10 / 1-25 / 1-50).";
   }
   if (input.deviceMax === 1 && kind !== "SINGLE") {
     return "1-device keys are single-user only.";

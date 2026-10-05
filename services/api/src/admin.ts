@@ -192,7 +192,24 @@ function jsonSerial(
     validityStartsAt: iso(row.validityStartsAt),
     validityEndsAt: iso(row.validityEndsAt),
     devicesBound: row.devicesBound,
-    issuedBy: row.issuedBy,
+    /*
+     * WHO, SPLIT THE WAY §56 LISTS IT (design freeze 05 Oct 2026).
+     *
+     * "Issued By" answers *who issued this licence*, so it may not name an
+     * issuer while nothing has been issued. Migration 0008 dropped the NOT NULL
+     * that used to force a create to name one, so a new row is NULL in here and
+     * the column and the header agree by construction - but the gate is not
+     * redundant: a row written before 0008 still holds its CREATOR in
+     * `issued_by` (0007 section 6e copied it into `created_by` and left this
+     * column alone). Gating on `issued_at` turns the cell into "—" until the
+     * fact it describes is true, for both kinds of row.
+     *
+     * The creator is not lost: `created_by` is projected beside it and is its
+     * own column in the XLSX export. Neither field is a secret - both are free
+     * text an operator typed or the system wrote.
+     */
+    createdBy: row.createdBy,
+    issuedBy: row.issuedAt === null ? null : row.issuedBy,
     issuedAt: iso(row.issuedAt),
     revokedAt: iso(row.revokedAt),
     createdAt: iso(row.createdAt),
@@ -608,6 +625,11 @@ export function toCsv(rows: Awaited<ReturnType<typeof jsonSerialList>>[]): strin
     "pincode",
     "state",
     "paymentNoted",
+    // §56 lists Created By and Issued By as separate columns. Keeping both -
+    // rather than one actor column doing double duty - is what lets an export
+    // answer "who made this record" and "who issued it" as two questions with
+    // two answers; see `jsonSerial` for why `issuedBy` may be empty.
+    "createdBy",
     "issuedBy",
     "createdAt",
     "issuedAt",
@@ -1046,12 +1068,26 @@ adminRoutes.post("/staff", async (c) => {
   }
 
   // Validated against the enum, never cast into it. A typo'd role is a 400
-  // naming the four legal values rather than a row nobody in §41 can act as.
+  // naming the legal values rather than a row nobody in §41 can act as.
   const requestedRole = String(body.role ?? "OPERATOR").toUpperCase();
   if (!staffRoleEnum.enumValues.includes(requestedRole as (typeof staffRoleEnum.enumValues)[number])) {
     return c.json(
       {
         error: `Unknown role "${body.role ?? ""}". Allowed: ${staffRoleEnum.enumValues.join(", ")}.`,
+      },
+      400,
+    );
+  }
+  // `SYSTEM` passes the enum check above and is still refused, because the
+  // reason to refuse it is not "unknown" but "known and not a person": it
+  // exists for `audit_events.actor_role` so a system-authored event can be
+  // recorded truthfully, and a `staff_operators` row holding it would be an
+  // account with a role that grants nothing and nobody can explain.
+  if (requestedRole === "SYSTEM") {
+    return c.json(
+      {
+        error:
+          'Role "SYSTEM" is not a staff role; it is reserved for system-authored audit rows.',
       },
       400,
     );
@@ -1616,7 +1652,7 @@ adminRoutes.post("/serials", async (c) => {
     return c.json({ error: draftError }, 400);
   }
   if (!isLicenceSlab(deviceMax)) {
-    return c.json({ error: "deviceMax slab must be 1, 3, 5, 7, 25 or 50 (1-1 / 1-3 / 1-5 / 1-7 / 1-25 / 1-50)." }, 400);
+    return c.json({ error: "deviceMax slab must be 1, 3, 5, 7, 10, 25 or 50 (1-1 / 1-3 / 1-5 / 1-7 / 1-10 / 1-25 / 1-50)." }, 400);
   }
   const kind: LicenceKind = customerKind === "BULK" ? "BULK" : "SINGLE";
 
@@ -1689,12 +1725,14 @@ adminRoutes.post("/serials", async (c) => {
     customerEmail,
     userId: null,
     paymentNoted,
-    // `issued_by` is NOT NULL in the schema (a pre-W5 column), so it must name
-    // somebody from the first moment. It names the creator until issuance
-    // overwrites it with the actual issuer. Real fixes need `created_by` to
-    // carry the meaning and `issued_by` to be nullable - migration 0008, not
-    // Phase 1.
-    issuedBy: admin.email,
+    // `issued_by` was NOT NULL until migration 0008, which made every create
+    // name an issuer before anything had been issued. It is NULL now, and
+    // `issued_at` beside it is what `jsonSerial` gates the projected "Issued
+    // By" cell on (design freeze §6, §56, acceptance 17) - a gate that still
+    // earns its keep for pre-0008 never-issued rows, which hold their creator
+    // in this column. `created_by` below carries the meaning that has to
+    // survive creation for every row.
+    issuedBy: null,
     issuedAt: null,
     revokedAt: null,
     createdAt,

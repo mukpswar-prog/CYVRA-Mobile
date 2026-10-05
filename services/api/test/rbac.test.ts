@@ -72,6 +72,17 @@ const SECTION_41: Record<
 
 const ROLE_KEYS = ["SUPER_ADMIN", "LICENCE_ADMIN", "OPERATOR", "AUDITOR"] as const;
 
+/**
+ * Every value `staff_role_enum` can hold.
+ *
+ * `SYSTEM` is in the enum and is not a §41 row - it has no permission cells
+ * because it is not a person, it is the actor recorded when the software itself
+ * performs an event (see `src/bridge.ts`). Keeping it out of `ROLE_KEYS` keeps
+ * the §41 matrix test about §41; keeping it *in* this list keeps the enum test
+ * about the enum. Both are true, and one list cannot say both.
+ */
+const DATABASE_ROLE_KEYS = [...ROLE_KEYS, "SYSTEM"] as const;
+
 function principal(role: string) {
   return { kind: "staff" as const, email: "x@cyvoriq.com", role, actorId: null };
 }
@@ -84,7 +95,14 @@ describe("§41 permission matrix", () => {
   });
 
   it("lists every role the database can hold, so nothing is unnameable", () => {
-    assert.deepEqual([...STAFF_ROLES].sort(), [...ROLE_KEYS].sort());
+    assert.deepEqual([...STAFF_ROLES].sort(), [...DATABASE_ROLE_KEYS].sort());
+  });
+
+  it("grants SYSTEM nothing - it is an audit actor, not an account", () => {
+    assert.deepEqual([...permissionsFor("SYSTEM")], []);
+    for (const permission of PERMISSIONS) {
+      assert.equal(can(principal("SYSTEM"), permission), false, permission);
+    }
   });
 
   it("answers all 60 cells the way §41 does", () => {
