@@ -22,6 +22,25 @@ function writeToken(token: string | undefined) {
   }
 }
 
+/**
+ * Carries the HTTP status alongside the server's sentence.
+ *
+ * It extends `Error` deliberately: every existing `catch ((err as Error).message)`
+ * call site keeps working unchanged, while callers that must tell 401 from 404
+ * from 503 can now do so instead of pattern-matching prose. Without this the
+ * dashboard could not distinguish "signed out" from "no licence yet" from
+ * "the server is down" - three different things to show a customer.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -37,7 +56,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+    throw new ApiError(
+      (data as { error?: string }).error ?? `Request failed (${res.status})`,
+      res.status,
+    );
   }
   return data as T;
 }
@@ -51,6 +73,18 @@ export interface RequestOtpResponse {
   message: string;
 }
 
+/**
+ * The issuable plan slabs. Mirrors `ISSUABLE_SLABS` in
+ * `services/api/src/licenceKey.ts`; `POST /auth/request` rejects anything else
+ * with "Plan must be a device count of 1, 5, 10, 25, 50."
+ *
+ * `3` and `7` are valid *licence* slabs but deliberately absent here: they are
+ * not issuable to a customer choosing a plan for themselves.
+ */
+export const PLAN_SLABS = [1, 5, 10, 25, 50] as const;
+
+export type PlanSlab = (typeof PLAN_SLABS)[number];
+
 export interface RegistrationInput {
   fullName: string;
   companyName: string;
@@ -59,6 +93,16 @@ export interface RegistrationInput {
   pincode: string;
   state: string;
   email: string;
+  /**
+   * The device count the customer chose.
+   *
+   * Without this field the server's `parsePlan(undefined)` returns
+   * `REGISTRATION_DEFAULT_SLAB` (1) and every registration silently becomes a
+   * one-device licence. The value is snapshotted onto `email_otp_challenges`
+   * when the code is requested, so it cannot change between asking for a code
+   * and entering it, and `/auth/verify` then hands it to the licence bridge.
+   */
+  plan: PlanSlab;
 }
 
 export interface AuthUser {
@@ -70,6 +114,72 @@ export interface AuthUser {
   addressLine2?: string | null;
   pincode?: string | null;
   state?: string | null;
+}
+
+/** `/build-manifest.json`, returned by `GET /v1/me/entitlement` as `build`. */
+export interface BuildManifest {
+  _readme?: string;
+  /**
+   * `"unavailable"` until a release job has actually published an installer.
+   * A null `version` therefore means *no build has ever been released*, not
+   * "version unknown" - the dashboard must say so rather than print a guess.
+   */
+  state: string;
+  version: string | null;
+  sha256: string | null;
+  sizeBytes: number | null;
+  url: string | null;
+  releasedAt: string | null;
+}
+
+/**
+ * The body of `GET /v1/me/entitlement`, mirroring `projectEntitlement` in
+ * `services/api/src/entitlement.ts`.
+ *
+ * Note what is **absent**: no `scansUsed`, no `scansRemaining`, no revision.
+ * Scan debits stay gated behind the R-1 ruling, so `usage.scans` reports a
+ * state rather than a quantity - a constant on purpose, so no code path can
+ * put a number there by accident. The dashboard renders that state; it does
+ * not invent arithmetic to fill the space where a number used to be.
+ */
+export interface Entitlement {
+  customer: { companyName: string | null; email: string };
+  plan: { code: string; slab: string | null; label: string };
+  licence: { status: string; sentence: string; maskedSerial: string | null };
+  payment: { state: "known" | "unknown"; status: string | null; sentence: string | null };
+  validity: { state: "window" | "unknown"; startsAt: string | null; endsAt: string | null };
+  usage: {
+    activation: { activatedAt: string | null; hostBinding: string };
+    scans: { state: string };
+  };
+  build: BuildManifest;
+}
+
+/**
+ * A discriminated union instead of a thrown error, so the dashboard cannot
+ * forget one of the cases and quietly fall back to placeholder data - which is
+ * precisely how the mock survived as long as it did.
+ *
+ * - `unauthenticated` - 401. The session is gone; sign in again.
+ * - `no-licence`      - 404 "Licence not found." Signed in, no record yet.
+ * - `unavailable`     - 503. We could not *establish* a record; this says
+ *                       nothing about whether one exists. Never rendered as 404.
+ * - `failed`          - network failure or an unexpected status.
+ */
+export type EntitlementResult =
+  | { kind: "ok"; entitlement: Entitlement }
+  | { kind: "unauthenticated"; message: string }
+  | { kind: "no-licence"; message: string }
+  | { kind: "unavailable"; message: string }
+  | { kind: "failed"; message: string };
+
+/**
+ * Human sentence for `usage.scans.state`, whose value is
+ * `"available-after-first-scan"` (`SCANS_STATE` in the API).
+ */
+export function scansStateSentence(state: string): string {
+  if (state === "available-after-first-scan") return "Available after first scan";
+  return state.replace(/-/g, " ");
 }
 
 export const api = {
@@ -127,6 +237,30 @@ export const api = {
       status: "ACTIVE" | "EXPIRED" | "REVOKED" | "SUPERSEDED" | "SERVER_UNAVAILABLE";
       lastVerifiedAt: string;
     }>("/license"),
+  /**
+   * The customer's real entitlement - the only source the dashboard is allowed
+   * to show for plan, status, usage and build.
+   *
+   * Never throws: every outcome is a `kind` the UI must render explicitly, so
+   * there is no code path that can silently substitute mock values. 401, 404
+   * and 503 are three different states and are kept apart on purpose - a
+   * transient 503 must never be shown as "you have no licence".
+   */
+  entitlement: async (): Promise<EntitlementResult> => {
+    try {
+      return {
+        kind: "ok",
+        entitlement: await request<Entitlement>("/v1/me/entitlement"),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Entitlement is unavailable.";
+      const status = err instanceof ApiError ? err.status : 0;
+      if (status === 401) return { kind: "unauthenticated", message };
+      if (status === 404) return { kind: "no-licence", message };
+      if (status === 503) return { kind: "unavailable", message };
+      return { kind: "failed", message };
+    }
+  },
 };
 
 export interface ReportSession {
