@@ -1,5 +1,5 @@
 /**
- * §14'S ENABLEMENT MATRIX - TWELVE ACTIONS x TEN STATES x FOUR ROLES.
+ * §14'S ENABLEMENT MATRIX - ELEVEN ACTIONS x TEN STATES x FOUR ROLES.
  * ===================================================================
  *
  * The brief's rule: *impossible actions disabled, WITH explanation.* Both
@@ -8,7 +8,7 @@
  * button with no reason is invisible in a screenshot review - it just looks
  * like a slightly dull menu.
  *
- * `enabled === (reason === null)` is therefore walked over all 480
+ * `enabled === (reason === null)` is therefore walked over all 440
  * combinations. That single invariant is what makes (b) unavoidable: a
  * decision cannot come back disabled-and-silent, because the only way to get
  * `enabled: false` is `reason: string`.
@@ -21,7 +21,10 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  MENU_ACTION_IDS,
   ROW_ACTION_IDS,
+  ZONE_ACTION_IDS,
+  menuOnly,
   rowAction,
   rowActions,
   type ActionableLicence,
@@ -53,17 +56,17 @@ function row(overrides: Partial<ActionableLicence> = {}): ActionableLicence {
   };
 }
 
-function ctx(role: StaffRole | null, isSuperAdmin = role === "SUPER_ADMIN"): RowActionContext {
-  return { role, isSuperAdmin };
+function ctx(role: StaffRole | null): RowActionContext {
+  return { role };
 }
 
 describe("the menu is the same shape on every row", () => {
-  it("always returns all twelve actions, in ROW_ACTION_IDS order", () => {
+  it("always returns all eleven actions, in ROW_ACTION_IDS order", () => {
     for (const status of ALL_STATUSES) {
       for (const role of STAFF_ROLES) {
         const decisions = rowActions(row({ status }), ctx(role));
         expect(decisions.map((decision) => decision.id)).toEqual([...ROW_ACTION_IDS]);
-        expect(decisions).toHaveLength(12);
+        expect(decisions).toHaveLength(11);
       }
     }
   });
@@ -77,21 +80,65 @@ describe("the menu is the same shape on every row", () => {
   });
 });
 
+describe("§28 splits the row into a nine-item menu and a visible zone", () => {
+  it("keeps exactly §28's nine in the three-dot menu, in its order", () => {
+    expect([...MENU_ACTION_IDS]).toEqual([
+      "view",
+      "edit",
+      "confirmPayment",
+      "resend",
+      "viewActivation",
+      "viewAudit",
+      "suspend",
+      "requestRebind",
+      "exportRecord",
+    ]);
+    expect(MENU_ACTION_IDS).toHaveLength(9);
+  });
+
+  it("moves Issue and Revoke out of the menu", () => {
+    expect(MENU_ACTION_IDS).not.toContain("approveIssue");
+    expect(MENU_ACTION_IDS).not.toContain("revoke");
+    // §7.2 retires Generate from the menu entirely - there is no longer a key
+    // step for an operator to reach for.
+    expect(ROW_ACTION_IDS).not.toContain("generateKey");
+  });
+
+  it("returns the nine as a subset of the same decision list, order preserved", () => {
+    for (const status of ALL_STATUSES) {
+      const all = rowActions(row({ status }), ctx("LICENCE_ADMIN"));
+      const menu = menuOnly(all);
+      expect(menu.map((d) => d.id)).toEqual([...MENU_ACTION_IDS]);
+      // Filtering rather than re-deciding: each menu entry is the *same*
+      // object the zone sees, so the two cannot disagree about enablement.
+      for (const entry of menu) {
+        expect(all).toContainEqual(entry);
+      }
+      // ...and the two left over are precisely the visible zone.
+      expect(all.filter((d) => !menu.includes(d)).map((d) => d.id)).toEqual([
+        ...ZONE_ACTION_IDS,
+      ]);
+      // Zone decisions are still reachable through `rowAction`, which the
+      // drawer and the zone both read - they are absent from the *menu* only.
+      expect(rowAction(row({ status }), ctx("LICENCE_ADMIN"), "approveIssue")).toBeDefined();
+      expect(rowAction(row({ status }), ctx("LICENCE_ADMIN"), "revoke")).toBeDefined();
+    }
+  });
+});
+
 describe("disabled always comes with an explanation", () => {
   for (const status of ALL_STATUSES) {
     for (const role of [...STAFF_ROLES, null]) {
-      for (const isSuperAdmin of [false, true]) {
-        it(`${role ?? "no role"} / ${status} / super=${isSuperAdmin}`, () => {
-          const decisions = rowActions(row({ status }), ctx(role, isSuperAdmin));
-          for (const decision of decisions) {
-            expect(decision.enabled).toBe(decision.reason === null);
-            if (!decision.enabled) {
-              expect(decision.reason).toBeTruthy();
-              expect(decision.reason!.trim().length).toBeGreaterThan(10);
-            }
+      it(`${role ?? "no role"} / ${status}`, () => {
+        const decisions = rowActions(row({ status }), ctx(role));
+        for (const decision of decisions) {
+          expect(decision.enabled).toBe(decision.reason === null);
+          if (!decision.enabled) {
+            expect(decision.reason).toBeTruthy();
+            expect(decision.reason!.trim().length).toBeGreaterThan(10);
           }
-        });
-      }
+        }
+      });
     }
   }
 });
@@ -107,15 +154,21 @@ describe("LICENCE_ADMIN sees exactly what the state allows", () => {
       }),
       ctx("LICENCE_ADMIN"),
     );
+    /*
+     * Order is `ROW_ACTION_IDS`, which puts the zone's Issue and Revoke
+     * *after* the nine menu ids - so Revoke follows Export Record rather than
+     * sitting beside Suspend, because Revoke has moved out of the three-dot
+     * menu into the visible end-of-row zone (§25/§28).
+     */
     expect(decisions.filter((decision) => decision.enabled).map((decision) => decision.id)).toEqual([
       "view",
       "resend",
       "viewActivation",
       "viewAudit",
       "suspend",
-      "revoke",
       "requestRebind",
       "exportRecord",
+      "revoke",
     ]);
   });
 
@@ -134,8 +187,8 @@ describe("LICENCE_ADMIN sees exactly what the state allows", () => {
       "resend",
       "viewAudit",
       "suspend",
-      "revoke",
       "exportRecord",
+      "revoke",
     ]);
     expect(rowAction(row({ status: "ACTIVE", hostBindingStatus: "NOT_BOUND", devicesBound: 0 }), ctx("LICENCE_ADMIN"), "requestRebind").reason).toMatch(
       /never been bound/,
@@ -162,10 +215,38 @@ describe("LICENCE_ADMIN sees exactly what the state allows", () => {
     expect(decision.reason).toContain("issued or active");
   });
 
-  it("says the key does not exist yet rather than \"not allowed\" for issue", () => {
-    const decision = rowAction(row({ status: "READY_TO_GENERATE" }), ctx("LICENCE_ADMIN"), "approveIssue");
-    expect(decision.enabled).toBe(false);
-    expect(decision.reason).toMatch(/generate it first/i);
+  /*
+   * The sentence this test used to assert - "the licence key does not exist
+   * yet; generate it first" - is the two-button flow, and Path 6B removed it.
+   * A paid, ready row now issues in one action, and the refusal that replaces
+   * the old one is about *money*, because §20's payment clause is the only
+   * condition a frontend can see that the state machine does not already
+   * guarantee.
+   */
+  it("issues a paid, ready row outright - no missing key to point at", () => {
+    const paid = rowAction(
+      row({ status: "READY_TO_GENERATE", paymentStatus: "PAID" }),
+      ctx("LICENCE_ADMIN"),
+      "approveIssue",
+    );
+    expect(paid.enabled).toBe(true);
+    expect(paid.reason).toBeNull();
+    expect(paid.ready).toBe(true);
+  });
+
+  it("keeps Issue Licence disabled when the payment is not PAID, and says so", () => {
+    for (const paymentStatus of ["PENDING", "PARTIALLY_PAID", null] as const) {
+      const decision = rowAction(
+        row({ status: "READY_TO_GENERATE", paymentStatus }),
+        ctx("LICENCE_ADMIN"),
+        "approveIssue",
+      );
+      expect(decision.enabled).toBe(false);
+      expect(decision.reason).toMatch(/payment/i);
+      // §14: an explanation must explain *this* record's state, not recite a
+      // rule the reader already knows.
+      expect(decision.reason!.trim().length).toBeGreaterThan(10);
+    }
   });
 });
 
@@ -222,17 +303,25 @@ describe("permission is decided before state", () => {
   it("keeps everything closed for a session with no role", () => {
     const decisions = rowActions(
       row({ status: "ISSUED", paymentStatus: "PAID", hostBindingStatus: "BOUND", devicesBound: 1 }),
-      ctx(null, false),
+      ctx(null),
     );
     expect(decisions.filter((decision) => decision.enabled).map((d) => d.id)).toEqual([]);
   });
 
-  it("gives SUPER_ADMIN the waived Generate Key nobody else has", () => {
-    const pending = row({ status: "PAYMENT_PENDING", paymentStatus: "PENDING" });
-    expect(rowAction(pending, ctx("SUPER_ADMIN"), "generateKey").enabled).toBe(true);
-    expect(rowAction(pending, ctx("LICENCE_ADMIN"), "generateKey").enabled).toBe(false);
-    // The waiver is not available to a super-admin role without the flag.
-    expect(rowAction(pending, ctx("SUPER_ADMIN", false), "generateKey").enabled).toBe(false);
+  it("gives nobody a way past an unconfirmed payment", () => {
+    // The waiver that briefly existed was cut before commit (WS-H1 sign-off
+    // item 2), so `licence:issue` now grants exactly one thing: the ordinary
+    // §20 path, which the state machine still refuses on its own terms.
+    const unpaid = row({ status: "PAYMENT_PENDING", paymentStatus: "PENDING" });
+    for (const role of STAFF_ROLES) {
+      expect(rowAction(unpaid, ctx(role), "approveIssue").enabled).toBe(false);
+    }
+    // Only once the *permission* gate passes is the payment clause what stands
+    // in the way - the file's gate-order rule means a role that does not hold
+    // `licence:issue` must be told about the seat instead.
+    for (const role of ["SUPER_ADMIN", "LICENCE_ADMIN"] as const) {
+      expect(rowAction(unpaid, ctx(role), "approveIssue").reason).toMatch(/payment/i);
+    }
   });
 });
 
@@ -250,21 +339,10 @@ describe("GREEN is PAID, never \"ready\"", () => {
       const ready = rowAction(
         row({ status: "READY_TO_GENERATE", paymentStatus }),
         ctx("LICENCE_ADMIN"),
-        "generateKey",
+        "approveIssue",
       ).ready;
       expect({ paymentStatus, ready }).toEqual({ paymentStatus, ready: paymentStatus === "PAID" });
     }
-  });
-
-  it("is not green on a waived key, even though the action itself is available", () => {
-    const decision = rowAction(
-      row({ status: "PAYMENT_PENDING", paymentStatus: "PENDING" }),
-      ctx("SUPER_ADMIN"),
-      "generateKey",
-    );
-    expect(decision.enabled).toBe(true);
-    expect(decision.ready).toBe(false);
-    expect(decision.needsReason).toBe(true);
   });
 
   it("marks no other action green", () => {
@@ -272,12 +350,15 @@ describe("GREEN is PAID, never \"ready\"", () => {
       row({ status: "ISSUED", paymentStatus: "PAID" }),
       ctx("SUPER_ADMIN"),
     );
-    expect(decisions.filter((decision) => decision.ready).map((d) => d.id)).toEqual(["generateKey"]);
+    // `approveIssue` is green on an ISSUED row because `ready` is a statement
+    // about money alone - the renderer combines it with `enabled`, and on this
+    // state the button is not offered at all (§66 swaps in [ VIEW ]).
+    expect(decisions.filter((decision) => decision.ready).map((d) => d.id)).toEqual(["approveIssue"]);
   });
 });
 
 describe("the reason-prompting and destructive flags", () => {
-  it("requires a §37 reason for suspend and revoke only", () => {
+  it("requires a reason for suspend and revoke", () => {
     const decisions = rowActions(row({ status: "ISSUED", paymentStatus: "PAID" }), ctx("SUPER_ADMIN"));
     expect(decisions.filter((decision) => decision.needsReason).map((d) => d.id)).toEqual([
       "suspend",
@@ -293,7 +374,7 @@ describe("the reason-prompting and destructive flags", () => {
     ]);
   });
 
-  it("exposes every permission it names as a real §41 permission", () => {
+  it("exposes every permission it names as a real §49 permission", () => {
     for (const id of ROW_ACTION_IDS) {
       const decision = rowAction(row({ status: "DRAFT" }), ctx("SUPER_ADMIN"), id);
       expect(PERMISSIONS).toContain(decision.permission);

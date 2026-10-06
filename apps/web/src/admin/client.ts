@@ -285,17 +285,20 @@ export const adminClient = {
   confirmPayment: (serialId: string, reference?: string) =>
     post(`/admin/serials/${serialId}/confirm-payment`, reference ? { reference } : {}),
   /**
-   * The Green Key Rule's exception, and it must be *asked for*.
+   * THE atomic issue (Path 6B, §21).
    *
-   * `waivePayment` defaults off so an accidental unpaid key is impossible: a
-   * Super Admin who forgot to confirm payment gets a refusal rather than a key
-   * they did not mean to mint. When it is on, the server requires a reason and
-   * writes it into the audit row beside `paymentWaived: true`.
+   * One request performs validate -> provision/sign -> ISSUED -> audit ->
+   * queue the customer's email inside a single DB transaction. There is no
+   * separate `generate-key` call to make first, which is why this client no
+   * longer offers that method: advertising a route no screen reaches is the
+   * same shape of dishonesty the "never show an action that cannot be
+   * performed" rule is guarding against, pointed at the code instead of the UI.
+   *
+   * No waiver travels on it either. The Green Key Rule is unconditional: the
+   * server re-reads `paymentStatus` inside the transaction and the state
+   * machine refuses an edge whose payment precondition is unmet, so the only
+   * route past an unpaid record is Confirm Payment.
    */
-  generateKey: (
-    serialId: string,
-    opts?: { waivePayment?: boolean; reason?: string },
-  ) => post(`/admin/serials/${serialId}/generate-key`, opts ?? {}),
   issue: (serialId: string) => post(`/admin/serials/${serialId}/issue`, {}),
   resend: (serialId: string) => post(`/admin/serials/${serialId}/resend`, {}),
   suspend: (serialId: string, reason: string) =>

@@ -1,12 +1,18 @@
 /**
- * The row's three-dot menu (§14).
+ * The row's three-dot menu (§28's nine secondary actions).
  *
- * All twelve actions are rendered in every row, always, in `ROW_ACTION_IDS`
- * order. The tempting alternative - omitting the ones that cannot run - fails
- * §14's second clause differently: an operator would never learn that Suspend
- * exists until a licence reached Issued, and would then have no way to find
- * out what it needs. So the impossible entries are present, disabled, and each
- * one *says why* in the entry itself.
+ * Nine entries are rendered in every row, always, in `MENU_ACTION_IDS` order.
+ * The tempting alternative - omitting the ones that cannot run - fails §14's
+ * second clause differently: an operator would never learn that Suspend exists
+ * until a licence reached Issued, and would then have no way to find out what
+ * it needs. So the impossible entries are present, disabled, and each one
+ * *says why* in the entry itself.
+ *
+ * ISSUE LICENCE, REVOKE and the Super Admin waiver are deliberately **not**
+ * here. §25 puts a green Issue and a red Revoke at the end of each row where
+ * they are visible without opening anything, and §7.2 retires Generate from
+ * the menu entirely - filtering the shared decision list rather than
+ * maintaining a second one, so the menu and the zone cannot disagree.
  *
  * THE TOOLTIP, HONESTLY
  * ---------------------
@@ -19,10 +25,10 @@
  * visible line is the guarantee; the attribute is not.
  */
 import { useEffect, useRef, useState } from "react";
-import type { RowActionDecision, RowActionId } from "../licences/actions";
+import { menuOnly, type RowActionDecision, type RowActionId } from "../licences/actions";
 
 /** Ids below a divider, so a destructive click is never the next pixel. */
-const DANGEROUS: readonly RowActionId[] = ["suspend", "revoke"];
+const DANGEROUS: readonly RowActionId[] = ["suspend"];
 
 export function RowMenu({
   actions,
@@ -54,6 +60,9 @@ export function RowMenu({
   }, [open]);
 
   let dividerPlaced = false;
+  // The caller passes the row's full decision list so the menu and the zone
+  // read one source; `menuOnly` selects §28's nine, order preserved.
+  const menu = menuOnly(actions);
 
   return (
     <div className="rowmenu" ref={root}>
@@ -70,7 +79,7 @@ export function RowMenu({
 
       {open ? (
         <div className="rowmenu__panel" role="menu" aria-label={`Actions for ${rowLabel}`}>
-          {actions.map((action, index) => {
+          {menu.map((action, index) => {
             const showDivider = !dividerPlaced && DANGEROUS.includes(action.id) && index > 0;
             if (showDivider) dividerPlaced = true;
             return (

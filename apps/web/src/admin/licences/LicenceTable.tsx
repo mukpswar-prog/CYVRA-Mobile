@@ -39,6 +39,7 @@ import {
 } from "../components/tone";
 import { RowMenu } from "../components/RowMenu";
 import type { RowActionDecision, RowActionId } from "./actions";
+import { RowZone } from "./RowZone";
 import type { LicenceListItem } from "../types";
 
 export interface CellContext {
@@ -218,11 +219,24 @@ export const COLUMNS: readonly ColumnDef[] = Object.freeze([
       ctx.actions === null ? (
         <span className="muted">—</span>
       ) : (
-        <RowMenu
-          actions={ctx.actions}
-          rowLabel={row.customerEmail}
-          onPick={(id) => ctx.onPick(row, id)}
-        />
+        /*
+         * §66's visible pair first, then §28's three-dot menu. Both read the
+         * same decision list, so the row cannot be issuable in one place and
+         * refused in the other.
+         */
+        <div className="rowactions">
+          <RowZone
+            status={row.status}
+            actions={ctx.actions}
+            rowLabel={row.customerEmail}
+            onPick={(id) => ctx.onPick(row, id)}
+          />
+          <RowMenu
+            actions={ctx.actions}
+            rowLabel={row.customerEmail}
+            onPick={(id) => ctx.onPick(row, id)}
+          />
+        </div>
       ),
   },
 ] as ColumnDef[]);

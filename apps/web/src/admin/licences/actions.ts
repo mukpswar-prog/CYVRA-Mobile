@@ -1,5 +1,5 @@
 /**
- * §14's ROW ACTION MENU - TWELVE ACTIONS, DECIDED IN ONE PLACE.
+ * §28 / §66's ROW ACTION ZONE - ELEVEN ACTIONS, SPLIT TWO WAYS.
  * =============================================================
  *
  * "Never show an action that cannot currently be performed unless it is
@@ -10,14 +10,28 @@
  *   (b) with an explanation
  *
  * (b) is enforced by the type: `reason: string | null` with the invariant
- * `enabled === (reason === null)`, asserted for all twelve actions across all
+ * `enabled === (reason === null)`, asserted for all eleven actions across all
  * ten licence states and all four roles in `actions.test.ts`. A decision
  * cannot come back disabled-and-silent, because the shape that would allow it
  * is not constructible from this module.
  *
+ * WHERE EACH GROUP LIVES
+ * ----------------------
+ * §28 draws the row with `[ ISSUE LICENCE ]  [ REVOKE ]` visible at the end of
+ * it, and says the three-dot menu carries nine *secondary* entries. §7.2
+ * removes "Generate" from both: Path 6B provisions inside `POST /issue`, so
+ * there is no separate key step left for an operator to reach for.
+ *
+ *   MENU_ACTION_IDS  - the nine in the three-dot menu, in §28's order
+ *   ZONE_ACTION_IDS  - the visible pair
+ *
+ * One `rowActions` call produces all eleven, so the menu, the zone and the
+ * drawer read the same answers and cannot disagree about whether something is
+ * enabled.
+ *
  * WHY A MIRROR RATHER THAN "TRY IT AND SEE"
  * -----------------------------------------
- * Firing all twelve writes to discover which are legal would perform the ones
+ * Firing all eleven writes to discover which are legal would perform the ones
  * that are. The alternative - asking the server - is what the server already
  * does; this module exists only to *withhold an affordance*, and it is allowed
  * to be wrong only in the direction of showing something as disabled that the
@@ -36,20 +50,42 @@
 import { can, explainRoleRefusal, type Permission, type StaffRole } from "../permissions";
 import type { LicenceListItem } from "../types";
 
-export const ROW_ACTION_IDS = [
+/**
+ * §28's three-dot menu - exactly nine, in §28's own order.
+ *
+ * Issue and Revoke are absent on purpose: §25 and §66 put them at the end of
+ * the row where they are visible without opening anything, which is the whole
+ * point of §28's "visible end-of-row" instruction.
+ */
+export const MENU_ACTION_IDS = [
   "view",
   "edit",
   "confirmPayment",
-  "generateKey",
-  "approveIssue",
   "resend",
   "viewActivation",
   "viewAudit",
   "suspend",
-  "revoke",
   "requestRebind",
   "exportRecord",
 ] as const;
+
+/**
+ * §25/§66/§82's visible end-of-row controls.
+ *
+ * Two, not one: §66's closing sentence is "The UI should not show an impossible
+ * operation as enabled", so Revoke is drawn beside Issue on every issuable row
+ * even where it has nothing to act on, and arrives disabled with its reason
+ * rather than hidden.
+ */
+export const ZONE_ACTION_IDS = ["approveIssue", "revoke"] as const;
+
+/**
+ * All eleven: menu first, then the zone.
+ *
+ * Order matters - `rowActions` emits in this order, and RowMenu filters to
+ * `MENU_ACTION_IDS` while preserving it, so §28's sequence survives the split.
+ */
+export const ROW_ACTION_IDS = [...MENU_ACTION_IDS, ...ZONE_ACTION_IDS] as const;
 
 export type RowActionId = (typeof ROW_ACTION_IDS)[number];
 
@@ -61,9 +97,9 @@ export interface RowActionDecision {
   enabled: boolean;
   /** The sentence shown in the disabled entry's tooltip. Null iff `enabled`. */
   reason: string | null;
-  /** §63's GREEN - about payment, not about enablement. */
+  /** §20's GREEN - about payment, not about enablement. */
   ready: boolean;
-  /** Actions that must prompt for a §37 reason before dispatching. */
+  /** Actions that must prompt for a reason before dispatching (§26, §53). */
   needsReason: boolean;
   /** Styled destructive, and always confirmed before dispatch. */
   danger: boolean;
@@ -71,7 +107,6 @@ export interface RowActionDecision {
 
 export interface RowActionContext {
   role: StaffRole | null;
-  isSuperAdmin: boolean;
 }
 
 /**
@@ -117,6 +152,18 @@ const RESENDABLE = new Set(["ISSUED", "ACTIVE"]);
 
 const SUSPENDABLE = new Set(["ISSUED", "ACTIVE"]);
 const REVOCABLE = new Set(["ISSUED", "ACTIVE", "SUSPENDED"]);
+
+/**
+ * The states from which `POST /issue` can start, and therefore the states in
+ * which §66 draws a row as offering `[ ISSUE LICENCE ]`.
+ *
+ * `KEY_GENERATED` is included even though no screen ever stops there any more:
+ * Path 6B provisions inside the transaction, but a row a previous version keyed
+ * still has to be issuable, and the KEY_GENERATED -> ISSUED edge carries no
+ * payment precondition of its own - by the time a row is in it, payment was
+ * settled or the record would never have got there.
+ */
+const PRE_ISSUE = new Set(["DRAFT", "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "READY_TO_GENERATE", "KEY_GENERATED"]);
 
 /** Human labels, so a sentence reads like a sentence and not like a column. */
 const STATUS_LABEL: Record<string, string> = {
@@ -167,33 +214,46 @@ const SPECS: Record<RowActionId, ActionSpec> = {
     },
   },
 
-  generateKey: {
-    label: "Generate Key",
-    permission: "key:generate",
-    stateReason: (row, ctx) => {
-      // §49's waived edge: PAYMENT_PENDING -> KEY_GENERATED, Super Admin alone.
-      if (ctx.isSuperAdmin && row.status === "PAYMENT_PENDING") return null;
-      if (row.status !== "READY_TO_GENERATE") return notIn(row, ["Ready to issue"]);
-      return null;
-    },
-    // §63: GREEN iff PAID, and never green on a waiver - see `tone.ts`.
-    ready: (row) => row.paymentStatus === "PAID",
-    needsReason: (row, ctx) => ctx.isSuperAdmin && row.status === "PAYMENT_PENDING",
-  },
-
+  /*
+   * §66's visible control, and §20's green.
+   *
+   * Path 6B collapsed "Generate Key" and "Approve & Issue" into this one
+   * action: `POST /issue` provisions and issues inside a single transaction,
+   * so there is no intermediate the operator has to step through and no
+   * separate key button left to offer (§7.2: "Generate" is not the admin's
+   * primary action; §68: the admin never generates key material).
+   *
+   * The primary stays **disabled** on an unpaid row rather than becoming an
+   * alternate route around §20 - §66 is explicit that payment-pending shows
+   * `[ ISSUE LICENCE ]` grey. There is no second entry beside it: an unpaid
+   * row is disabled and says so, and the fix is Confirm Payment, not a
+   * different flavour of Issue.
+   */
   approveIssue: {
-    label: "Approve & Issue",
+    label: "Issue Licence",
     permission: "licence:issue",
     stateReason: (row) => {
+      // Path 6B provisions in the same transaction, so a legacy-keyed row has
+      // nothing left to provision and the edge has no payment precondition of
+      // its own - payment was settled before it got here.
       if (row.status === "KEY_GENERATED") return null;
-      if (row.status === "DRAFT" || row.status === "PAYMENT_PENDING") {
-        return `The licence key does not exist yet; generate it first. This record is ${label(row.status)}.`;
+      if (row.status === "READY_TO_GENERATE") {
+        return row.paymentStatus === "PAID"
+          ? null
+          : "Payment is not recorded as PAID, so Issue Licence stays disabled.";
       }
-      if (row.status === "PAYMENT_CONFIRMED" || row.status === "READY_TO_GENERATE") {
-        return `The licence key does not exist yet; generate it first.`;
+      if (PRE_ISSUE.has(row.status)) {
+        return `Payment has not been confirmed yet, so this licence is ${label(row.status)} and cannot be issued.`;
       }
-      return notIn(row, ["Key generated"]);
+      return notIn(row, ["Ready to issue"]);
     },
+    /*
+     * §20's GREEN is a statement about money, not about enablement - see
+     * `tone.ts`. The renderer combines the two: green only when the action is
+     * *both* enabled and `ready`.
+     */
+    ready: (row) => row.paymentStatus === "PAID",
+    needsReason: () => false,
   },
 
   resend: {
@@ -259,13 +319,16 @@ const SPECS: Record<RowActionId, ActionSpec> = {
 };
 
 /**
- * Decide all twelve actions for one row.
+ * Decide all eleven actions for one row.
  *
- * The result is always exactly twelve entries in `ROW_ACTION_IDS` order - the
+ * The result is always exactly eleven entries in `ROW_ACTION_IDS` order - the
  * menu never grows a branch of its own, and a row never renders a different
- * number of items depending on its state. Hiding the impossible ones would be
+ * number of entries depending on its state. Hiding the impossible ones would be
  * quieter and worse: an operator would have no way to learn that Suspend exists
  * before the licence reaches Issued.
+ *
+ * "Eleven" is the whole row, not the menu: §28 keeps the three-dot list at
+ * nine and moves Issue and Revoke to the visible zone.
  */
 export function rowActions(row: ActionableLicence, ctx: RowActionContext): RowActionDecision[] {
   return ROW_ACTION_IDS.map((id) => {
@@ -298,4 +361,17 @@ export function rowAction(
   const found = rowActions(row, ctx).find((action) => action.id === id);
   if (!found) throw new Error(`unknown row action: ${id}`);
   return found;
+}
+
+/**
+ * Just the nine §28 puts in the three-dot menu, preserving order.
+ *
+ * Filtering rather than re-deciding: the zone and the menu are views over one
+ * list, so a row cannot be issuable from the menu and refused at the end of the
+ * same row. `RowMenu` applies this to the row's decisions; the drawer and the
+ * zone take the full list.
+ */
+export function menuOnly(actions: readonly RowActionDecision[]): RowActionDecision[] {
+  const menu = new Set<string>(MENU_ACTION_IDS);
+  return actions.filter((action) => menu.has(action.id));
 }

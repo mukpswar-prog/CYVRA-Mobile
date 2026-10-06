@@ -2288,6 +2288,12 @@ function requireIssuedKey(row: typeof mobileSerials.$inferSelect): string {
 type IssueOutcome =
   | { kind: "not-found" }
   | { kind: "revoked" }
+  /**
+   * `customer_kind`/`device_max` unusable for key allocation - the same
+   * refusal `/generate-key` returns as `bad-record`. It can only be reached
+   * from Path 6B's provision step, which now lives inside `/issue`.
+   */
+  | { kind: "bad-record" }
   | { kind: "forbidden"; error: TransitionError }
   | { kind: "replay"; row: typeof mobileSerials.$inferSelect }
   | { kind: "issued"; row: typeof mobileSerials.$inferSelect };
@@ -2433,17 +2439,34 @@ function targetStatus(route: string): LicenceStatus {
 }
 
 /**
- * §47's sentence, returned with every replay so a client that raced another
+ * §41's sentence, returned with every replay so a client that raced another
  * administrator is told what happened rather than handed a bare 200 it might
  * mistake for fresh work: "Refresh the record to see the current state."
  *
- * Used for idempotent retries too (§48). The server cannot distinguish a
+ * Used for idempotent retries too (§43). The server cannot distinguish a
  * network retry from a second administrator - both arrive after the operation
  * completed - so both get the same honest answer: it is already done, look at
  * what is actually there.
+ *
+ * `ISSUE_REPLAY_MESSAGE` below carries §42's variant for `/issue`, which is
+ * the route §42 is actually about. The freeze quotes this sentence twice and
+ * the two copies differ; both are reproduced rather than harmonised, because
+ * picking one would make the other unmatchable.
  */
 const REPLAY_MESSAGE =
   "This licence was already processed by another administrator. Refresh the record to see the current state.";
+
+/**
+ * §42 CONCURRENCY PROTECTION: "The second receives: This licence was already
+ * processed by another administrator. Refresh the record to view the latest
+ * status."
+ *
+ * Deliberately not shared with `REPLAY_MESSAGE`: §42 governs *issuing*, and
+ * the four other replaying routes (confirm-payment, generate-key, revoke,
+ * suspend) would be quoting an issuance sentence they have nothing to do with.
+ */
+const ISSUE_REPLAY_MESSAGE =
+  "This licence was already processed by another administrator. Refresh the record to view the latest status.";
 
 /** Outcomes for `POST /serials/:serialId/confirm-payment`. */
 type ConfirmOutcome =
@@ -2521,6 +2544,23 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
   if (!isUuid(serialId)) {
     return c.json({ error: "serialId must be a UUID." }, 400);
   }
+
+  /*
+   * NO PAYMENT WAIVER ON THIS ROUTE.
+   *
+   * The Green Key Rule applies unconditionally: `paymentStatusFor` is read
+   * inside the transaction and the state machine refuses an edge whose payment
+   * precondition is unmet, so an unpaid record can never be issued here -
+   * including by a Super Admin. §20 is explicit that the backend must
+   * independently validate the conditions behind the green button, and §66
+   * says a payment-pending row shows `[ ISSUE LICENCE ]` grey rather than an
+   * alternate route around it.
+   *
+   * The one waiver the operator ruling created lives only on `/generate-key`,
+   * which this panel no longer offers a button for but which still exists for
+   * callers that predate the collapse (see WS-H1 sign-off item 2: the
+   * split-button waiver was cut from the admin console before commit).
+   */
   const db = c.get("db");
 
   /*
@@ -2574,9 +2614,9 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
       if (!current) return { kind: "not-found" };
       if (current.status === "REVOKED") return { kind: "revoked" };
       /*
-       * IDEMPOTENT REPLAY (plan 48).
+       * IDEMPOTENT REPLAY (§43).
        *
-       * Returns before the transition, before the UPDATE and before
+       * Returns before either transition, before the UPDATE and before
        * `writeAudit`, so a retried request produces no second state change,
        * no second audit row, and never reaches `sendLicenceEmail` - the
        * double-send guard is structural (which branch you land on) rather than
@@ -2588,21 +2628,86 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
       }
 
       /*
-       * §49: the ONLY edge into ISSUED is KEY_GENERATED -> ISSUED.
+       * Read once, then reused by BOTH edges below and by the audit row, so
+       * the trail records the payment the transitions actually saw rather than
+       * a second read that could have raced a confirmation.
+       */
+      const paymentStatus = await paymentStatusFor(tx, serialId);
+
+      let row = current;
+      let keyFingerprint: string | null = null;
+
+      /*
+       * STEP 1 - PROVISION. The step that used to be its own button.
+       *
+       * `KEY_GENERATED` is still a real value in `licence_status_enum` and is
+       * still written here; what changed is that it is now *internal and
+       * transient* - an intermediate the transaction passes through rather
+       * than a screen the administrator stops at (§7.2: "Generate" is not the
+       * admin's primary action; §68: the admin never generates key material).
+       * No enum value is dropped and no migration is involved, because the
+       * state machine's edge set is untouched.
+       *
+       * Only runs when no key exists yet, so a row someone keyed through the
+       * legacy route skips straight to STEP 2 and keeps its original key.
+       */
+      if (row.publicNumber === null) {
+        const keyVerdict = transition(
+          row.status,
+          "KEY_GENERATED",
+          adminTransitionContext({ paymentStatus, keyPresent: false }),
+        );
+        // A refusal here is the Green Key Rule (payment not PAID) or an illegal
+        // starting state. Nothing has been written yet, so refusing costs the
+        // operator nothing but the click.
+        if (!keyVerdict.ok) return { kind: "forbidden", error: keyVerdict.error };
+
+        const kind = readLicenceKind(row.customerKind);
+        const slabMax = row.deviceMax;
+        if (!kind || !isLicenceSlab(slabMax)) {
+          // Neither value is recoverable by the operator and neither belongs
+          // in a customer-facing message. 500 rather than 4xx: the request is
+          // reasonable, the *record* is not what the API believes it can
+          // produce, and only a human looking at the row can repair it.
+          return { kind: "bad-record" };
+        }
+
+        const at = new Date();
+        const publicNumber = await uniqueLicenceKey(tx, kind, slabMax, at);
+        const [keyed] = await tx
+          .update(mobileSerials)
+          .set({
+            // Written from the accepted edge rather than hard-coded, so the
+            // stored status is by construction the one just authorised - the
+            // waived and the paid path cannot drift apart.
+            status: keyVerdict.edge.to,
+            publicNumber,
+            generatedBy: admin.email,
+            updatedBy: admin.email,
+          })
+          .where(eq(mobileSerials.id, serialId))
+          .returning();
+        if (!keyed) return { kind: "not-found" };
+        row = keyed;
+        // The fingerprint, not the key: an audit row is a record of what
+        // happened, not a second place a licence credential lives.
+        keyFingerprint = await serialFingerprint(publicNumber);
+      }
+
+      /*
+       * STEP 2 - ISSUED (§49: the ONLY edge into ISSUED is
+       * KEY_GENERATED -> ISSUED).
        *
        * Anything else - a record still in PAYMENT_PENDING because somebody
-       * skipped payment, one in READY_TO_GENERATE because no key was
-       * generated - is refused here, inside the transaction that would have
-       * written it, so refusal costs nothing and there is no window where a
-       * licence was issued without having been generated.
+       * skipped payment, one in DRAFT because no payment was ever raised - is
+       * refused here, inside the transaction that would have written it, so
+       * refusal costs nothing and there is no window in which a licence was
+       * issued without having been provisioned (§21's ordered chain).
        */
       const verdict = transition(
-        current.status,
+        row.status,
         "ISSUED",
-        adminTransitionContext({
-          paymentStatus: await paymentStatusFor(tx, serialId),
-          keyPresent: current.publicNumber !== null,
-        }),
+        adminTransitionContext({ paymentStatus, keyPresent: row.publicNumber !== null }),
       );
       if (!verdict.ok) return { kind: "forbidden", error: verdict.error };
 
@@ -2622,8 +2727,21 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
         .returning();
       if (!updated) return { kind: "not-found" };
 
-      // Same `tx` as the UPDATE: the trail and the issuance commit together or
-      // not at all, so there can be no issued licence nobody recorded.
+      /*
+       * ONE audit row for the whole operation (§21 draws a single "Audit event
+       * created" between "Licence state = ISSUED" and "Customer communication
+       * queued").
+       *
+       * `previousState.status` is the status the row held *before* STEP 1, so
+       * the trail reads READY_TO_GENERATE -> ISSUED rather than naming an
+       * intermediate the administrator never saw. The key allocation is still
+       * in the record - `publicNumberFingerprint` and `generatedBy` - because
+       * RULE 17 wants high-impact actions auditable, and a key nobody can see
+       * having been minted would be exactly that.
+       *
+       * Same `tx` as the UPDATEs: the trail and the issuance commit together
+       * or not at all, so there can be no issued licence nobody recorded.
+       */
       await writeAudit(
         tx,
         auditEntry(frame, {
@@ -2633,11 +2751,20 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
           previousState: {
             status: current.status,
             issuedAt: current.issuedAt ? current.issuedAt.toISOString() : null,
+            publicNumber: null,
+            paymentStatus,
           },
           newState: {
             status: updated.status,
             issuedAt: issuedAt.toISOString(),
             issuedBy: admin.email,
+            ...(keyFingerprint === null
+              ? {}
+              : { publicNumberFingerprint: keyFingerprint, generatedBy: admin.email }),
+            // What the transitions saw, not a second read that could have
+            // raced a confirmation. No `paymentWaived` here: this route has no
+            // waiver, so every field it writes is one that can only be true.
+            paymentStatus,
           },
         }),
       );
@@ -2650,6 +2777,15 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
   }
   if (outcome.kind === "revoked") {
     return c.json({ error: "Revoked serials cannot be issued." }, 409);
+  }
+  if (outcome.kind === "bad-record") {
+    return c.json(
+      {
+        error:
+          "Licence record has an unrecognised plan or customer kind; a key cannot be issued for it. Inspect the record.",
+      },
+      500,
+    );
   }
   if (outcome.kind === "forbidden") {
     const refusal = refused(outcome.error);
@@ -2686,11 +2822,11 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
     return c.json({
       serial: jsonSerial(outcome.row),
       replayed: true,
-      // §47's sentence. The server cannot tell a second administrator from a
-      // browser that lost its connection after the operation completed (§48),
-      // so both are told the same thing: it is already done, look at what is
-      // actually there.
-      message: REPLAY_MESSAGE,
+      // §42's sentence, verbatim. The server cannot tell a second administrator
+      // from a browser that lost its connection after the operation completed
+      // (§43), so both are told the same thing: it is already done, look at
+      // what is actually there.
+      message: ISSUE_REPLAY_MESSAGE,
       emailed: outcome.row.emailedAt !== null,
       emailError: outcome.row.emailError,
       ...envelope,

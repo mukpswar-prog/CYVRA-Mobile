@@ -25,7 +25,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ROW_ACTION_IDS, rowActions } from "./licences/actions";
+import { MENU_ACTION_IDS, rowActions, type RowActionContext } from "./licences/actions";
 import { COLUMN_HEADERS, COLUMNS, LicenceTable } from "./licences/LicenceTable";
 import type { LicenceListItem } from "./types";
 
@@ -73,10 +73,14 @@ function listItem(overrides: Partial<LicenceListItem> = {}): LicenceListItem {
 
 function renderTable(
   rows: LicenceListItem[],
-  overrides: { page?: number; pageSize?: number } = {},
+  overrides: { page?: number; pageSize?: number; ctx?: Partial<RowActionContext> } = {},
 ) {
   const onPick = vi.fn();
   const onOpen = vi.fn();
+  const ctx: RowActionContext = {
+    role: "LICENCE_ADMIN",
+    ...overrides.ctx,
+  };
   const utils = render(
     <LicenceTable
       rows={rows}
@@ -86,7 +90,7 @@ function renderTable(
         pageSize: overrides.pageSize ?? 25,
         onOpen,
         onPick,
-        actionsFor: (row) => rowActions(row, { role: "LICENCE_ADMIN", isSuperAdmin: false }),
+        actionsFor: (row) => rowActions(row, ctx),
       }}
     />,
   );
@@ -211,19 +215,92 @@ describe("opening a row", () => {
 });
 
 describe("the row menu in a table", () => {
-  it("renders all twelve entries, each with its own reason when disabled", async () => {
+  it("renders §28's nine entries, each with its own reason when disabled", async () => {
     const user = userEvent.setup();
     renderTable([listItem({ status: "DRAFT", paymentStatus: "PENDING", devicesBound: 0 })]);
     await user.click(screen.getByRole("button", { name: "Actions for customer@example.com" }));
 
     const items = screen.getAllByRole("menuitem");
-    expect(items).toHaveLength(ROW_ACTION_IDS.length);
+    expect(items).toHaveLength(MENU_ACTION_IDS.length);
+    expect(items).toHaveLength(9);
     const disabled = items.filter((item) => item.hasAttribute("disabled"));
     expect(disabled.length).toBeGreaterThan(0);
     for (const item of disabled) {
       const why = item.querySelector(".rowmenu__why");
       expect(why?.textContent ?? "").not.toBe("");
     }
+  });
+
+  it("keeps Issue and Revoke out of the menu - they are already on the row", async () => {
+    const user = userEvent.setup();
+    renderTable([listItem({ status: "READY_TO_GENERATE", paymentStatus: "PAID" })]);
+    await user.click(screen.getByRole("button", { name: "Actions for customer@example.com" }));
+
+    const labels = screen.getAllByRole("menuitem").map((item) => item.textContent ?? "");
+    expect(labels.join(" | ")).not.toMatch(/Issue Licence/);
+    expect(labels.join(" | ")).not.toMatch(/^Revoke/);
+    // ...and they are present, visible, without opening anything.
+    expect(screen.getByRole("button", { name: "Issue Licence" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Revoke licence for/ })).toBeInTheDocument();
+  });
+});
+
+/*
+ * §66 is titled "EXACT ROW ACTION RULE", so these assert the drawing itself
+ * rather than a vibe. The closing sentence of that section - "The UI should not
+ * show an impossible operation as enabled" - is why Revoke stays *visible* on a
+ * ready row (§25 asks for the control to remain obvious) while being disabled:
+ * revoking is not a legal edge from that state, and the reason is in its title.
+ */
+describe("§66's visible row action zone", () => {
+  it("shows [ ISSUE LICENCE ] green and [ REVOKE ] red on a paid, issuable row", () => {
+    renderTable([listItem({ status: "READY_TO_GENERATE", paymentStatus: "PAID" })]);
+
+    const issue = screen.getByRole("button", { name: "Issue Licence" });
+    expect(issue).not.toBeDisabled();
+    expect(issue.className).toContain("btn--ready");
+
+    const revoke = screen.getByRole("button", { name: /Revoke licence for/ });
+    expect(revoke.className).toContain("btn--danger");
+    expect(revoke).toBeDisabled();
+    expect(revoke.getAttribute("title") ?? "").not.toBe("");
+  });
+
+  it("shows [ ISSUE LICENCE ] but grey/disabled while payment is pending", () => {
+    renderTable([listItem({ status: "PAYMENT_PENDING", paymentStatus: "PENDING" })]);
+
+    const issue = screen.getByRole("button", { name: "Issue Licence" });
+    expect(issue).toBeDisabled();
+    expect(issue.className).not.toContain("btn--ready");
+    expect(issue.getAttribute("title") ?? "").toMatch(/payment/i);
+
+    const revoke = screen.getByRole("button", { name: /Revoke licence for/ });
+    expect(revoke.className).toContain("btn--danger");
+  });
+
+  it("swaps to [ VIEW ] once the licence has been issued", () => {
+    renderTable([listItem({ status: "ACTIVE", paymentStatus: "PAID" })]);
+
+    expect(screen.queryByRole("button", { name: "Issue Licence" })).toBeNull();
+    expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Revoke licence for/ })).toBeInTheDocument();
+  });
+
+  it("leaves Revoke visible-but-disabled where §28 says it cannot run", () => {
+    renderTable([listItem({ status: "DRAFT", paymentStatus: "PENDING" })]);
+    const revoke = screen.getByRole("button", { name: /Revoke licence for/ });
+    expect(revoke).toBeDisabled();
+    expect(revoke.className).toContain("btn--danger");
+    expect(revoke.getAttribute("title") ?? "").not.toBe("");
+  });
+
+  it("offers exactly two controls, with no second flavour of Issue", () => {
+    renderTable([listItem({ status: "PAYMENT_PENDING", paymentStatus: "PENDING" })]);
+    // The split button's caret was cut before commit (WS-H1 sign-off item 2).
+    expect(screen.queryByRole("button", { name: /More issue options/i })).toBeNull();
+    expect(screen.queryByRole("menu", { name: "Issue options" })).toBeNull();
+    const zone = screen.getAllByRole("button").filter((b) => /Issue Licence|View/.test(b.textContent ?? ""));
+    expect(zone).toHaveLength(1);
   });
 });
 

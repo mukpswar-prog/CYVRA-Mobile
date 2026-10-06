@@ -243,7 +243,20 @@ describe("repeated issue is idempotent (§48)", () => {
 
 describe("refusals before any write (§47)", () => {
   it("refuses a record that never reached KEY_GENERATED", async () => {
-    for (const status of ["DRAFT", "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "READY_TO_GENERATE"]) {
+    /*
+     * `READY_TO_GENERATE` is deliberately **not** in this list any more. Under
+     * Path 6B it is the normal starting state of `POST /issue`: a row that has
+     * been paid for and has no credential yet is exactly what provisions and
+     * issues in one transaction (§83 freezes the workflow with no Generate step
+     * in it). The fixture here still carries a `publicNumber`, which is the one
+     * combination of that status and an existing key that cannot occur - so it
+     * would be asserting an impossible record rather than the rule.
+     *
+     * The states below remain refusals: none of them is a legal edge into
+     * KEY_GENERATED, and without a waiver none is a legal edge into ISSUED.
+     * See test/atomicIssue.test.ts for the positive side of the same rule.
+     */
+    for (const status of ["DRAFT", "PAYMENT_PENDING", "PAYMENT_CONFIRMED"]) {
       const harness = issueHarness(status);
       const res = await issue(harness, signingEnv());
       assert.equal(res.status, 409, status);

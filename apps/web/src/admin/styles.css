@@ -367,7 +367,7 @@
   border-color: var(--primary-hover);
 }
 
-/* §63's "GREEN" is the paid-and-ready state of Generate Key specifically. */
+/* §63's "GREEN" is the paid-and-ready state of Issue Licence specifically. */
 .admin-root .btn--ready {
   background: var(--green-fg);
   border-color: var(--green-fg);
@@ -841,6 +841,32 @@
 .admin-root .rowmenu__sep {
   border-top: 1px solid var(--line);
   margin: 5px 4px;
+}
+
+/* ------------------------------------------------------- row action zone */
+
+/*
+ * §66's row, in the order §25 and §82 draw it:
+ *
+ *     [ ISSUE LICENCE ▾ ]  [ REVOKE ]  [ ⋮ ]
+ *
+ * One flex line so the pair reads as a control group rather than as three
+ * buttons adrift across 1680px of table. `nowrap` matters: a button wrapping
+ * onto a second line is how "the UI should not show an impossible operation as
+ * enabled" turns into an operation that does not look clickable at all.
+ */
+.admin-root .rowactions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.admin-root .rowzone {
+  align-items: center;
+  display: flex;
+  gap: 6px;
 }
 
 /* ------------------------------------------------------------------ pager */

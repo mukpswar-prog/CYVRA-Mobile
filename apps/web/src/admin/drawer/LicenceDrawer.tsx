@@ -19,11 +19,12 @@
  *    shoulder-surfer, a screen share and a screenshot, and the brief asks for
  *    the second one to be a deliberate act.
  *
- * 2. THE STEPPER'S GREEN IS PAID, NOT READY.
- *    `generateKeyIsReady` reads `paymentStatus === "PAID"` and nothing else.
- *    §63 says Generate Key is grey before payment and GREEN after it; keying
- *    the colour off `licence_status` would encode an implication where the spec
- *    states a fact. See `tone.ts`.
+ * 2. THE GREEN IS PAID, NOT READY.
+ *    `generateKeyIsReady` reads `paymentStatus === "PAID"` and nothing else,
+ *    and the drawer's Issue button reaches the same fact through
+ *    `SPECS.approveIssue.ready`. §63 says Issue Licence is grey before payment
+ *    and GREEN after it; keying the colour off `licence_status` would encode an
+ *    implication where the spec states a fact. See `tone.ts`.
  *
  * The Audit Timeline is fetched separately (`GET /admin/audit?entityId=`) so a
  * failure to read it leaves the rest of the record usable - and so the seat's
@@ -44,14 +45,23 @@ import {
 import { beforeReveal } from "../key";
 import { rowActions, type ActionableLicence, type RowActionId } from "../licences/actions";
 import { dash, formatDateTime, formatDate } from "../licences/LicenceTable";
+import { IssueButton } from "../licences/RowZone";
 import type { StaffRole } from "../permissions";
 import type { AuditEvent, LicenceRecord } from "../types";
 
 /* ---------------------------------------------------------------- stepper */
 
-const BEFORE_KEY = new Set(["DRAFT", "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "READY_TO_GENERATE"]);
-const KEY_DONE = new Set(["KEY_GENERATED"]);
+/** States in which nothing has been issued yet. */
+const PRE_ISSUE = new Set([
+  "DRAFT",
+  "PAYMENT_PENDING",
+  "PAYMENT_CONFIRMED",
+  "READY_TO_GENERATE",
+  "KEY_GENERATED",
+]);
 const ISSUED = new Set(["ISSUED", "ACTIVE", "EXPIRED", "SUSPENDED", "REVOKED"]);
+/** Money has not been recorded against these; `PAYMENT_CONFIRMED` has. */
+const AWAITING_PAYMENT = new Set(["DRAFT", "PAYMENT_PENDING"]);
 
 export interface StepState {
   readonly title: string;
@@ -60,14 +70,21 @@ export interface StepState {
 }
 
 /**
- * §63's three steps, derived purely from state - no flags, no "which did the
- * user click". Two rows in the same state must render the same stepper, and a
- * stepper driven by click history would let two identical licences look
- * differently progressed.
+ * §83's frozen workflow, as TWO steps rather than three.
+ *
+ * The middle step - "Generate Key" - is gone, because Path 6B collapsed it into
+ * the issue action: `POST /issue` provisions and issues inside a single
+ * transaction, so there is no moment at which an operator is meant to stop and
+ * press a second button (§7.2: "Generate" is not the admin's primary action;
+ * §68: the admin never generates key material).
+ *
+ * `KEY_GENERATED` is still a real value the record passes through; it simply
+ * has no screen of its own, and the stepper therefore cannot show a stage the
+ * operator never controls. Derived purely from state - no flags, no "which did
+ * the user click" - so two rows in the same state render the same stepper.
  */
 export function issuanceSteps(record: LicenceRecord): StepState[] {
-  const paymentDone = !BEFORE_KEY.has(record.status);
-  const keyDone = KEY_DONE.has(record.status) || ISSUED.has(record.status);
+  const paymentDone = !AWAITING_PAYMENT.has(record.status);
   const issueDone = ISSUED.has(record.status);
 
   const steps: { title: string; hint: string; done: boolean }[] = [
@@ -79,13 +96,12 @@ export function issuanceSteps(record: LicenceRecord): StepState[] {
       done: paymentDone,
     },
     {
-      title: "Generate Key",
-      hint: keyDone ? "A signed licence key exists." : "Creates the signed licence credential.",
-      done: keyDone,
-    },
-    {
-      title: "Approve & Issue",
-      hint: issueDone ? `Issued${record.issuedAt ? ` ${formatDate(record.issuedAt)}` : ""}.` : "Releases the licence for activation.",
+      title: "Issue Licence",
+      hint: issueDone
+        ? `Issued${record.issuedAt ? ` ${formatDate(record.issuedAt)}` : ""}.`
+        : PRE_ISSUE.has(record.status)
+          ? "Provisions the signed credential, marks it issued and queues the customer's email - one action."
+          : "Releases the licence for activation.",
       done: issueDone,
     },
   ];
@@ -145,7 +161,6 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 export interface DrawerContext {
   role: StaffRole | null;
-  isSuperAdmin: boolean;
 }
 
 export function LicenceDrawer({
@@ -218,11 +233,8 @@ export function LicenceDrawer({
   const decisions = useMemo(() => {
     if (!record) return null;
     const actionable: ActionableLicence = record;
-    return rowActions(actionable, {
-      role: context.role,
-      isSuperAdmin: context.isSuperAdmin,
-    });
-  }, [record, context.role, context.isSuperAdmin]);
+    return rowActions(actionable, { role: context.role });
+  }, [record, context.role]);
 
   return (
     <>
@@ -437,8 +449,6 @@ export function LicenceDrawer({
           <footer className="drawer__foot">
             {(() => {
               const confirm = decisions.find((item) => item.id === "confirmPayment");
-              const generate = decisions.find((item) => item.id === "generateKey");
-              const issue = decisions.find((item) => item.id === "approveIssue");
               return (
                 <>
                   {confirm?.enabled ? (
@@ -450,25 +460,17 @@ export function LicenceDrawer({
                       Confirm Payment
                     </button>
                   ) : null}
-                  {generate?.enabled ? (
-                    <button
-                      type="button"
-                      className={generate.ready ? "btn btn--ready" : "btn"}
-                      onClick={() => onAction("generateKey", record)}
-                      title={generate.reason ?? undefined}
-                    >
-                      Generate Key
-                    </button>
-                  ) : null}
-                  {issue?.enabled ? (
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      onClick={() => onAction("approveIssue", record)}
-                    >
-                      Approve &amp; Issue
-                    </button>
-                  ) : null}
+                  {/*
+                   * The same Issue control the row zone renders. "Generate Key"
+                   * is gone from here too: Path 6B provisions inside POST
+                   * /issue, so the drawer offers one action for the whole of
+                   * §83's last stage rather than two in sequence.
+                   */}
+                  <IssueButton
+                    status={record.status}
+                    actions={decisions}
+                    onPick={(id) => onAction(id, record)}
+                  />
                   <button
                     type="button"
                     className="btn"
