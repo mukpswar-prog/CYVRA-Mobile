@@ -28,6 +28,7 @@ import { useState } from "react";
 import { adminClient, AdminHttpError } from "../client";
 import { ConfirmDialog, type ConfirmSpec, type ConfirmInput } from "../components/Dialog";
 import type { ActionableLicence, RowActionId } from "./actions";
+import { PAYMENT_METHODS } from "./paymentMethod";
 
 /** Everything a dialog needs to name *this* licence, from either projection. */
 export type ActionSubject = ActionableLicence & {
@@ -104,7 +105,32 @@ export function dialogFor(
           </>
         ),
         confirmLabel: "Confirm Payment",
+        /*
+         * PAYMENT METHOD IS MANDATORY, AND THE BLANK OPTION IS WHY.
+         *
+         * §12's flow says the operator presses "Confirm Payment" as the step
+         * that makes a licence issuable, and §18 lists what that action has to
+         * record. The Design Freeze does not list a method among them - see
+         * `paymentMethod.ts` - so this field is a WS-H2 addition, and an
+         * addition to an audit trail has to be *asserted* rather than
+         * defaulted: a pre-selected value would write "UPI" into the trail for
+         * a cheque payment simply because UPI was first in the list.
+         *
+         * `required` + `blankLabel` is the mechanism: the control opens on an
+         * empty option, `ConfirmDialog` computes `missing` from it, and the
+         * confirm button stays disabled until an operator picks. The server
+         * refuses the same body, so skipping the UI buys nothing - see
+         * `readPaymentMethod` in `services/api/src/admin.ts`.
+         */
         fields: [
+          {
+            name: "paymentMethod",
+            label: "Payment method",
+            required: true,
+            blankLabel: "Select a payment method…",
+            options: PAYMENT_METHODS,
+            help: "Stored on the payment and written into the audit trail with this confirmation.",
+          },
           {
             name: "reference",
             label: "Payment reference (optional)",
@@ -332,7 +358,15 @@ export async function dispatch(
 
   switch (id) {
     case "confirmPayment":
-      await adminClient.confirmPayment(subject.serialId, (values.reference ?? "").trim() || undefined);
+      await adminClient.confirmPayment(
+        subject.serialId,
+        // Non-empty by construction: `ConfirmDialog` will not submit with a
+        // required field blank, and the server re-checks it anyway. Trimmed
+        // rather than coerced so a stray space cannot become a value the enum
+        // rejects at the driver.
+        (values.paymentMethod ?? "").trim(),
+        (values.reference ?? "").trim() || undefined,
+      );
       return "Payment confirmed.";
     case "approveIssue":
       // One request. The server provisions and issues inside a single

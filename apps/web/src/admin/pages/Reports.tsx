@@ -29,19 +29,24 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AdminHttpError, adminClient } from "../client";
 import { Badge, EmptyState, Notice, Spinner } from "../components/kit";
-import { formatDateTime } from "../licences/LicenceTable";
+import { formatDateTime, istDay } from "../format/datetime";
 import { downloadBlob, csvToXlsx } from "../xlsx";
 import type { ReportResponse, ReportRow } from "../types";
 
-/** Local `YYYY-MM-DD`, which is what `<input type="date">` speaks. */
-function isoDay(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
+/**
+ * The default range, opened in IST.
+ *
+ * §58 lists Today / Yesterday / Last 7 Days / ... as *quick date filters*, and
+ * a quick filter that opens on the wrong day is worse than no filter: it
+ * returns rows and the operator believes they are today's. `istDay` reads the
+ * calendar in Asia/Kolkata, so "Today" is today in India for every operator on
+ * every machine - which the previous `toISOString().slice(0, 10)` was not,
+ * despite documenting itself as "Local YYYY-MM-DD".
+ */
 export function defaultRange(): { from: string; to: string } {
   const to = new Date();
   const from = new Date(to.getTime() - 30 * 86_400_000);
-  return { from: isoDay(from), to: isoDay(to) };
+  return { from: istDay(from), to: istDay(to) };
 }
 
 type Flash = { kind: "info" | "error"; text: string };

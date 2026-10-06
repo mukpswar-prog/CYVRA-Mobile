@@ -34,6 +34,8 @@
  * an operator would notice and costs a decompressor in the browser.
  */
 
+import { istFields } from "./format/datetime";
+
 const CRC_TABLE = ((): Uint32Array => {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n += 1) {
@@ -77,15 +79,24 @@ export function zip(entries: readonly ZipEntry[]): Uint8Array {
   const central: Uint8Array[] = [];
   let offset = 0;
 
-  const now = new Date();
+  /*
+   * DOS time, from the IST clock.
+   *
+   * The ZIP format has no timezone field - a DOS stamp *is* local time by
+   * definition - so the only choice is which clock feeds it, and the previous
+   * code used `now.getHours()` etc., i.e. the laptop that happened to click
+   * Export. See `istFields`: for a CYVORIQ workbook opened in India, IST is
+   * the reading that is correct for every reader rather than for the writer.
+   */
+  const { year, month, day, hour, minute, second } = istFields();
   const dosTime =
-    ((now.getHours() & 0x1f) << 11) |
-    ((now.getMinutes() & 0x3f) << 5) |
-    (Math.floor(now.getSeconds() / 2) & 0x1f);
+    ((hour & 0x1f) << 11) |
+    ((minute & 0x3f) << 5) |
+    (Math.floor(second / 2) & 0x1f);
   const dosDate =
-    (((now.getFullYear() - 1980) & 0x7f) << 9) |
-    (((now.getMonth() + 1) & 0x0f) << 5) |
-    (now.getDate() & 0x1f);
+    (((year - 1980) & 0x7f) << 9) |
+    ((month & 0x0f) << 5) |
+    (day & 0x1f);
 
   for (const entry of entries) {
     const name = encoder.encode(entry.name);

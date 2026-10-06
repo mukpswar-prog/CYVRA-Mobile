@@ -15,7 +15,7 @@ import { test } from "node:test";
 
 import { mobileSerials } from "@cyvra/database/schema";
 
-import { jsonSerialList, maskSerialKey, reportRows, toCsv } from "../src/admin.js";
+import { CSV_COLUMNS, jsonSerialList, maskSerialKey, reportRows, toCsv } from "../src/admin.js";
 
 type Row = typeof mobileSerials.$inferSelect;
 
@@ -179,12 +179,22 @@ test("every CSV column resolves against a projected row, and carries no key", as
   const line = reported[0]!;
   const csv = toCsv(reported);
 
-  // `toCsv` looks each header up on the row, so a header that no longer matches
-  // a field renders as an EMPTY cell - which reads as "this customer has no
-  // value" rather than "this column is broken". That failure mode is silent.
+  // `toCsv` fills each header from a key, so a header whose key no longer
+  // matches a field renders as an EMPTY cell - which reads as "this customer
+  // has no value" rather than "this column is broken". That failure mode is
+  // silent. §56 made it easier to trip over, because a display header
+  // ("Registered Email") and the key it reads (`customerEmail`) are now two
+  // different strings: the check has to compare them, not assume they agree.
   const headers = csv.split("\n")[0]!.split(",");
-  for (const header of headers) {
-    assert.ok(header in line, `column "${header}" resolves to nothing`);
+  assert.equal(headers.length, CSV_COLUMNS.length, "one header cell per column");
+  for (const { header, key } of CSV_COLUMNS) {
+    assert.ok(headers.includes(header), `column "${header}" missing from the CSV header`);
+    // The two columns `toCsv` computes rather than reads - §14's row number
+    // and §4.2's commercial rule - are the only keys with no field behind them.
+    assert.ok(
+      key in line || key === "rowNo" || key === "hostWorkstationLimit",
+      `column "${header}" resolves to nothing`,
+    );
   }
 
   assert.ok(headers.includes("serialFp"), "fingerprint column keeps masked rows apart");

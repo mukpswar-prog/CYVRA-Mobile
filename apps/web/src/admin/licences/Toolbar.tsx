@@ -1,5 +1,8 @@
 /**
- * §43's control row: search, filters, quick-filter chips.
+ * §34 SEARCH / §35 FILTERS' control row: search, filters, quick-filter chips,
+ * and - per §12's "Top controls" and §64's `[ Filters ] [ Export XLSX ]` row -
+ * the registry's own Export XLSX control, which exports *these* filters rather
+ * than the Reports page's date range.
  *
  * SEARCH IS DEBOUNCED, SERVER-SIDE.
  * The input holds its own draft and writes to the query after 320ms of quiet.
@@ -75,10 +78,22 @@ export function Toolbar({
   query,
   patch,
   onClear,
+  onExport,
+  exportBusy = false,
 }: {
   query: SerialQueryState;
   patch: (next: Partial<SerialQueryState>) => void;
   onClear: () => void;
+  /**
+   * §12 lists Export XLSX among the registry's three top controls alongside
+   * Search and Filters, so the button belongs in this row rather than in the
+   * card header above it. Optional only so a table rendered without a page
+   * owner (the table's own tests, a future embedded copy) is not handed a
+   * callback it cannot service - when it is absent the control does not
+   * render, because a button that cannot export must not be shown.
+   */
+  onExport?: () => void;
+  exportBusy?: boolean;
 }) {
   const [draft, setDraft] = useState(query.q);
   const lastApplied = useRef(query.q);
@@ -166,6 +181,26 @@ export function Toolbar({
       {dirty ? (
         <button type="button" className="btn btn--sm" onClick={onClear}>
           Clear filters
+        </button>
+      ) : null}
+
+      {/*
+       * §64 places Export XLSX on the filters row, to the right of [ Filters ]
+       * - not in the card header. It is last so the eye reads the controls
+       * left-to-right as search -> narrow -> take away, and it reports
+       * `exportBusy` in place rather than disappearing, because a control that
+       * vanishes while working leaves the operator unsure whether the click
+       * registered.
+       */}
+      {onExport ? (
+        <button
+          type="button"
+          className="btn btn--sm"
+          onClick={onExport}
+          disabled={exportBusy}
+          title="Export every row matching the filters above as an XLSX workbook."
+        >
+          {exportBusy ? "Preparing…" : "Export XLSX"}
         </button>
       ) : null}
     </div>

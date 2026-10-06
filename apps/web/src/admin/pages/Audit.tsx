@@ -33,7 +33,7 @@ import {
 import { EmptyState, Notice, Spinner } from "../components/kit";
 import { MultiSelect, type ChoiceOption } from "../components/MultiSelect";
 import { Pager } from "../components/Pager";
-import { formatDateTime } from "../licences/LicenceTable";
+import { formatDateTime } from "../format/datetime";
 import { LOADING_PAGINATION } from "../pagination";
 import type { AuditListResponse, Pagination } from "../types";
 

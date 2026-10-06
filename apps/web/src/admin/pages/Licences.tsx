@@ -1,10 +1,13 @@
 /**
- * THE LICENCE REGISTRY - §5 / §43's table-first landing page.
- * ===========================================================
+ * THE LICENCE REGISTRY - §12 / §13's table-first landing page.
+ * ============================================================
  *
- * Composition, top to bottom: quick summary strip (§43 says it lives on the
- * licence page, not only on the dashboard) -> quick-filter chips -> search and
- * filters -> the eighteen-column table -> the pager.
+ * Composition, top to bottom: quick summary strip (the summary strip lives on
+ * the licence page, not only on the dashboard) -> quick-filter chips -> search
+ * and filters -> the twenty-column table -> the pager.
+ *
+ * The card header carries §12's frozen subtitle and the toolbar carries §12's
+ * three top controls - Search, Filters, Export XLSX - in §64's arrangement.
  *
  * PAGINATION IS THE ONE THING THIS PAGE NEVER RE-DERIVES.
  * The pager renders `response.pagination` untouched. It is not recomputed from
@@ -25,7 +28,13 @@
  * to disagree about that.
  */
 import { useCallback, useMemo, useState } from "react";
-import { AdminHttpError, adminClient, EMPTY_SERIAL_QUERY, type SerialQueryState } from "../client";
+import {
+  AdminHttpError,
+  adminClient,
+  buildSerialFilters,
+  EMPTY_SERIAL_QUERY,
+  type SerialQueryState,
+} from "../client";
 import { EmptyState, Notice, Spinner } from "../components/kit";
 import { Pager } from "../components/Pager";
 import { ActionHost, type ActionSubject, type PendingAction } from "../licences/ActionHost";
@@ -38,7 +47,9 @@ import { useSerialList } from "../licences/useSerialList";
 import { LicenceDrawer } from "../drawer/LicenceDrawer";
 import { useSessionState } from "../shell/session";
 import { LOADING_PAGINATION } from "../pagination";
+import { istDay } from "../format/datetime";
 import type { LicenceListItem, SerialListResponse } from "../types";
+import { csvToXlsx, downloadBlob } from "../xlsx";
 
 const ALL_TOTALS = [...KPIS, ...QUEUE];
 
@@ -66,6 +77,7 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [flash, setFlash] = useState<Flash | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const role = session?.role ?? null;
   const ctx = useMemo(() => ({ role }), [role]);
@@ -130,6 +142,59 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
 
   const openRecord = useCallback((serialId: string) => setDrawerId(serialId), []);
 
+  /**
+   * EXPORT XLSX - §12's third top control, §64's `[ Filters ] [ Export XLSX ]`.
+   *
+   * The bytes come from `GET /admin/reports/licences?format=csv`, the one
+   * route permitted to produce a file that leaves the building. §57 REPORT
+   * SECURITY is met by that route rather than by this function: authentication
+   * and `report:export` permission are checked there, the report is generated
+   * server-side, the `EXPORT_GENERATED` audit row is committed *before* any
+   * body byte is written (so an unlogged export is unreachable), and the
+   * browser only ever names filters - it never names a table, a column or a
+   * sort, which is how §57's "prevent arbitrary database queries from the
+   * browser" holds.
+   *
+   * `buildSerialFilters` drops the paging, so the workbook is every row the
+   * current filters select rather than the page the operator happens to be
+   * reading - a one-page file under a filename implying the whole filtered set
+   * would be wrong in the direction of silently short.
+   *
+   * The CSV is then re-containerised by `csvToXlsx`. It is never rebuilt from
+   * the list response, because that response is an ordinary unaudited read;
+   * see `xlsx.ts`'s header for why the audited artefact has to stay the CSV.
+   *
+   * The filename is §57's controlled example verbatim - `CYVRA-Mobile-
+   * Licence-Register-YYYY-MM-DD.xlsx` - because §57 asks for controlled
+   * filenames and gives exactly one pattern, and a name with a free-text
+   * filter string in it would be neither controlled nor stable.
+   */
+  async function runExport() {
+    setExporting(true);
+    setFlash(null);
+    try {
+      const csv = await adminClient.registryExportCsv(buildSerialFilters(list.query));
+      downloadBlob(
+        `CYVRA-Mobile-Licence-Register-${istDay()}.xlsx`,
+        csvToXlsx(csv, "Licence Register"),
+      );
+      setFlash({
+        kind: "info",
+        text:
+          "Licence Register exported for the filters currently applied. The server wrote an " +
+          "EXPORT_GENERATED audit row before sending the bytes, recording who asked, the " +
+          "format, the row count and those filters.",
+      });
+    } catch (cause) {
+      setFlash({
+        kind: "error",
+        text: cause instanceof AdminHttpError ? cause.message : "Export failed.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="stack">
       {flash ? (
@@ -148,9 +213,16 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
           <div className="row row--wrap" style={{ justifyContent: "space-between" }}>
             <div>
               <h2 className="card__title">Licence Registry</h2>
+              {/*
+               * §12 LICENCE REGISTRY — PRIMARY SCREEN and §64 ADMIN PAGE LAYOUT
+               * — FINAL both spell this subtitle verbatim, wrapped over two
+               * lines in both places. It is the frozen wording; the sentence it
+               * replaced ("Search, filter and act. ...") described the
+               * mechanism rather than the screen's purpose, which is the
+               * marketing-flavoured failure §84 RULE 18 rules out.
+               */}
               <p className="card__hint">
-                Search, filter and act. Every figure below is the server&apos;s answer to this
-                exact query.
+                Manage customer licence requests, payment, issuance, activation and control.
               </p>
             </div>
             <button type="button" className="btn btn--sm" onClick={list.reload}>
@@ -159,7 +231,13 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
           </div>
         </div>
 
-        <Toolbar query={list.query} patch={patch} onClear={() => patch(EMPTY_SERIAL_QUERY)} />
+        <Toolbar
+          query={list.query}
+          patch={patch}
+          onClear={() => patch(EMPTY_SERIAL_QUERY)}
+          onExport={runExport}
+          exportBusy={exporting}
+        />
         <ChipBar query={list.query} patch={patch} totals={totals} loading={totals.loading} />
 
         {list.error ? (
@@ -217,7 +295,7 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
           <div style={{ padding: "12px 18px", borderTop: "1px solid var(--line)" }}>
             <p className="card__hint" style={{ margin: 0 }}>
               Fifteen filterable columns plus No. and Actions. &quot;No.&quot; and
-              &quot;Customer Email&quot; stay fixed while the rest scroll sideways.
+              &quot;Registered Email&quot; stay fixed while the rest scroll sideways.
             </p>
           </div>
         }

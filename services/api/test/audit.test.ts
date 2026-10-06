@@ -285,7 +285,7 @@ describe("the audit row sits inside the mutation's transaction", () => {
     const res = await request(`/serials/${SERIAL_ID}/confirm-payment`, {
       method: "POST",
       token: STAFF_TOKEN,
-      body: { amount: 5000, reference: "UPI-1" },
+      body: { amount: 5000, reference: "UPI-1", paymentMethod: "UPI" },
       ip: "198.51.100.7",
     });
     assert.equal(res.status, 200, JSON.stringify(await readJson(res)));
@@ -310,10 +310,16 @@ describe("the audit row sits inside the mutation's transaction", () => {
     assert.deepEqual(row.values.previousState, {
       status: "PAYMENT_PENDING",
       paymentStatus: null,
+      // NULL is the truth for every pre-0009 row - migration 0009 backfills
+      // nothing, because nobody ever captured a method for those payments.
+      paymentMethod: null,
     });
     assert.deepEqual(row.values.newState, {
       status: "READY_TO_GENERATE",
       paymentStatus: "PAID",
+      // The method the operator chose, on the row of the event that recorded
+      // it - not read back from `payments` afterwards.
+      paymentMethod: "UPI",
       confirmedBy: "licadmin@cyvoriq.com",
     });
     assert.equal(row.values.ipAddress, "198.51.100.7");

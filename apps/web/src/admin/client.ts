@@ -149,6 +149,21 @@ export function buildSerialQuery(state: SerialQueryState): string {
 }
 
 /**
+ * The same filters with the paging stripped - what an export of "the current
+ * filtered state of the registry" (§12's Export XLSX control) has to send.
+ *
+ * `buildSerialQuery` omits `page` when it is 1 and `pageSize` when it is 25,
+ * so forcing both to their defaults leaves exactly the filter parameters and
+ * nothing else. Sending the paging instead would export *one page* of the
+ * filtered set under a filename that says it is the whole filtered set - a
+ * file that is wrong in the direction of silently short, which is the defect
+ * this module's own header spends a paragraph warning about.
+ */
+export function buildSerialFilters(state: SerialQueryState): string {
+  return buildSerialQuery({ ...state, page: 1, pageSize: 25 });
+}
+
+/**
  * Count-only request: `pagination.total` is the whole answer.
  *
  * The server refuses rather than clamps, and `parseSerialQuery` accepts only
@@ -282,8 +297,23 @@ export const adminClient = {
    * The twelve action routes. Keyed by action id so the row menu dispatches
    * through one table and never grows a bespoke branch per button.
    */
-  confirmPayment: (serialId: string, reference?: string) =>
-    post(`/admin/serials/${serialId}/confirm-payment`, reference ? { reference } : {}),
+  /**
+   * `paymentMethod` is a required argument, not an optional one.
+   *
+   * The server refuses a confirmation without it (see `readPaymentMethod` in
+   * `services/api/src/admin.ts`), so making the parameter optional here would
+   * advertise a call shape that can only ever come back as a 400 - the same
+   * "never offer an action that cannot be performed" rule the rest of this
+   * client is written against, pointed at the signature instead of the button.
+   *
+   * `reference` stays optional: §18 lists it as something the action records
+   * "where applicable", and absence leaves the existing value alone.
+   */
+  confirmPayment: (serialId: string, paymentMethod: string, reference?: string) =>
+    post(`/admin/serials/${serialId}/confirm-payment`, {
+      paymentMethod,
+      ...(reference ? { reference } : {}),
+    }),
   /**
    * THE atomic issue (Path 6B, §21).
    *
@@ -357,6 +387,26 @@ export const adminClient = {
   reportCsv: (from: string, to: string) =>
     adminRequest<string>(
       `/admin/reports/licences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=csv`,
+      { headers: { Accept: "text/csv" } },
+    ),
+
+  /**
+   * The registry's own export - §12's "Export XLSX" top control, §64's
+   * `[ Filters ] [ Export XLSX ]` row.
+   *
+   * Same audited route the Reports page's buttons use: `GET /admin/reports/
+   * licences?format=csv` writes an `EXPORT_GENERATED` row *before* any byte
+   * leaves, and only the CSV path does (the route is in `CONDITIONAL_ROUTES`
+   * for exactly that reason). The difference is what travels - `filters` is the
+   * registry's current filter state rather than a date range, so the file is
+   * the rows on screen and not the range the Reports page happens to have open.
+   *
+   * The caller wraps these bytes with `csvToXlsx`, so the audited artefact is
+   * always the CSV: two containers, one report, as `xlsx.ts`'s header lays out.
+   */
+  registryExportCsv: (filters: string) =>
+    adminRequest<string>(
+      `/admin/reports/licences?${filters === "" ? "" : `${filters}&`}format=csv`,
       { headers: { Accept: "text/csv" } },
     ),
 

@@ -64,6 +64,13 @@
       "when": 1791170168082,
       "tag": "0008_registration_bridge",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791286350771,
+      "tag": "0009_payment_method",
+      "breakpoints": true
     }
   ]
 }
