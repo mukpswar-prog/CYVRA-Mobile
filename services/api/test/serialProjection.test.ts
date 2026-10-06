@@ -8,7 +8,7 @@ import {
   paidPayment,
   staffHarness,
 } from "./helpers/adminHarness.ts";
-import { jsonSerialList, reportRows, toCsv } from "../src/admin.ts";
+import { jsonSerialList, reportRows, toCsv, type PaymentInfo } from "../src/admin.ts";
 
 /**
  * W5 PHASE 2b - THE PROJECTION THE CONSOLE READS.
@@ -236,45 +236,176 @@ describe("Issued By vs Created By - design freeze §6 / §56", () => {
   });
 });
 
-describe("the CSV export", () => {
-  it("carries the four new columns, and payment beside licence status", async () => {
-    const row = licenceRow(WINDOW);
-    const mapped = await reportRows([row], new Map([[row.id, "PAID"]]));
-    const csv = toCsv(mapped);
-    const [header, data] = csv.trim().split("\n");
-    assert.ok(header && data);
+/**
+ * §56's recommended column set, quoted rather than paraphrased.
+ *
+ * The earlier test asserted that four columns *existed*. The Chief Engineer's
+ * ruling asks for §56's recommended set, and a set is a list in a fixed order,
+ * so what is being pinned now is the whole list: present, in §56's sequence,
+ * and - the failure worth catching - filled. An export whose "Payment Amount"
+ * header sits over an empty cell looks identical to one where the amount was
+ * never paid, which is precisely the claim an auditor must not be handed.
+ */
+const SECTION_56_COLUMNS = [
+  "Row No.",
+  "Licence ID",
+  "Registered Email",
+  "User ID",
+  "Customer Name",
+  "Company",
+  "Customer Type",
+  "PIN Code",
+  "Plan",
+  "Mobile Device Capacity",
+  "Host Workstation Limit",
+  "Payment Status",
+  "Payment Amount",
+  "Payment Reference",
+  "Licence Status",
+  "Licence Serial",
+  "Host Binding Status",
+  "Created Date",
+  "Issued Date",
+  "Activated Date",
+  "Expiry Date",
+  "Created By",
+  "Issued By",
+] as const;
 
+/** RFC 4180, so a value containing a comma cannot shift every column after it. */
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === ",") {
+      cells.push(cell);
+      cell = "";
+    } else {
+      cell += ch;
+    }
+  }
+  cells.push(cell);
+  return cells;
+}
+
+/** The fixture's payment, at values a human would recognise on a bank line. */
+const PAYMENT: PaymentInfo = {
+  status: "PAID",
+  amount: "5000.00",
+  reference: "UPI-2026-0001",
+};
+
+describe("the CSV export", () => {
+  it("emits §56's recommended columns, in §56's own order", async () => {
+    const row = licenceRow(WINDOW);
+    const mapped = await reportRows([row], new Map([[row.id, PAYMENT]]));
+    const [header] = toCsv(mapped).trim().split("\n");
+    assert.ok(header);
     const cells = header.split(",");
-    for (const name of [
-      "paymentStatus",
-      "firstActivatedAt",
-      "validityStartsAt",
-      "validityEndsAt",
-    ]) {
-      assert.ok(cells.includes(name), `CSV header is missing ${name}: ${header}`);
+
+    let previous = -1;
+    for (const name of SECTION_56_COLUMNS) {
+      const index = cells.indexOf(name);
+      assert.ok(index > -1, `§56 column missing from the export: ${name}\n${header}`);
+      assert.ok(
+        index > previous,
+        `§56 order broken at "${name}" (index ${index} does not follow ${previous})`,
+      );
+      previous = index;
     }
 
-    // §5 orders column 9 (Payment) immediately before column 10 (Licence
-    // Status); an auditor reconciling a file reads the two together, so the
-    // columns sit together rather than payment trailing at the end.
-    assert.equal(cells.indexOf("paymentStatus"), cells.indexOf("status") + 1);
+    // §56 puts the money block immediately before Licence Status, so an
+    // auditor reconciling the file reads payment and workflow as one pair
+    // rather than hunting for the second column.
+    assert.equal(cells.indexOf("Payment Status") + 3, cells.indexOf("Licence Status"));
+  });
 
-    // Design freeze §56 lists Created By as its own column beside Issued By.
-    // `issuedBy` deliberately projects empty on an unissued record, so
-    // `createdBy` is what keeps the file able to answer "who made this row"
-    // for a request that has not reached issuance yet.
-    assert.ok(cells.includes("createdBy"), `CSV header is missing createdBy: ${header}`);
-    assert.equal(
-      (mapped[0] as unknown as Record<string, unknown>).createdBy,
-      "ceo@cyvoriq.com",
-      "and the value reaches the row the header prints from",
-    );
+  it("fills every one of the seven columns the register was missing", async () => {
+    const row = licenceRow(WINDOW);
+    const mapped = await reportRows([row], new Map([[row.id, PAYMENT]]));
+    const [header, data] = toCsv(mapped).trim().split("\n");
+    assert.ok(header && data);
 
-    assert.ok(data.includes("PAID"), "the payment value must reach the file");
-    assert.ok(data.includes("2027-10-01T10:00:00.000Z"), "and so must the window");
+    const columns = header.split(",");
+    const values = parseCsvLine(data);
+    assert.equal(values.length, columns.length, "the row must have a cell per column");
+    const at = (name: string): string => {
+      const index = columns.indexOf(name);
+      assert.ok(index > -1, `column not found: ${name}`);
+      return values[index] as string;
+    };
 
-    // No key, in a file that leaves the box as an attachment.
+    // §14: Row No. is a display number, "not the database ID, not the licence
+    // serial, not the customer ID" - so it is 1 and it is not the id beside it.
+    assert.equal(at("Row No."), "1");
+    assert.equal(at("Licence ID"), row.id);
+    assert.notEqual(at("Row No."), at("Licence ID"));
+
+    // §15 / RULE 2: User ID is the registered email. `mobile_serials.user_id`
+    // is an internal uuid, and printing that under a heading the Design Freeze
+    // defines as an email would publish a value as something it is not.
+    assert.equal(at("User ID"), "customer@example.com");
+    assert.equal(at("User ID"), at("Registered Email"));
+
+    // §4.2: "Host Workstation Limit = 1 for all standard plans." There is no
+    // column for it because it is a commercial rule, so it is written rather
+    // than left blank - a blank would read as "unknown", not as "one".
+    assert.equal(at("Host Workstation Limit"), "1");
+
+    // §56's money columns. These resolve only because `reportRows` carries the
+    // payment's amount and reference, not merely its status.
+    assert.equal(at("Payment Status"), "PAID");
+    assert.equal(at("Payment Amount"), "5000.00");
+    assert.equal(at("Payment Reference"), "UPI-2026-0001");
+
+    // Present in the projection, absent from the old export.
+    assert.equal(at("Host Binding Status"), "UNBOUND");
+
+    // And Created By still answers "who made this row" while Issued By stays
+    // honestly empty on a record nothing has issued (`jsonSerial` gates on
+    // `issued_at`, not on the column being non-empty).
+    assert.equal(at("Created By"), "ceo@cyvoriq.com");
+    assert.equal(at("Issued By"), "");
+  });
+
+  it("keeps the columns §56 does not name, instead of silently dropping them", async () => {
+    // §56 is a *recommended* list, not an exhaustive one. Trimming to exactly
+    // twenty-three would remove fourteen columns operators already rely on, in
+    // a file that leaves the building - and data loss dressed as tidiness is
+    // the worse failure of the two.
+    const row = licenceRow(WINDOW);
+    const mapped = await reportRows([row], new Map([[row.id, PAYMENT]]));
+    const [header, data] = toCsv(mapped).trim().split("\n");
+    assert.ok(header && data);
+    const cells = header.split(",");
+
+    for (const name of ["serialFp", "validityStartsAt", "devicesBound", "paymentNoted"]) {
+      assert.ok(cells.includes(name), `a retained column was dropped: ${name}`);
+    }
+
+    // The window still reaches the file.
+    assert.ok(data.includes("2027-10-01T10:00:00.000Z"));
+
+    // No key, in a file that leaves the box as an attachment: `Licence Serial`
+    // resolves against the MASKED projection, and the fingerprint beside it is
+    // what keeps two identical-looking masked keys apart.
     assert.ok(!data.includes(row.publicNumber as string));
+    assert.notEqual(row.publicNumber, null);
   });
 
   it("keeps an unresolvable column from appearing as a header-only drift", async () => {

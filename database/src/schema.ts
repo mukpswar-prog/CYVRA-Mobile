@@ -106,6 +106,48 @@ export const paymentStatusEnum = pgEnum("payment_status_enum", [
 ]);
 
 /**
+ * HOW the money arrived - distinct from `paymentStatusEnum`, which says
+ * WHETHER it did.
+ *
+ * ANOMALY, RECORDED NOT INVENTED QUIETLY: the Design Freeze never uses the
+ * phrase "payment method" and never lists an allowed set. §18 PAYMENT CONTROL
+ * enumerates what confirming a payment must record - Payment Status, Confirmed
+ * By, Confirmed At, Reference, Notes, Amount, Currency, Payment Date - and
+ * method is not among them. The column exists because WS-H2's brief asks for
+ * one, so the value set below is a *code* decision, and it is made explicit so
+ * the Chief Engineer can strike or amend it rather than discover it as an
+ * assumed fact three releases later.
+ *
+ * Chosen from what the product already says about payments, not invented
+ * afresh: the Confirm Payment placeholder is "UPI ref, bank reference, note"
+ * and the legacy admin form reads "UPI / NEFT reference and date" - so UPI and
+ * bank transfer are demonstrably real here. The rest are the standard Indian
+ * settlement rails plus the fallbacks a business of this size actually
+ * encounters.
+ *
+ * `OTHER` is included on purpose: a required field with no escape hatch
+ * produces a lie, and the operator who cannot find their rail will write it
+ * into `reference` instead, corrupting a field §18 does specify. One catch-all
+ * keeps the specified fields clean.
+ *
+ * Declared as `pgEnum` rather than text + CHECK, per this file's line 27: the
+ * value set belongs to the database so no future writer can accept a method
+ * the register does not know.
+ */
+export const paymentMethodEnum = pgEnum("payment_method_enum", [
+  "UPI",
+  "BANK_TRANSFER",
+  "CARD",
+  "NET_BANKING",
+  "CASH",
+  "CHEQUE",
+  "OTHER",
+]);
+
+/** The seven ways money can arrive, as a type. Single source: the pgEnum above. */
+export type PaymentMethod = (typeof paymentMethodEnum.enumValues)[number];
+
+/**
  * The four roles of design plan 41, plus `SYSTEM`.
  *
  * `SYSTEM` is NOT a staff role and can never be held by a `staff_operators`
@@ -700,6 +742,21 @@ export const payments = pgTable(
       .notNull()
       .references(() => mobileSerials.id, { onDelete: "restrict" }),
     status: paymentStatusEnum("status").notNull().default("PENDING"),
+    /*
+     * Nullable on purpose, in both directions.
+     *
+     * Every `payments` row written before WS-H2 has no method and cannot have
+     * one - backfilling them would mean asserting how a customer paid last
+     * month, and a fabricated audit fact is worse than an empty cell. And a
+     * `NOT NULL` with no default would break the 0007 seed INSERT and every
+     * `INSERT ... DEFAULT VALUES` after it.
+     *
+     * Required-ness is enforced where the fact is known: at confirmation
+     * time, in `confirm-payment`, inside the same transaction that flips
+     * `status` to PAID. A row that is PAID and method-less can therefore only
+     * be a pre-WS-H2 row.
+     */
+    paymentMethod: paymentMethodEnum("payment_method"),
     amount: numeric("amount", { precision: 12, scale: 2 }),
     currency: text("currency").notNull().default("INR"),
     reference: text("reference"),

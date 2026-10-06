@@ -601,8 +601,11 @@ describe("GET /serials/:serialId/export - a copy leaves, so it is audited", () =
     assert.match(res.headers.get("content-disposition") ?? "", /attachment/);
     const csv = await res.text();
     const lines = csv.trimEnd().split("\n");
-    assert.ok(lines[0].includes("customerEmail"), lines[0]);
-    assert.ok(lines[0].includes("licenceKey"), lines[0]);
+    // §56's headers, not the projection's field names: the file that leaves the
+    // building is read by an auditor, and §56 names the columns in full.
+    assert.ok(lines[0].includes("Registered Email"), lines[0]);
+    assert.ok(lines[0].includes("Licence Serial"), lines[0]);
+    assert.ok(lines[0].startsWith("Row No.,Licence ID,"), lines[0]);
     assert.equal(lines.length, 2, "one header, one row");
     assert.ok(csv.endsWith("\n"));
 

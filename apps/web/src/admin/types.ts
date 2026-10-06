@@ -201,16 +201,22 @@ export interface ReportRow {
 /**
  * `GET /admin/reports/licences`.
  *
- * Note the absence of a `filters` echo: unlike `GET /serials`, this route takes
- * only `from` and `to` - there is no status, payment or plan filter on it. The
- * Reports page is built around that rather than around what a filter bar would
- * like to be true; narrowing a report here is a display convenience over the
- * rows the range produced, and the export always carries the full range.
+ * Carries a `filters` echo for the same reason `GET /serials` does: WS-H2 gave
+ * this route the registry's own filter set (§55's report filters) so the
+ * registry's Export XLSX control can export what is on screen through one
+ * audited writer. `filters` is the *parsed* query, which is what makes a
+ * narrowed export distinguishable from a full-range one without the reader
+ * having to reconstruct the caller's URL from memory.
+ *
+ * The Reports page itself still narrows inside the range as a display
+ * convenience - that is unchanged, and `from`/`to` still bound every row the
+ * server produces.
  */
 export interface ReportResponse {
   actor: string;
   from: string;
   to: string;
+  filters: Record<string, unknown>;
   count: number;
   rows: ReportRow[];
 }

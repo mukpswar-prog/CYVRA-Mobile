@@ -44,7 +44,8 @@ import {
 } from "../components/tone";
 import { beforeReveal } from "../key";
 import { rowActions, type ActionableLicence, type RowActionId } from "../licences/actions";
-import { dash, formatDateTime, formatDate } from "../licences/LicenceTable";
+import { dash } from "../licences/LicenceTable";
+import { formatDate, formatDateTime } from "../format/datetime";
 import { IssueButton } from "../licences/RowZone";
 import type { StaffRole } from "../permissions";
 import type { AuditEvent, LicenceRecord } from "../types";

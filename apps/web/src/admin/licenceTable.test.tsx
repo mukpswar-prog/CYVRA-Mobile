@@ -1,6 +1,6 @@
 /**
- * §5'S EIGHTEEN COLUMNS, THE FROZEN PAIR, AND THE MASK.
- * =====================================================
+ * §13'S TWENTY COLUMNS, THE FROZEN PAIR, AND THE MASK.
+ * ====================================================
  *
  * Three assertions that a screenshot cannot make:
  *
@@ -8,10 +8,14 @@
  *    A column dropped from the spec, renamed, or reordered is a failure here
  *    rather than a difference a reviewer has to spot across 1680px of table.
  *
- * 2. `No.` and `Customer Email` are the only frozen columns, and `No.` is
- *    first. §5's footer asks for a sticky No. + Customer pair; that only works
- *    if they are adjacent and leading, which is the one deviation this file
- *    records (positions 2 and 3 swapped - see `LicenceTable.tsx`).
+ *    The list itself is pinned against §13's twelve mandatory fields in §13's
+ *    own order, so "User ID and PIN Code quietly disappear" is a failing test
+ *    rather than a silently narrower register.
+ *
+ * 2. `No.` and `Registered Email` are the only frozen columns, and `No.` is
+ *    first. A sticky pair only works if they are adjacent and leading, which
+ *    is why `User ID` and `PIN Code` are inserted *after* them rather than
+ *    at the head of the table.
  *
  * 3. The row number is derived from the *page*, not from the array index.
  *    Page 3 at 25 rows must start at 51. Rendering `1..25` on every page would
@@ -97,15 +101,57 @@ function renderTable(
   return { ...utils, onPick, onOpen };
 }
 
-describe("the eighteen columns", () => {
-  it("renders exactly §5's header set, in order", () => {
+describe("the twenty columns", () => {
+  /*
+   * §65's recommended order, applied in full on the Chief Engineer's ruling.
+   *
+   * §65 and §13 do not disagree - walked field by field, §13's twelve mandatory
+   * columns appear in §65 in exactly the same relative order, with §65 adding
+   * Issued and Activated (both §13 *optional* fields) between Created and
+   * Actions. So this is an application of §65, not a choice of one section
+   * over the other, and the §13 test below still passes unchanged in intent.
+   *
+   * "Registered Email" rather than "Customer Email" is §13's own field 2 and
+   * the Chief Engineer's explicit instruction; it was carried under the older
+   * header until that ruling.
+   */
+  it("renders §65's recommended column order, in full", () => {
     expect(COLUMN_HEADERS).toEqual([
       "No.",
-      "Customer Email",
+      "Registered Email",
+      "User ID",
+      "PIN Code",
+      "Licence Plan",
+      "Mobile Capacity",
+      "Payment Status",
+      "Licence Status",
+      "Host Binding Status",
+      "Licence Key / Serial",
       "Licence ID",
+      "Created Date",
+      "Issued Date",
+      "Activation Date",
       "Customer Name",
       "Company",
       "Customer Type",
+      "Expiry / Renewal Date",
+      "Issued By",
+      "Actions",
+    ]);
+    expect(COLUMNS).toHaveLength(20);
+  });
+
+  /*
+   * §65's own list, as a sequence rather than as positions - the same technique
+   * the §13 test uses, and for the same reason: §65 permits optional extras and
+   * the extras shift everything after them.
+   */
+  it("keeps §65's fourteen recommended fields in §65's order", () => {
+    const recommended = [
+      "No.",
+      "Registered Email",
+      "User ID",
+      "PIN Code",
       "Licence Plan",
       "Mobile Capacity",
       "Payment Status",
@@ -115,11 +161,71 @@ describe("the eighteen columns", () => {
       "Created Date",
       "Issued Date",
       "Activation Date",
-      "Expiry / Renewal Date",
-      "Issued By",
       "Actions",
-    ]);
-    expect(COLUMNS).toHaveLength(18);
+    ];
+    const positions = recommended.map((header) => COLUMN_HEADERS.indexOf(header));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    // Actions is §65's fixed far-right control zone.
+    expect(COLUMN_HEADERS.at(-1)).toBe("Actions");
+  });
+
+  /*
+   * §13's twelve mandatory fields, walked in §13's own order. The table may
+   * carry extra columns - §13 explicitly allows it - but the relative order of
+   * the twelve is what "column order ... must strictly match" means, so this
+   * asserts the *sequence* rather than the positions (which the extras shift).
+   */
+  it("keeps §13's twelve mandatory fields in §13's order", () => {
+    const mandatory = [
+      "No.",
+      "Registered Email",
+      "User ID",
+      "PIN Code",
+      "Licence Plan",
+      "Mobile Capacity",
+      "Payment Status",
+      "Licence Status",
+      "Host Binding Status",
+      "Licence Key / Serial",
+      "Created Date",
+      "Actions",
+    ];
+    const positions = mandatory.map((header) => COLUMN_HEADERS.indexOf(header));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  /*
+   * §15 / RULE 2: the User ID *is* the registered email. Rendering anything
+   * else here would be inventing an identifier the freeze says does not exist,
+   * and dropping the column because it "duplicates" the one beside it would
+   * drop a field §13 marks mandatory. Asserted so the duplication reads as
+   * deliberate rather than as a copy-paste defect.
+   */
+  it("renders User ID as the registered email, because §15 says they are equal", () => {
+    renderTable([listItem()]);
+    const headers = screen.getAllByRole("columnheader");
+    const userIndex = headers.findIndex((header) => header.textContent === "User ID");
+    const emailIndex = headers.findIndex((header) => header.textContent === "Registered Email");
+    expect(userIndex).toBeGreaterThan(0);
+    const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+    expect(cells[userIndex].textContent).toBe(cells[emailIndex].textContent);
+    expect(cells[userIndex].textContent).toBe("customer@example.com");
+  });
+
+  /*
+   * §16 PIN CODE: the postal code, under §16's recommended label, and absent
+   * rows an em dash rather than a blank - a blank cell reads as "not loaded".
+   */
+  it("renders the postal PIN Code, and an em dash when there is none", () => {
+    renderTable([listItem({ pincode: "400001" }), listItem({ pincode: null })]);
+    const headers = screen.getAllByRole("columnheader");
+    const pinIndex = headers.findIndex((header) => header.textContent === "PIN Code");
+    expect(pinIndex).toBeGreaterThan(0);
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[1]).getAllByRole("cell")[pinIndex].textContent).toBe("400001");
+    expect(within(rows[2]).getAllByRole("cell")[pinIndex].textContent).toBe("—");
   });
 
   it("renders one header cell per column and no extras", () => {
@@ -134,13 +240,16 @@ describe("the eighteen columns", () => {
     const rows = screen.getAllByRole("row");
     const cells = within(rows[1]).getAllByRole("cell");
     expect(cells).toHaveLength(COLUMNS.length);
-    expect(cells[2].textContent).toContain("00000000-0000-4000-8000-000000000001");
+    // `Licence ID` sits at index 10, beside `Licence Key / Serial`: §13 field 10
+    // is "Licence Serial / ID", and §65 places the serial after Host Binding.
+    // Index 1 is `Registered Email`, immediately after `No.`.
+    expect(cells[10].textContent).toContain("00000000-0000-4000-8000-000000000001");
     expect(cells[1].textContent).toContain("customer@example.com");
   });
 });
 
 describe("the frozen pair", () => {
-  it("freezes No. first and Customer Email second, and nothing else", () => {
+  it("freezes No. first and Registered Email second, and nothing else", () => {
     renderTable([listItem()]);
     const headers = screen.getAllByRole("columnheader");
     expect(headers[0]).toHaveClass("sticky-1");
@@ -161,7 +270,7 @@ describe("the frozen pair", () => {
   it("states the frozen columns in the accessible caption", () => {
     renderTable([listItem()]);
     expect(screen.getByRole("table")).toHaveAccessibleName(
-      /Column No\. and Customer Email stay visible/,
+      /Column No\. and Registered Email stay visible/,
     );
   });
 });

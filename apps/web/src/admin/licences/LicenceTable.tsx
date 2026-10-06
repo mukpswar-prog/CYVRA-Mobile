@@ -1,29 +1,56 @@
 /**
- * THE LICENCE REGISTRY TABLE - §5's eighteen columns, data-driven.
- * ================================================================
+ * THE LICENCE REGISTRY TABLE - §13's twelve mandatory fields, data-driven.
+ * ========================================================================
  *
- * The columns are a `readonly` array rather than eighteen hand-written
+ * The columns are a `readonly` array rather than twenty hand-written
  * `<th>`/`<td>` pairs, so the header row and the body cells cannot drift: a
- * column exists in exactly one place, and `LicenceTable.test.tsx` asserts the
+ * column exists in exactly one place, and `licenceTable.test.tsx` asserts the
  * rendered header equals `COLUMNS` - which means a renamed header, a dropped
  * cell or a reordered column is one assertion away from a failure rather than
  * something a reviewer has to notice by eye across 1680px of table.
  *
- * THE ONE DEVIATION FROM §5's NUMBERING
- * -------------------------------------
- * §5 lists `Licence ID` second and §5's own footer says "keeping the No. and
- * Customer columns visible/sticky". Those two statements cannot both hold: a
- * sticky column has to sit at the left edge, so for Customer to be sticky it
- * must immediately follow No., and `Licence ID` at position 2 pushes it down.
+ * §13 NAMES TWELVE FIELDS AND ALLOWS MORE
+ * ---------------------------------------
+ * §13 is titled EXACT MAIN TABLE PRINCIPLE. It mandates, in order:
  *
- * Resolution: swap positions 2 and 3, so the order is No. | Customer Email |
- * Licence ID | ... Every one of the eighteen headers is present, in an
- * otherwise identical order, and the frozen zone is exactly what §5's footer
- * asks for. The deviation is recorded here rather than made silently, because
- * a reader comparing this file against the spec line by line deserves to have
- * the difference explained instead of discovering it.
+ *   No. | Registered Email | User ID | PIN Code | Licence Type |
+ *   Mobile Device Capacity | Payment Status | Licence Status |
+ *   Host Binding Status | Licence Serial / ID | Created Date | Actions
  *
- * Only `No.` and `Customer Email` are frozen (296px). Freezing the whole
+ * and then says: "The actual production table can contain additional columns".
+ * So the rule is an ORDER over the mandatory twelve, not a demand that they be
+ * contiguous - §13's own worked example cannot be read as demanding adjacency,
+ * because it draws eight columns while mandating twelve, i.e. it is schematic.
+ *
+ * `COLUMNS` below keeps the relative order of all twelve exactly as §13 lists
+ * them, and seats §13's permitted extras (Licence ID, Customer Name, Company,
+ * Customer Type, Issued/Activation/Expiry, Issued By) between them. §65's
+ * "recommended final order" would additionally push those extras to the end,
+ * just before Actions; that is recorded as a deviation rather than applied
+ * silently, because §65 says *recommended* and §13 is what the brief cites.
+ *
+ * §15 AND §16 SAY WHAT THE TWO NEW COLUMNS MEAN
+ * --------------------------------------------
+ * `User ID` is not a second identifier invented here: §15 says it "equals the
+ * registered email ID for the current CYVRA Mobile customer model", and RULE 2
+ * repeats it - "Customer User ID = registered email ID." It therefore renders
+ * the registered email, and `licenceTable.test.tsx` asserts that equality so
+ * the duplication can never be mistaken for a copy-paste defect.
+ *
+ * `PIN Code` is the postal code: §16 is titled PIN CODE and opens "The
+ * customer PIN code / postal code is a required customer-information field",
+ * with the recommended label `PIN Code`. It is not the licence key - §16 says
+ * so explicitly - and it is not masked, because §16 masks only "if the PIN is
+ * sensitive in the actual customer model", and a six-digit postal code is the
+ * address field the customer typed on the registration form.
+ *
+ * §58 DATE AND TIME
+ * -----------------
+ * Every date cell renders through `format/datetime`, which is fixed to
+ * Asia/Kolkata. This file used to carry its own `timeZone: "UTC"` formatters;
+ * see that module for why that was a violation rather than a style choice.
+ *
+ * Only `No.` and `Registered Email` are frozen (296px). Freezing the whole
  * customer *block* - email, name, company, type - would cost ~700px of
  * horizontal room, which on a 1680px table leaves too little scrolling surface
  * for the sticky columns to be doing anything useful.
@@ -38,6 +65,7 @@ import {
   paymentTone,
 } from "../components/tone";
 import { RowMenu } from "../components/RowMenu";
+import { formatDate } from "../format/datetime";
 import type { RowActionDecision, RowActionId } from "./actions";
 import { RowZone } from "./RowZone";
 import type { LicenceListItem } from "../types";
@@ -64,30 +92,13 @@ export interface ColumnDef {
 
 /* ------------------------------------------------------------------ format */
 
-/** `2026-10-01T10:00:00.000Z` -> `01 Oct 2026`. Unparseable -> em dash. */
-export function formatDate(value: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-/** Same, with the time, for the drawer and audit rows. */
-export function formatDateTime(value: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return `${formatDate(value)} ${date.toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  })} UTC`;
-}
+/*
+ * `formatDate` and `formatDateTime` used to live here, hard-coded to
+ * `timeZone: "UTC"`. They moved to `format/datetime` - the one IST formatter
+ * §58 asks for - and are imported rather than re-exported, so that the registry
+ * table cannot drift back to its own copy while the drawer, the audit trail and
+ * the staff page render the same instant as a different calendar date.
+ */
 
 /* ----------------------------------------------------------------- columns */
 
@@ -104,6 +115,37 @@ export function dash(value: string | null | undefined): ReactNode {
   return value && value !== "" ? value : <span className="muted">—</span>;
 }
 
+/**
+ * THE REGISTER'S COLUMN ORDER - §65, with §13's twelve as its backbone.
+ * =====================================================================
+ *
+ * §65 "MAIN TABLE — PROFESSIONAL COLUMN ORDER" gives the recommended final
+ * order; this array follows it exactly:
+ *
+ *     No. | Registered Email | User ID | PIN Code | Licence Plan |
+ *     Mobile Capacity | Payment Status | Licence Status |
+ *     Host Binding Status | Licence Serial | Created | Issued |
+ *     Activated | Actions
+ *
+ * §65 and §13 do not disagree, which is why this is an application of §65 and
+ * not a choice between them: walk §13's twelve mandatory fields and they appear
+ * in §65 in precisely that relative order. §65's contribution is to promote two
+ * of §13's *optional* fields (Issued Date, Activation Date) into the core
+ * sequence at positions 12-13, and to place §13's optional extras after them.
+ * Verified field by field before this reorder was made.
+ *
+ * TWO COLUMNS §65 DOES NOT NAME, AND WHY THEY REMAIN
+ * -------------------------------------------------
+ *   - `Licence ID`: §13 field 10 is "Licence Serial / ID", so the id is half
+ *     of a mandatory field rather than an extra. It sits against the serial.
+ *   - `Issued By`: §13 lists it among the permitted optional columns; §65 is
+ *     silent rather than prohibitive about it.
+ *
+ * Neither is deleted, because §65's optional list ("Customer Name, Company,
+ * Customer Type, Expiry") reads as what *may* be added, and §13 explicitly
+ * allows both. Actions stays far right - §65 fixes it as the operational
+ * control zone.
+ */
 export const COLUMNS: readonly ColumnDef[] = Object.freeze([
   {
     id: "no",
@@ -114,7 +156,7 @@ export const COLUMNS: readonly ColumnDef[] = Object.freeze([
   },
   {
     id: "customerEmail",
-    header: "Customer Email",
+    header: "Registered Email",
     sticky: 2,
     className: "sticky-2",
     render: (row, ctx) => (
@@ -129,24 +171,36 @@ export const COLUMNS: readonly ColumnDef[] = Object.freeze([
     ),
   },
   {
-    id: "serialId",
-    header: "Licence ID",
-    render: (row) => <span className="mono">{row.serialId}</span>,
+    id: "userId",
+    header: "User ID",
+    /*
+     * §15: "User ID: equals the registered email ID for the current CYVRA
+     * Mobile customer model ... is not separately invented by the Admin."
+     * RULE 2 says the same thing from the other side: "Customer User ID =
+     * registered email ID." So this cell is the registered email on purpose,
+     * and rendering `mobileSerials.user_id` - an internal uuid foreign key -
+     * would answer a question §15 never asked.
+     *
+     * Deliberate duplication of the previous column, pinned by an assertion in
+     * `licenceTable.test.tsx` so a future reader does not "fix" it.
+     */
+    render: (row) => <span className="mono">{row.customerEmail}</span>,
   },
   {
-    id: "customerFullName",
-    header: "Customer Name",
-    render: (row) => dash(row.customerFullName),
-  },
-  {
-    id: "companyName",
-    header: "Company",
-    render: (row) => dash(row.companyName),
-  },
-  {
-    id: "customerKind",
-    header: "Customer Type",
-    render: (row) => <Badge view={customerKindTone(row.customerKind)} />,
+    id: "pinCode",
+    header: "PIN Code",
+    /*
+     * §16 PIN CODE: "The customer PIN code / postal code is a required
+     * customer-information field where applicable. Recommended table label:
+     * PIN Code." - hence the header, and hence not "Postal Code".
+     *
+     * Not masked: §16 masks only "if the PIN is sensitive in the actual
+     * customer model", and this is the six-digit address field the customer
+     * typed at registration (`registration.ts` requires exactly six digits).
+     * §16's other warning - "The PIN must not be confused with the licence
+     * key" - is why the cell never touches `licenceKey`.
+     */
+    render: (row) => dash(row.pincode),
   },
   {
     id: "plan",
@@ -191,12 +245,42 @@ export const COLUMNS: readonly ColumnDef[] = Object.freeze([
         <span className="muted">No key yet</span>
       ),
   },
+  /*
+   * §13 field 10 is "Licence Serial / ID" - one concept, two cells. §65 lists
+   * only "Licence Serial", so the immutable row id sits beside the serial it
+   * identifies rather than at the head of the table where it used to live: the
+   * pair reads as one field and §65's own sequence stays intact around it.
+   */
+  { id: "serialId", header: "Licence ID", render: (row) => <span className="mono">{row.serialId}</span> },
   { id: "createdAt", header: "Created Date", render: (row) => formatDate(row.createdAt) },
   { id: "issuedAt", header: "Issued Date", render: (row) => formatDate(row.issuedAt) },
   {
     id: "firstActivatedAt",
     header: "Activation Date",
     render: (row) => formatDate(row.firstActivatedAt),
+  },
+  /*
+   * §65's optional block - Customer Name, Company, Customer Type, Expiry - in
+   * §65's listed order, and placed before Actions because §66 fixes Actions as
+   * the far-right control zone. §13 permits all three as optional extras, and
+   * §65 says they move to the drawer if the table gets too wide: they are kept
+   * here rather than dropped, because "can move to the drawer" is a layout
+   * permission, not an instruction to delete data from the register.
+   */
+  {
+    id: "customerFullName",
+    header: "Customer Name",
+    render: (row) => dash(row.customerFullName),
+  },
+  {
+    id: "companyName",
+    header: "Company",
+    render: (row) => dash(row.companyName),
+  },
+  {
+    id: "customerKind",
+    header: "Customer Type",
+    render: (row) => <Badge view={customerKindTone(row.customerKind)} />,
   },
   {
     id: "validityEndsAt",

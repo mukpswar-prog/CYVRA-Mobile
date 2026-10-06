@@ -24,8 +24,9 @@
  * the ones asserting exactly that - that Issue never carries a reason field and
  * never says the word "waiver".
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { ConfirmDialog } from "./components/Dialog";
 import { dialogFor, editInitialValues, type ActionSubject, type PendingAction } from "./licences/ActionHost";
 import { ROW_ACTION_IDS, rowAction, type ActionableLicence, type RowActionId } from "./licences/actions";
 
@@ -130,10 +131,19 @@ describe("§53: the reason field appears exactly where the server demands one", 
     expect(field?.required).toBe(false);
   });
 
-  it("asks for no reason on Confirm Payment - its optional field is the reference", () => {
+  it("prompts for the method and the reference on Confirm Payment, with only the method mandatory", () => {
     const spec = dialogFor(pending("confirmPayment"), "operator");
-    expect(spec?.fields?.map((field) => field.name)).toEqual(["reference"]);
-    expect(spec?.fields?.[0]?.required).toBe(false);
+    expect(spec?.fields?.map((field) => field.name)).toEqual(["paymentMethod", "reference"]);
+    // WS-H2: the method is asserted by an operator, never defaulted. A
+    // pre-filled value would write an unchosen fact into the audit trail for
+    // every confirmation anyone ever performs.
+    const method = spec?.fields?.[0];
+    expect(method?.required).toBe(true);
+    expect(method?.blankLabel).toBeTruthy();
+    // More than the blank option, or there is nothing to choose.
+    expect((method?.options ?? []).length).toBeGreaterThan(1);
+    // §18 keeps the reference optional: recorded "where applicable".
+    expect(spec?.fields?.[1]?.required).toBe(false);
   });
 
   it("arms Revoke as destructive", () => {
@@ -240,5 +250,60 @@ describe("rendering smoke", () => {
       </>,
     );
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Issue Licence?");
+  });
+});
+
+/*
+ * WS-H2 PILLAR 2 - THE MANDATORY PAYMENT METHOD, AS THE OPERATOR MEETS IT.
+ * ========================================================================
+ *
+ * The rest of this file asserts the *spec* - `dialogFor`'s pure output - which
+ * is the right thing to assert for content. This block asserts the one
+ * behaviour the spec alone cannot prove: that the confirm button is actually
+ * unarmed on open, and arms itself only when an operator picks a method.
+ *
+ * Two ways that could fail while every spec assertion stayed green:
+ *
+ *   1. `DialogField.options` renders as nothing (a missing `<select>` branch),
+ *      leaving a required field that can never be filled - the button would be
+ *      permanently dead and the operator would have no way to confirm at all.
+ *   2. The `<select>` opens pre-answered on a non-blank value, arming the
+ *      button before anyone has chosen anything. That is the worse of the two,
+ *      because it *succeeds* - and writes a payment method into the audit
+ *      trail that corresponds to nobody's decision.
+ *
+ * The server refuses the same body either way (see `paymentMethod.test.ts` in
+ * `services/api`), so this is not the only guard - but a UI that offers an
+ * action the API will always reject is exactly what "never show an action that
+ * cannot be performed" forbids, and it belongs here where it can be seen.
+ */
+describe("Confirm Payment arms only after a method is chosen", () => {
+  function renderConfirmPayment() {
+    const spec = dialogFor(pending("confirmPayment"), "operator");
+    expect(spec, "confirmPayment must have a dialog").toBeTruthy();
+    render(<ConfirmDialog spec={spec!} onCancel={() => {}} onConfirm={() => {}} />);
+    return screen.getByRole("button", { name: "Confirm Payment" });
+  }
+
+  it("opens with the confirm button disabled", () => {
+    expect(renderConfirmPayment()).toBeDisabled();
+  });
+
+  it("opens on the blank option, so the control is never pre-answered", () => {
+    renderConfirmPayment();
+    expect(screen.getByRole("combobox")).toHaveValue("");
+  });
+
+  it("arms the button once a method is selected", () => {
+    renderConfirmPayment();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "UPI" } });
+    expect(screen.getByRole("button", { name: "Confirm Payment" })).toBeEnabled();
+  });
+
+  it("keeps the reference optional, so it alone can never block a confirmation", () => {
+    renderConfirmPayment();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "CASH" } });
+    expect(screen.getByLabelText(/Payment reference/)).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Confirm Payment" })).toBeEnabled();
   });
 });

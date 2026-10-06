@@ -39,6 +39,32 @@ export interface DialogField {
   readonly placeholder?: string;
   readonly required?: boolean;
   readonly rows?: number;
+  /**
+   * Render a `<select>` instead of a text input.
+   *
+   * A free-text field invites an answer the database cannot store; §84 RULE 15
+   * ("the browser should request an operation, the server must decide") is
+   * about permission, but the same reasoning applies to vocabulary: a method
+   * typed as "upi" vs "UPI" vs "PhonePe" is three spellings of one fact, and
+   * `payment_method_enum` would refuse two of them at the driver, after the
+   * operator has already watched the dialog close. Offering the exact set the
+   * server admits means the failure - if there is one - is a 400 the operator
+   * can read, not a 500 they cannot.
+   *
+   * Absent, a field is a text input, so this is purely additive: every dialog
+   * that exists renders byte-for-byte as it did before.
+   */
+  readonly options?: readonly { readonly value: string; readonly label: string }[];
+  /**
+   * The empty first option's label - "Select a payment method". A `<select>`
+   * with no blank option is pre-answered on open, which for a mandatory field
+   * means the confirm button arms itself with a value nobody chose. The blank
+   * option is what makes the control require a decision rather than record the
+   * absence of one.
+   *
+   * Only read when `options` is present.
+   */
+  readonly blankLabel?: string;
 }
 
 export interface ConfirmSpec {
@@ -147,7 +173,25 @@ export function ConfirmDialog({
                   {field.label}
                   {field.required !== false ? <span aria-hidden="true"> *</span> : null}
                 </span>
-                {field.rows ? (
+                {field.options ? (
+                  <select
+                    className="input"
+                    value={values[field.name] ?? ""}
+                    ref={index === 0 ? setFirst : undefined}
+                    onChange={(event) =>
+                      setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                    }
+                  >
+                    {/* Blank first: see `DialogField.blankLabel` - a mandatory
+                        control must not arrive pre-answered. */}
+                    <option value="">{field.blankLabel ?? "Select…"}</option>
+                    {field.options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : field.rows ? (
                   <textarea
                     className="input"
                     rows={field.rows}
@@ -182,7 +226,24 @@ export function ConfirmDialog({
           <button type="button" className="btn" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
-          <button type="submit" className={confirmClass} disabled={busy}>
+          <button
+            type="submit"
+            className={confirmClass}
+            /*
+             * `missing.length > 0` arms nothing.
+             *
+             * The header above has always claimed "Required fields keep it
+             * disabled until they are filled", and `submit()` has always
+             * *enforced* that - but the button itself stayed clickable and
+             * silently did nothing on click, which is the worst of both: the
+             * operator saw a live-looking button, pressed it, and was left
+             * wondering whether the click had registered or the network had
+             * dropped. Disabled is the honest rendering of "this cannot be
+             * done yet", and it is what WS-H2's mandatory Payment Method
+             * dropdown is specified to require.
+             */
+            disabled={busy || missing.length > 0}
+          >
             {busy ? "Working…" : spec.confirmLabel}
           </button>
         </div>

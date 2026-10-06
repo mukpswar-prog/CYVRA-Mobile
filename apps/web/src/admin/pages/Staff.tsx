@@ -38,7 +38,7 @@ import { staffStatusTone } from "../components/tone";
 import { explainRoleRefusal, can } from "../permissions";
 import { PermissionGate } from "../shell/PermissionGate";
 import { useSessionState } from "../shell/session";
-import { formatDateTime } from "../licences/LicenceTable";
+import { formatDateTime } from "../format/datetime";
 import type { StaffMember, StaffRole, StaffStatus } from "../types";
 
 /** Mirrors `STAFF_APPROVE_FROM` / `STAFF_SUSPEND_FROM` in `admin.ts`. */

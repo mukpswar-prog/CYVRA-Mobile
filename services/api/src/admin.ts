@@ -4,11 +4,13 @@ import { Hono } from "hono";
 import {
   mobileSerials,
   payments,
+  paymentMethodEnum,
   staffOperators,
   staffOtpChallenges,
   staffRoleEnum,
   staffSessions,
   type LicenceStatus,
+  type PaymentMethod,
 } from "@cyvra/database/schema";
 import { isUuid } from "@cyvra/evidence";
 import {
@@ -18,6 +20,7 @@ import {
   timingSafeEqualHex,
 } from "./crypto";
 import { mailConfigured, sendLicenceEmail, sendOtpEmail } from "./email";
+import { istDay } from "./format/datetime";
 import type { Database } from "./db";
 import type { Env } from "./env";
 import {
@@ -427,16 +430,41 @@ async function paymentStatusFor(
  *
  * Callers pass the page's ids; an empty page costs no query at all.
  */
-async function paymentStatusesFor(
+/**
+ * Financial truth for one licence, as the export needs it.
+ *
+ * `amount` and `reference` exist here because §56 lists "Payment Amount" and
+ * "Payment Reference" as register-export columns and both live on `payments`,
+ * not on the licence row. They are read in the same query that already had to
+ * resolve `status`, rather than by a second helper: two functions reading one
+ * table with slightly different tie-breaks would let a CSV and a list response
+ * disagree about *which* payment they are describing, and the newest-row-wins
+ * rule below is far too load-bearing to exist twice.
+ *
+ * `null` (the map value, not a field) means "no payment row exists", which is
+ * NOT "pending" - see `jsonSerial` for why those must never be conflated.
+ */
+export interface PaymentInfo {
+  readonly status: PaymentStatus;
+  readonly amount: string | null;
+  readonly reference: string | null;
+}
+
+async function paymentsFor(
   db: Pick<Database, "select">,
   serialIds: readonly string[],
-): Promise<Map<string, PaymentStatus | null>> {
-  const out = new Map<string, PaymentStatus | null>();
+): Promise<Map<string, PaymentInfo | null>> {
+  const out = new Map<string, PaymentInfo | null>();
   for (const id of serialIds) out.set(id, null);
   if (serialIds.length === 0) return out;
 
   const rows = await db
-    .select({ licenceId: payments.licenceId, status: payments.status })
+    .select({
+      licenceId: payments.licenceId,
+      status: payments.status,
+      amount: payments.amount,
+      reference: payments.reference,
+    })
     .from(payments)
     .where(inArray(payments.licenceId, [...serialIds]))
     .orderBy(desc(payments.createdAt), desc(payments.id));
@@ -460,7 +488,11 @@ async function paymentStatusesFor(
     // `paymentStatusFor`, which must not be reinterpreted here.
     if (seen.has(row.licenceId)) continue;
     seen.add(row.licenceId);
-    out.set(row.licenceId, row.status);
+    out.set(row.licenceId, {
+      status: row.status,
+      amount: row.amount,
+      reference: row.reference,
+    });
   }
   for (const id of serialIds) {
     if (!out.has(id)) out.set(id, null);
@@ -545,6 +577,47 @@ function readReference(value: unknown): string | null {
 }
 
 /**
+ * `paymentMethod` - the one confirm input that is REFUSED rather than left unset.
+ *
+ * `amount` and `reference` are both optional above: absent means "no opinion"
+ * and the row keeps whatever it held. A payment method is different in kind -
+ * it is a claim about how money physically moved, it is written into the audit
+ * trail as `newState.paymentMethod`, and an audit fact nobody asserted is worse
+ * than no fact at all, because the trail will read it as though somebody did.
+ * So this returns a structured refusal rather than `null`, and the caller
+ * answers 400 instead of confirming with the field blank.
+ *
+ * ANOMALY: the Design Freeze never names this field. See the header of
+ * `payment_method_enum` in `database/src/schema.ts` and migration 0009 - the
+ * value set is a code decision, recorded in both places.
+ *
+ * Narrowed against `paymentMethodEnum.enumValues` rather than a hand-typed
+ * union, so a method added to `schema.ts` is accepted here the moment it is
+ * added, and one removed stops being accepted for the same reason. The list in
+ * the error sentence comes from the same array, so the message cannot name a
+ * value the database would reject.
+ */
+function isPaymentMethod(value: string): value is PaymentMethod {
+  return (paymentMethodEnum.enumValues as readonly string[]).includes(value);
+}
+
+function readPaymentMethod(value: unknown): PaymentMethod | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return isPaymentMethod(trimmed) ? trimmed : null;
+}
+
+/** The sentence a missing or unknown method is answered with. Lists the real set. */
+function paymentMethodError(value: unknown): string {
+  const listed = paymentMethodEnum.enumValues.join(", ");
+  if (typeof value === "string" && value.trim() !== "") {
+    const seen = value.trim().slice(0, 40);
+    return `Unknown paymentMethod "${seen}". Use one of: ${listed}.`;
+  }
+  return `paymentMethod is required. Use one of: ${listed}.`;
+}
+
+/**
  * `mobile_serials.customer_kind` is a `text` column, so TypeScript reports
  * `string` where the domain has exactly two values. `POST /serials` validates
  * through `licenceDraftError`, so anything else can only arrive by a write
@@ -590,65 +663,155 @@ function parseReportDate(raw: string, endOfDay: boolean): Date | null {
  */
 export async function reportRows(
   rows: (typeof mobileSerials.$inferSelect)[],
-  paymentById: ReadonlyMap<string, PaymentStatus | null> = new Map(),
+  paymentById: ReadonlyMap<string, PaymentInfo | null> = new Map(),
 ) {
   return Promise.all(
-    rows.map((row) => jsonSerialList(row, paymentById.get(row.id) ?? null)),
+    rows.map(async (row) => {
+      const payment = paymentById.get(row.id) ?? null;
+      return {
+        ...(await jsonSerialList(row, payment?.status ?? null)),
+        /*
+         * §56's Payment Amount and Payment Reference.
+         *
+         * Attached here rather than inside `jsonSerial` on purpose: the list
+         * *response* must stay byte-for-byte what it was, because widening it
+         * would mean touching the redaction contract `jsonSerialList` is
+         * exported to protect. An export needing two more fields is not a
+         * reason to hand the registry view two more things to leak.
+         *
+         * It also gives `toCsv` a key it can resolve. The alternative - a
+         * column header with nothing behind it - is the defect that file's
+         * comment warns about: an empty Payment Amount cell reads as "this
+         * customer never paid" when the truth is "this column is broken".
+         */
+        paymentAmount: payment?.amount ?? null,
+        paymentReference: payment?.reference ?? null,
+      };
+    }),
   );
 }
 
 /**
+ * §56 LICENCE REGISTER XLSX COLUMNS.
+ * ==================================
+ *
+ * §56 names twenty-three "Recommended columns" and this function emits all of
+ * them, in §56's own order, before the fields §56 does not name. The split is
+ * deliberate: §56 is a *recommended* list rather than an exhaustive one, so
+ * dropping the fourteen extra columns we already exported would be a silent
+ * loss of data in a file that leaves the building - and losing columns nobody
+ * asked us to lose is a worse outcome than carrying a few §56 never mentioned.
+ *
+ * Two columns are computed rather than read:
+ *
+ *   - **Row No.** is the loop index. §14 is explicit that this is a display
+ *     number and "not the database ID, not the licence serial, not the
+ *     customer ID" - so it cannot be derived from any field on the row, and
+ *     `Licence ID` beside it is what stops the two being confused.
+ *   - **Host Workstation Limit** is §4.2's commercial rule: "Host Workstation
+ *     Limit = 1 for all standard plans." There is no column for it in
+ *     `mobile_serials` because it is a rule, not a per-row fact. It is written
+ *     as 1 rather than left blank so the file answers the question §56 asks
+ *     instead of implying the question was never asked.
+ *
+ * **User ID** reads `customerEmail`, not `mobile_serials.user_id`. §15: "User
+ * ID: equals the registered email ID", and RULE 2 repeats it. The uuid in
+ * `user_id` is an internal foreign key; exporting it under the heading "User
+ * ID" would publish a value the Design Freeze says is not one. The registry
+ * table makes the same substitution for the same reason, so the register and
+ * its export agree.
+ *
+ * **Licence Serial** is the *masked* key: `toCsv` runs on `jsonSerialList`,
+ * and §56's last line is "The export must not expose secrets that should not
+ * be exported."
+ *
  * Exported for tests: a header that no longer resolves against the row emits an
  * empty cell silently, so the column list is checked against the projection
  * rather than eyeballed.
  */
-export function toCsv(rows: Awaited<ReturnType<typeof jsonSerialList>>[]): string {
-  const headers = [
-    "licenceKey",
-    "serialFp",
-    "status",
-    // Placed against `status` on purpose: §5's column 10 is the workflow
-    // truth and column 9 is the financial truth, and an auditor reconciling an
-    // export reads the two side by side. Burying payment further down would
-    // make the file answer "is this issued" without answering "was it paid".
-    "paymentStatus",
-    "customerKind",
-    "slabLabel",
-    "deviceMax",
-    "devicesBound",
-    "brandScope",
-    "customerEmail",
-    "customerFullName",
-    "companyName",
-    "addressLine1",
-    "addressLine2",
-    "pincode",
-    "state",
-    "paymentNoted",
+interface CsvColumn {
+  readonly header: string;
+  readonly key: string;
+}
+
+/** §4.2: one host workstation per licence, for every standard plan. */
+const HOST_WORKSTATION_LIMIT = 1;
+
+export const CSV_COLUMNS: readonly CsvColumn[] = Object.freeze([
+    // ---- §56's recommended columns, in §56's order ----
+    { header: "Row No.", key: "rowNo" },
+    { header: "Licence ID", key: "serialId" },
+    { header: "Registered Email", key: "customerEmail" },
+    // §15 / RULE 2: the same value as the column above it, on purpose.
+    { header: "User ID", key: "customerEmail" },
+    { header: "Customer Name", key: "customerFullName" },
+    { header: "Company", key: "companyName" },
+    { header: "Customer Type", key: "customerKind" },
+    { header: "PIN Code", key: "pincode" },
+    { header: "Plan", key: "planCode" },
+    { header: "Mobile Device Capacity", key: "deviceMax" },
+    { header: "Host Workstation Limit", key: "hostWorkstationLimit" },
+    { header: "Payment Status", key: "paymentStatus" },
+    { header: "Payment Amount", key: "paymentAmount" },
+    { header: "Payment Reference", key: "paymentReference" },
+    // Licence Status sits after the payment block, which is where §56 places
+    // it: an auditor reconciling the file reads money first, workflow second.
+    { header: "Licence Status", key: "status" },
+    { header: "Licence Serial", key: "licenceKey" },
+    { header: "Host Binding Status", key: "hostBindingStatus" },
+    { header: "Created Date", key: "createdAt" },
+    { header: "Issued Date", key: "issuedAt" },
+    { header: "Activated Date", key: "firstActivatedAt" },
+    { header: "Expiry Date", key: "validityEndsAt" },
     // §56 lists Created By and Issued By as separate columns. Keeping both -
     // rather than one actor column doing double duty - is what lets an export
     // answer "who made this record" and "who issued it" as two questions with
     // two answers; see `jsonSerial` for why `issuedBy` may be empty.
-    "createdBy",
-    "issuedBy",
-    "createdAt",
-    "issuedAt",
-    "revokedAt",
-    // §5 columns 15 and 16. NULL renders as an empty cell, which is the
-    // correct reading of "no window was ever recorded" - see `jsonSerial`.
-    "firstActivatedAt",
-    "validityStartsAt",
-    "validityEndsAt",
-    "emailedAt",
-    "emailMessageId",
-    "emailError",
-  ];
-  const lines = [headers.join(",")];
-  for (const row of rows) {
+    { header: "Created By", key: "createdBy" },
+    { header: "Issued By", key: "issuedBy" },
+
+    // ---- fields §56 does not name, retained from the previous export ----
+    { header: "serialFp", key: "serialFp" },
+    { header: "slabLabel", key: "slabLabel" },
+    { header: "brandScope", key: "brandScope" },
+    { header: "devicesBound", key: "devicesBound" },
+    { header: "addressLine1", key: "addressLine1" },
+    { header: "addressLine2", key: "addressLine2" },
+    { header: "state", key: "state" },
+    { header: "paymentNoted", key: "paymentNoted" },
+    { header: "revokedAt", key: "revokedAt" },
+    { header: "validityStartsAt", key: "validityStartsAt" },
+    { header: "emailedAt", key: "emailedAt" },
+    { header: "emailMessageId", key: "emailMessageId" },
+    { header: "emailError", key: "emailError" },
+]);
+
+/**
+ * The two computed columns, and nothing else. Everything else is a genuine
+ * projection key, so a key that resolves to `undefined` is a defect rather
+ * than an absent fact - which is the reason `CSV_COLUMNS` is exported rather
+ * than built inside `toCsv`: the header a reader sees and the key it is filled
+ * from are now two different strings, and only a test that can see both can
+ * notice the day they stop agreeing.
+ */
+const valueFor = (
+  row: Awaited<ReturnType<typeof reportRows>>[number],
+  key: string,
+  index: number,
+): string | number | null => {
+  if (key === "rowNo") return index + 1;
+  if (key === "hostWorkstationLimit") return HOST_WORKSTATION_LIMIT;
+  return row[key as keyof typeof row] as string | number | null;
+};
+
+export function toCsv(rows: Awaited<ReturnType<typeof reportRows>>): string {
+
+  const lines = [CSV_COLUMNS.map((column) => column.header).join(",")];
+  rows.forEach((row, index) => {
     lines.push(
-      headers.map((key) => csvCell(row[key as keyof typeof row] as string | number | null)).join(","),
+      CSV_COLUMNS.map((column) => csvCell(valueFor(row, column.key, index))).join(","),
     );
-  }
+  });
   return `${lines.join("\n")}\n`;
 }
 
@@ -1583,14 +1746,16 @@ adminRoutes.get("/serials", async (c) => {
   // per-row lookup would turn a list into 101 round trips, and a list that
   // gets slower as it gets longer is a list people stop paging through -
   // which is how a truncated-looking table becomes a habit.
-  const paymentById = await paymentStatusesFor(db, rows.map((row) => row.id));
+  const paymentById = await paymentsFor(db, rows.map((row) => row.id));
 
   return c.json({
     superAdmin: SUPER_ADMIN_EMAIL,
     actor: admin.email,
     // Keys are never in a list response: masked + fingerprinted only.
     serials: await Promise.all(
-      rows.map((row) => jsonSerialList(row, paymentById.get(row.id) ?? null)),
+      // The *status* only: §56's amount and reference ride along on the export
+      // projection below, never on the list response.
+      rows.map((row) => jsonSerialList(row, paymentById.get(row.id)?.status ?? null)),
     ),
     filters: filtersFor(spec),
     pagination: paginationFor(spec, rows.length, totalRows[0]?.total ?? 0),
@@ -1882,6 +2047,15 @@ adminRoutes.post("/serials/:serialId/confirm-payment", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
   const amount = readAmount(body.amount);
   const reference = readReference(body.reference);
+  /*
+   * Read here, VALIDATED inside the transaction - and the placement is the
+   * point. Answering 400 before the row is locked would turn a *retry* of an
+   * already-completed confirmation into an error, when §48's whole requirement
+   * is that the second attempt produces the same answer as the first with no
+   * second write. The refusal below is therefore reached only when this
+   * request would actually change something.
+   */
+  const paymentMethod = readPaymentMethod(body.paymentMethod);
   const db = c.get("db");
   const frame = await requireAuditContext(c);
   if ("error" in frame) return c.json({ error: frame.error }, frame.status);
@@ -1901,6 +2075,21 @@ adminRoutes.post("/serials/:serialId/confirm-payment", async (c) => {
       if (licence.status !== "DRAFT" && licence.status !== "PAYMENT_PENDING") {
         return { kind: "replay", row: licence };
       }
+
+      /*
+       * THE PAYMENT METHOD GATE.
+       *
+       * Placed after the replay check on purpose: an idempotent retry answers
+       * 200 before this line, so re-sending a confirm that already succeeded
+       * never has to re-prove its method - and a request that *would* commit
+       * a PAID row cannot commit one without a method the operator chose.
+       *
+       * Nothing is written above this line, so the refusal costs no work and
+       * leaves no trace: `payments` is untouched, `mobile_serials` is
+       * untouched, and no audit row exists to describe an event that did not
+       * happen. §43's idempotency and §55's trail are both intact.
+       */
+      if (paymentMethod === null) return { kind: "invalid", error: paymentMethodError(body.paymentMethod) };
 
       const [payment] = await tx
         .select()
@@ -1927,6 +2116,10 @@ adminRoutes.post("/serials/:serialId/confirm-payment", async (c) => {
           status: "PAID",
           amount,
           reference,
+          // Guaranteed non-null by the gate above - the branch is unreachable
+          // without one, which is what makes a new row unable to be method-less
+          // while the column itself stays nullable for pre-0009 rows.
+          paymentMethod,
           confirmedBy: admin.email,
           confirmedAt: new Date(),
         });
@@ -1939,6 +2132,10 @@ adminRoutes.post("/serials/:serialId/confirm-payment", async (c) => {
             // row already held rather than being nulled out by omission.
             amount: amount ?? payment.amount,
             reference: reference ?? payment.reference,
+            // Not `paymentMethod ?? payment.paymentMethod`: this branch only
+            // runs for a payment that was never confirmed, so there is no
+            // method to preserve, and the gate above has already required one.
+            paymentMethod,
             confirmedBy: admin.email,
             confirmedAt: payment.confirmedAt ?? new Date(),
           })
@@ -1983,10 +2180,26 @@ adminRoutes.post("/serials/:serialId/confirm-payment", async (c) => {
           previousState: {
             status: licence.status,
             paymentStatus: previousPaymentStatus,
+            // Read before the write above, so this is genuinely the state as
+            // it was - not the new value echoed back dressed as the old one.
+            paymentMethod: payment?.paymentMethod ?? null,
           },
           newState: {
             status: row.status,
             paymentStatus,
+            /*
+             * The method, recorded as an assertion rather than as free text.
+             *
+             * It lives in `newState` (what this click made true) and mirrors
+             * `previousState.paymentMethod` (what was there before, NULL for
+             * every pre-0009 row), so a reader can see the field changed
+             * without a second query. It is NOT reconstructed from
+             * `payments.payment_method` at read time, because that column is
+             * writable by the row-edit path afterwards - a trail that derives
+             * yesterday's fact from today's table is a trail that rewrites
+             * itself, which is the opposite of what a trail is for.
+             */
+            paymentMethod,
             confirmedBy: admin.email,
           },
         }),
@@ -1995,6 +2208,9 @@ adminRoutes.post("/serials/:serialId/confirm-payment", async (c) => {
     },
   );
 
+  // Request-shape failure, so it leads: nothing was written and the caller can
+  // fix the body and retry the same operation.
+  if (outcome.kind === "invalid") return c.json({ error: outcome.error }, 400);
   if (outcome.kind === "not-found") return c.json({ error: "Serial not found." }, 404);
   if (outcome.kind === "replay") {
     return c.json({
@@ -2472,6 +2688,12 @@ const ISSUE_REPLAY_MESSAGE =
 type ConfirmOutcome =
   | { kind: "not-found" }
   | { kind: "replay"; row: typeof mobileSerials.$inferSelect }
+  /**
+   * No usable `paymentMethod` on a request that would otherwise have
+   * committed. Answered 400 with nothing written - see the gate inside the
+   * transaction for why it is an outcome rather than an early return.
+   */
+  | { kind: "invalid"; error: string }
   | { kind: "forbidden"; error: TransitionError }
   | { kind: "confirmed"; row: typeof mobileSerials.$inferSelect };
 
@@ -3610,12 +3832,14 @@ adminRoutes.get("/serials/:serialId/export", async (c) => {
   const frame = await requireAuditContext(c);
   if ("error" in frame) return c.json({ error: frame.error }, frame.status);
   const generatedAt = new Date();
-  // Single licence, single payment row - a one-entry map rather than the batch
-  // lookup, so the export and the drawer read the same value through the same
-  // ordering rule without paying for a query that could only ever return one.
+  // Single licence, single payment row. `paymentsFor` with a one-id array is
+  // the same query and the same newest-row-wins rule as the batch route, so
+  // this export and the multi-row export cannot disagree about which payment
+  // they are describing - which matters now that the CSV carries the amount
+  // and the reference, not just the status.
   const mapped = await reportRows(
     [row],
-    new Map([[row.id, await paymentStatusFor(db, serialId)]]),
+    new Map([[row.id, (await paymentsFor(db, [serialId])).get(serialId) ?? null]]),
   );
 
   await db.transaction(async (tx) => {
@@ -3660,15 +3884,49 @@ adminRoutes.get("/reports/licences", async (c) => {
   if (!from || !to) {
     return c.json({ error: "from and to must be ISO dates." }, 400);
   }
+  /*
+   * §55's REPORT METADATA names the report's filters: Date From, Date To,
+   * Payment Status, Licence Status, Plan, Customer Type, Staff Member, Host
+   * Binding. The first two are read above; the rest are the *registry's* own
+   * filter set, parsed by the same `parseSerialQuery` that `GET /serials`
+   * uses.
+   *
+   * WHY THE ROUTE AND NOT A NEW ONE
+   * -------------------------------
+   * §57 requires a report to be generated server-side and logged, and
+   * `CONDITIONAL_ROUTES` pins that only this route's `?format=csv` emits a file
+   * that leaves the organisation. The registry's Export XLSX control therefore
+   * sends the operator's current filters *here* rather than asking a second
+   * endpoint for the same rows: one writer, one permission check, one audit
+   * action. The browser sends filters and nothing else - never a table, a
+   * column or a sort - which is what keeps §57's "prevent arbitrary database
+   * queries from the browser" true rather than aspirational.
+   *
+   * Reusing `parseSerialQuery` rather than spelling a second, smaller set of
+   * parameters is deliberate: two parsers for one filter vocabulary drift, and
+   * the first thing they would disagree about is a licence the operator can see
+   * on screen but not in the file they just downloaded.
+   */
+  const parsed = parseSerialQuery(new URL(c.req.url).searchParams);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  // One clock for the horizon and the row query, so `count` cannot describe a
+  // different set from the rows it sits beside.
+  const now = new Date();
+  const where = and(
+    gte(mobileSerials.createdAt, from),
+    lte(mobileSerials.createdAt, to),
+    serialQueryWhere(parsed.spec, now),
+  );
   const db = c.get("db");
   const rows = await db
     .select()
     .from(mobileSerials)
-    .where(and(gte(mobileSerials.createdAt, from), lte(mobileSerials.createdAt, to)))
+    .where(where)
     .orderBy(desc(mobileSerials.createdAt));
   const mapped = await reportRows(
     rows,
-    await paymentStatusesFor(db, rows.map((row) => row.id)),
+    await paymentsFor(db, rows.map((row) => row.id)),
   );
   if ((c.req.query("format") ?? "") === "csv") {
     /*
@@ -3706,7 +3964,19 @@ adminRoutes.get("/reports/licences", async (c) => {
             actor: frame.actorEmail,
             format: "csv",
             rowCount: mapped.length,
-            filters: { from: from.toISOString(), to: to.toISOString() },
+            /*
+             * §55's "Applied Filters", in full: the date range *and* whatever
+             * the registry's own filters narrowed it to. Recording only the
+             * range would let two exports of different row sets write
+             * identical-looking audit rows - the operator filtered to `status=
+             * REVOKED` and the trail could not say so, which defeats the
+             * purpose of logging the export at all.
+             */
+            filters: {
+              from: from.toISOString(),
+              to: to.toISOString(),
+              ...filtersFor(parsed.spec),
+            },
             generatedAt: generatedAt.toISOString(),
             // Kept alongside `filters` because it is the range *as requested*
             // - the two together say whether the caller narrowed the window.
@@ -3718,13 +3988,23 @@ adminRoutes.get("/reports/licences", async (c) => {
     });
     return c.body(toCsv(mapped), 200, {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="cyvra-mobile-licences.csv"`,
+      // §57 "use controlled filenames", spelled as §57's own example with the
+      // extension it must have for a CSV. The browser never sees this one -
+      // the registry's Export XLSX control supplies its name from the same
+      // IST calendar day - but a plain GET does, and "controlled" has to mean
+      // every path out of the route rather than only the one the UI takes.
+      "Content-Disposition": `attachment; filename="CYVRA-Mobile-Licence-Register-${istDay()}.csv"`,
     });
   }
   return c.json({
     actor: admin.email,
     from: from.toISOString(),
     to: to.toISOString(),
+    // §55 "Applied Filters". Echoed rather than only written to the audit row
+    // so the JSON reader can tell a full register from a narrowed one without
+    // a second request - the same reason the range is echoed instead of being
+    // left for the caller to compare against its own state.
+    filters: filtersFor(parsed.spec),
     count: mapped.length,
     rows: mapped,
   });

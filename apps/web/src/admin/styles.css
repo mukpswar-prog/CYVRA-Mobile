@@ -31,7 +31,7 @@
  *    rather than picked per component, so a new badge cannot accidentally land
  *    as dark-grey-on-dark-grey.
  *
- * 5. Sticky columns. `No.` and `Customer Email` pin while the other sixteen
+ * 5. Sticky columns. `No.` and `Registered Email` pin while the other sixteen
  *    scroll. They need an opaque background of their own - sticky cells with a
  *    transparent background show rows sliding underneath them, which on a
  *    financial table is worse than no stickiness at all.
