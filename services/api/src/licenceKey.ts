@@ -9,19 +9,34 @@
  *   11092026  issue/create date UTC (ddmmyyyy)
  *   S         SINGLE user  (B = BULK)
  *   A3F1      4-digit hex uniqueness
- *   1-1       device slab (allowed: 1-1, 1-3, 1-5, 1-7, 1-25)
+ *   1-1       device slab (allowed: 1-1, 1-3, 1-5, 1-7, 1-25, 1-50)
  *
  * Same key may be used on devices of the same brand up to `max`.
  * 1-1 is single-user, single-device only (not BULK). Email only. Not a Windows Erase licence.
  */
 
 export const LICENCE_PREFIX = "CYVRA";
-export const LICENCE_SLABS = [1, 3, 5, 7, 25] as const;
+/**
+ * Canonical slab set. ADD ONLY.
+ *
+ * ⚠ Dual source of truth: `LICENCE_KEY_RE` hardcodes the same list as a regex
+ * alternation. Editing one without the other produces keys that format but
+ * never parse. Every existing value must stay, in order - a "tidied" list
+ * would silently break `-1-3` keys that real customers already hold, which is
+ * what `licenceKey.test.ts:43-44` exists to catch.
+ */
+export const LICENCE_SLABS = [1, 3, 5, 7, 25, 50] as const;
 export type LicenceSlabMax = (typeof LICENCE_SLABS)[number];
 export type LicenceKind = "SINGLE" | "BULK";
 
+/**
+ * Second, independent definition of the slab set - see the warning on
+ * `LICENCE_SLABS`. The two MUST change together or a key will format but never
+ * parse. `50` sits last and the trailing `$` anchors the match, so `-1-5` still
+ * fails to reach end-of-string and backtracks to `50`.
+ */
 export const LICENCE_KEY_RE =
-  /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(1|3|5|7|25)$/;
+  /^CYVRA(\d{2})(\d{2})(\d{4})([SB])([0-9A-F]{4})-1-(1|3|5|7|25|50)$/;
 
 export function kindCode(kind: LicenceKind): "S" | "B" {
   return kind === "BULK" ? "B" : "S";
@@ -64,7 +79,7 @@ export function formatLicenceKey(params: {
     throw new Error("hex4 must be 4 hexadecimal digits.");
   }
   if (!isLicenceSlab(params.slabMax)) {
-    throw new Error("slab must be 1-1, 1-3, 1-5, 1-7 or 1-25.");
+    throw new Error("slab must be 1-1, 1-3, 1-5, 1-7, 1-25 or 1-50.");
   }
   if (params.slabMax === 1 && params.kind !== "SINGLE") {
     throw new Error("1-device keys are single-user only.");
@@ -125,7 +140,7 @@ export function licenceDraftError(input: {
     return "customerKind must be SINGLE or BULK.";
   }
   if (!isLicenceSlab(input.deviceMax)) {
-    return "deviceMax slab must be 1, 3, 5, 7 or 25 (1-1 / 1-3 / 1-5 / 1-7 / 1-25).";
+    return "deviceMax slab must be 1, 3, 5, 7, 25 or 50 (1-1 / 1-3 / 1-5 / 1-7 / 1-25 / 1-50).";
   }
   if (input.deviceMax === 1 && kind !== "SINGLE") {
     return "1-device keys are single-user only.";

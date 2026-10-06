@@ -392,7 +392,7 @@ export function AdminApp() {
             <p className="muted small">
               Key policy: <code>CYVRAddmmyyyy</code> + S/B + 4 hex + slab (
               <code>1-1</code>, <code>1-3</code>, <code>1-5</code>, <code>1-7</code>,{" "}
-              <code>1-25</code>). <code>1-1</code> is single-user, one device.
+              <code>1-25</code>, <code>1-50</code>). <code>1-1</code> is single-user, one device.
               Same key, same brand, up to the slab. Approve emails the key to
               the customer inbox only. Payment noted is a human attestation,
               not a gateway.
@@ -488,6 +488,7 @@ export function AdminApp() {
                     <option value={5}>1-5 devices</option>
                     <option value={7}>1-7 devices</option>
                     <option value={25}>1-25 devices</option>
+                    <option value={50}>1-50 devices</option>
                   </select>
                 </div>
                 <div>

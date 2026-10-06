@@ -1,0 +1,52 @@
+-- =====================================================================================
+-- 0006_dashing_vertigo  --  activation binding columns + index on `mobile_serials`
+-- =====================================================================================
+-- Produced by `drizzle-kit generate`, then CORRECTED BY HAND. Read this before
+-- editing, and before re-running generate.
+--
+-- WHY THE CORRECTION WAS NECESSARY
+-- ---------------------------------
+-- `database/migrations/meta/0005_snapshot.json` DOES NOT EXIST. The journal has
+-- an idx-5 entry for `0005_mobile_licences`, but its snapshot was never written.
+-- `drizzle-kit generate` therefore used `0004_snapshot.json` as its baseline and
+-- computed the diff against 0004 - which meant it re-emitted **every statement
+-- migration 0005 had already applied** (13 ALTERs on `mobile_serials`, the
+-- `staff_operators` / `staff_otp_challenges` / `staff_sessions` tables, and their
+-- indexes), in addition to the four genuinely new statements below.
+--
+-- Verified mechanically, not by eye: 0005 contains 22 statements, the raw
+-- generated file had 26, exactly 4 were new. Running the raw output would have
+-- executed those 22 statements a second time - `CREATE TABLE` on an existing
+-- relation, `ADD COLUMN` on an existing column - failing the migration and
+-- blocking `db:migrate` entirely.
+--
+-- This file therefore contains ONLY the statements that do not already exist in
+-- the database. That is the correct content given that `0005` has been applied,
+-- which is the precondition for applying `0006` at all.
+--
+-- ORDER IS LOAD-BEARING
+-- ---------------------
+-- The three ADD COLUMN statements must precede the CREATE INDEX: PostgreSQL
+-- refuses to index a column that does not exist yet.
+--
+-- GOING FORWARD
+-- -------------
+-- `0006_snapshot.json` (written alongside this file) records the current schema
+-- and is now the baseline `drizzle-kit generate` diffs against, so the missing
+-- 0005 snapshot no longer causes spurious output. Do not delete it to "fix" the
+-- gap - the next generate would re-emit 0005's body all over again.
+--
+-- The missing `0005_snapshot.json` is still a latent defect worth repairing
+-- deliberately; it is noted here rather than silently back-filled, because
+-- synthesising a snapshot the tool never wrote would be inventing an artifact.
+-- =====================================================================================
+
+ALTER TABLE "mobile_serials" ADD COLUMN "host_fingerprint" text;--> statement-breakpoint
+ALTER TABLE "mobile_serials" ADD COLUMN "first_activated_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "mobile_serials" ADD COLUMN "device_token_hash" text;--> statement-breakpoint
+-- Partial index: binding a host flips host_fingerprint out of NULL exactly once
+-- per licence, so a full index would spend most of its pages on NULLs that can
+-- never satisfy a predicate. `IF NOT EXISTS` is added by hand (drizzle does not
+-- emit it) so this statement stays idempotent if the index is ever created
+-- out-of-band before the migration runs.
+CREATE INDEX IF NOT EXISTS "idx_mobile_serials_host_fingerprint" ON "mobile_serials" USING btree ("host_fingerprint") WHERE "mobile_serials"."host_fingerprint" IS NOT NULL;

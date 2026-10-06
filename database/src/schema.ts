@@ -282,12 +282,42 @@ export const mobileSerials = pgTable(
     emailedAt: timestamp("emailed_at", { withTimezone: true }),
     emailMessageId: text("email_message_id"),
     emailError: text("email_error"),
+    /**
+     * One-host binding, written only by `POST /v1/activation`.
+     *
+     * `host_fingerprint` is the digest the desktop sends as
+     * `device_fingerprint` (already a hardware digest - never a raw identifier,
+     * see api.rs `ActivationRequest`). The `IS NULL` -> bound transition is the
+     * entire one-host limit; `devices_bound` is NOT used for it, because that
+     * column is read as `scansUsed` by `license.ts` and touching it would spend
+     * a customer's scan allowance on an activation.
+     */
+    hostFingerprint: text("host_fingerprint"),
+    /** Set once, on the first successful binding. Never overwritten. */
+    firstActivatedAt: timestamp("first_activated_at", { withTimezone: true }),
+    /**
+     * SHA-256 of the issued `device_token`, never the token itself.
+     *
+     * The desktop round-trips `device_token` on revalidation; storing the
+     * digest is what lets the server check it later without keeping a bearer
+     * secret at rest. The plaintext is returned once and never persisted.
+     */
+    deviceTokenHash: text("device_token_hash"),
   },
   (table) => [
     uniqueIndex("mobile_serials_public_number_unique").on(table.publicNumber),
     index("mobile_serials_customer_email_idx").on(table.customerEmail),
     index("mobile_serials_status_idx").on(table.status),
     index("mobile_serials_created_at_idx").on(table.createdAt),
+    // Partial, because every row that would be looked up has already been
+    // claimed. Binding a host flips `host_fingerprint` out of NULL exactly once
+    // per licence, so a plain index would spend most of its pages indexing NULLs
+    // that can never match a predicate. The `WHERE ... IS NOT NULL` keeps the
+    // index to the rows that carry a binding, which is the only thing that makes
+    // it worth having.
+    index("idx_mobile_serials_host_fingerprint")
+      .on(table.hostFingerprint)
+      .where(sql`${table.hostFingerprint} IS NOT NULL`),
   ],
 );
 

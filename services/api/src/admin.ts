@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte } from "drizzle-orm";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { Hono, type Context } from "hono";
 import {
@@ -18,6 +18,8 @@ import { mailConfigured, sendLicenceEmail, sendOtpEmail } from "./email";
 import type { Database } from "./db";
 import type { Env } from "./env";
 import {
+  LICENCE_KEY_RE,
+  LICENCE_PREFIX,
   generateLicenceKey,
   isLicenceSlab,
   licenceDraftError,
@@ -25,6 +27,12 @@ import {
   type LicenceKind,
   type LicenceSlabMax,
 } from "./licenceKey";
+import {
+  SigningConfigError,
+  readEntitlementPolicy,
+  requireSigningKey,
+  signEntitlement,
+} from "./entitlementSigner";
 import {
   STAFF_COOKIE,
   STAFF_TTL_MS,
@@ -84,6 +92,75 @@ function jsonSerial(row: typeof mobileSerials.$inferSelect) {
     emailedAt: iso(row.emailedAt),
     emailMessageId: row.emailMessageId,
     emailError: row.emailError,
+  };
+}
+
+/**
+ * 8-hex fingerprint of the licence key, matching the plan's `serialFp`
+ * convention (Appendix A). Distinguishes one queue row from another without
+ * the row carrying the key itself.
+ */
+async function serialFingerprint(publicNumber: string): Promise<string> {
+  return (await sha256Hex(publicNumber)).slice(0, 8);
+}
+
+/**
+ * Hides the 13 characters that make a key unique (ddmmyyyy + kind + hex4),
+ * leaving `CYVRA*************-1-5`.
+ *
+ * The slab suffix stays visible deliberately: it is not a secret, and an
+ * operator reading a queue has to know a 1-25 from a 1-1. What must not leave
+ * the server in a *list* response is the uniqueness nibble, because that is
+ * the whole key.
+ */
+/** Exported so the redaction contract is testable; not part of any HTTP surface. */
+export function maskSerialKey(publicNumber: string): string {
+  const match = LICENCE_KEY_RE.exec(publicNumber.trim().toUpperCase());
+  if (!match) return `${LICENCE_PREFIX}-***`;
+  return `${LICENCE_PREFIX}${"*".repeat(13)}-1-${match[6]}`;
+}
+
+/**
+ * List projection: every field `jsonSerial` produces **except** the key,
+ * replaced by a masked form plus a short fingerprint.
+ *
+ * Both aliases are handled. `jsonSerial` emits the full key twice - as
+ * `publicNumber` *and* as `licenceKey` (admin.ts L70-71) - and the ops table
+ * renders the latter. Stripping only one of the two would leave the key fully
+ * exposed through the other, which is the sort of leak that survives review
+ * precisely because it is spelled differently.
+ *
+ * The full key is available only from `GET /admin/serials/:serialId`.
+ */
+/** Exported for tests: the list response must never carry a recoverable key. */
+export async function jsonSerialList(row: typeof mobileSerials.$inferSelect) {
+  const { publicNumber, licenceKey: _fullKey, ...rest } = jsonSerial(row);
+  const masked = maskSerialKey(publicNumber);
+  return {
+    ...rest,
+    licenceKey: masked,
+    publicNumberMasked: masked,
+    serialFp: await serialFingerprint(publicNumber),
+  };
+}
+
+/** Page size bounds for `GET /admin/serials`. 0 is not a valid limit. */
+const SERIAL_PAGE_MIN = 1;
+const SERIAL_PAGE_MAX = 100;
+const SERIAL_PAGE_DEFAULT = 25;
+
+function readPageParams(query: URLSearchParams): { limit: number; offset: number } {
+  const limitRaw = Number(query.get("limit") ?? "");
+  const offsetRaw = Number(query.get("offset") ?? "");
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0
+    ? Math.min(Math.trunc(limitRaw), SERIAL_PAGE_MAX)
+    : SERIAL_PAGE_DEFAULT;
+  const offset = Number.isFinite(offsetRaw) && offsetRaw > 0
+    ? Math.trunc(offsetRaw)
+    : 0;
+  return {
+    limit: Math.max(limit, SERIAL_PAGE_MIN),
+    offset,
   };
 }
 
@@ -464,14 +541,55 @@ adminRoutes.get("/serials", async (c) => {
   const admin = await requireAdmin(c);
   if ("error" in admin) return c.json({ error: admin.error }, admin.status);
   const db = c.get("db");
+  const { limit, offset } = readPageParams(new URL(c.req.url).searchParams);
+
   const rows = await db
     .select()
     .from(mobileSerials)
-    .orderBy(desc(mobileSerials.createdAt));
+    .orderBy(desc(mobileSerials.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [totalRow] = await db.select({ total: count() }).from(mobileSerials);
+  const total = totalRow?.total ?? 0;
+
   return c.json({
     superAdmin: SUPER_ADMIN_EMAIL,
     actor: admin.email,
-    serials: rows.map(jsonSerial),
+    // Keys are never in a list response: masked + fingerprinted only.
+    serials: await Promise.all(rows.map(jsonSerialList)),
+    pagination: { limit, offset, total, hasMore: offset + rows.length < total },
+  });
+});
+
+/**
+ * Full detail for one serial, the **only** list-adjacent route that returns
+ * the complete `publicNumber`.
+ *
+ * It is a separate, single-resource fetch on purpose: a bulk endpoint that
+ * can be made to return every key at once is a breach waiting for a missing
+ * filter, and the recon report flagged exactly that on `GET /serials`.
+ */
+adminRoutes.get("/serials/:serialId", async (c) => {
+  const admin = await requireAdmin(c);
+  if ("error" in admin) return c.json({ error: admin.error }, admin.status);
+  const serialId = c.req.param("serialId");
+  if (!isUuid(serialId)) {
+    return c.json({ error: "serialId must be a UUID." }, 400);
+  }
+  const db = c.get("db");
+  const [row] = await db
+    .select()
+    .from(mobileSerials)
+    .where(eq(mobileSerials.id, serialId))
+    .limit(1);
+  if (!row) return c.json({ error: "Serial not found." }, 404);
+
+  return c.json({
+    superAdmin: SUPER_ADMIN_EMAIL,
+    actor: admin.email,
+    serial: jsonSerial(row),
+    serialFp: await serialFingerprint(row.publicNumber),
   });
 });
 
@@ -497,7 +615,7 @@ adminRoutes.post("/serials", async (c) => {
     return c.json({ error: draftError }, 400);
   }
   if (!isLicenceSlab(deviceMax)) {
-    return c.json({ error: "deviceMax slab must be 1, 3, 5, 7 or 25 (1-1 / 1-3 / 1-5 / 1-7 / 1-25)." }, 400);
+    return c.json({ error: "deviceMax slab must be 1, 3, 5, 7, 25 or 50 (1-1 / 1-3 / 1-5 / 1-7 / 1-25 / 1-50)." }, 400);
   }
   const kind: LicenceKind = customerKind === "BULK" ? "BULK" : "SINGLE";
 
@@ -534,10 +652,64 @@ adminRoutes.post("/serials", async (c) => {
     emailedAt: null,
     emailMessageId: null,
     emailError: null,
+    // A freshly issued serial is bound to nothing. These are written only by
+    // `POST /v1/activation`, never by issuance - issuing a key must not make it
+    // look as though a workstation had already claimed it.
+    hostFingerprint: null,
+    firstActivatedAt: null,
+    deviceTokenHash: null,
   };
   await db.insert(mobileSerials).values(row);
   return c.json({ serial: jsonSerial(row) }, 201);
 });
+
+/**
+ * Result of the commit phase of `/issue`.
+ *
+ * Control flow is returned rather than thrown so a guard (not-found, revoked,
+ * replay) unwinds the transaction with nothing written instead of relying on a
+ * rollback that would also swallow a real database error.
+ */
+type IssueOutcome =
+  | { kind: "not-found" }
+  | { kind: "revoked" }
+  | { kind: "replay"; row: typeof mobileSerials.$inferSelect }
+  | { kind: "issued"; row: typeof mobileSerials.$inferSelect };
+
+/**
+ * Signs an issued serial, or throws [`SigningConfigError`] (mapped to 503).
+ *
+ * The clock is pinned to the row's own `issuedAt`, not to "now". That single
+ * choice makes the payload a pure function of the row, so the very same
+ * signature comes back on a replay instead of a fresh one. Two identical
+ * requests therefore produce an identical artifact - which is what makes the
+ * signature idempotent rather than merely valid.
+ */
+async function signedEnvelopeFor(
+  env: Env,
+  row: typeof mobileSerials.$inferSelect,
+) {
+  const privateKey = requireSigningKey(env);
+  const policy = readEntitlementPolicy(env);
+  const pinned = row.issuedAt ?? row.createdAt;
+  return signEntitlement(
+    {
+      id: row.id,
+      publicNumber: row.publicNumber,
+      status: row.status,
+      customerEmail: row.customerEmail,
+      customerFullName: row.customerFullName,
+      companyName: row.companyName,
+      deviceMax: row.deviceMax,
+      devicesBound: row.devicesBound,
+      issuedAt: row.issuedAt,
+      createdAt: row.createdAt,
+    },
+    policy,
+    privateKey,
+    () => new Date(pinned),
+  );
+}
 
 adminRoutes.post("/serials/:serialId/issue", async (c) => {
   const admin = await requireAdmin(c);
@@ -547,51 +719,144 @@ adminRoutes.post("/serials/:serialId/issue", async (c) => {
     return c.json({ error: "serialId must be a UUID." }, 400);
   }
   const db = c.get("db");
-  const [existing] = await db
-    .select()
-    .from(mobileSerials)
-    .where(eq(mobileSerials.id, serialId))
-    .limit(1);
-  if (!existing) return c.json({ error: "Serial not found." }, 404);
-  if (existing.status === "REVOKED") {
+
+  /*
+   * PHASE 0 - fail fast, before anything is written.
+   *
+   * The contract requires `{schema, issuedAt, payload, signature}` on every
+   * response, and a signature cannot be produced without the private key. If
+   * we discovered that *after* committing the issuance we would be left with a
+   * serial marked ISSUED, no email, and a 503 on every retry - a wedged row.
+   * Checking here leaves the database untouched and the retry path clean.
+   */
+  try {
+    requireSigningKey(c.env);
+    readEntitlementPolicy(c.env);
+  } catch (error) {
+    if (error instanceof SigningConfigError) {
+      return c.json({ error: error.message }, 503);
+    }
+    throw error;
+  }
+
+  /*
+   * PHASE 1 - commit the issuance. Pure database work, one atomic unit, no
+   * external I/O anywhere in this block.
+   *
+   * This is the fix for the defect the recon report called out at L566-582:
+   * the old order was SELECT -> sendLicenceEmail -> UPDATE, so the email left
+   * the building before the row said it had. If the UPDATE then failed the
+   * customer held a valid key for a serial the server still called PENDING,
+   * and the retry re-sent the email. Committing first means a failure can only
+   * ever lose an email (recorded, visible, repairable) - never send one for a
+   * licence that does not exist.
+   *
+   * The guards re-read inside the transaction, which also closes the TOCTOU
+   * the old code had between its standalone SELECT and its UPDATE.
+   */
+  const outcome = await db.transaction(
+    async (tx): Promise<IssueOutcome> => {
+      const [current] = await tx
+        .select()
+        .from(mobileSerials)
+        .where(eq(mobileSerials.id, serialId))
+        .limit(1);
+      if (!current) return { kind: "not-found" };
+      if (current.status === "REVOKED") return { kind: "revoked" };
+      if (current.status === "ISSUED" && current.issuedAt) {
+        return { kind: "replay", row: current };
+      }
+
+      const issuedAt = new Date();
+      const [updated] = await tx
+        .update(mobileSerials)
+        .set({
+          status: "ISSUED",
+          issuedBy: admin.email,
+          issuedAt,
+          // Cleared here, written back after the email attempt in PHASE 3.
+          emailedAt: null,
+          emailMessageId: null,
+          emailError: null,
+        })
+        .where(eq(mobileSerials.id, serialId))
+        .returning();
+      if (!updated) return { kind: "not-found" };
+      return { kind: "issued", row: updated };
+    },
+  );
+
+  if (outcome.kind === "not-found") {
+    return c.json({ error: "Serial not found." }, 404);
+  }
+  if (outcome.kind === "revoked") {
     return c.json({ error: "Revoked serials cannot be issued." }, 409);
   }
-  if (existing.status === "ISSUED" && existing.issuedAt) {
+
+  /*
+   * PHASE 2 - the replay guard, and only then the email.
+   *
+   * A replay returns here and never reaches `sendLicenceEmail`. That is the
+   * whole double-send guard: it is structural (which branch you land on), not
+   * a flag someone can forget to set. Only the path that just committed the
+   * issuance is ever allowed to send anything.
+   */
+  if (outcome.kind === "replay") {
+    const envelope = await signedEnvelopeFor(c.env, outcome.row);
     return c.json({
-      serial: jsonSerial(existing),
+      serial: jsonSerial(outcome.row),
       replayed: true,
+      emailed: outcome.row.emailedAt !== null,
+      emailError: outcome.row.emailError,
+      ...envelope,
     });
   }
-  const parsed = parseLicenceKey(existing.publicNumber);
+
+  /*
+   * PHASE 3 - the email itself. Deliberately outside any transaction: it is
+   * network I/O, and holding a database transaction open across an SMTP round
+   * trip is how a connection pool dies under load.
+   */
+  const row = outcome.row;
+  const parsed = parseLicenceKey(row.publicNumber);
   const mail = await sendLicenceEmail(c.env, {
-    email: existing.customerEmail,
-    licenceKey: existing.publicNumber,
-    slabLabel: parsed?.slabLabel ?? `1-${existing.deviceMax}`,
-    kind: existing.customerKind,
-    brandScope: existing.brandScope,
-    serialId: existing.id,
+    email: row.customerEmail,
+    licenceKey: row.publicNumber,
+    slabLabel: parsed?.slabLabel ?? `1-${row.deviceMax}`,
+    kind: row.customerKind,
+    brandScope: row.brandScope,
+    serialId: row.id,
   });
-  if (!mail.sent && c.env.API_ENV === "production") {
-    await db
-      .update(mobileSerials)
-      .set({ emailError: mail.error ?? "email failed" })
-      .where(eq(mobileSerials.id, serialId));
-    return c.json({ error: "Could not email the licence key. Not issued." }, 502);
-  }
-  const issuedAt = new Date();
-  const [updated] = await db
+
+  /*
+   * PHASE 4 - record the outcome. A separate statement on purpose: if this
+   * write fails the licence stays issued and the signature still goes out.
+   * Rolling the issuance back because an SMTP call misbehaved would be the
+   * database taking orders from the network.
+   *
+   * A failed send is no longer a 502 claiming "Not issued" - it was issued,
+   * and saying otherwise told the operator a falsehood about committed state.
+   * The response now states both truths: issued, and not emailed.
+   */
+  const emailedAt = mail.sent ? row.issuedAt : null;
+  const emailError = mail.sent ? null : mail.error ?? "preview-no-email";
+  await db
     .update(mobileSerials)
     .set({
-      status: "ISSUED",
-      issuedBy: admin.email,
-      issuedAt,
-      emailedAt: mail.sent ? issuedAt : null,
+      emailedAt,
       emailMessageId: mail.id ?? null,
-      emailError: mail.sent ? null : mail.error ?? "preview-no-email",
+      emailError,
     })
-    .where(eq(mobileSerials.id, serialId))
-    .returning();
-  return c.json({ serial: jsonSerial(updated), replayed: false, emailed: mail.sent });
+    .where(eq(mobileSerials.id, serialId));
+
+  const envelope = await signedEnvelopeFor(c.env, row);
+  return c.json({
+    serial: jsonSerial({ ...row, emailedAt, emailMessageId: mail.id ?? null, emailError }),
+    replayed: false,
+    emailed: mail.sent,
+    emailError,
+    ...envelope,
+  });
 });
 
 adminRoutes.post("/serials/:serialId/revoke", async (c) => {

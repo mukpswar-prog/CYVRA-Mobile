@@ -256,7 +256,12 @@ async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface MobileSerial {
   serialId: string;
-  publicNumber: string;
+  /**
+   * Present only from `GET /admin/serials/:serialId`. The list endpoint
+   * returns `publicNumberMasked` + `serialFp` instead - see `jsonSerialList`.
+   */
+  publicNumber?: string;
+  /** Masked in list responses (`CYVRA*************-1-5`); full in detail. */
   licenceKey: string;
   status: string;
   customerKind: string;
@@ -285,7 +290,7 @@ export interface LicenceDraft {
   customerEmail: string;
   paymentNoted: string;
   customerKind: "SINGLE" | "BULK";
-  deviceMax: 1 | 3 | 5 | 7 | 25;
+  deviceMax: 1 | 3 | 5 | 7 | 25 | 50;
   brandScope: string;
   customerFullName: string;
   companyName: string;
