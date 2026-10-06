@@ -68,8 +68,7 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
   const [flash, setFlash] = useState<Flash | null>(null);
 
   const role = session?.role ?? null;
-  const isSuperAdmin = session?.isSuperAdmin ?? false;
-  const ctx = useMemo(() => ({ role, isSuperAdmin }), [role, isSuperAdmin]);
+  const ctx = useMemo(() => ({ role }), [role]);
 
   // `list.patch` is itself a stable callback, so this identity only changes
   // when `useSerialList` hands back a new one - which it never does. Stable
@@ -123,7 +122,7 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
           return;
         }
         default:
-          setPending({ id, subject: row as ActionSubject, decision });
+          setPending({ id, subject: row as ActionSubject });
       }
     },
     [ctx],
@@ -242,7 +241,7 @@ export function LicencesPage({ initialQuery }: { initialQuery?: Partial<SerialQu
               document.getElementById("licence-audit")?.scrollIntoView({ block: "start" });
               return;
             }
-            setPending({ id, subject: record as ActionSubject, decision });
+            setPending({ id, subject: record as ActionSubject });
           }}
         />
       ) : null}

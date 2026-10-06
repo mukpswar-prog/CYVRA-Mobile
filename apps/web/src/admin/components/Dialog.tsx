@@ -1,17 +1,20 @@
 /**
- * §15 CONFIRMATION DIALOGUES, and the §37 reason prompt they share.
- * ================================================================
+ * §15 CONFIRMATION DIALOGUES, and the reason prompt they share.
+ * ============================================================
  *
  * Two duties the spec states separately and one it implies:
  *
- *   §15  "High-impact actions should have confirmation." - shown for Generate
- *        Key and Approve & Issue, with the exact facts the spec lists (customer,
- *        plan, payment) so the confirmation is about *this* licence and not
- *        about a button the operator clicked in the wrong row.
+ *   §15  "High-impact actions should have confirmation." - shown for Issue
+ *        Licence and the Super Admin payment waiver, with the exact facts the
+ *        spec lists (customer, plan, payment) so the confirmation is about
+ *        *this* licence and not about a button the operator clicked in the
+ *        wrong row.
  *
- *   §37  A reason is required for Suspend, Revoke and the staff equivalents.
- *        The server refuses without one, so the prompt is not decoration - it
- *        is the field the refusal is about.
+ *   §26  A reason is required for Revoke - "The red action must require:
+ *        confirmation, reason, authorized role, backend validation, audit
+ *        event" - and RULE 12 repeats it. Suspend and the waiver carry one for
+ *        the same reason: the server refuses without one, so the prompt is not
+ *        decoration, it is the field the refusal is about, and §53 stores it.
  *
  *   The implied one: a confirmation whose confirm button is armed from the
  *    moment the dialog opens is a mechanism for doing the wrong thing faster.

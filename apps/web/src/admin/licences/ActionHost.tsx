@@ -1,14 +1,15 @@
 /**
- * ROW ACTION -> §15 DIALOG -> REQUEST. One place, both halves.
+ * ROW ACTION -> §22 DIALOG -> REQUEST. One place, both halves.
  * ===========================================================
  *
  * Two exported pieces, deliberately split:
  *
- *   `dialogFor` is PURE. It turns `(action, subject, decision)` into the dialog
- *   the spec calls for - title, the three facts §15 lists, the confirm button's
- *   label and tone, and the §37 reason field when one is required. Because it
- *   is pure it can be asserted for all twelve actions without a DOM, which is
- *   how `dialog.test.ts` pins "Generate Key's body names the customer, the plan
+ *   `dialogFor` is PURE. It turns `(action, subject)` into the dialog the spec
+ *   calls for - title, the facts §22's ISSUE CONFIRMATION DIALOG lists, the
+ *   confirm button's label and tone, and the reason field when one is required
+ *   (§26's Revoke dialog, stored as §53's `Reason / Note`). Because it is pure
+ *   it can be asserted for all eleven actions without a DOM, which is how
+ *   `dialog.test.ts` pins "Issue Licence's body names the customer, the plan
  *   and the payment" without depending on rendering.
  *
  *   `ActionHost` does the I/O. It owns busy/error state and the request, so no
@@ -26,7 +27,7 @@
 import { useState } from "react";
 import { adminClient, AdminHttpError } from "../client";
 import { ConfirmDialog, type ConfirmSpec, type ConfirmInput } from "../components/Dialog";
-import type { ActionableLicence, RowActionDecision, RowActionId } from "./actions";
+import type { ActionableLicence, RowActionId } from "./actions";
 
 /** Everything a dialog needs to name *this* licence, from either projection. */
 export type ActionSubject = ActionableLicence & {
@@ -45,10 +46,16 @@ export type ActionSubject = ActionableLicence & {
   readonly paymentNoted?: string;
 };
 
+/**
+ * The request for one action.
+ *
+ * Deliberately carries only the *id* and the row: what each action asks for is
+ * decided by `dialogFor`, so a caller cannot hand it a decision that disagrees
+ * with the row it is about.
+ */
 export type PendingAction = {
   readonly id: RowActionId;
   readonly subject: ActionSubject;
-  readonly decision: RowActionDecision;
 };
 
 /* ----------------------------------------------------------------- dialog */
@@ -73,7 +80,7 @@ const REASON_FIELD = {
   label: "Reason",
   required: true,
   rows: 3,
-  help: "Recorded against the audit row as the §37 reason. It cannot be empty.",
+  help: "Recorded against the audit row as the §53 reason. It cannot be empty.",
   placeholder: "Why is this happening?",
 } as const;
 
@@ -81,7 +88,7 @@ export function dialogFor(
   pending: PendingAction,
   roleLabel: string,
 ): ConfirmSpec | null {
-  const { id, subject, decision } = pending;
+  const { id, subject } = pending;
 
   switch (id) {
     case "confirmPayment":
@@ -92,7 +99,7 @@ export function dialogFor(
             {facts(subject)}
             <p>
               This records the payment as received and moves the licence to{" "}
-              <strong>Payment confirmed</strong>, which is what turns Generate Key green.
+              <strong>Payment confirmed</strong>, which is what turns Issue Licence green.
             </p>
           </>
         ),
@@ -108,41 +115,22 @@ export function dialogFor(
         ],
       };
 
-    case "generateKey":
+    case "approveIssue":
       return {
-        title: "Generate Licence Key?",
+        title: "Issue Licence?",
         body: (
           <>
             {facts(subject)}
             <p>
-              This action will create a signed licence credential.
-              <br />
-              Continue?
+              One action provisions the signed credential, marks this licence{" "}
+              <strong>Issued</strong> and queues the customer&apos;s email, all inside a single
+              transaction. A retry after a lost connection returns this same result rather than
+              issuing twice.
             </p>
-            {decision.needsReason ? (
-              <p className="notice notice--warn">
-                You are generating this key <strong>without</strong> a confirmed payment, using
-                the Super Admin waiver. The waiver requires a reason, and the audit row will
-                record both the reason and <code>paymentWaived: true</code>.
-              </p>
-            ) : null}
-          </>
-        ),
-        confirmLabel: "Generate Key",
-        tone: decision.ready ? "ready" : "primary",
-        fields: decision.needsReason ? [{ ...REASON_FIELD, label: "Waiver reason" }] : [],
-      };
-
-    case "approveIssue":
-      return {
-        title: "Approve and Issue Licence?",
-        body: (
-          <>
-            {facts(subject)}
             <p>Once issued, this licence will be available for customer activation.</p>
           </>
         ),
-        confirmLabel: "Approve & Issue",
+        confirmLabel: "Issue Licence",
         tone: "primary",
       };
 
@@ -346,14 +334,11 @@ export async function dispatch(
     case "confirmPayment":
       await adminClient.confirmPayment(subject.serialId, (values.reference ?? "").trim() || undefined);
       return "Payment confirmed.";
-    case "generateKey":
-      await adminClient.generateKey(subject.serialId, pending.decision.needsReason
-        ? { waivePayment: true, reason }
-        : undefined);
-      return "Licence key generated.";
     case "approveIssue":
+      // One request. The server provisions and issues inside a single
+      // transaction, so there is no second call to sequence behind this one.
       await adminClient.issue(subject.serialId);
-      return "Licence approved and issued.";
+      return "Licence issued.";
     case "resend":
       await adminClient.resend(subject.serialId);
       return "Licence re-sent to the customer.";

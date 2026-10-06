@@ -1,24 +1,33 @@
 /**
- * §15 CONFIRMATIONS AND §37 REASON PROMPTS, AS A PURE FUNCTION.
+ * §22 CONFIRMATIONS AND §53 REASON PROMPTS, AS A PURE FUNCTION.
  * =============================================================
  *
- * `dialogFor` is deliberately non-interactive: give it an action, a subject and
- * the decision that action's gates produced, and it returns the dialog the spec
- * calls for. That makes all twelve actions assertable without mounting the
- * registry, clicking a three-dot menu, and hoping the row is in the right state
- * - which would test the plumbing rather than the content.
+ * `dialogFor` is deliberately non-interactive: give it an action and a subject,
+ * and it returns the dialog the spec calls for. That makes all eleven actions
+ * assertable without mounting the registry, clicking a three-dot menu, and
+ * hoping the row is in the right state - which would test the plumbing rather
+ * than the content.
  *
- * What is asserted here is content, because content is what §15 actually
- * specifies: Generate Key and Approve & Issue must name *this* licence's
- * customer, plan and payment, and Suspend / Revoke must carry a reason field
- * the server will refuse to proceed without. A dialog that confirms an abstract
- * action instead of a specific one is the failure this file exists to catch.
+ * What is asserted here is content, because content is what §22 actually
+ * specifies: Issue Licence must name *this* licence's customer, plan and
+ * payment, and Suspend / Revoke must carry a reason field the server will
+ * refuse to proceed without. A dialog that confirms an abstract action instead
+ * of a specific one is the failure this file exists to catch.
+ *
+ * GENERATE KEY IS GONE, AND SO IS THE WAIVER
+ * ------------------------------------------
+ * Path 6B collapsed Generate Key into Issue, so there is one dialog for the
+ * whole of §83's last stage rather than two in sequence. The Super Admin
+ * payment-waiver dialog that briefly sat beside it was cut before commit
+ * (WS-H1 sign-off item 2): `POST /issue` has no waiver, so there is no second
+ * flavour of Issue to give its own wording to. The tests below that remain are
+ * the ones asserting exactly that - that Issue never carries a reason field and
+ * never says the word "waiver".
  */
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { dialogFor, editInitialValues, type ActionSubject, type PendingAction } from "./licences/ActionHost";
 import { ROW_ACTION_IDS, rowAction, type ActionableLicence, type RowActionId } from "./licences/actions";
-import type { StaffRole } from "./permissions";
 
 function subject(overrides: Partial<ActionableLicence> = {}): ActionSubject {
   return {
@@ -37,18 +46,13 @@ function subject(overrides: Partial<ActionableLicence> = {}): ActionSubject {
   };
 }
 
-function pending(id: RowActionId, role: StaffRole = "SUPER_ADMIN", row: Partial<ActionableLicence> = {}): PendingAction {
-  const licence = subject(row);
-  return {
-    id,
-    subject: licence,
-    decision: rowAction(licence, { role, isSuperAdmin: role === "SUPER_ADMIN" }, id),
-  };
+function pending(id: RowActionId, row: Partial<ActionableLicence> = {}): PendingAction {
+  return { id, subject: subject(row) };
 }
 
 /** Render just the body, so the assertions are on what an operator reads. */
-function bodyOf(id: RowActionId, role?: StaffRole, row?: Partial<ActionableLicence>): HTMLElement {
-  const spec = dialogFor(pending(id, role, row), "operator");
+function bodyOf(id: RowActionId, row?: Partial<ActionableLicence>): HTMLElement {
+  const spec = dialogFor(pending(id, row), "operator");
   expect(spec, `${id} should have a dialog`).not.toBeNull();
   const { container } = render(<div>{spec!.body}</div>);
   return container;
@@ -69,38 +73,44 @@ describe("actions with nothing to confirm have no dialog", () => {
   });
 });
 
-describe("§15: the high-impact confirmations name this licence", () => {
-  it("Generate Key states the customer, the plan and the payment", () => {
-    const container = bodyOf("generateKey");
+describe("§22: the high-impact confirmations name this licence", () => {
+  it("Issue Licence states the customer, the plan and the payment", () => {
+    const container = bodyOf("approveIssue");
     expect(container.textContent).toContain("customer@example.com");
     expect(container.textContent).toContain("CAP-5 (5 Mobile Devices)");
     expect(container.textContent).toContain("PAID");
-    expect(container.textContent).toContain("This action will create a signed licence credential.");
-    expect(container.textContent).toContain("Continue?");
   });
 
-  it("Approve & Issue states the consequence", () => {
+  it("Issue Licence states the consequence and that it is one action", () => {
     const container = bodyOf("approveIssue");
-    expect(container.textContent).toContain("customer@example.com");
     expect(container.textContent).toContain(
       "Once issued, this licence will be available for customer activation.",
     );
+    // Path 6B's visible promise: one transaction, and a retry that returns the
+    // same result instead of issuing twice (§42/§43).
+    expect(container.textContent).toMatch(/single transaction/i);
+    expect(container.textContent).toMatch(/retry/i);
   });
 
-  it("its confirm button reads Approve & Issue", () => {
+  it("its confirm button reads Issue Licence", () => {
     const spec = dialogFor(pending("approveIssue"), "operator");
-    expect(spec?.confirmLabel).toBe("Approve & Issue");
+    expect(spec?.confirmLabel).toBe("Issue Licence");
     expect(spec?.tone).toBe("primary");
   });
 
+  it("asks for no reason on the ordinary path", () => {
+    const spec = dialogFor(pending("approveIssue"), "LICENCE_ADMIN");
+    expect(spec?.fields ?? []).toHaveLength(0);
+  });
+
   it("a failed payment is shown as No record, never as Pending", () => {
-    const container = bodyOf("generateKey", "SUPER_ADMIN", { paymentStatus: null });
+    const container = bodyOf("approveIssue", { paymentStatus: null });
     expect(container.textContent).toContain("No record");
     expect(container.textContent).not.toContain("Payment pending");
   });
 });
 
-describe("§37: the reason field appears exactly where the server demands one", () => {
+describe("§53: the reason field appears exactly where the server demands one", () => {
   const reasonRequired = ["suspend", "revoke"] as const;
 
   it("requires a reason for Suspend and Revoke", () => {
@@ -140,37 +150,25 @@ describe("§37: the reason field appears exactly where the server demands one", 
   });
 });
 
-describe("the waived Generate Key says what it is doing", () => {
-  it("demands a waiver reason when the Super Admin bypasses payment", () => {
-    const spec = dialogFor(
-      pending("generateKey", "SUPER_ADMIN", { status: "PAYMENT_PENDING", paymentStatus: "PENDING" }),
-      "operator",
-    );
-    const reason = spec?.fields?.find((field) => field.name === "reason");
-    expect(reason, "a waiver must be reasoned").toBeDefined();
-    expect(reason?.label).toBe("Waiver reason");
-    // NOT green. §63 makes Generate Key green iff PAID, and a waiver is by
-    // definition an unpaid generation - so the confirm button stays the normal
-    // primary and the dialog is where the operator is told why.
-    expect(spec?.tone).toBe("primary");
-    expect(spec?.tone).not.toBe("ready");
-    expect(bodyOf("generateKey", "SUPER_ADMIN", {
-      status: "PAYMENT_PENDING",
-      paymentStatus: "PENDING",
-    }).textContent).toMatch(/paymentWaived: true/);
+describe("Issue Licence means exactly one thing", () => {
+  const unpaid = { status: "PAYMENT_PENDING", paymentStatus: "PENDING" } as const;
+
+  it("never carries a reason field, on any row", () => {
+    for (const row of [unpaid, { status: "READY_TO_GENERATE", paymentStatus: "PAID" } as const]) {
+      const spec = dialogFor(pending("approveIssue", row), "operator");
+      expect(spec?.fields ?? [], `${row.status} must not prompt for a reason`).toHaveLength(0);
+      expect(spec?.title).not.toMatch(/waiv/i);
+      expect(bodyOf("approveIssue", row).textContent).not.toMatch(/paymentWaived|waiv/i);
+    }
   });
 
-  it("does not claim payment received on an unpaid generation", () => {
-    const spec = dialogFor(
-      pending("generateKey", "SUPER_ADMIN", { status: "PAYMENT_PENDING", paymentStatus: "PENDING" }),
-      "operator",
-    );
+  it("never claims payment received on an unpaid row", () => {
+    const spec = dialogFor(pending("approveIssue", unpaid), "operator");
     expect(spec?.tone).not.toBe("ready");
   });
 
-  it("asks for no reason on an ordinary paid generation", () => {
-    const spec = dialogFor(pending("generateKey", "LICENCE_ADMIN"), "operator");
-    expect(spec?.fields ?? []).toHaveLength(0);
+  it("says nothing about bypassing payment, because there is no such path", () => {
+    expect(bodyOf("approveIssue", unpaid).textContent).not.toMatch(/without payment|bypass/i);
   });
 });
 
@@ -198,8 +196,8 @@ describe("Edit prefills rather than blanking", () => {
   });
 });
 
-describe("every dialog is reachable from the row menu", () => {
-  it("has a spec for each of the twelve actions or deliberately none", () => {
+describe("every dialog is reachable from the row", () => {
+  it("has a spec for each of the eleven actions or deliberately none", () => {
     for (const id of ROW_ACTION_IDS) {
       const spec = dialogFor(pending(id), "operator");
       if (spec === null) continue;
@@ -210,9 +208,9 @@ describe("every dialog is reachable from the row menu", () => {
   });
 
   it("keeps the disabled action's explanation out of the dialog entirely", () => {
-    // Suspend on a DRAFT row is refused by the state machine; the row menu
-    // would never dispatch it, so no dialog is reachable for it.
-    const refusal = rowAction(subject({ status: "DRAFT" }), { role: "SUPER_ADMIN", isSuperAdmin: true }, "suspend");
+    // Suspend on a DRAFT row is refused by the state machine; neither the row
+    // menu nor the zone would dispatch it, so no dialog is reachable for it.
+    const refusal = rowAction(subject({ status: "DRAFT" }), { role: "SUPER_ADMIN" }, "suspend");
     expect(refusal.enabled).toBe(false);
     expect(refusal.reason).toContain("This licence is Draft");
     // And the dialog itself is defined, so the reason is never the only thing
@@ -224,7 +222,7 @@ describe("every dialog is reachable from the row menu", () => {
 describe("no dialog mentions a seat it was not built for", () => {
   it("never embeds the operator's role in the copy", () => {
     for (const id of ROW_ACTION_IDS) {
-      const spec = dialogFor(pending(id, "AUDITOR"), "AUDITOR");
+      const spec = dialogFor(pending(id), "AUDITOR");
       if (!spec) continue;
       const text = `${spec.title}${spec.confirmLabel}`;
       expect(text).not.toMatch(/auditor|super admin|licence admin/i);
@@ -234,13 +232,13 @@ describe("no dialog mentions a seat it was not built for", () => {
 
 describe("rendering smoke", () => {
   it("renders a title an operator can read aloud", () => {
-    const spec = dialogFor(pending("generateKey"), "operator")!;
+    const spec = dialogFor(pending("approveIssue"), "operator")!;
     render(
       <>
         <h2>{spec.title}</h2>
         <div>{spec.body}</div>
       </>,
     );
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Generate Licence Key?");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Issue Licence?");
   });
 });
