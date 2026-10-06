@@ -1,5 +1,12 @@
 import { useState } from "react";
-import type { AuthUser, ReportDetail, ReportSession, ReportSummary } from "../api";
+import {
+  scansStateSentence,
+  type AuthUser,
+  type EntitlementResult,
+  type ReportDetail,
+  type ReportSession,
+  type ReportSummary,
+} from "../api";
 import { ReportView } from "../ReportView";
 import "./workstation.css";
 
@@ -13,19 +20,13 @@ export type WorkstationNavTab =
   | "HELP"
   | "SETTINGS";
 
-export interface LicenseSnapshot {
-  licenseId: string;
-  serialNumber: string;
-  planName: string;
-  scansTotal: number;
-  scansUsed: number;
-  scansRemaining: number;
-  status: "ACTIVE" | "EXPIRED" | "REVOKED" | "SUPERSEDED" | "SERVER_UNAVAILABLE";
-  version: string;
-}
-
 export function CustomerDesktopShell(props: {
   user: AuthUser;
+  /**
+   * `null` until `GET /v1/me/entitlement` answers. Every licence figure in
+   * this component comes from here - there is no local fallback.
+   */
+  entitlement: EntitlementResult | null;
   sessions: ReportSession[];
   reports: ReportSummary[];
   reportDetail: ReportDetail | null;
@@ -56,80 +57,62 @@ export function CustomerDesktopShell(props: {
     securityPatch: "2026-08-01",
   });
 
-  // Default initial license state following §2.1 & §6-7
-  // Phase 17: Mutable Entitlement Revisions & Scan Accounting Ledger (§11-14)
-  const [activeLicenseState, setActiveLicenseState] = useState<{
-    licenseId: string;
-    serialNumber: string;
-    planName: string;
-    scansTotal: number;
-    scansUsed: number;
-    scansRemaining: number;
-    revision: number;
-    status: string;
-    version: string;
-  }>({
-    licenseId: "LIC-MOB-2026-00124",
-    serialNumber: "CYVRA15092026SA3F1-1-25",
-    planName: "25 Device Scans",
-    scansTotal: 25,
-    scansUsed: props.reports.length,
-    scansRemaining: Math.max(0, 25 - props.reports.length),
-    revision: 1,
-    status: "ACTIVE",
-    version: "3.2.1-g5",
-  });
+  /*
+   * WORKSTREAM G - the licence this customer actually has.
+   *
+   * Derived entirely from `GET /v1/me/entitlement`. Every field is either the
+   * server's value or null; nothing here has a default that could stand in for
+   * missing data. When entitlement is not `ok` all of them are null and the UI
+   * says why instead of showing a plausible-looking licence.
+   *
+   * `scansState` is a *state*, not a count: scan debits stay gated behind the
+   * R-1 ruling, so the API reports "available-after-first-scan" and exposes no
+   * scansUsed / scansRemaining / revision. There is no arithmetic to do here,
+   * which is the point - the old mock invented three numbers the server never
+   * supplies.
+   */
+  const entitlement =
+    props.entitlement?.kind === "ok" ? props.entitlement.entitlement : null;
 
-  const [revisionHistory, setRevisionHistory] = useState<Array<{
-    revision: number;
-    serialNumber: string;
-    planName: string;
-    totalScans: number;
-    carriedOverUsage: number;
-    scansRemaining: number;
-    status: "ACTIVE" | "SUPERSEDED";
-    date: string;
-    orderId: string;
-  }>>([
-    {
-      revision: 1,
-      serialNumber: "CYVRA15092026SA3F1-1-25",
-      planName: "25 Device Scans",
-      totalScans: 25,
-      carriedOverUsage: 0,
-      scansRemaining: 25,
-      status: "ACTIVE",
-      date: "2026-09-15 10:00:00 UTC",
-      orderId: "ORD-INITIAL-2026-001",
-    },
-  ]);
+  const license = {
+    planName: entitlement?.plan.label ?? null,
+    status: entitlement?.licence.sentence ?? null,
+    serialNumber: entitlement?.licence.maskedSerial ?? null,
+    payment: entitlement?.payment.sentence ?? null,
+    scansState: entitlement ? scansStateSentence(entitlement.usage.scans.state) : null,
+    version: entitlement?.build.version ?? null,
+    buildState: entitlement?.build.state ?? "unavailable",
+    /** null until a release job publishes a real installer URL. */
+    downloadUrl: entitlement?.build.url ?? null,
+    /** Filename taken from `build.url`; null when there is no URL. */
+    installerName: entitlement?.build.url
+      ? entitlement.build.url.split("/").pop() ?? null
+      : null,
+    sha256: entitlement?.build.sha256 ?? null,
+    sizeBytes: entitlement?.build.sizeBytes ?? null,
+    releasedAt: entitlement?.build.releasedAt ?? null,
+  };
 
-  const [scanLedger, setScanLedger] = useState<Array<{
-    txId: string;
-    revision: number;
-    sessionUuid: string;
-    deviceSerial: string;
-    event: "COMMITTED" | "DEBITED" | "CANCELLED";
-    scanNumber: number;
-    timestamp: string;
-  }>>([
-    {
-      txId: "TX-SCAN-90411",
-      revision: 1,
-      sessionUuid: "CYVRA-SESSION-20260915-00124",
-      deviceSerial: "RF8R123456",
-      event: "DEBITED",
-      scanNumber: 1,
-      timestamp: "2026-09-15 11:32:00 UTC",
-    },
-  ]);
+  /**
+   * What the header states when entitlement is not available. Never a
+   * placeholder plan or status - the *absence* is what gets shown.
+   */
+  const entNotice =
+    props.entitlement === null
+      ? "Checking your licence"
+      : props.entitlement.kind === "ok"
+        ? null
+        : props.entitlement.kind === "no-licence"
+          ? "No licence on this account yet"
+          : props.entitlement.kind === "unavailable"
+            ? "Server error - could not check your licence"
+            : props.entitlement.kind === "unauthenticated"
+              ? "Signed out"
+              : "Could not reach the server";
 
-  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<number>(25);
-  const [upgradeHandoffState, setUpgradeHandoffState] = useState<
-    "SELECTING" | "GENERATING_TOKEN" | "PAYMENT_CONFIRMED" | "AWAITING_APPROVAL" | "UPGRADED"
-  >("SELECTING");
-  const [upgradeOrderId, setUpgradeOrderId] = useState<string>("");
-  const [paymentReference, setPaymentReference] = useState<string>("");
+  // No upgrade-flow state. The simulated Razorpay handoff that used to live
+  // here (selectedUpgradePlan, upgradeHandoffState, upgradeOrderId,
+  // paymentReference) drove a payment journey that never left the browser.
 
   // Phase 19: Offline Entitlement & Signed Cache Resilience State (§15, Part G)
   const [isNetworkOnline, setIsNetworkOnline] = useState<boolean>(true);
@@ -139,38 +122,13 @@ export function CustomerDesktopShell(props: {
   // Phase 21: Multi-OEM Device Adapter Selection & Capability State (§8, §24)
   const [selectedOemFamily, setSelectedOemFamily] = useState<"MOTOROLA" | "SAMSUNG" | "XIAOMI" | "ONEPLUS" | "GOOGLE" | "GENERIC">("MOTOROLA");
 
-  // Phase 18: Commercial Orders & Staff Approval Tracking State (§10, §30)
-  const [orderRegistry, setOrderRegistry] = useState<Array<{
-    orderId: string;
-    customerEmail: string;
-    licenseId: string;
-    targetPlan: string;
-    targetScans: number;
-    amountInr: number;
-    status: "PAYMENT_PENDING" | "PAYMENT_CONFIRMED" | "WAITING_ADMIN_APPROVAL" | "APPROVED" | "ENTITLEMENT_ISSUED" | "REJECTED";
-    paymentProvider: string;
-    paymentRef: string;
-    approvedBy: string | null;
-    issuedSerial: string | null;
-    timestamp: string;
-  }>>([
-    {
-      orderId: "ORD-INITIAL-2026-001",
-      customerEmail: props.user.email,
-      licenseId: "LIC-MOB-2026-00124",
-      targetPlan: "25 Device Scans",
-      targetScans: 25,
-      amountInr: 12500,
-      status: "ENTITLEMENT_ISSUED",
-      paymentProvider: "RAZORPAY",
-      paymentRef: "pay_live_initial_90124",
-      approvedBy: "ceo@cyvoriq.com",
-      issuedSerial: "CYVRA15092026SA3F1-1-25",
-      timestamp: "2026-09-15 10:00:00 UTC",
-    },
-  ]);
-
-  const license = activeLicenseState;
+  // No client-side order registry.
+  //
+  // No endpoint returns a customer's order history, so the `orderRegistry`
+  // array that sat here - seeded with ORD-INITIAL-2026-001, a RAZORPAY
+  // paymentRef and a hardcoded ₹12,500 - was removed rather than emptied.
+  // The only payment fact the customer gets is `payment.sentence`, which
+  // comes from GET /v1/me/entitlement.
 
   // AI Physical Inspection Station V0 State (§18, §19, §34 / Phase 8)
   const [inspectionStep, setInspectionStep] = useState<number>(0); // 0 = idle, 1..6 views, 7 = complete
@@ -299,29 +257,14 @@ export function CustomerDesktopShell(props: {
       ],
     });
 
-    // Debit scan accounting on report generation (§14)
-    setActiveLicenseState((prev) => {
-      const newUsed = prev.scansUsed + 1;
-      const newRemaining = Math.max(0, prev.scansTotal - newUsed);
-      return {
-        ...prev,
-        scansUsed: newUsed,
-        scansRemaining: newRemaining,
-      };
-    });
-
-    setScanLedger((prev) => [
-      ...prev,
-      {
-        txId: `TX-SCAN-${Math.floor(10000 + Math.random() * 90000)}`,
-        revision: license.revision,
-        sessionUuid: `CYVRA-SESSION-20260915-${Math.floor(100000 + Math.random() * 900000)}`,
-        deviceSerial: simulatedDevice.serial,
-        event: "DEBITED",
-        scanNumber: license.scansUsed + 1,
-        timestamp: new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC",
-      },
-    ]);
+    /*
+     * No scan is debited here.
+     *
+     * This block used to decrement a local `scansUsed` and append a synthetic
+     * ledger transaction. Scan debits are gated behind the R-1 ruling: the
+     * server owns that figure, exposes only `usage.scans.state`, and a
+     * browser-side copy would be a second, contradictory source of truth.
+     */
   }
 
   function handleReviewAction(id: string, action: "ACCEPT" | "REJECT" | "RECAPTURE" | "PHYSICAL_VERIFICATION") {
@@ -499,7 +442,9 @@ export function CustomerDesktopShell(props: {
 
   function rollbackUpdate() {
     setUpdateStep("ROLLED_BACK");
-    setUpdateProgressMsg("Staged update rolled back. System restored to current v3.2.1-g5 baseline.");
+    setUpdateProgressMsg(
+      "Staged update rolled back. The previously installed build is active again.",
+    );
   }
 
   function executeDeterministicGrading() {
@@ -763,21 +708,27 @@ export function CustomerDesktopShell(props: {
           </div>
           <div className="meta-pill">
             <span className="meta-label">Plan</span>
-            <span className="meta-value">{license.planName}</span>
+            {/* plan.label - e.g. "25 Device Scans". Unknown until entitlement answers. */}
+            <span className="meta-value">{license.planName ?? "—"}</span>
           </div>
           <div className="meta-pill">
             <span className="meta-label">Usage</span>
-            <span className="meta-value">
-              <strong>{license.scansUsed}</strong> / {license.scansTotal} ({license.scansRemaining} left)
-            </span>
+            {/* usage.scans.state - a state, not a count. There is no X/Y here
+                because the server deliberately publishes no scan arithmetic. */}
+            <span className="meta-value">{license.scansState ?? "—"}</span>
           </div>
           <div className="meta-pill status-pill">
-            <span className="status-dot-active" />
-            <span className="meta-value status-text">{license.status}</span>
+            <span className={license.status ? "status-dot-active" : "status-dot-off"} />
+            {/* licence.sentence ("Awaiting payment", "Active", ...) when known;
+                the reason it is unknown otherwise. */}
+            <span className="meta-value status-text">{entNotice ?? license.status ?? "—"}</span>
           </div>
           <div className="meta-pill version-pill">
             <span className="meta-label">Version</span>
-            <span className="meta-value">v{license.version}</span>
+            {/* build.version is null until a release job publishes an installer. */}
+            <span className="meta-value">
+              {license.version ? `v${license.version}` : "Build unavailable"}
+            </span>
           </div>
 
           <div className="header-action-buttons">
@@ -866,12 +817,13 @@ export function CustomerDesktopShell(props: {
 
           {/* Bottom Left License Usage Card (§15) */}
           <div className="nav-bottom-license-card">
-            <div className="card-title">LICENSE USAGE</div>
-            <div className="card-metric">{license.scansTotal} DEVICE SCANS</div>
-            <div className="card-submetric">{license.scansUsed} USED</div>
-            <div className="card-submetric-highlight">{license.scansRemaining} REMAINING</div>
+            <div className="card-title">LICENSE</div>
+            {/* plan.label - no fabricated scan arithmetic below it. */}
+            <div className="card-metric">{license.planName ?? "—"}</div>
+            <div className="card-submetric">{license.scansState ?? "—"}</div>
             <div className="card-status-badge">
-              <span className="status-indicator-dot" /> ● LICENSE ACTIVE
+              {/* The real licence sentence, not a hardcoded "LICENSE ACTIVE". */}
+              <span className="status-indicator-dot" /> {entNotice ?? license.status ?? "—"}
             </div>
           </div>
         </aside>
@@ -903,24 +855,30 @@ export function CustomerDesktopShell(props: {
                         <span className="badge-pill ready-badge" style={{ background: "#4338ca", color: "#e0e7ff" }}>
                           WINDOWS DESKTOP APPLICATION (.EXE)
                         </span>
-                        <span className="font-mono text-cyan-400" style={{ fontSize: "12px" }}>v3.2.2-release</span>
+                        <span className="font-mono text-cyan-400" style={{ fontSize: "12px" }}>
+                          {license.version ? `v${license.version}` : "Build unavailable"}
+                        </span>
                       </div>
                       <h3 style={{ margin: "4px 0", color: "#f8fafc" }}>Install CYVRA Mobile on your Windows PC</h3>
                       <p className="muted small" style={{ margin: 0, color: "#cbd5e1" }}>
-                        Download the standalone Windows setup package. Communicates directly with connected Android phones over high-speed USB/ADB with zero command line or Android Studio requirements.
+                        {license.downloadUrl
+                          ? "Download the standalone Windows setup package. Communicates directly with connected Android phones over high-speed USB/ADB with zero command line or Android Studio requirements."
+                          : "No installer has been published for this product yet. It will appear here, with its SHA-256, the moment a release build exists."}
                       </p>
                     </div>
                     <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
-                      <a
-                        href="/downloads/windows/CYVRA-Mobile-Setup-v3.2.2-x64.exe"
-                        className="btn btn-action-primary"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          alert("Production Installer Download Triggered:\nCYVRA-Mobile-Setup-v3.2.2-x64.exe (84.9 MB)\n\nDigitally signed by CYVORIQ Solutions Private Limited.\nIncludes embedded ADB v35.0.2 & WebView2 Evergreen runtime.");
-                        }}
-                      >
-                        ↓ Download Windows Setup (.exe)
-                      </a>
+                      {license.downloadUrl ? (
+                        <a href={license.downloadUrl} className="btn btn-action-primary">
+                          ↓ Download Windows Setup (.exe)
+                        </a>
+                      ) : (
+                        <span
+                          className="badge-pill"
+                          style={{ background: "#1e293b", color: "#94a3b8", padding: "12px 16px" }}
+                        >
+                          No installer published yet
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -2535,29 +2493,39 @@ export function CustomerDesktopShell(props: {
                     <div className="panel-card">
                       <div className="panel-card-header">
                         <h3>Active License Credentials</h3>
-                        <span className="badge-pill ready-badge">REVISION {license.revision} ACTIVE</span>
+                        <span className="badge-pill ready-badge">
+                          {entNotice ?? license.status ?? "—"}
+                        </span>
                       </div>
                       <div className="device-metric-rows">
                         <div className="metric-row">
-                          <span className="metric-label">Internal License ID:</span>
-                          <span className="metric-value font-mono text-cyan-400">{license.licenseId} (Immutable)</span>
+                          {/* payment.sentence - real, from the entitlement
+                              projection; "unknown" when the server has no
+                              payment row rather than a guessed PENDING. */}
+                          <span className="metric-label">Payment:</span>
+                          <span className="metric-value">{license.payment ?? "—"}</span>
                         </div>
                         <div className="metric-row">
                           <span className="metric-label">Public Key / Serial:</span>
-                          <span className="metric-value font-mono">{license.serialNumber}</span>
+                          <span className="metric-value font-mono">
+                            {/* maskedSerial is null until a key is generated. */}
+                            {license.serialNumber ?? "Not issued yet"}
+                          </span>
                         </div>
                         <div className="metric-row">
                           <span className="metric-label">Assigned Plan:</span>
-                          <span className="metric-value font-bold">{license.planName}</span>
+                          <span className="metric-value font-bold">{license.planName ?? "—"}</span>
                         </div>
                         <div className="metric-row">
+                          {/* usage.scans.state, not X Total | Y Used | Z
+                              Remaining: the API publishes no scan arithmetic. */}
                           <span className="metric-label">Scans Entitlement:</span>
-                          <span className="metric-value">{license.scansTotal} Total | {license.scansUsed} Used | {license.scansRemaining} Remaining</span>
+                          <span className="metric-value">{license.scansState ?? "—"}</span>
                         </div>
                         <div className="metric-row">
                           <span className="metric-label">Entitlement Status:</span>
                           <span className="metric-value font-bold text-ok">
-                            {isNetworkOnline ? license.status : "SERVER_UNAVAILABLE (GRACE PERIOD ACTIVE)"}
+                            {entNotice ?? license.status ?? "—"}
                           </span>
                         </div>
                       </div>
@@ -2601,156 +2569,42 @@ export function CustomerDesktopShell(props: {
 
                   <div className="panel-card" style={{ marginBottom: "20px" }}>
                     <div className="panel-card-header">
-                      <h3>Scan Balance Summary</h3>
-                      <span className="badge-pill ready-badge">{license.scansRemaining} SCANS READY</span>
+                      <h3>Scan Entitlement</h3>
+                      <span className="badge-pill ready-badge">{license.planName ?? "—"}</span>
                     </div>
                     <div style={{ padding: "10px 0" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "13px" }}>
-                        <span>Capacity Utilization:</span>
-                        <strong>{Math.round((license.scansUsed / license.scansTotal) * 100)}% Used</strong>
-                      </div>
-                      <div style={{ width: "100%", height: "12px", background: "#0b1120", borderRadius: "6px", overflow: "hidden", marginBottom: "14px", border: "1px solid #1e293b" }}>
-                        <div
-                          style={{
-                            width: `${Math.min(100, Math.round((license.scansUsed / license.scansTotal) * 100))}%`,
-                            height: "100%",
-                            background: "#38bdf8",
-                          }}
-                        />
+                      <div className="metric-row">
+                        <span className="metric-label">State:</span>
+                        <span className="metric-value">
+                          {license.scansState ?? entNotice ?? "—"}
+                        </span>
                       </div>
                       <p className="muted small" style={{ margin: 0 }}>
-                        Scan transactions are committed upon diagnostic start and debited only when a verified condition or purge certificate is generated (§14).
+                        Scan debits are recorded server-side. This screen shows the
+                        entitlement's state rather than a running balance: a browser-side
+                        counter would disagree with the server the moment the two were
+                        read at different times, and the server does not publish one.
                       </p>
                     </div>
                   </div>
 
-                  {/* Entitlement Revision History (§13) */}
-                  <div className="panel-card" style={{ marginBottom: "24px" }}>
-                    <div className="panel-card-header">
-                      <h3>Entitlement Revision Ledger (Immutable History)</h3>
-                      <span className="badge-pill ready-badge">{revisionHistory.length} REVISION(S)</span>
-                    </div>
-                    <table className="workstation-data-table">
-                      <thead>
-                        <tr>
-                          <th>Rev #</th>
-                          <th>Serial Number</th>
-                          <th>Plan Tier</th>
-                          <th>Total Scans</th>
-                          <th>Carried Usage</th>
-                          <th>Remaining</th>
-                          <th>Status</th>
-                          <th>Timestamp</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {revisionHistory.map((rev) => (
-                          <tr key={rev.revision}>
-                            <td className="font-mono">Rev {rev.revision}</td>
-                            <td className="font-mono">{rev.serialNumber}</td>
-                            <td>{rev.planName}</td>
-                            <td>{rev.totalScans}</td>
-                            <td>{rev.carriedOverUsage}</td>
-                            <td><strong>{rev.scansRemaining}</strong></td>
-                            <td>
-                              <span className={`badge-pill ${rev.status === "ACTIVE" ? "ready-badge" : "archived-badge"}`}>
-                                {rev.status}
-                              </span>
-                            </td>
-                            <td style={{ fontSize: "11px", color: "#94a3b8" }}>{rev.date}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* The server publishes no entitlement *revision* history and
+                      no scan consumption transactions: `revision`, `scansUsed`
+                      and a ledger array are not part of the entitlement
+                      projection. Those tables used to render hard-coded rows
+                      (CYVRA15092026SA3F1-1-25, TX-SCAN-90411, ORD-INITIAL-...)
+                      that no endpoint ever returned, so they are gone rather
+                      than emptied. */}
 
-                  {/* Commercial Orders & Staff Approval Ledger (§10, §30 / Phase 18) */}
-                  <div className="panel-card" style={{ marginBottom: "24px" }}>
-                    <div className="panel-card-header">
-                      <h3>Commercial Orders & Staff Approval Records (Phase 18)</h3>
-                      <span className="badge-pill ready-badge">{orderRegistry.length} ORDER(S)</span>
-                    </div>
-                    <table className="workstation-data-table">
-                      <thead>
-                        <tr>
-                          <th>Order ID</th>
-                          <th>Target Tier</th>
-                          <th>Amount (INR)</th>
-                          <th>Payment Gateway</th>
-                          <th>Order Lifecycle Status</th>
-                          <th>Approved By</th>
-                          <th>Issued Serial</th>
-                          <th>Timestamp</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {orderRegistry.map((ord) => (
-                          <tr key={ord.orderId}>
-                            <td className="font-mono text-cyan-400">{ord.orderId}</td>
-                            <td>{ord.targetPlan}</td>
-                            <td>₹{ord.amountInr.toLocaleString("en-IN")}</td>
-                            <td className="font-mono" style={{ fontSize: "11px" }}>{ord.paymentProvider} ({ord.paymentRef})</td>
-                            <td>
-                              <span
-                                className={`badge-pill ${
-                                  ord.status === "ENTITLEMENT_ISSUED"
-                                    ? "ready-badge"
-                                    : ord.status === "WAITING_ADMIN_APPROVAL"
-                                    ? "pending-badge"
-                                    : ord.status === "REJECTED"
-                                    ? "danger-badge"
-                                    : "archived-badge"
-                                }`}
-                              >
-                                {ord.status}
-                              </span>
-                            </td>
-                            <td className="font-mono" style={{ fontSize: "11px" }}>{ord.approvedBy || "—"}</td>
-                            <td className="font-mono" style={{ fontSize: "11px" }}>{ord.issuedSerial || "—"}</td>
-                            <td style={{ fontSize: "11px", color: "#94a3b8" }}>{ord.timestamp}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* No order registry. The only payment fact the customer
+                      gets is `payment.sentence`, already shown above. The
+                      table that lived here listed RAZORPAY / pay_live_initial_90124
+                      rows that were never written by any webhook. */}
 
-                  {/* Device Scan Accounting Ledger (§14) */}
-                  <div className="panel-card">
-                    <div className="panel-card-header">
-                      <h3>Device Scan Consumption Audit Ledger</h3>
-                      <span className="badge-pill ready-badge">{scanLedger.length} TRANSACTION(S)</span>
-                    </div>
-                    <table className="workstation-data-table">
-                      <thead>
-                        <tr>
-                          <th>Tx ID</th>
-                          <th>Rev #</th>
-                          <th>Session UUID</th>
-                          <th>Device Serial</th>
-                          <th>Scan #</th>
-                          <th>Accounting Status</th>
-                          <th>Timestamp</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scanLedger.map((tx) => (
-                          <tr key={tx.txId}>
-                            <td className="font-mono text-cyan-400">{tx.txId}</td>
-                            <td className="font-mono">Rev {tx.revision}</td>
-                            <td className="font-mono" style={{ fontSize: "11px" }}>{tx.sessionUuid}</td>
-                            <td className="font-mono">{tx.deviceSerial}</td>
-                            <td>#{tx.scanNumber}</td>
-                            <td>
-                              <span className="badge-pill ready-badge">
-                                ✓ {tx.event}
-                              </span>
-                            </td>
-                            <td style={{ fontSize: "11px", color: "#94a3b8" }}>{tx.timestamp}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* Scan debits are gated behind the R-1 ruling. The server
+                      exposes only `usage.scans.state`; there are no per-tx rows
+                      to show, so the ledger that followed this comment is
+                      removed rather than left as an empty shell. */}
                 </div>
               )}
 
@@ -3014,63 +2868,74 @@ export function CustomerDesktopShell(props: {
                   <div className="panel-card" style={{ marginBottom: "20px" }}>
                     <div className="panel-card-header">
                       <h3>Final Signed Production Release Freeze Baseline (§45, §80, §81 / Phase 24)</h3>
-                      <span className="badge-pill ready-badge">✓ PRODUCTION RELEASE FROZEN</span>
+                      <span className="badge-pill ready-badge">
+                        {license.version ? `✓ RELEASE ${license.version}` : "BUILD UNAVAILABLE"}
+                      </span>
                     </div>
                     <p className="muted small" style={{ marginBottom: "14px" }}>
                       CYVRA Mobile is engineered as a standalone Windows 64-bit desktop application (.exe setup installer). Customers download and install it directly on their laptop or PC to communicate with Android devices via controlled USB/ADB.
                     </p>
 
+                    {/* Every row here is read from build-manifest.json as
+                        delivered by GET /v1/me/entitlement. The panel used to
+                        print v3.2.2-release, an 84.9 MB exe, an 86.1 MB MSI, a
+                        DigiCert signer and a "FREEZE-PHASE-24 · SHA-256
+                        c5b2ce8e..." seal - none of which any endpoint ever
+                        returned - and two download links that called alert()
+                        instead of downloading anything. */}
                     <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
                       <div className="metric-row">
-                        <span className="metric-label">Production Release Tag:</span>
-                        <span className="metric-value font-mono text-cyan-400 font-bold">v3.2.2-release (Phase 1–24 Complete)</span>
-                      </div>
-                      <div className="metric-row">
-                        <span className="metric-label">Installer Executable:</span>
-                        <span className="metric-value font-mono text-emerald-400">CYVRA-Mobile-Setup-v3.2.2-x64.exe (84.9 MB)</span>
-                      </div>
-                      <div className="metric-row">
-                        <span className="metric-label">Standalone Enterprise MSI:</span>
-                        <span className="metric-value font-mono text-emerald-400">CYVRA-Mobile-v3.2.2-x64.msi (86.1 MB)</span>
-                      </div>
-                      <div className="metric-row">
-                        <span className="metric-label">Code Signing Authority:</span>
-                        <span className="metric-value font-mono text-sky-400" style={{ fontSize: "11px" }}>
-                          CN=CYVORIQ Solutions Private Limited (DigiCert Authenticode Timestamped)
+                        <span className="metric-label">Release:</span>
+                        <span className="metric-value font-mono text-cyan-400 font-bold">
+                          {license.version ? `v${license.version}` : "Build unavailable"}
                         </span>
                       </div>
                       <div className="metric-row">
-                        <span className="metric-label">Release Freeze Seal:</span>
-                        <span className="metric-value font-mono text-purple-400" style={{ fontSize: "11px" }}>
-                          FREEZE-PHASE-24 · SHA-256 c5b2ce8e30b65bf7...
+                        <span className="metric-label">Installer Executable:</span>
+                        <span className="metric-value font-mono text-emerald-400">
+                          {license.installerName ?? "Not published yet"}
+                        </span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">SHA-256:</span>
+                        <span className="metric-value font-mono" style={{ fontSize: "11px" }}>
+                          {license.sha256 ?? "Not published yet"}
+                        </span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Size:</span>
+                        <span className="metric-value font-mono" style={{ fontSize: "11px" }}>
+                          {license.sizeBytes === null
+                            ? "Not published yet"
+                            : `${(license.sizeBytes / (1024 * 1024)).toFixed(1)} MB`}
+                        </span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Published:</span>
+                        <span className="metric-value font-mono" style={{ fontSize: "11px" }}>
+                          {license.releasedAt ?? "Not published yet"}
                         </span>
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
-                      <a
-                        href="/downloads/windows/CYVRA-Mobile-Setup-v3.2.2-x64.exe"
-                        className="btn btn-action-primary"
-                        download
-                        onClick={(e) => {
-                          e.preventDefault();
-                          alert("Production Installer Download Triggered:\nCYVRA-Mobile-Setup-v3.2.2-x64.exe (84.9 MB)\n\nDigitally signed by CYVORIQ Solutions Private Limited.\nIncludes embedded ADB v35.0.2 & WebView2 Evergreen runtime.");
-                        }}
-                      >
-                        ↓ Download Windows Setup (.exe)
-                      </a>
-                      <a
-                        href="/downloads/windows/CYVRA-Mobile-v3.2.2-x64.msi"
-                        className="btn btn-action-secondary"
-                        download
-                        onClick={(e) => {
-                          e.preventDefault();
-                          alert("Enterprise MSI Package Download Triggered:\nCYVRA-Mobile-v3.2.2-x64.msi (86.1 MB)\n\nConfigured for enterprise silent deployment (msiexec /i /qn).");
-                        }}
-                      >
-                        ↓ Download Enterprise MSI
-                      </a>
-                    </div>
+                    {license.downloadUrl ? (
+                      <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+                        <a
+                          href={license.downloadUrl}
+                          className="btn btn-action-primary"
+                          download
+                        >
+                          ↓ Download Windows Setup (.exe)
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="muted small" style={{ marginTop: "14px", marginBottom: 0 }}>
+                        There is nothing to download today. Once a release job
+                        publishes an installer, its version, filename and SHA-256
+                        appear above and the button comes back. A link that only
+                        popped up an alert was not a download, so it is gone.
+                      </p>
+                    )}
 
                     <div className="panel-card-footer" style={{ marginTop: "14px" }}>
                       <button type="button" className="btn btn-compact-ghost" onClick={props.onLogout}>
@@ -3271,7 +3136,12 @@ export function CustomerDesktopShell(props: {
                       className="btn btn-action-primary"
                       style={{ flex: 1 }}
                       onClick={() => {
-                        alert("Workstation will safely restart to apply staged update v3.2.2-g5.");
+                        // No blocking alert(). Record what was actually staged,
+                        // using the version this flow holds rather than a
+                        // hardcoded build tag, then close the modal.
+                        setUpdateProgressMsg(
+                          `Staged update v${stagedRecord.version} queued - it applies on next restart.`,
+                        );
                         setUpdateModalOpen(false);
                       }}
                     >
@@ -3318,344 +3188,56 @@ export function CustomerDesktopShell(props: {
         </div>
       )}
 
-      {/* UPGRADE Modal Dialog (§7, §11-13 / Phase 17) */}
+      {/* Change Plan modal.
+          POST /v1/licence-request does not exist on the API, so a customer
+          cannot change plan from this screen. What used to sit here played the
+          whole commercial flow back out of the browser: a random ORD-UPG- order
+          number, a fabricated pay_rzp_ reference, a "Razorpay webhook received
+          and verified with SHA-256 HMAC signature" banner, a staff approval gate
+          that authorised itself as ceo@cyvoriq.com, and a final step that minted
+          a serial number and rewrote the licence state in local React state.
+          None of it ever reached a server and every reload undid it, so the
+          flow is replaced with the truth rather than an empty shell. */}
       {upgradeModalOpen && (
         <div className="modal-backdrop">
           <div className="modal-card" style={{ maxWidth: "560px" }}>
             <div className="modal-header">
-              <h3>Upgrade Scan Entitlement Plan (Phase 17)</h3>
-              <button type="button" className="close-btn" onClick={() => { setUpgradeModalOpen(false); setUpgradeHandoffState("SELECTING"); }}>×</button>
+              <h3>Change Plan</h3>
+              <button type="button" className="close-btn" onClick={() => setUpgradeModalOpen(false)}>×</button>
             </div>
             <div className="modal-body">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                <span>Internal License ID: <strong className="font-mono">{license.licenseId}</strong></span>
-                <span className="badge-pill ready-badge">REVISION {license.revision}</span>
+              <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
+                <div className="metric-row">
+                  <span className="metric-label">Current plan:</span>
+                  <span className="metric-value font-bold">{license.planName ?? "—"}</span>
+                </div>
+                <div className="metric-row">
+                  <span className="metric-label">Status:</span>
+                  <span className="metric-value">{entNotice ?? license.status ?? "—"}</span>
+                </div>
+                <div className="metric-row">
+                  <span className="metric-label">Scan entitlement:</span>
+                  <span className="metric-value">{license.scansState ?? "—"}</span>
+                </div>
               </div>
 
-              {upgradeHandoffState === "SELECTING" && (
-                <div>
-                  <p style={{ margin: "0 0 6px" }}>
-                    Current Active Tier: <strong>{license.planName}</strong> ({license.scansRemaining} remaining of {license.scansTotal})
-                  </p>
-                  <p className="muted small" style={{ marginBottom: "16px" }}>
-                    Upgrading changes your allowed device scan capacity. Previous scan history is preserved in your immutable license ledger and carried over.
-                  </p>
+              <p className="muted small" style={{ marginBottom: "16px" }}>
+                Changing your plan is not available from this screen. The API
+                exposes no endpoint that accepts an upgrade, so any button here
+                could only edit your licence inside this browser tab - and a
+                reload would show the original plan again. Saying nothing is
+                better than printing a confirmation the server never agreed to.
+              </p>
 
-                  <h5 style={{ color: "#cbd5e1", margin: "0 0 10px", fontSize: "12px", textTransform: "uppercase" }}>Select Target Capacity Tier:</h5>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
-                    {[
-                      { scans: 3, label: "3 Device Scans", desc: "Small batch" },
-                      { scans: 5, label: "5 Device Scans", desc: "Technician pack" },
-                      { scans: 7, label: "7 Device Scans", desc: "Weekly quota" },
-                      { scans: 25, label: "25 Device Scans", desc: "High-throughput" },
-                      { scans: 50, label: "50 Device Scans", desc: "Enterprise scale" },
-                    ].map((tier) => (
-                      <div
-                        key={tier.scans}
-                        onClick={() => setSelectedUpgradePlan(tier.scans)}
-                        style={{
-                          background: selectedUpgradePlan === tier.scans ? "rgba(56, 189, 248, 0.15)" : "#0b1120",
-                          border: `1px solid ${selectedUpgradePlan === tier.scans ? "#38bdf8" : "#1e293b"}`,
-                          borderRadius: "8px",
-                          padding: "12px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <div style={{ fontWeight: "bold", color: selectedUpgradePlan === tier.scans ? "#38bdf8" : "#f8fafc", fontSize: "13px" }}>
-                          {tier.label}
-                        </div>
-                        <div style={{ fontSize: "11px", color: "#94a3b8" }}>{tier.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ background: "#0b1120", border: "1px solid #1e293b", borderRadius: "6px", padding: "12px", marginBottom: "16px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#cbd5e1", marginBottom: "4px" }}>
-                      <span>New Total Capacity:</span>
-                      <strong>{selectedUpgradePlan} Scans</strong>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#cbd5e1", marginBottom: "4px" }}>
-                      <span>Carried-Over Consumed Scans:</span>
-                      <span>{license.scansUsed} Scans</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#38bdf8", fontWeight: "bold" }}>
-                      <span>New Available Balance:</span>
-                      <span>{Math.max(0, selectedUpgradePlan - license.scansUsed)} Scans</span>
-                    </div>
-                  </div>
-
-                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      type="button"
-                      className="btn btn-action-primary"
-                      style={{ flex: 1 }}
-                      onClick={() => {
-                        setUpgradeHandoffState("GENERATING_TOKEN");
-                        const orderId = `ORD-UPG-${Math.floor(100000 + Math.random() * 900000)}`;
-                        const payRef = `pay_rzp_${Math.floor(10000000 + Math.random() * 90000000)}`;
-                        setUpgradeOrderId(orderId);
-                        setPaymentReference(payRef);
-
-                        // Stage new order in registry as PAYMENT_PENDING
-                        setOrderRegistry((prev) => [
-                          {
-                            orderId,
-                            customerEmail: props.user.email,
-                            licenseId: license.licenseId,
-                            targetPlan: `${selectedUpgradePlan} Device Scans`,
-                            targetScans: selectedUpgradePlan,
-                            amountInr: selectedUpgradePlan * 500,
-                            status: "PAYMENT_PENDING",
-                            paymentProvider: "RAZORPAY",
-                            paymentRef: payRef,
-                            approvedBy: null,
-                            issuedSerial: null,
-                            timestamp: new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC",
-                          },
-                          ...prev,
-                        ]);
-
-                        setTimeout(() => {
-                          setUpgradeHandoffState("PAYMENT_CONFIRMED");
-                        }, 1200);
-                      }}
-                    >
-                      Proceed to Authenticated Checkout Handoff →
-                    </button>
-                    <button type="button" className="btn btn-ghost" onClick={() => setUpgradeModalOpen(false)}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {upgradeHandoffState === "GENERATING_TOKEN" && (
-                <div style={{ textAlign: "center", padding: "30px 10px" }}>
-                  <div className="spinner" style={{ margin: "0 auto 16px" }} />
-                  <p style={{ color: "#38bdf8", fontSize: "14px", margin: 0 }}>
-                    Generating cryptographically signed upgrade handoff token for {license.licenseId}...
-                  </p>
-                </div>
-              )}
-
-              {upgradeHandoffState === "PAYMENT_CONFIRMED" && (
-                <div>
-                  <div style={{ background: "rgba(56, 189, 248, 0.1)", border: "1px solid #38bdf8", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
-                    <h4 style={{ color: "#38bdf8", margin: "0 0 6px", fontSize: "14px" }}>
-                      ✓ Web Checkout Payment Confirmed (§8, §30)
-                    </h4>
-                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
-                      Razorpay webhook received and verified with SHA-256 HMAC signature. Order ID: <strong className="font-mono">{upgradeOrderId}</strong>
-                    </p>
-                  </div>
-
-                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
-                    <div className="metric-row">
-                      <span className="metric-label">Payment Gateway:</span>
-                      <span className="metric-value font-bold text-emerald-400">RAZORPAY (Live Verified)</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Provider Reference:</span>
-                      <span className="metric-value font-mono text-cyan-400">{paymentReference}</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Amount Paid:</span>
-                      <span className="metric-value font-bold text-sky-400">₹{(selectedUpgradePlan * 500).toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Commercial Gate:</span>
-                      <span className="metric-value text-amber-400 font-bold">● WAITING FOR ADMIN APPROVAL</span>
-                    </div>
-                  </div>
-
-                  <p className="muted small" style={{ marginBottom: "16px" }}>
-                    Security Policy (§10, Option B): Early production requires explicit staff approval before entitlement activation to safeguard quota issuance.
-                  </p>
-
-                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      type="button"
-                      className="btn btn-action-primary"
-                      style={{ flex: 1 }}
-                      onClick={() => {
-                        // Transition order to WAITING_ADMIN_APPROVAL in registry
-                        setOrderRegistry((prev) =>
-                          prev.map((o) => o.orderId === upgradeOrderId ? { ...o, status: "WAITING_ADMIN_APPROVAL" } : o),
-                        );
-                        setUpgradeHandoffState("AWAITING_APPROVAL");
-                      }}
-                    >
-                      Submit to Staff Approval Queue →
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() => setUpgradeHandoffState("SELECTING")}
-                    >
-                      Back
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {upgradeHandoffState === "AWAITING_APPROVAL" && (
-                <div>
-                  <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid #f59e0b", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
-                    <h4 style={{ color: "#f59e0b", margin: "0 0 6px", fontSize: "14px" }}>
-                      Staff Review & Authorization Gate (Phase 18)
-                    </h4>
-                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
-                      The order is pending approval by an authorized @cyvoriq.com operator nominated by <strong>ceo@cyvoriq.com</strong> (§10, §30).
-                    </p>
-                  </div>
-
-                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
-                    <div className="metric-row">
-                      <span className="metric-label">Order Number:</span>
-                      <span className="metric-value font-mono">{upgradeOrderId}</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Customer Email:</span>
-                      <span className="metric-value">{props.user.email}</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Target Tier:</span>
-                      <span className="metric-value font-bold">{selectedUpgradePlan} Device Scans</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Payment Status:</span>
-                      <span className="metric-value text-emerald-400 font-bold">✓ PAYMENT_CONFIRMED</span>
-                    </div>
-                  </div>
-
-                  <p className="muted small" style={{ marginBottom: "16px" }}>
-                    Simulate Staff Approval: Approving this order will command the server to mint a new cryptographically signed serial while strictly retaining internal license ID {license.licenseId}.
-                  </p>
-
-                  <div className="btn-row" style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      type="button"
-                      className="btn btn-action-primary"
-                      style={{ flex: 1 }}
-                      onClick={() => {
-                        const newSerial = `CYVRA16092026SA3F1-${license.revision + 1}-${selectedUpgradePlan}`;
-                        const newRemaining = Math.max(0, selectedUpgradePlan - license.scansUsed);
-
-                        // Mark current revision SUPERSEDED
-                        setRevisionHistory((prev) => [
-                          ...prev.map((r) => r.status === "ACTIVE" ? { ...r, status: "SUPERSEDED" as const } : r),
-                          {
-                            revision: license.revision + 1,
-                            serialNumber: newSerial,
-                            planName: `${selectedUpgradePlan} Device Scans`,
-                            totalScans: selectedUpgradePlan,
-                            carriedOverUsage: license.scansUsed,
-                            scansRemaining: newRemaining,
-                            status: "ACTIVE" as const,
-                            date: new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC",
-                            orderId: upgradeOrderId,
-                          },
-                        ]);
-
-                        setActiveLicenseState((prev) => ({
-                          ...prev,
-                          serialNumber: newSerial,
-                          planName: `${selectedUpgradePlan} Device Scans`,
-                          scansTotal: selectedUpgradePlan,
-                          scansRemaining: newRemaining,
-                          revision: prev.revision + 1,
-                        }));
-
-                        // Update Order Registry to ENTITLEMENT_ISSUED
-                        setOrderRegistry((prev) =>
-                          prev.map((o) =>
-                            o.orderId === upgradeOrderId
-                              ? {
-                                  ...o,
-                                  status: "ENTITLEMENT_ISSUED",
-                                  approvedBy: "ceo@cyvoriq.com",
-                                  issuedSerial: newSerial,
-                                }
-                              : o,
-                          ),
-                        );
-
-                        setUpgradeHandoffState("UPGRADED");
-                      }}
-                    >
-                      Authorize Order as Staff (ceo@cyvoriq.com) →
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={() => {
-                        setOrderRegistry((prev) =>
-                          prev.map((o) =>
-                            o.orderId === upgradeOrderId
-                              ? { ...o, status: "REJECTED", approvedBy: "ceo@cyvoriq.com" }
-                              : o,
-                          ),
-                        );
-                        alert(`Order ${upgradeOrderId} has been REJECTED by staff. No entitlement issued.`);
-                        setUpgradeHandoffState("SELECTING");
-                        setUpgradeModalOpen(false);
-                      }}
-                    >
-                      Reject Order
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {upgradeHandoffState === "UPGRADED" && (
-                <div>
-                  <div style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "6px", padding: "14px 16px", marginBottom: "16px" }}>
-                    <h4 style={{ color: "#10b981", margin: "0 0 4px", fontSize: "15px" }}>
-                      ✓ Entitlement Revision {license.revision} Activated
-                    </h4>
-                    <p style={{ color: "#cbd5e1", fontSize: "12px", margin: 0 }}>
-                      Plan upgraded to <strong>{license.planName}</strong>. Internal license ID <strong className="font-mono">{license.licenseId}</strong> preserved with zero usage lost.
-                    </p>
-                  </div>
-
-                  <div className="device-metric-rows" style={{ marginBottom: "16px" }}>
-                    <div className="metric-row">
-                      <span className="metric-label">New Serial:</span>
-                      <span className="metric-value font-mono text-emerald-400">{license.serialNumber}</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Total Entitlement:</span>
-                      <span className="metric-value font-bold text-sky-400">{license.scansTotal} Scans</span>
-                    </div>
-                    <div className="metric-row">
-                      <span className="metric-label">Remaining Balance:</span>
-                      <span className="metric-value font-bold text-emerald-400">{license.scansRemaining} Scans</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn btn-action-primary"
-                    style={{ width: "100%" }}
-                    onClick={() => {
-                      setUpgradeModalOpen(false);
-                      setUpgradeHandoffState("SELECTING");
-                    }}
-                  >
-                    Return to Workstation
-                  </button>
-                </div>
-              )}
+              <p className="muted small" style={{ marginBottom: "16px" }}>
+                Your licence was created with the plan chosen at registration,
+                snapshotted onto the challenge when the sign-in code was issued.
+                To change it, contact support quoting your account email:{" "}
+                <strong className="font-mono">{props.user.email}</strong>
+              </p>
             </div>
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => {
-                  setUpgradeModalOpen(false);
-                  setUpgradeHandoffState("SELECTING");
-                }}
-              >
+              <button type="button" className="btn btn-ghost" onClick={() => setUpgradeModalOpen(false)}>
                 Close
               </button>
             </div>

@@ -1,0 +1,2227 @@
+﻿CYVRA MOBILE ADMIN PANEL — LICENCE OPERATIONS, ISSUANCE & CONTROL CENTER
+DETAILED PROFESSIONAL DESIGN FREEZE
+Version: 1.0 — Design Freeze Date: 05 October 2026 Product: CYVRA Mobile
+Evidence Admin URL: https://admin.cyvoriq.co.in/ Customer Portal:
+https://cyvoriq.co.in/ Status: FROZEN BASELINE FOR UI/UX, PRODUCT AND
+BACKEND IMPLEMENTATION
+============================================================ 1. PURPOSE
+OF THIS DOCUMENT
+============================================================
+This document is the consolidated design freeze for the CYVRA Mobile
+Admin Panel.
+It combines the existing CYVRA Mobile Admin Licence Approval & Control
+Center design plan with the latest approved operational requirements.
+The purpose is to define one clear, professional, implementation-ready
+admin experience for:
+-   customer licence requests
+-   customer identity visibility
+-   payment confirmation
+-   licence-plan selection
+-   licence issuance
+-   host/workstation binding visibility
+-   activation visibility
+-   licence revocation
+-   staff and role control
+-   audit history
+-   reporting
+-   operational search and filtering
+This is a product and UX/system design specification. It is not a
+replacement for the existing CYVORIQ licence engine or cryptographic
+licence-generation service.
+The central design principle is:
+ONE ROW = ONE CUSTOMER LICENCE REQUEST
+This principle is mandatory and must remain visible in the design,
+database interpretation, workflow and administrator experience.
+============================================================ 2. CORE
+PRODUCT POSITION
+============================================================
+CYVRA Mobile is the mobile-device verification, sanitization and
+evidence platform.
+The Admin Panel is the operational control center for customer licence
+requests.
+The Admin Panel is NOT the customer application.
+The Admin Panel is NOT the CYVRA Mobile desktop application.
+The Admin Panel is NOT the cryptographic licence-generation engine.
+The Admin Panel is the controlled administrative layer that allows
+authorized CYVORIQ staff to review customer licence requests, verify
+payment, authorize issuance, issue licences through the existing licence
+engine, monitor activation/binding, and revoke licences when required.
+The operational principle is:
+CUSTOMER REQUEST
+|
+v
+CUSTOMER IDENTITY VERIFIED
+|
+v
+PAYMENT CONFIRMED
+|
+v
+LICENCE PLAN CONFIRMED
+|
+v
+READY TO ISSUE
+|
+v
+ISSUE LICENCE
+|
+v
+CUSTOMER RECEIVES LICENCE
+|
+v
+CUSTOMER ACTIVATES ON ONE WINDOWS LAPTOP/DESKTOP
+|
+v
+MOBILE DEVICE CAPACITY BECOMES AVAILABLE
+|
+v
+ADMIN CAN MONITOR / AUDIT / REVOKE
+============================================================ 3. MOST
+IMPORTANT BUSINESS RULE
+============================================================
+ONE ROW = ONE CUSTOMER LICENCE REQUEST.
+This means:
+-   Every customer licence request is represented by one row in the
+Licence Registry.
+-   The row has a sequential display number: 1, 2, 3, 4, 5…
+-   The sequential number is NOT the licence ID.
+-   The licence ID is a separate immutable system identifier.
+-   The customer email identifies the customer account.
+-   A customer may have more than one historical licence record when the
+business legitimately requires it.
+-   A row represents the licence request/record, not an individual
+mobile phone.
+-   A row does not represent a USB port.
+-   A row does not represent the customer’s Windows laptop.
+-   A row does not represent an individual employee using the software.
+The table is therefore a licence-operations register.
+The administrator must be able to understand the complete licence
+pipeline by looking at the rows without opening every record.
+============================================================ 4. LATEST
+APPROVED LICENCE SEMANTICS
+============================================================
+The licence model must remove ambiguity between:
+A. Customer B. Host workstation C. Mobile-device capacity
+4.1 CUSTOMER / LICENCE HOLDER
+The customer is primarily identified by the verified registered email
+address.
+User ID = registered email ID.
+The same verified customer identity used by the customer-facing CYVORIQ
+account should be reflected in the Admin Panel.
+The Admin Panel must not duplicate or expose the customer’s password.
+The Admin Panel reads customer identity and licence-request information
+from the authoritative customer/licence systems.
+Required identity fields include:
+-   Registered Email
+-   User ID
+-   PIN Code / Postal Code
+-   Customer Name where available
+-   Company where available
+-   Customer Type where available
+4.2 HOST WORKSTATION
+A desktop licence is activated on one Windows laptop or desktop.
+The host workstation is the computer on which the CYVRA Mobile desktop
+application is installed.
+The host is NOT the mobile phone/tablet.
+Current commercial rule:
+Host Workstation Limit = 1
+for all standard plans.
+4.3 MOBILE DEVICE CAPACITY
+The commercial licence determines the number of mobile devices the
+customer is entitled to process.
+The current plans are:
+CYVRA Mobile — 1 Mobile Device
+CYVRA Mobile — 5 Mobile Devices
+CYVRA Mobile — 10 Mobile Devices
+CYVRA Mobile — 25 Mobile Devices
+CYVRA Mobile — 50 Mobile Devices
+Internal plan codes may be:
+PLAN-1
+PLAN-5
+PLAN-10
+PLAN-25
+PLAN-50
+or equivalent CAP-1 / CAP-5 / CAP-10 / CAP-25 / CAP-50 identifiers.
+Do not describe these plans as “1 user 1 device” in customer-facing
+language.
+Recommended explanation:
+"One workstation licence. Mobile-device processing capacity:
+1 / 5 / 10 / 25 / 50 devices."
+4.4 USB / DEVICE CAPABILITY
+The CYVRA Mobile application is designed to support up to 50 mobile
+devices through one USB setup/connection environment, subject to the
+actual application implementation and supported hardware configuration.
+This capability must not be confused with the commercial licence plan.
+The licence capacity is an entitlement.
+The physical USB/device handling capability is an application/system
+capability.
+The Admin Panel must keep these concepts separate.
+============================================================ 5. CUSTOMER
+JOURNEY ============================================================
+The intended end-to-end journey is:
+1.  Customer visits:
+https://cyvoriq.co.in/
+2.  Customer creates an account.
+3.  Email OTP verification is completed.
+4.  Customer selects/purchases a CYVRA Mobile licence model.
+5.  The customer’s verified identity and licence request become
+available to the Admin Panel.
+6.  The Admin Panel creates/displays one customer licence-request row.
+7.  The row initially shows payment as PENDING unless payment has
+already been confirmed by an authoritative payment process.
+8.  Admin reviews the customer record.
+9.  Admin confirms payment.
+10. The row becomes eligible for issuance.
+11. The system changes the operational state to:
+READY TO ISSUE
+12. Admin presses the green:
+ISSUE LICENCE
+13. The existing authoritative licence engine/API provisions the licence
+credential and signed serial/digest as part of the issue operation.
+14. Admin does NOT manually create cryptographic licence material.
+15. The licence is issued.
+16. Customer receives the licence information through the configured
+customer communication channel.
+17. Customer downloads and launches CYVRA Mobile.
+18. Customer activates the licence on one Windows laptop/desktop.
+19. Host binding is recorded.
+20. Licence becomes ACTIVE after successful activation.
+21. Admin can view activation, host binding, audit history, resend,
+suspend where permitted, or revoke where authorized.
+============================================================ 6. ADMIN’S
+PRIMARY RESPONSIBILITY
+============================================================
+The Admin’s responsibility is:
+VERIFY -> AUTHORIZE -> ISSUE -> CONTROL -> AUDIT
+The Admin is NOT expected to manually generate a cryptographic licence
+key.
+The authoritative licence engine remains responsible for:
+-   licence serial creation
+-   cryptographic signing
+-   signed digest/credential creation
+-   licence validity
+-   backend entitlement enforcement
+The Admin Panel is responsible for:
+-   displaying requests
+-   validating administrative prerequisites
+-   recording payment confirmation
+-   confirming the selected licence plan
+-   initiating the issue operation
+-   showing the result
+-   recording who issued the licence
+-   recording when it was issued
+-   allowing authorized revocation
+-   maintaining an auditable operational history
+============================================================ 7.
+IMPORTANT CONFLICT RESOLUTION
+============================================================
+The earlier design contained concepts such as:
++ New Licence
+Generate Licence Key
+Ready to Generate
+Approve & Issue
+The latest approved operational requirement changes these semantics.
+7.1 REMOVE “+ NEW LICENCE” FROM THE PRODUCTION PRIMARY WORKFLOW
+Customer registration/purchase creates the customer licence request.
+The Admin should not manually retype a customer and create a completely
+new licence request merely to issue the purchased licence.
+Therefore the production Admin Panel should be request-first.
+The main Licence Registry should not require a “+ New Licence” button
+for ordinary customer purchases.
+A controlled manual creation/import mechanism may exist later for
+authorized exceptional cases, but it is not the normal customer journey.
+7.2 “GENERATE” IS NOT THE ADMIN’S PRIMARY ACTION
+The Admin should not manually generate the licence.
+The system/licence engine generates the signed credential.
+The Admin’s visible primary action is:
+ISSUE LICENCE
+7.3 RENAME “READY TO GENERATE”
+The administrative status should be:
+READY TO ISSUE
+not:
+READY TO GENERATE
+7.4 FINAL ACTION MODEL
+Before payment:
+ISSUE LICENCE
+Disabled / Grey
+After payment is valid and all prerequisites are satisfied:
+ISSUE LICENCE
+Green / Enabled
+After successful issue:
+ISSUED
+After customer activation:
+ACTIVE
+============================================================ 8. ADMIN
+INFORMATION ARCHITECTURE
+============================================================
+The left navigation should be:
+CYVORIQ LOGO
+CYVRA MOBILE
+Dashboard
+Licences
+Customers
+Reports
+Staff & Roles
+Audit Log
+Settings
+For the first production release, the core navigation may be:
+Dashboard
+Licences
+Reports
+Staff & Roles
+Audit Log
+Customers can be included if the customer-record experience is
+implemented separately.
+Suggested page titles:
+Dashboard:
+Licence Operations
+Licences:
+Licence Registry
+Customers:
+Customer Registry
+Reports:
+Licence & Revenue Reports
+Staff:
+Staff & Access Control
+Audit:
+Audit Trail
+The navigation must feel like an enterprise operations console.
+============================================================ 9. VISUAL
+BASELINE ============================================================
+The existing visual direction is retained as the baseline.
+The Admin Panel should preserve:
+-   dark/strong sidebar identity
+-   CYVORIQ logo
+-   CYVRA MOBILE product label
+-   light grey main page background
+-   white cards
+-   white table surface
+-   subtle borders
+-   orange/brand primary treatment
+-   green success/action state
+-   amber warning state
+-   red destructive state
+-   restrained shadows
+-   professional typography
+The redesign should upgrade the existing appearance rather than replace
+the CYVORIQ/CYVRA identity.
+The interface must feel:
+-   Professional
+-   Enterprise
+-   Clean
+-   Operational
+-   Fast
+-   Trustworthy
+-   Easy for non-technical staff
+Avoid:
+-   excessive gradients
+-   oversized decorative cards
+-   heavy shadows
+-   excessive animations
+-   saturated colours for ordinary data
+-   marketing-style visual clutter
+-   technical jargon in ordinary workflows
+============================================================ 10. ADMIN
+DASHBOARD ============================================================
+The first page after login should provide immediate operational
+visibility.
+Recommended title:
+CYVRA MOBILE
+Licence Operations
+KPI cards:
+TOTAL LICENCES
+PAYMENT PENDING
+READY TO ISSUE
+ACTIVE
+EXPIRING SOON
+Optional:
+SUSPENDED / REVOKED
+MOBILE CAPACITY SOLD
+LICENCES ISSUED THIS MONTH
+ACTIVATIONS THIS MONTH
+The important correction is:
+READY TO ISSUE
+not:
+READY TO GENERATE
+The dashboard must not become a decorative analytics dashboard.
+Its purpose is to answer:
+What needs my attention now?
+============================================================ 11. “NEEDS
+ACTION” QUEUE
+============================================================
+The Dashboard should include a Needs Action section.
+Examples:
+#    Customer             Plan   Payment     Next Action
+17   customer@example    25     PENDING     Confirm Payment
+18   abc@example         5      PAID        Issue Licence
+19   xyz@example         10     PAID        Issue Licence
+Possible needs-action conditions:
+-   payment pending
+-   ready to issue
+-   failed customer communication
+-   activation problem
+-   rebind request
+-   expiry requiring attention
+The admin should be able to click the row and open its detail drawer.
+============================================================ 12. LICENCE
+REGISTRY — PRIMARY SCREEN
+============================================================
+This is the most important screen in the Admin Panel.
+The page should be table-first.
+Header:
+Licence Registry
+Subtitle:
+Manage customer licence requests, payment, issuance,
+activation and control.
+Top controls:
+Search
+Filters
+Export XLSX
+Do NOT make the dashboard-style KPI cards dominate the page.
+The registry is the operational center.
+============================================================ 13. EXACT
+MAIN TABLE PRINCIPLE
+============================================================
+Every customer licence request appears as one numbered row.
+Example:
+-------------------------------------------------------------------------------
+No. | Registered Email | User ID | PIN | Plan | Payment | Status | Actions
+-------------------------------------------------------------------------------
+1   | a@company.com    | a@...   | 560 | 5    | PAID    | READY  | Issue Revoke
+2   | b@company.com    | b@...   | 110 | 25   | PENDING | HOLD   | Issue Revoke
+3   | c@company.com    | c@...   | 400 | 1    | PAID    | ACTIVE | Issue Revoke
+-------------------------------------------------------------------------------
+The actual production table can contain additional columns, but the
+following fields are mandatory for the primary operational view:
+1.  No.
+2.  Registered Email
+3.  User ID
+4.  PIN Code
+5.  Licence Type
+6.  Mobile Device Capacity
+7.  Payment Status
+8.  Licence Status
+9.  Host Binding Status
+10. Licence Serial / ID
+11. Created Date
+12. Actions
+The exact user-facing table may also include:
+-   Customer Name
+-   Company
+-   Customer Type
+-   Issued Date
+-   Activation Date
+-   Expiry Date
+-   Issued By
+If these make the table too wide, they belong in the detail drawer
+rather than being removed from the system.
+============================================================ 14. ROW
+NUMBERING ============================================================
+The first column must be:
+No.
+The values are:
+1
+2
+3
+4
+5
+...
+This is a display/order number.
+It is not the database ID.
+It is not the licence serial.
+It is not the customer ID.
+When pagination is used, the display number should remain meaningful
+across the result set.
+The row number must never replace the immutable licence ID.
+============================================================ 15.
+REGISTERED EMAIL AND USER ID
+============================================================
+Registered Email:
+-   comes from the customer registration system
+-   must be verified before normal issuance
+-   is displayed in the registry
+-   is searchable
+User ID:
+-   equals the registered email ID for the current CYVRA Mobile customer
+model
+-   is not separately invented by the Admin
+-   must not be manually typed into a different value if the
+authoritative customer identity already exists
+The Admin Panel should not display or expose customer passwords.
+============================================================ 16. PIN
+CODE ============================================================
+The customer PIN code / postal code is a required customer-information
+field where applicable.
+Recommended table label:
+PIN Code
+If the product later introduces a security/authentication PIN, it must
+use a different field name to avoid confusion.
+If the PIN is sensitive in the actual customer model, the normal table
+should show a masked representation and authorized detail view should be
+used for the full value.
+The PIN must not be confused with the licence key.
+============================================================ 17. LICENCE
+PLAN DISPLAY
+============================================================
+The Admin Panel must show five standard plans:
+1 Mobile Device
+5 Mobile Devices
+10 Mobile Devices
+25 Mobile Devices
+50 Mobile Devices
+Each plan represents:
+1 Windows host workstation
++
+selected mobile-device processing capacity
+Plan data should be configured server-side.
+Recommended plan object:
+plan_code
+plan_name
+mobile_device_capacity
+host_workstation_limit
+validity_period
+price
+renewal_price
+support_tier
+active_flag
+Prices must not be hard-coded into frontend UI.
+============================================================ 18. PAYMENT
+CONTROL ============================================================
+Payment is a separate state from licence status.
+Payment answers:
+HAS PAYMENT BEEN CONFIRMED?
+Licence status answers:
+WHAT IS THE CURRENT LICENCE STATE?
+These must never be merged into one field.
+Primary payment UI:
+PAYMENT: PENDING
+Action:
+CONFIRM PAYMENT
+After confirmation:
+PAYMENT: PAID
+The action must record:
+-   Payment Status
+-   Payment Confirmed By
+-   Payment Confirmed At
+-   Payment Reference
+-   Payment Notes
+-   Payment Amount where applicable
+-   Currency
+-   Payment Date where applicable
+The latest user-facing requirement is a simple Pending/Paid operational
+workflow.
+The backend may retain additional states such as:
+-   Partially Paid
+-   Refunded
+-   Cancelled
+where commercially required.
+============================================================ 19. PAYMENT
+CONFIRMATION UX
+============================================================
+Do not use a dangerous generic checkbox:
+[x] Payment Done
+Use a controlled action.
+Before:
+Payment
+PENDING
+[Confirm Payment]
+After:
+Payment
+PAID
+Confirmed by: staff@cyvoriq.com
+05-Oct-2026 09:42 IST
+The action must always produce an audit event.
+No administrator should be able to silently change payment status.
+============================================================ 20. ISSUE
+LICENCE BUTTON
+============================================================
+This is one of the most important frozen UI rules.
+The final row action is:
+ISSUE LICENCE
+Visual treatment:
+GREEN
+The button is enabled ONLY when:
+-   customer identity is valid
+-   email is verified/eligible
+-   payment is PAID
+-   licence plan is valid
+-   request is eligible for issuance
+-   no conflicting issued licence exists
+-   the administrator has permission
+-   the backend licence engine is available
+Before these conditions are satisfied:
+ISSUE LICENCE
+Disabled / Grey
+The frontend button state is only a usability feature.
+The backend MUST independently validate all conditions.
+The browser cannot be trusted to authorize issuance.
+============================================================ 21. ISSUE
+LICENCE — WHAT ACTUALLY HAPPENS
+============================================================
+When the Admin presses:
+ISSUE LICENCE
+the Admin Panel requests the authoritative licence service to provision
+the licence.
+The licence service generates the required signed licence serial/digest
+or credential.
+The Admin Panel does not implement cryptographic signing in JavaScript
+or browser code.
+The operation should be treated as one controlled business transaction.
+Conceptually:
+Admin clicks Issue
+|
+v
+Backend validates request
+|
+v
+Payment = PAID?
+|
+v
+Plan valid?
+|
+v
+Customer eligible?
+|
+v
+Existing conflicting licence?
+|
+v
+Call authoritative licence engine
+|
+v
+Signed licence credential created
+|
+v
+Licence state = ISSUED
+|
+v
+Audit event created
+|
+v
+Customer communication queued
+============================================================ 22. ISSUE
+CONFIRMATION DIALOG
+============================================================
+Before the final issue operation, show:
+Issue Licence?
+Customer:
+customer@example.com
+User ID:
+customer@example.com
+Licence Plan:
+25 Mobile Devices
+Host Workstation:
+1
+Payment:
+PAID
+Mobile Device Capacity:
+25
+This will issue the licence through the CYVORIQ licence service
+and make it available for customer activation.
+[Cancel]   [Issue Licence]
+The final button is green.
+The confirmation must clearly distinguish issuance from revocation.
+============================================================ 23. LICENCE
+STATUS MODEL
+============================================================
+The administrative state model should be:
+PAYMENT_PENDING
+|
+v
+PAYMENT_CONFIRMED
+|
+v
+READY_TO_ISSUE
+|
+v
+ISSUED
+|
+v
+ACTIVE
+|
++------> EXPIRED
+|
++------> SUSPENDED
+|
++------> REVOKED
+Additional request states may include:
+DRAFT
+CANCELLED
+The exact internal state names may differ, but the business meaning must
+remain stable.
+The UI should not expose unnecessary technical state-machine
+terminology.
+============================================================ 24. PAYMENT
+STATUS VS LICENCE STATUS
+============================================================
+Payment status:
+PENDING
+PAID
+optionally PARTIALLY PAID
+optionally REFUNDED
+optionally CANCELLED
+Licence status:
+PAYMENT PENDING
+READY TO ISSUE
+ISSUED
+ACTIVE
+EXPIRED
+SUSPENDED
+REVOKED
+Example:
+Payment = PAID
+Licence = READY TO ISSUE
+This is valid and clear.
+Another example:
+Payment = PAID
+Licence = ACTIVE
+This means the licence was successfully issued and activated.
+Do not show:
+Payment = ACTIVE
+because payment and licence are different concepts.
+============================================================ 25. RED
+REVOKE BUTTON
+============================================================
+At the far right of each row there must be a prominent red:
+REVOKE
+button/action.
+The user explicitly requires:
+One green Issue button
+One red Revoke button
+at the end of each row.
+The system may disable the Revoke action for states where revocation is
+not valid, but the operational design must make the control obvious.
+Revoke means:
+Permanent administrative invalidation of the licence credential.
+Revoke is NOT:
+Delete record
+Revoke is NOT:
+Suspend
+Revoke is NOT:
+Remove audit history
+The licence record must remain in the system.
+============================================================ 26. REVOKE
+CONFIRMATION
+============================================================
+Clicking:
+REVOKE
+must open a strong confirmation dialog.
+Example:
+Revoke Licence?
+Customer:
+customer@example.com
+Licence:
+LIC-MOB-000123
+Plan:
+25 Mobile Devices
+Status:
+ACTIVE
+Revocation is a destructive administrative action.
+The licence will no longer be valid for use.
+Reason *
+[................................]
+[Cancel]   [Revoke Licence]
+The red action must require:
+-   confirmation
+-   reason
+-   authorized role
+-   backend validation
+-   audit event
+============================================================ 27. SUSPEND
+VS REVOKE ============================================================
+SUSPEND:
+Temporary administrative stop.
+REVOKE:
+Permanent invalidation.
+These are separate actions.
+Suspended licences may later return to ACTIVE if policy permits.
+Revoked licences should not simply become active again.
+Both actions require auditability.
+============================================================ 28. ROW
+ACTIONS ============================================================
+The visible end-of-row controls should be:
+[ ISSUE LICENCE ] [ REVOKE ]
+where applicable.
+A secondary three-dot menu may contain:
+View
+Edit Customer
+Confirm Payment
+Resend Licence
+View Activation
+View Audit
+Suspend
+Request Rebind
+Export Record
+The visible Issue/Revoke controls are intentionally primary.
+Actions must be state-aware.
+For example:
+Payment Pending:
+Issue = disabled
+Revoke = available if policy permits
+Ready to Issue:
+Issue = green
+Revoke = red
+Active:
+Issue = unavailable
+Revoke = red
+Revoked:
+Issue = unavailable
+Revoke = unavailable/already revoked
+============================================================ 29. DETAIL
+DRAWER ============================================================
+Clicking a row should open a right-side detail drawer without losing the
+registry context.
+Header:
+LIC-MOB-000123
+ACTIVE
+Customer section:
+Registered Email
+User ID
+Customer Name
+Company
+Customer Type
+PIN Code
+Licence section:
+Licence Plan
+Mobile Device Capacity
+Host Workstation Limit
+Serial
+Status
+Created
+Issued
+Activated
+Expiry
+Payment section:
+Payment Status
+Amount
+Currency
+Reference
+Confirmed By
+Confirmed At
+Notes
+Host Binding section:
+Binding Status
+Installation ID
+Safe Host Identifier
+Host OS
+First Activation
+Last Seen
+Communication section:
+Recipient
+Delivery Status
+Last Sent
+Resend
+Audit section:
+Complete event history
+The drawer must allow the Admin to inspect the complete record without
+leaving the table.
+============================================================ 30.
+APPROVAL / OPERATIONS TIMELINE
+============================================================
+The detail drawer should provide a visual timeline.
+Example:
+● Licence request created
+05 Oct 09:15
+● Customer identity verified
+05 Oct 09:16
+● Payment confirmed
+05 Oct 09:20
+● Licence issued
+05 Oct 09:21
+● Customer activation
+05 Oct 10:05
+● Host bound
+05 Oct 10:05
+The timeline makes the record understandable without reading raw audit
+events.
+============================================================ 31. HOST
+BINDING ============================================================
+The licence is bound to one Windows laptop/desktop after customer
+activation.
+The key is not considered host-bound merely because it was issued.
+Lifecycle:
+ISSUED
+|
+v
+CUSTOMER ACTIVATES
+|
+v
+HOST IDENTITY CAPTURED
+|
+v
+HOST BOUND
+|
+v
+SUBSEQUENT LAUNCHES VALIDATE BINDING
+Admin statuses:
+NOT BOUND
+BOUND
+REBIND REQUESTED
+LOCKED
+Recommended host fields:
+Host Binding ID
+Host OS
+Application Installation ID
+Safe Host Fingerprint Reference
+First Activation Date
+Last Seen
+Binding Status
+Do not expose raw sensitive fingerprint material unnecessarily.
+============================================================ 32. HOST
+REBIND ============================================================
+Customers may eventually replace their laptop/desktop.
+Therefore a controlled rebind workflow is required.
+Recommended process:
+Customer requests rebind
+|
+v
+Admin reviews reason
+|
+v
+Existing binding marked for replacement
+|
+v
+Old binding invalidated
+|
+v
+New activation allowed
+|
+v
+New host becomes active binding
+Unlimited silent rebinding must not be allowed.
+Every rebind must be audited.
+============================================================ 33.
+CUSTOMER COMMUNICATION
+============================================================
+After successful issuance, the customer communication should contain:
+-   Customer name
+-   Licence plan
+-   Mobile device capacity
+-   Licence serial
+-   Activation instructions
+-   Download link
+-   Support contact
+-   Host-binding explanation
+Do not send internal administrative details.
+Delivery states may include:
+QUEUED
+SENT
+DELIVERED
+FAILED
+where supported by the email provider.
+A resend must resend the existing credential.
+Resend must NOT generate a new licence automatically.
+============================================================ 34. SEARCH
+============================================================
+Search should support:
+-   Registered Email
+-   User ID
+-   Customer Name
+-   Company
+-   Licence ID
+-   Licence Serial
+The search should be fast and server-side for larger datasets.
+============================================================ 35. FILTERS
+============================================================
+Filters:
+Payment Status
+Licence Status
+Licence Plan
+Customer Type
+Host Binding
+Created Date
+Issued Date
+Activation Date
+Expiry Date
+Issued By
+Quick filters:
+ALL
+NEEDS ACTION
+ACTIVE
+ARCHIVED
+Needs Action should include:
+-   Payment Pending
+-   Ready to Issue
+-   Failed Delivery
+-   Rebind Requested
+-   Other operational exceptions
+============================================================ 36.
+PAGINATION ============================================================
+The registry must support server-side pagination.
+Recommended:
+25 rows
+50 rows
+100 rows
+Default:
+25
+The Admin Panel must not load every licence record into the browser just
+to display the first page.
+Horizontal scrolling is acceptable for a wide enterprise table.
+The following should remain sticky where practical:
+-   No.
+-   Registered Email / Customer
+============================================================ 37. TABLE
+VISUAL DESIGN
+============================================================
+The table should look like an accounting/operations register.
+Use:
+-   white table surface
+-   light grey header
+-   subtle borders
+-   clear column spacing
+-   subtle row separators
+-   restrained alternate row background if necessary
+-   sticky header
+-   clear status badges
+Avoid:
+-   dark table backgrounds
+-   oversized row height
+-   heavy card effects
+-   marketing graphics
+-   excessive colour
+The page background should be very light grey.
+The table container should be white.
+============================================================ 38. STATUS
+COLOUR SEMANTICS
+============================================================
+Green:
+-   Issue action available
+-   Paid
+-   Success
+-   Active where appropriate
+Amber:
+-   Pending
+-   Needs attention
+-   Expiring soon
+Red:
+-   Revoke
+-   Suspended where policy requires
+-   Revoked
+-   Critical failure
+Grey:
+-   Disabled
+-   Not available
+-   Not bound
+-   Archived
+Colour must never be the only indicator.
+Use text labels/icons as well.
+============================================================ 39.
+RESPONSIVE DESIGN
+============================================================
+Desktop is the primary target because the Admin Panel is an operational
+control center.
+At smaller widths:
+-   keep horizontal table scrolling
+-   keep the first columns sticky
+-   do not shrink text into unreadable sizes
+-   use a compact record/card mode only as a secondary experience
+The normal desktop experience must remain the reference design.
+============================================================ 40. EMPTY
+STATES ============================================================
+No records:
+No customer licence requests yet.
+Customer licence requests will appear here after the
+registration/purchase workflow creates them.
+Filtered empty:
+No licence requests match the selected filters.
+[Clear Filters]
+============================================================ 41. ERROR
+HANDLING ============================================================
+Errors must be written in operational language.
+Bad:
+HTTP 409
+Better:
+This licence was already processed by another administrator.
+Refresh the record to see the current state.
+Bad:
+INVALID_STATE
+Better:
+This licence has already been issued and cannot be issued again.
+Bad:
+PAYMENT_FALSE
+Better:
+Licence cannot be issued because payment has not been confirmed.
+Technical details may be available through:
+View technical details
+but should never be the primary message for ordinary staff.
+============================================================ 42.
+CONCURRENCY PROTECTION
+============================================================
+Two administrators must never be able to issue the same licence
+simultaneously.
+Example:
+Admin A clicks Issue
+Admin B clicks Issue
+Only one operation may succeed.
+The second receives:
+This licence was already processed by another administrator.
+Refresh the record to view the latest status.
+This must be enforced by the backend using an atomic state transition or
+equivalent transaction control.
+Frontend button disabling alone is insufficient.
+============================================================ 43.
+IDEMPOTENCY ============================================================
+Issue operations should be idempotent where practical.
+If the browser loses connection after the server completes issuance, a
+retry must not create a second valid licence.
+The backend should recognize the request/result and return the existing
+operation result where appropriate.
+This is especially important for licence issuance because it is a
+high-impact operation.
+============================================================ 44. BACKEND
+STATE MACHINE
+============================================================
+Recommended conceptual transitions:
+DRAFT
+-> PAYMENT_PENDING
+PAYMENT_PENDING
+-> PAYMENT_CONFIRMED
+-> CANCELLED
+PAYMENT_CONFIRMED
+-> READY_TO_ISSUE
+READY_TO_ISSUE
+-> ISSUED
+ISSUED
+-> ACTIVE
+-> SUSPENDED
+-> REVOKED
+ACTIVE
+-> EXPIRED
+-> SUSPENDED
+-> REVOKED
+SUSPENDED
+-> ACTIVE
+-> REVOKED
+The backend must reject invalid transitions.
+The UI must not invent alternative state transitions.
+============================================================ 45. DATA
+MODEL ============================================================
+A practical initial domain model:
+CUSTOMERS
+id
+email
+full_name
+company
+customer_type
+phone
+pin_code
+address fields
+created_at
+LICENCE_REQUESTS / LICENCES
+id
+customer_id
+plan_code
+mobile_device_capacity
+host_workstation_limit
+validity_start
+validity_end
+payment_status
+licence_status
+licence_serial
+created_by
+approved_by
+created_at
+issued_at
+activated_at
+expires_at
+PAYMENTS
+id
+licence_id
+status
+amount
+currency
+reference
+confirmed_by
+confirmed_at
+notes
+HOST_BINDINGS
+id
+licence_id
+binding_status
+installation_id
+host_fingerprint_reference
+first_activated_at
+last_seen_at
+unbound_at
+STAFF
+id
+email
+name
+role
+status
+invited_by
+approved_by
+created_at
+AUDIT_EVENTS
+id
+actor_id
+action
+entity_type
+entity_id
+previous_state
+new_state
+metadata
+created_at
+COMMUNICATIONS
+id
+licence_id
+recipient
+type
+status
+sent_at
+provider_reference
+============================================================ 46. LICENCE
+REQUEST RECORD
+============================================================
+The licence-request record is the core unit of the Admin Panel.
+Conceptually:
+CUSTOMER
+|
++---- LICENCE REQUEST
+|
++---- PAYMENT
+|
++---- LICENCE CREDENTIAL
+|
++---- HOST BINDING
+|
++---- COMMUNICATIONS
+|
++---- AUDIT EVENTS
+This is why:
+ONE ROW = ONE CUSTOMER LICENCE REQUEST
+The mobile phones/tablets processed by the customer are not individual
+licence-request rows.
+============================================================ 47. STAFF
+AND ACCESS CONTROL
+============================================================
+Only authorized CYVORIQ staff should access the Admin Panel.
+Staff account domain:
+@cyvoriq.com
+The domain restriction must be enforced server-side.
+Recommended roles:
+SUPER ADMIN
+Full system access.
+LICENCE ADMIN
+View licences
+Confirm payment
+Issue licences
+Suspend
+Revoke
+View reports
+View customers
+LICENCE OPERATOR
+View licences
+Manage customer information
+Record operational data
+Confirm payment only if explicitly permitted
+AUDITOR / REPORT VIEWER
+Read-only licences
+Reports
+Audit log
+The safest initial deployment is to restrict payment confirmation,
+issuance and revocation to Super Admin and Licence Admin.
+============================================================ 48. STAFF
+LIFECYCLE ============================================================
+Super Admin:
+Staff & Access
+|
+v
+Add Staff
+|
+v
+@cyvoriq.com email
+|
+v
+Select Role
+|
+v
+Invitation
+|
+v
+Email Verification
+|
+v
+Super Admin Approval
+|
+v
+ACTIVE
+Staff states:
+INVITED
+EMAIL VERIFIED
+ACTIVE
+SUSPENDED
+REVOKED
+Every staff change must create an audit event.
+============================================================ 49.
+PERMISSION MATRIX
+============================================================
+Super Admin   Licence Admin   Operator   Auditor
+View licences YES YES YES YES Create/import request YES YES YES* NO Edit
+customer YES YES YES NO Confirm payment YES YES CONFIG NO Issue licence
+YES YES NO NO Suspend YES YES NO NO Revoke YES YES NO NO Approve rebind
+YES YES NO NO Export reports YES YES YES YES View audit YES YES LIMITED
+YES Manage staff YES NO NO NO Manage plans YES NO NO NO System settings
+YES NO NO NO
+*Only if enabled by Super Admin.
+============================================================ 50.
+SECURITY REQUIREMENTS
+============================================================
+The Admin Panel is a sensitive control-plane system.
+Required:
+-   secure authentication
+-   session expiry
+-   server-side authorization
+-   role-based access control
+-   CSRF protection where applicable
+-   rate limiting
+-   email verification
+-   audit trail
+-   secure identity handling
+-   no secrets in frontend source
+-   no secret keys in browser logs
+-   server-side licence generation/provisioning
+-   server-side payment validation
+-   server-side role validation
+-   secure API authentication
+-   secure report generation
+Never trust browser-supplied values such as:
+payment=true
+role=admin
+approved=true
+The browser requests an operation.
+The server decides whether it is allowed.
+============================================================ 51. LICENCE
+KEY SECURITY
+============================================================
+The existing CYVORIQ licence generation system should remain the
+authoritative source for licence serial/signature generation.
+The Admin Panel should call the existing licence service/API.
+Do not implement cryptographic licence signing in the browser.
+Do not expose private signing keys to the frontend.
+The registry may show:
+Licence Serial:
+LIC-MOB-XXXXXX
+Status:
+ISSUED
+The full sensitive activation credential should not be permanently
+displayed in every table row.
+If an authorized administrator must view a sensitive credential, that
+access should be deliberate and auditable.
+============================================================ 52. LICENCE
+RESEND ============================================================
+Resend is different from issue.
+The Admin may choose:
+Resend Licence
+This sends the already issued credential/instructions again.
+It must NOT automatically generate a new licence.
+Display:
+Last Sent At
+Sent To
+Delivery Status
+Possible status:
+Queued
+Sent
+Delivered
+Failed
+============================================================ 53. AUDIT
+LOG ============================================================
+The Audit Log is immutable from the normal UI.
+Example:
+05-Oct 09:15
+staff@cyvoriq.com
+Customer licence request created
+05-Oct 09:20
+staff@cyvoriq.com
+Payment changed PENDING -> PAID
+05-Oct 09:21
+admin@cyvoriq.com
+Licence issued
+05-Oct 10:05
+customer@example.com
+Host activated
+06-Oct 14:10
+admin@cyvoriq.com
+Licence revoked
+Audit fields:
+Event ID
+Timestamp
+Actor
+Actor Role
+Action
+Entity Type
+Entity ID
+Previous State
+New State
+Security metadata where appropriate
+Reason / Note
+Result
+Filters:
+Date
+Staff Member
+Licence
+Customer
+Action
+============================================================ 54.
+DASHBOARD KPIS — FINAL LABELS
+============================================================
+Final recommended KPI strip:
+TOTAL LICENCES
+PAYMENT PENDING
+READY TO ISSUE
+ACTIVE
+EXPIRING SOON
+Optional:
+SUSPENDED
+REVOKED
+CAPACITY SOLD
+ISSUED THIS MONTH
+ACTIVATED THIS MONTH
+Do not use:
+READY TO GENERATE
+in the frozen production terminology.
+============================================================ 55.
+REPORTING ============================================================
+Reports must support XLS/XLSX export.
+Primary report:
+Licence Register XLSX
+Other reports:
+Payment Register
+Activation Register
+Expiry Report
+Staff Activity
+Audit Report
+Report filters:
+Date From
+Date To
+Payment Status
+Licence Status
+Plan
+Customer Type
+Staff Member
+Host Binding
+Report metadata:
+Report Generated At
+Generated By
+Date Range
+Applied Filters
+Report Type
+============================================================ 56. LICENCE
+REGISTER XLSX COLUMNS
+============================================================
+Recommended columns:
+Row No.
+Licence ID
+Registered Email
+User ID
+Customer Name
+Company
+Customer Type
+PIN Code
+Plan
+Mobile Device Capacity
+Host Workstation Limit
+Payment Status
+Payment Amount
+Payment Reference
+Licence Status
+Licence Serial
+Host Binding Status
+Created Date
+Issued Date
+Activated Date
+Expiry Date
+Created By
+Issued By
+The export must not expose secrets that should not be exported.
+============================================================ 57. REPORT
+SECURITY ============================================================
+Reports may contain customer information.
+Therefore:
+-   require authentication
+-   enforce role permissions
+-   generate reports server-side
+-   log report generation
+-   prevent arbitrary database queries from the browser
+-   use controlled filenames
+Example:
+CYVRA-Mobile-Licence-Register-2026-10-05.xlsx
+============================================================ 58. DATE
+AND TIME ============================================================
+The backend should store unambiguous timestamps.
+The Admin UI should display:
+IST (Asia/Kolkata)
+for CYVORIQ’s Indian operations.
+Quick date filters:
+Today
+Yesterday
+Last 7 Days
+This Month
+Last Month
+This Quarter
+Custom
+Date fields should be consistent across dashboard, registry, drawer and
+reports.
+============================================================ 59.
+VALIDATION BEFORE ISSUE
+============================================================
+The backend must validate:
+-   customer exists
+-   customer email is valid
+-   customer identity is eligible
+-   email verification requirement is satisfied
+-   PIN/customer information is valid where required
+-   licence plan exists and is active
+-   payment status is PAID
+-   no conflicting active/unissued licence exists
+-   administrator has permission
+-   licence is in READY_TO_ISSUE state
+-   authoritative licence service is available
+If any condition fails, issue must be rejected.
+============================================================ 60.
+DUPLICATE PROTECTION
+============================================================
+Before creating or issuing a licence request, check for:
+-   same customer + same active plan
+-   same customer + active licence
+-   existing unissued licence
+-   existing active host binding
+-   duplicate request identifiers
+If a possible duplicate is detected:
+Existing Licence Found
+This customer already has an active or pending CYVRA Mobile
+licence request.
+[View Existing] [Continue Only If Authorized]
+The system must not silently create duplicates.
+============================================================ 61.
+CUSTOMER REGISTRATION INTEGRATION
+============================================================
+The customer portal is:
+https://cyvoriq.co.in/
+The Admin Panel is:
+https://admin.cyvoriq.co.in/
+The systems should share the authoritative customer identity/reference
+rather than creating unrelated duplicate identities.
+When registration/OTP verification and the licence-purchase workflow
+create a licence request, the Admin Panel should receive or expose:
+-   customer ID/reference
+-   verified email
+-   user ID
+-   PIN code where supplied
+-   customer details
+-   requested licence plan
+-   request ID
+-   payment state
+The Admin should not retype information already held by the customer
+system.
+============================================================ 62.
+CUSTOMER PASSWORD / CREDENTIAL SEPARATION
+============================================================
+Customer credentials and Admin credentials are separate security
+domains.
+The Admin Panel may display:
+User ID = email
+but must never expose:
+-   customer password
+-   customer OTP
+-   private authentication secrets
+The Admin Panel should only receive the minimum customer identity data
+needed for licence administration.
+============================================================ 63.
+CUSTOMER DETAIL VIEW
+============================================================
+Customer details may include:
+IDENTITY
+Registered Email
+User ID
+Full Name
+Company
+Customer Type
+Phone
+PIN Code
+Address
+LICENCE
+Plan
+Capacity
+Host Limit
+Serial
+Status
+Validity
+PAYMENT
+Status
+Amount
+Reference
+Confirmed By
+Confirmed At
+HOST
+Binding Status
+Host OS
+Installation ID
+Safe Identifier
+First Activation
+Last Seen
+COMMUNICATION
+Email
+Status
+Last Sent
+AUDIT
+Timeline
+Event list
+============================================================ 64. ADMIN
+PAGE LAYOUT — FINAL
+============================================================
+SIDEBAR
+[CYVORIQ LOGO]
+CYVRA MOBILE
+Dashboard
+Licences
+Customers
+Reports
+Staff & Roles
+Audit Log
+Settings
+---------------------
+Admin Name
+Role
+Sign Out
+MAIN AREA
+Licence Registry
+Manage customer licence requests, payment, issuance,
+activation and control.
+[ Search............................. ]
+[ Filters ]   [ Export XLSX ]
+KPI STRIP
+[ Total ]
+[ Payment Pending ]
+[ Ready to Issue ]
+[ Active ]
+[ Expiring ]
+DATA TABLE
+No.
+Registered Email
+User ID
+PIN
+Licence Plan
+Capacity
+Payment
+Licence Status
+Host
+Serial
+Actions
+---------------------------------------------------------------
+1
+customer@example.com
+customer@example.com
+560001
+25 Mobile Devices
+25
+PAID
+READY TO ISSUE
+Not Bound
+--
+[ ISSUE LICENCE ] [ REVOKE ]
+2
+another@example.com
+another@example.com
+110001
+5 Mobile Devices
+5
+PENDING
+PAYMENT PENDING
+Not Bound
+--
+[ ISSUE LICENCE ] [ REVOKE ]
+3
+active@example.com
+active@example.com
+400001
+10 Mobile Devices
+10
+PAID
+ACTIVE
+Bound
+LIC-MOB-000123
+[ VIEW ] [ REVOKE ]
+---------------------------------------------------------------
+============================================================ 65. MAIN
+TABLE — PROFESSIONAL COLUMN ORDER
+============================================================
+Recommended final order:
+No.
+Registered Email
+User ID
+PIN Code
+Licence Plan
+Mobile Capacity
+Payment
+Licence Status
+Host Binding
+Licence Serial
+Created
+Issued
+Activated
+Actions
+The table can optionally include:
+Customer Name
+Company
+Customer Type
+Expiry
+These can move into the detail drawer if the table becomes too wide.
+The far-right Actions column is fixed as the operational control zone.
+============================================================ 66. EXACT
+ROW ACTION RULE
+============================================================
+Each row must have a clear action zone.
+For a payment-confirmed, issuable request:
+[ ISSUE LICENCE ]   [ REVOKE ]
+Issue:
+GREEN
+Revoke:
+RED
+For a payment-pending request:
+[ ISSUE LICENCE ]   [ REVOKE ]
+but Issue is:
+GREY / DISABLED
+For an active licence:
+[ VIEW ]   [ REVOKE ]
+The UI should not show an impossible operation as enabled.
+============================================================ 67.
+PROFESSIONAL UX BEHAVIOUR
+============================================================
+The administrator should not need to navigate through multiple pages for
+ordinary daily operations.
+Example daily operation:
+Open Licence Registry
+|
+v
+Find customer row
+|
+v
+Confirm Payment
+|
+v
+Green Issue Licence appears
+|
+v
+Click Issue Licence
+|
+v
+Confirm
+|
+v
+Licence becomes ISSUED
+|
+v
+Customer receives information
+|
+v
+Later host becomes ACTIVE
+This is the core administrative experience.
+============================================================ 68. NO
+MANUAL CRYPTOGRAPHIC LICENCE GENERATION
+============================================================
+The Admin must never:
+-   type a licence key
+-   create a signature
+-   paste a secret signing value
+-   upload private cryptographic material
+-   generate a key in browser code
+The Admin presses:
+ISSUE LICENCE
+The system handles the underlying licence-generation/provisioning
+operation through the authoritative service.
+============================================================ 69. FUTURE
+USAGE METER ============================================================
+Because the commercial entitlement is mobile-device capacity, the
+customer/admin experience may eventually show:
+17 / 25 Mobile Devices Used
+or:
+17 of 25 devices processed
+The definition of “used” must be explicitly fixed in the product
+contract.
+Possible definitions include:
+-   device registration
+-   diagnostic operation
+-   completed evidence report
+-   completed licence-consumption transaction
+Do not silently change the meaning after release.
+============================================================ 70. EXPIRY
+AND RENEWAL ============================================================
+The Admin Panel should display:
+ACTIVE
+EXPIRING SOON
+EXPIRED
+Recommended configurable alert thresholds:
+30 days
+15 days
+7 days
+1 day
+The threshold must be configuration rather than hard-coded.
+Renewal should preserve the historical licence record rather than
+destroying the original record.
+============================================================ 71. DATA
+RETENTION ============================================================
+Issued licence records, payment confirmations and audit events must be
+retained according to the applicable business/compliance retention
+policy.
+Revocation must not physically delete the licence record.
+If privacy requirements require deletion/anonymization of personal data,
+use controlled anonymization that preserves audit and licence
+referential integrity where legally required.
+============================================================ 72.
+ACCESSIBILITY
+============================================================
+The Admin Panel must provide:
+-   sufficient text contrast
+-   keyboard-accessible buttons
+-   visible focus states
+-   labels for form controls
+-   clear status text
+-   icons with accessible labels/tooltips
+-   text plus colour for status meaning
+-   confirmation messages that explain consequences
+Never rely solely on green or red colour to communicate state.
+============================================================ 73.
+PERFORMANCE ============================================================
+The Admin Panel must be designed for a growing licence database.
+Requirements:
+-   server-side pagination
+-   server-side search when dataset is large
+-   server-side filtering
+-   efficient API responses
+-   lazy loading for detail drawer sections where practical
+-   no unnecessary loading of all records
+Default page size:
+25
+Options:
+25 / 50 / 100
+============================================================ 74.
+NOTIFICATIONS
+============================================================
+Useful notifications include:
+-   new licence request
+-   payment confirmed
+-   licence ready to issue
+-   licence issued
+-   customer activation
+-   rebind request
+-   expiry approaching
+-   email delivery failure
+-   revocation confirmation
+Notifications should be operational and concise.
+============================================================ 75. API /
+BACKEND RESPONSIBILITY
+============================================================
+The frontend is not the authority.
+The backend/API must enforce:
+-   identity
+-   role
+-   licence state
+-   payment state
+-   plan validity
+-   duplicate protection
+-   issue authorization
+-   revoke authorization
+-   concurrency
+-   idempotency
+-   audit creation
+Conceptual API operations may include:
+GET    /admin/licence-requests
+GET    /admin/licence-requests/{id}
+PATCH  /admin/licence-requests/{id}/payment
+POST   /admin/licence-requests/{id}/issue
+POST   /admin/licence-requests/{id}/revoke
+POST   /admin/licence-requests/{id}/suspend
+POST   /admin/licence-requests/{id}/resend
+POST   /admin/licence-requests/{id}/rebind-review
+GET    /admin/licence-requests/{id}/audit
+GET    /admin/reports/licences
+These are conceptual endpoints only. Existing API contracts should
+remain authoritative where already implemented.
+============================================================ 76.
+OPERATIONAL AUDIT REQUIREMENTS
+============================================================
+Every high-impact action must record:
+WHO
+WHAT
+WHEN
+WHICH RECORD
+OLD STATE
+NEW STATE
+REASON
+RESULT
+Mandatory audit events include:
+-   payment confirmation
+-   issue
+-   revoke
+-   suspend
+-   rebind approval
+-   staff creation
+-   staff role change
+-   staff suspension/revocation
+-   report generation
+-   sensitive credential access where implemented
+============================================================ 77. ERROR /
+EXCEPTION STATES
+============================================================
+Important exceptions:
+PAYMENT NOT CONFIRMED
+Licence cannot be issued because payment has not been confirmed.
+ALREADY ISSUED
+This licence has already been issued.
+CONCURRENT ACTION
+This licence was processed by another administrator.
+Refresh the record.
+LICENCE SERVICE FAILURE
+Licence issuance could not be completed.
+No customer-facing licence was issued.
+DUPLICATE REQUEST
+A matching customer licence request already exists.
+REVOKED
+This licence has been revoked and cannot be issued again without
+an authorized new commercial request.
+============================================================ 78. FIRST
+RELEASE SCOPE
+============================================================
+The first production release should focus on:
+1.  Secure Admin login
+2.  Professional admin shell
+3.  Licence Registry
+4.  Numbered rows
+5.  One row = one customer licence request
+6.  Registered email
+7.  User ID = email
+8.  PIN Code
+9.  Licence plan
+10. Mobile capacity
+11. Payment Pending/Paid
+12. Ready to Issue
+13. Green Issue Licence
+14. Red Revoke Licence
+15. Host binding visibility
+16. Detail drawer
+17. Audit timeline
+18. Staff roles
+19. Search
+20. Filters
+21. XLSX report
+22. Server-side state validation
+23. Duplicate protection
+24. Concurrency protection
+25. Idempotent issuance
+26. Customer communication status
+============================================================ 79. FUTURE
+FEATURES — DO NOT BLOCK V1
+============================================================
+Useful future features:
+-   bulk customer import
+-   bulk payment confirmation
+-   bulk licence issuance
+-   customer portal licence view
+-   automated renewal
+-   expiry reminders
+-   usage dashboard
+-   mobile-device utilization
+-   multiple-host enterprise plans
+-   organization accounts
+-   API access
+-   webhooks
+-   internal support notes
+-   payment-proof attachments
+-   two-person approval for selected plans
+-   fraud/risk flags
+These are future capabilities and must not make the first release
+unnecessarily complicated.
+============================================================ 80.
+IMPLEMENTATION PRIORITY
+============================================================
+PHASE 1 — CORE ADMIN UI
+1.  Admin shell
+2.  Official logo
+3.  Sidebar
+4.  Dashboard
+5.  Licence Registry
+6.  Row numbering
+7.  Search
+8.  Filters
+9.  Payment status
+10. Licence plan display
+11. Green Issue Licence
+12. Red Revoke Licence
+13. Detail drawer
+PHASE 2 — CONTROL
+14. Role-based access
+15. Super Admin
+16. @cyvoriq.com restriction
+17. Audit log
+18. State machine
+19. Duplicate protection
+20. Concurrency protection
+21. Idempotency
+PHASE 3 — LICENCE / HOST
+22. Existing licence service integration
+23. Issue operation
+24. Licence serial display
+25. Host binding
+26. Activation history
+27. Rebind workflow
+28. Resend communication
+PHASE 4 — REPORTING
+29. Licence Register
+30. Payment Register
+31. Activation Register
+32. Expiry Report
+33. Staff Activity
+34. Audit Report
+35. XLSX export
+PHASE 5 — ADVANCED
+36. Renewal
+37. Expiry alerts
+38. Usage meter
+39. Bulk operations
+40. Enterprise organizations
+41. API/webhooks
+============================================================ 81.
+ACCEPTANCE CRITERIA
+============================================================
+The design is accepted only when an authorized administrator can:
+1.  Login securely.
+2.  See customer licence requests as numbered rows.
+3.  Understand that:
+ONE ROW = ONE CUSTOMER LICENCE REQUEST
+4.  See registered email.
+5.  See User ID equal to registered email.
+6.  See PIN Code.
+7.  See the purchased/applied licence type.
+8.  See 1 / 5 / 10 / 25 / 50 mobile-device capacity.
+9.  See that every standard licence uses one Windows host workstation.
+10. See payment status.
+11. Confirm payment through a controlled action.
+12. See the row change to READY TO ISSUE after valid payment.
+13. See the Issue Licence button become GREEN only when the request is
+eligible.
+14. Issue the licence through the authoritative licence service.
+15. Never manually generate cryptographic licence material.
+16. See the issued licence serial.
+17. See who issued the licence.
+18. See when it was issued.
+19. See host binding status.
+20. See activation status.
+21. Revoke through the RED Revoke action when authorized.
+22. Enter a revocation reason.
+23. See the revocation event in the audit trail.
+24. Search by email, user ID, name or licence ID.
+25. Filter by payment, licence status, plan and host binding.
+26. Export a controlled XLSX report.
+27. Prevent duplicate issuance.
+28. Prevent simultaneous issuance by two administrators.
+29. Preserve the complete history of the licence record.
+30. Manage staff roles securely.
+31. Restrict staff accounts to the authorized CYVORIQ domain.
+32. Maintain a clean, professional desktop-first interface.
+============================================================ 82. FINAL
+FROZEN UI CONCEPT
+============================================================
+CYVORIQ LOGO
+CYVRA MOBILE
+Dashboard
+Licences
+Customers
+Reports
+Staff & Roles
+Audit Log
+Settings
+============================================================
+LICENCE REGISTRY
+============================================================
+Manage customer licence requests, payment, issuance,
+activation and control.
+[ Search email / User ID / licence ID................ ]
+[ Filters ]                     [ Export XLSX ]
+------------------------------------------------------------
+[ TOTAL ] [ PAYMENT PENDING ] [ READY TO ISSUE ]
+[ ACTIVE ] [ EXPIRING SOON ]
+------------------------------------------------------------
+No. | Registered Email | User ID | PIN | Plan | Capacity
+| Payment | Status | Host | Serial | Actions
+------------------------------------------------------------
+1
+customer@example.com
+customer@example.com
+560001
+25 Mobile Devices
+25
+PAID
+READY TO ISSUE
+NOT BOUND
+--
+[ ISSUE LICENCE ] [ REVOKE ]
+------------------------------------------------------------
+2
+another@example.com
+another@example.com
+110001
+5 Mobile Devices
+5
+PENDING
+PAYMENT PENDING
+NOT BOUND
+--
+[ ISSUE LICENCE ] [ REVOKE ]
+------------------------------------------------------------
+3
+active@example.com
+active@example.com
+400001
+10 Mobile Devices
+10
+PAID
+ACTIVE
+BOUND
+LIC-MOB-000123
+[ VIEW ] [ REVOKE ]
+------------------------------------------------------------
+============================================================ 83. FINAL
+ADMIN WORKFLOW — FROZEN
+============================================================
+CUSTOMER
+Register
+|
+v
+Verify Email OTP
+|
+v
+Purchase / Apply for CYVRA Mobile Licence
+|
+v
+Licence Request Created
+|
+v
+ADMIN
+ONE ROW = ONE CUSTOMER LICENCE REQUEST
+|
+v
+Review Customer
+|
+v
+Confirm Payment
+|
+v
+Payment = PAID
+|
+v
+Status = READY TO ISSUE
+|
+v
+GREEN: ISSUE LICENCE
+|
+v
+Backend calls authoritative licence service
+|
+v
+Signed licence credential/serial provisioned
+|
+v
+Status = ISSUED
+|
+v
+Customer receives licence information
+|
+v
+CUSTOMER
+Activate CYVRA Mobile
+|
+v
+One Windows Laptop/Desktop Host
+|
+v
+Host Binding
+|
+v
+Status = ACTIVE
+|
+v
+Process permitted mobile-device capacity
+ADMIN
+View
+Audit
+Resend
+Suspend
+Rebind
+REVOKE when required
+============================================================ 84.
+NON-NEGOTIABLE FROZEN RULES
+============================================================
+The following rules must not be changed casually during implementation:
+RULE 1 One row = one customer licence request.
+RULE 2 Customer User ID = registered email ID.
+RULE 3 Customer registration/verified identity is the source of customer
+identity; Admin should not retype the customer unnecessarily.
+RULE 4 Standard plans are 1, 5, 10, 25 and 50 mobile devices.
+RULE 5 Every standard plan is for one Windows laptop/desktop host.
+RULE 6 Mobile-device capacity is a commercial entitlement and must
+remain separate from host binding.
+RULE 7 Admin issues the licence; Admin does not manually generate the
+cryptographic licence.
+RULE 8 Existing authoritative CYVORIQ licence service remains
+responsible for signed licence provisioning.
+RULE 9 Payment must be confirmed before Issue Licence becomes available.
+RULE 10 Issue Licence is GREEN when eligible.
+RULE 11 Revoke Licence is RED and destructive.
+RULE 12 Revoke requires confirmation, reason, authorization and audit.
+RULE 13 Revoked records are not physically deleted.
+RULE 14 Payment status and licence status are separate fields.
+RULE 15 Backend authorization is mandatory; frontend state is not
+security.
+RULE 16 Duplicate and concurrent issuance must be prevented.
+RULE 17 Every high-impact administrative action must be audited.
+RULE 18 The Admin Panel is a control center, not a marketing page.
+RULE 19 Desktop is the primary Admin Panel experience.
+RULE 20 The existing CYVRA/CYVORIQ visual identity remains the baseline.
+============================================================ 85. FINAL
+DESIGN PRINCIPLE
+============================================================
+The Admin Panel must immediately answer five questions:
+WHO is the customer?
+WHAT licence did they purchase/request?
+HAS PAYMENT BEEN CONFIRMED?
+HAS THE LICENCE BEEN ISSUED / ACTIVATED?
+WHO performed the action?
+The administrator should be able to answer these questions from the
+Licence Registry without opening multiple screens.
+The most important visual and operational statement is:
+ONE ROW = ONE CUSTOMER LICENCE REQUEST
+The second most important statement is:
+ADMIN ISSUES.
+THE LICENCE ENGINE PROVISIONS.
+The third is:
+ONE WINDOWS HOST + 1 / 5 / 10 / 25 / 50 MOBILE-DEVICE CAPACITY.
+The fourth is:
+GREEN = ISSUE LICENCE.
+RED = REVOKE LICENCE.
+The fifth is:
+EVERY IMPORTANT ACTION IS AUDITABLE.
+============================================================ 86. FINAL
+PRODUCT POSITION
+============================================================
+CYVRA Mobile Admin should look and behave like a professional enterprise
+licence operations console.
+It should not feel like:
+-   a basic CRUD form
+-   a spreadsheet with random buttons
+-   a marketing dashboard
+-   a technical developer tool
+-   a cryptographic key generator
+It should feel like:
+CYVORIQ'S CONTROL CENTER FOR CYVRA MOBILE LICENCE OPERATIONS
+The administrator should open the system, immediately see the customer
+licence-request rows, understand which requests require action, confirm
+payment, issue eligible licences, revoke when authorized, and audit the
+complete history.
+The architecture should preserve the existing authoritative licence
+engine/API and improve the operational layer around it.
+This document is the frozen baseline for the CYVRA Mobile Admin Panel
+UI/UX and product workflow unless a future approved design change
+explicitly supersedes a rule in this document.
+============================================================ END OF
+DESIGN FREEZE
+============================================================

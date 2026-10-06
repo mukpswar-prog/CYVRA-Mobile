@@ -1,7 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   api,
+  PLAN_SLABS,
   type AuthUser,
+  type EntitlementResult,
+  type PlanSlab,
   type ReportDetail,
   type ReportSession,
   type ReportSummary,
@@ -40,6 +43,12 @@ export function WorkspaceApp(props: {
   const [sessions, setSessions] = useState<ReportSession[]>([]);
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [reportDetail, setReportDetail] = useState<ReportDetail | null>(null);
+  // Held outside `emptyForm` because it is a choice, not a text field: it is
+  // sent alongside the profile rather than typed into it.
+  const [plan, setPlan] = useState<PlanSlab>(PLAN_SLABS[0]);
+  // null until the first response arrives. The dashboard must never be handed
+  // a value it could mistake for real data before the server has answered.
+  const [entitlement, setEntitlement] = useState<EntitlementResult | null>(null);
 
   useEffect(() => {
     api
@@ -54,12 +63,19 @@ export function WorkspaceApp(props: {
       setSessions([]);
       setReports([]);
       setReportDetail(null);
+      setEntitlement(null);
       return;
     }
     if (props.mode === "register" || props.mode === "signin") {
       navigate("/dashboard");
     }
     let cancelled = false;
+    // Deliberately *not* inside the Promise.all below: a reports failure must
+    // not blank the licence panel, and `entitlement()` resolves rather than
+    // rejects, so one cannot take the other down with it.
+    api.entitlement().then((result) => {
+      if (!cancelled) setEntitlement(result);
+    });
     Promise.all([api.reportSessions(), api.listReports()])
       .then(([sessionRes, reportRes]) => {
         if (cancelled) return;
@@ -74,12 +90,24 @@ export function WorkspaceApp(props: {
     };
   }, [user, props.mode]);
 
+  // 401 means the session died while the page was open. Send them to sign-in
+  // rather than rendering an empty dashboard or - worse - a placeholder.
+  useEffect(() => {
+    if (entitlement?.kind !== "unauthenticated") return;
+    setUser(null);
+    navigate("/sign-in");
+  }, [entitlement]);
+
   function setField(name: keyof typeof emptyForm, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
   async function requestCustomerCode() {
-    const r = await api.requestOtp(form);
+    // `plan` travels on the same body as the profile. The server snapshots it
+    // onto `email_otp_challenges.device_max` when it issues the code, so the
+    // plan the customer picked is the plan the licence is created with - it
+    // cannot be swapped between asking for a code and entering it.
+    const r = await api.requestOtp({ ...form, plan });
     setChallengeId(r.challengeId);
     setDevCode(r.devCode);
     setMailError(r.mailError ?? "");
@@ -138,6 +166,8 @@ export function WorkspaceApp(props: {
     setDevCode(undefined);
     setMailError("");
     setNotice("");
+    setEntitlement(null);
+    setPlan(PLAN_SLABS[0]);
     navigate("/");
   }
 
@@ -183,6 +213,7 @@ export function WorkspaceApp(props: {
     return (
       <CustomerDesktopShell
         user={user}
+        entitlement={entitlement}
         sessions={sessions}
         reports={reports}
         reportDetail={reportDetail}
@@ -276,6 +307,36 @@ export function WorkspaceApp(props: {
                 onChange={(e) => setField("email", e.target.value)}
                 required
               />
+
+              <fieldset className="plan-picker">
+                <legend>Plan *</legend>
+                <p className="muted small plan-picker__hint">
+                  How many devices this licence covers. Your choice is recorded
+                  when the sign-in code is issued, and that is the plan your
+                  licence is created with.
+                </p>
+                <div className="plan-picker__options">
+                  {PLAN_SLABS.map((slab) => (
+                    <label
+                      key={slab}
+                      className={plan === slab ? "plan-option is-selected" : "plan-option"}
+                    >
+                      <input
+                        type="radio"
+                        name="plan"
+                        value={slab}
+                        checked={plan === slab}
+                        onChange={() => setPlan(slab)}
+                      />
+                      <span className="plan-option__count">{slab}</span>
+                      <span className="plan-option__unit">
+                        {slab === 1 ? "device" : "devices"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
               <p className="muted small">
                 By continuing you agree to the applicable{" "}
                 <Link href="/terms">Terms</Link>,{" "}
