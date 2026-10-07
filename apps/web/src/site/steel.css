@@ -885,6 +885,85 @@
 }
 
 /* --------------------------------------------------------------------- *
+ * Spec 7 - primary actions, and the Spec 9 / 11 form controls
+ * --------------------------------------------------------------------- */
+
+.ws-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.ws-actions > * {
+  width: 100%;
+}
+
+.ws-field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ws-label {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ws-text);
+}
+
+.ws-input {
+  width: 100%;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ws-text);
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border-strong);
+  border-radius: var(--ws-radius-sm);
+}
+
+.ws-input:focus-visible {
+  outline: 2px solid var(--ws-action-solid);
+  outline-offset: 1px;
+}
+
+.ws-input[readonly] {
+  background: var(--ws-surface-alt);
+  color: var(--ws-text-muted);
+}
+
+.ws-field-block--invalid .ws-input {
+  border-color: var(--ws-danger-border);
+}
+
+.ws-hint {
+  font-size: 12px;
+  color: var(--ws-text-muted);
+}
+
+/* Text, never colour alone (Spec 4). */
+.ws-error {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ws-danger-fg);
+}
+
+/*
+ * Spec 72 - "Form controls must have proper labels, focus indicators, and
+ * error states." The purchase form added real controls, so every control in
+ * the kit shows its focus ring rather than only the ones that happen to be
+ * text fields.
+ */
+.ws-btn:focus-visible,
+.ws-nav__btn:focus-visible,
+.ws-nav-toggle:focus-visible,
+.ws-nav__close:focus-visible,
+a.ws-btn:focus-visible {
+  outline: 2px solid var(--ws-action-solid);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------- *
  * Responsive (Spec 71)
  * --------------------------------------------------------------------- */
 
