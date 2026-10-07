@@ -55,9 +55,9 @@ Not a claim; observed:
 
 ## A.4 Loose ends deliberately left open at closure
 
-1. **Migration 0009 is not applied to Neon.** Files only (`0009_payment_method.sql`, `meta/0009_snapshot.json`, journal idx 9). The Chief Engineer applies it manually — as ruled.
-2. **The `feature/ws-h2-registry-polish` branch still exists on the remote** after merge (PR #47). Safe to delete; not deleted here.
-3. **The main checkout `C:\Users\User\Documents\GitHub\CYVRA-Mobile` is parked and dirty.** It sits on `audit-and-planning-2026-09-26` @ `c1a43c7` with ~10 modified/untracked files (`docs/KEY_ROTATION_2026-10-01.md` staged, `0006_*.sql`, `activation.ts`, `entitlementSigner.ts`…). Per `docs/SESSION_HANDOFF_2026-09-29.md` §2 that checkout is **PARKED — do not work here**. It has *not* been touched, committed, or discarded. **It needs a ruling: commit as an archive, or discard.**
+1. **AMENDED 07-Oct-2026 (C1) — migration 0009 WAS applied to Neon production manually by the Chief Engineer on 06-Oct-2026 ~21:34 IST, and verified by SQL.** Verified read-only 07-Oct: `pg_type.payment_method_enum` exists (`typtype='e'`, schema `public`); `pg_enum` returns the 7 labels in ruling order (UPI, BANK_TRANSFER, CARD, NET_BANKING, CASH, CHEQUE, OTHER — `enumsortorder` 1–7); `information_schema` shows `payments.payment_method` of type `payment_method_enum` (nullable, no default). **Do NOT re-apply 0009** — the file uses a bare `CREATE TYPE` with no `IF NOT EXISTS`, so a re-run fails with *type already exists*. Repo files remain `0009_payment_method.sql` + `meta/0009_snapshot.json`, journal idx 9. See N1: the drizzle tracker is 2 migrations behind the physical schema.
+2. **The `feature/ws-h2-registry-polish` branch** deleted 07-Oct-2026 (Task B: git push origin --delete feature/ws-h2-registry-polish, [deleted], exit 0; remote heads 11->10).
+3. **Patch H (C4 truth, 07-Oct-2026) — the parked checkout is a FROZEN INVENTORY, not a dirty tree.** The main checkout `C:\Users\User\Documents\GitHub\CYVRA-Mobile` sits on `audit-and-planning-2026-09-26` @ **`7586644`** (`chore: archive parked admin-ops work before break`), **in sync with `origin/audit-and-planning-2026-09-26` with a clean working tree** (verified read-only 07-Oct-2026). The parked work was **committed, not discarded and not left dirty**: a **FROZEN INVENTORY of 18 files, 4,321 insertions(+), 45 deletions(-)** — `database/migrations/0006_admin_licence_ops.sql`, `0006_dashing_vertigo.sql`, `meta/0006_snapshot.json`, `meta/_journal.json`, `database/src/schema.ts`, `docs/ADMIN_OPS_RECON_2026-10-01.md`, `docs/KEY_ROTATION_2026-10-01.md`, `services/api/src/{activation,admin,entitlementSigner,env,index,licenceKey}.ts`, `services/api/test/{activation,adminRedaction,entitlementSigner}.test.ts`, `apps/web/src/api.ts`, `apps/web/src/site/AdminApp.tsx`. Per `docs/SESSION_HANDOFF_2026-09-29.md` §2 that checkout remains **PARKED — do not work here**. **Do not amend, revert, rebase, reset, or delete this branch or commit; it is the frozen record of pre-merge admin-ops work, including the superseded `0006_admin_licence_ops.sql` tracked at N5.** This supersedes the earlier wording that called this tree dirty with ~10 uncommitted files (and mis-cited the commit as `c1a43c7`, which is `phase2-correct`) and left a "commit as archive, or discard" ruling open — **C4 rules it archived and frozen.**
 4. **Recorded deviations awaiting disposition** from the WS-H2 report: §65 label drift vs §13, "Plan" vs "Licence Plan" in §56, mixed CSV header naming, `docs/P2B-SERVER-GAPS.md` still quoting the old `paymentStatusesFor` name (now `paymentsFor`), and the two-runtime duplication of the IST formatter and payment vocabulary.
 
 ---
@@ -72,7 +72,7 @@ Not a claim; observed:
 | **RBAC / permission matrix** — 60 cells, §41 exact | `answers all 60 cells the way §41 does` |
 | **Audit trail** — single insertion path, append-only, 3 immutability triggers from 0007 | `one insertion path` suite; route-coverage suite throws at load for an unclassified write |
 | **Atomic issue (Path 6B)** — one transaction, one audit row, email bookkeeping | WS-H1 |
-| **Payment confirmation** — `paymentMethod` enum, atomic gate inside the transaction, replay-safe | WS-H2, migration 0009 (files) |
+| **Payment confirmation** — `paymentMethod` enum, atomic gate inside the transaction, replay-safe | WS-H2, migration 0009 (applied to Neon 06-Oct-2026 21:34 IST; verified 07-Oct) |
 | **Admin console** — table-first registry, drawer, staff, audit, reports, KPIs, server-side search/filters/pagination | `apps/web/src/admin/*` (~50 files), 261 web tests |
 | **Design Freeze conformance** — §13/§65 columns, §58 IST, §19 date style, §12 subtitle, §56 export, §57 filename | WS-H2, all gates green |
 | **Registration bridge (WS-A)** — plan snapshot onto OTP challenge, self-healing on every sign-in | `registration.ts`, `bridge.ts`, `entitlement.ts` |
@@ -289,5 +289,5 @@ gates           typecheck 0 · test 0 (753 = 71/261/26/395) · wrangler dry-run 
 live admin      https://admin.cyvoriq.co.in     REGISTERED EMAIL + Export XLSX observed
 live www        https://cyvoriq.co.in/dashboard  entitlement live; device panels simulated
 live API        https://api.cyvoriq.co.in        /v1/me/entitlement healthy
-migration       0009_payment_method.sql         NOT applied to Neon (by ruling)
+migration       0009_payment_method.sql         APPLIED to Neon 06-Oct-2026 ~21:34 IST (verified 07-Oct); DO NOT RE-APPLY; drizzle tracker still at 0007 (N1)
 ```
