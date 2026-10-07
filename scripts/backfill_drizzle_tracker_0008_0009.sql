@@ -67,12 +67,10 @@
 -- `git show main:<path>`, so the values below are checkout-independent.
 --
 -- ------------------------------------------------------------------------------------
--- (a) FILE-NUMBERING HAZARD -- FLAGGED, UNRESOLVED
+-- (a) FILE-NUMBERING HAZARD - RESOLVED 07-Oct-2026 by relocation to scripts/
 -- ------------------------------------------------------------------------------------
--- This file is named 0010_* by order. drizzle-kit's next `generate` will also be
--- numbered 0010 (snapshots currently end at 0009), producing a second 0010_* file.
--- They would not collide by filename but would share a numeric prefix.
--- RENAME TO A NON-MIGRATORY PATH (e.g. scripts/) OR RESERVE 0010 BEFORE MERGING.
+-- (commit b082af5). Manual runbook, not a drizzle migration; 0010 reserved
+-- for the first Workspace schema migration (A6).
 --
 -- ------------------------------------------------------------------------------------
 -- (b) THIS FILE MUST NOT BE ADDED TO migrations/meta/_journal.json
