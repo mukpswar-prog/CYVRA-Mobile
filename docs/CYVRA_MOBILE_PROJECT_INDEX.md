@@ -75,7 +75,9 @@ Do **not** start from:
 
 When documents disagree, use this order:
 
-1. safety/compliance prohibition,
+1. safety/compliance prohibition, **and — within its own scope — the Design Freeze**
+   (`docs/design-freeze/admin-panel-design-freeze.txt` @ `73d3f3a`), the **Supreme UI/Admin
+   Contract**; see §2.1,
 2. Canonical Engineering Guideline,
 3. Final Forensic/System-Design Baseline,
 4. this Project Index,
@@ -89,6 +91,38 @@ Additional rules:
 - historical “DONE” wording never overrides actual maturity evidence;
 - stronger privacy/safety restriction remains in force unless explicitly amended;
 - archived files preserve history but cannot direct new implementation.
+
+---
+
+## 2.1 Design Freeze — Supreme UI/Admin Contract
+
+| Field | Value |
+|---|---|
+| Path | `docs/design-freeze/admin-panel-design-freeze.txt` |
+| Frozen at | `73d3f3a` — *docs: add ratified Design Freeze v1.0 (05-Oct-2026) as frozen baseline* |
+| Status | `ACTIVE-GOVERNING` — **Precedence Level 1** |
+| Scope | UI and admin-console matters: layout, column order, labels, date/time format, time zone, export shape, interaction rules |
+| Ruling | Chief Engineer, 07-Oct-2026 (finding N4) |
+
+**What this entry changes.** Before this amendment the Design Freeze was not catalogued anywhere in
+this index, which left it falling to tier 5 ("active component contracts"), where
+`CYVRA_MOBILE_FINAL_FORENSIC_SYSTEM_DESIGN_BASELINE_2026-09-19.md` §0.1 rule 5 would let the two
+governing documents override it whenever it was judged to conflict. The Chief Engineer ruling of
+07-Oct-2026 resolves that: **the Standing Protocol overrides this index, and the Design Freeze is
+catalogued at Precedence Level 1.**
+
+**It overrides older UI guidelines.** Any earlier UI or admin-console instruction — in this index, in
+an older freeze guide, in a customer or admin manual, in an implementation or rectification plan, or
+under `docs/archive/` — that disagrees with the Design Freeze on a UI or admin-console question is
+superseded. This applies to §1 and §2 as they read before this amendment.
+
+**It does not weaken safety.** Safety and compliance prohibitions sit at Level 1 alongside it and are
+never weakened (Final Forensic Baseline §0.1 rule 1). Where the Design Freeze and a safety or
+compliance prohibition genuinely collide, the prohibition wins and the collision is escalated for
+ruling; it is never silently resolved against safety.
+
+**Verification.** `git diff --stat 73d3f3a main -- docs/design-freeze` is empty: the frozen text on
+`main` is byte-identical to the LAW snapshot.
 
 ---
 
@@ -120,6 +154,7 @@ No current CYVRA Mobile document is authorized for immediate deletion solely bec
 | `docs/CYVRA_MOBILE_CANONICAL_ENGINEERING_GUIDELINE_2026-09-19.md` | `ACTIVE-GOVERNING` | Canonical objective, architecture, maturity model, engineering process |
 | `docs/CYVRA_MOBILE_FINAL_FORENSIC_SYSTEM_DESIGN_BASELINE_2026-09-19.md` | `ACTIVE-GOVERNING` | Forensic defects, mitigations, macro program |
 | `docs/CYVRA_MOBILE_PROJECT_INDEX.md` | `ACTIVE-GOVERNING` | Navigation, ownership, document classification, archive policy |
+| `docs/design-freeze/admin-panel-design-freeze.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** | Supreme UI/Admin Contract; frozen at `73d3f3a`; overrides older UI guidelines within UI/admin scope (§2.1) |
 
 Long-term target: the three documents under `docs/` become the permanent primary governance set after root `GUIDELINE.md` has been safely consolidated.
 
