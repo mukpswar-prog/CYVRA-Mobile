@@ -1,0 +1,291 @@
+# WS-I RELEASE PIPELINE — Windows installer -> Cloudflare -> build-manifest.json
+#
+# ============================================================================
+# STATUS: DRAFT (E10) — NOT WIRED TO PRODUCTION. NEVER RUNS ON PUSH.
+# ============================================================================
+#
+# Why this file exists
+# --------------------
+# The Windows Engineering Build (.github/workflows/windows-engineering-build.yml)
+# produces a ~115 MB artifact named `cyvra-mobile-windows-unsigned-engineering-artifact`,
+# but NOTHING in this repository ever published it. `apps/web/public/build-manifest.json`
+# has read `state: "unavailable"` since it was created in c755ab4 (04-Oct-2026), which is
+# why `cyvoriq.co.in/dashboard` shows `VERSION - Build unavailable` and
+# "No installer published yet". All four existing workflows were grepped: zero references
+# to `build-manifest`. The "release job" that the manifest's own `_readme` describes was
+# never written. This is that job, in draft.
+#
+# Safety model (why this cannot damage production on its own)
+# -----------------------------------------------------------
+#   1. Trigger is `workflow_dispatch` ONLY. No push, no schedule, no tag.
+#   2. `publish` defaults to `false` -> pure dry run: download + digest + write the
+#      manifest into the workspace, print it, print `git diff`, commit NOTHING,
+#      upload NOTHING.
+#   3. The R2 / Workers Assets step is an UNIMPLEMENTED PLACEHOLDER. If anyone sets
+#      `publish: true` before it is wired, it fails closed (exit 1) BEFORE the commit
+#      step. A manifest can therefore never describe a build that was not released —
+#      which is exactly the invariant `build-manifest.json`'s `_readme` promises.
+#   4. Every produced manifest is validated against a re-implementation of
+#      `normalizeBuild()` (services/api/src/entitlement.ts) before it is shown, so a
+#      draft that would be silently rejected by the API fails the run instead.
+#
+# Wire-value ruling (Chief Engineer, 07-Oct-2026, TASK K)
+# -------------------------------------------------------
+#   ON SCREEN (spec 14, "BUILD AVAILABLE")  <=>  ON THE WIRE: state = "published"
+#
+#   `normalizeBuild()` at services/api/src/entitlement.ts:131 returns
+#   `UNAVAILABLE_BUILD` for any `state` other than the exact string "published".
+#   Writing "available" (the screen label) would make the pipeline run green while the
+#   dashboard STILL reads "Build unavailable". The Chief Engineer ratified "published"
+#   as the value this job writes.
+#
+# Manual trigger: GitHub -> Actions -> WS-I Release Windows Installer -> Run workflow
+# See docs/WS-I_RELEASE_PIPELINE_DRAFT.md for the fully manual runbook that stands in
+# until Cloudflare R2 / Workers Assets hosting is configured.
+# ============================================================================
+
+name: WS-I Release Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Version string to publish, e.g. v0.1.0. Required when publish=true."
+        required: false
+        default: ""
+      release_url:
+        description: "Public HTTPS URL the ZIP will be served from. Required when publish=true."
+        required: false
+        default: ""
+      publish:
+        description: "DRAFT SAFETY. false = dry run (commits nothing, uploads nothing). Set true only after R2/Workers Assets is configured."
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write # used ONLY by the publish-gated commit step
+  actions: read # locate the upstream Windows Engineering Build artifact
+
+concurrency:
+  group: ws-i-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Stage installer, digest, publish manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      BUILD_WORKFLOW: windows-engineering-build.yml
+      ARTIFACT_NAME: cyvra-mobile-windows-unsigned-engineering-artifact
+      MANIFEST: apps/web/public/build-manifest.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # ---------------------------------------------------------------------
+      # (a) Locate + download the latest SUCCESSFUL engineering-build artifact.
+      # ---------------------------------------------------------------------
+      - name: Resolve latest successful Windows Engineering Build
+        id: src
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          RUN_ID="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${BUILD_WORKFLOW}/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')"
+          if [ -z "${RUN_ID}" ]; then
+            echo "::error::No successful '${BUILD_WORKFLOW}' run found. Dispatch it first."
+            exit 1
+          fi
+
+          ARTIFACT_ID="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts" \
+            --jq "[.artifacts[] | select(.name==\"${ARTIFACT_NAME}\" and .expired==false)][0].id // empty")"
+          if [ -z "${ARTIFACT_ID}" ]; then
+            echo "::error::Artifact '${ARTIFACT_NAME}' is missing or EXPIRED on run ${RUN_ID}. GitHub retains artifacts for 90 days — re-run the Windows Engineering Build."
+            exit 1
+          fi
+
+          echo "run_id=${RUN_ID}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_id=${ARTIFACT_ID}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved build run ${RUN_ID}, artifact ${ARTIFACT_ID}"
+
+      - name: Download artifact ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${{ steps.src.outputs.artifact_id }}/zip" \
+            -o cyvra-mobile-windows-release.zip
+          echo "Downloaded $(stat -c%s cyvra-mobile-windows-release.zip) bytes"
+
+      # ---------------------------------------------------------------------
+      # (b) SHA-256 of the exact bytes that would be handed to the customer.
+      # ---------------------------------------------------------------------
+      - name: Digest the ZIP (SHA-256 + size)
+        id: digest
+        run: |
+          set -euo pipefail
+
+          SHA256="$(sha256sum cyvra-mobile-windows-release.zip | cut -d' ' -f1 | tr 'A-F' 'a-f')"
+          SIZE_BYTES="$(stat -c%s cyvra-mobile-windows-release.zip)"
+
+          # The API lowercases and pattern-checks this exact field
+          # (services/api/src/entitlement.ts:128 — /^[0-9a-f]{64}$/i).
+          if ! printf '%s' "${SHA256}" | grep -Eq '^[0-9a-f]{64}$'; then
+            echo "::error::SHA-256 '${SHA256}' is not 64 lowercase hex chars; normalizeBuild() would reject it."
+            exit 1
+          fi
+          if [ "${SIZE_BYTES}" -le 0 ]; then
+            echo "::error::sizeBytes ${SIZE_BYTES} is not > 0; normalizeBuild() would reject it."
+            exit 1
+          fi
+
+          echo "sha256=${SHA256}" >> "${GITHUB_OUTPUT}"
+          echo "size_bytes=${SIZE_BYTES}" >> "${GITHUB_OUTPUT}"
+          echo "SHA-256 ${SHA256}"
+          echo "sizeBytes ${SIZE_BYTES}"
+
+      # ---------------------------------------------------------------------
+      # (c) PLACEHOLDER — Cloudflare R2 / Workers Assets upload.
+      #
+      # NOT IMPLEMENTED. Deliberately fails CLOSED when publish=true so that a
+      # manifest can never be committed for an upload that did not happen.
+      # ---------------------------------------------------------------------
+      - name: "PLACEHOLDER: upload to Cloudflare R2 / Workers Assets"
+        id: upload
+        env:
+          PUBLISH: ${{ inputs.publish }}
+          RELEASE_URL: ${{ inputs.release_url }}
+        run: |
+          set -euo pipefail
+
+          if [ "${PUBLISH}" != "true" ]; then
+            echo "::notice::DRY RUN — R2 / Workers Assets upload SKIPPED. Nothing leaves this runner."
+            echo "url=${RELEASE_URL}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "::error::PLACEHOLDER NOT IMPLEMENTED — Cloudflare R2 / Workers Assets hosting is not configured. Refusing to publish. Wire this step first (see docs/WS-I_RELEASE_PIPELINE_DRAFT.md)."
+          exit 1
+
+      # ---------------------------------------------------------------------
+      # (d) Update apps/web/public/build-manifest.json (workspace only).
+      #     Node (not jq) so the same code is unit-testable before it ships;
+      #     existing keys are updated in place so `_readme` is preserved.
+      # ---------------------------------------------------------------------
+      - name: Update build-manifest.json (workspace, not committed here)
+        id: manifest
+        env:
+          VERSION: ${{ inputs.release_version }}
+          PUBLISH: ${{ inputs.publish }}
+          SHA256: ${{ steps.digest.outputs.sha256 }}
+          SIZE_BYTES: ${{ steps.digest.outputs.size_bytes }}
+          RELEASE_URL: ${{ steps.upload.outputs.url }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const MANIFEST = process.env.MANIFEST;
+          const VERSION = (process.env.VERSION || "").trim();
+          const SHA256 = process.env.SHA256 || "";
+          const SIZE = Number(process.env.SIZE_BYTES);
+          const URL = (process.env.RELEASE_URL || "").trim();
+          const PUBLISH = process.env.PUBLISH === "true";
+
+          if (PUBLISH && VERSION === "") {
+            console.error("::error::release_version is required when publish=true.");
+            process.exit(1);
+          }
+
+          const current = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
+
+          const next = {
+            ...current, // preserves _readme and the existing key order
+            state: "published",
+            version: VERSION === "" ? null : VERSION,
+            sha256: SHA256.toLowerCase(),
+            sizeBytes: SIZE,
+            // url may be null in a dry run; normalizeBuild() permits null.
+            url: URL === "" ? null : URL,
+            releasedAt: new Date().toISOString(),
+          };
+
+          fs.writeFileSync(MANIFEST, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+
+          console.log(`----- ${MANIFEST} as produced by this run (NOT committed in a dry run) -----`);
+          console.log(fs.readFileSync(MANIFEST, "utf8"));
+          NODE
+
+      # ---------------------------------------------------------------------
+      # Gate — prove the produced file would actually be accepted by the API.
+      # Mirrors normalizeBuild() in services/api/src/entitlement.ts.
+      # ---------------------------------------------------------------------
+      - name: Validate manifest against normalizeBuild() contract
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+          const MANIFEST = process.env.MANIFEST;
+          const m = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
+
+          const checks = [
+            ['state === "published"', m.state === "published"],
+            ["version is a non-empty string", typeof m.version === "string" && m.version.trim() !== ""],
+            ["sha256 matches /^[0-9a-f]{64}$/", typeof m.sha256 === "string" && /^[0-9a-f]{64}$/i.test(m.sha256)],
+            ["sizeBytes is a finite number > 0", typeof m.sizeBytes === "number" && Number.isFinite(m.sizeBytes) && m.sizeBytes > 0],
+            ["url is null or https://", m.url === null || (typeof m.url === "string" && /^https:\/\//.test(m.url))],
+            ["releasedAt is a parseable date", typeof m.releasedAt === "string" && Number.isFinite(Date.parse(m.releasedAt))],
+          ];
+
+          let failed = false;
+          for (const [label, ok] of checks) {
+            console.log(`${ok ? "  PASS" : "  FAIL"}  ${label}`);
+            if (!ok) failed = true;
+          }
+
+          if (failed) {
+            console.error(
+              "::error::The produced manifest would be rejected by normalizeBuild() and the dashboard would stay on 'Build unavailable'.",
+            );
+            process.exit(1);
+          }
+          console.log("normalizeBuild() gate PASS — dashboard would flip to BUILD AVAILABLE.");
+          NODE
+
+      - name: Show diff
+        run: |
+          set -euo pipefail
+          echo "Workspace diff produced by this run:"
+          git --no-pager diff -- "${MANIFEST}"
+          git --no-pager status --short
+
+      # ---------------------------------------------------------------------
+      # Commit gate — reachable ONLY if publish=true, and the placeholder
+      # upload step already hard-fails that case, so this cannot commit today.
+      # ---------------------------------------------------------------------
+      - name: Commit manifest update
+        if: ${{ inputs.publish == true }}
+        env:
+          VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          echo "Publishing ${VERSION}."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${MANIFEST}"
+          git commit -m "release: publish ${VERSION} installer manifest (WS-I)"
+          git push
