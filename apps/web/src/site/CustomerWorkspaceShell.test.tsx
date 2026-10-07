@@ -7,10 +7,20 @@
  *   Spec 90  the left navigation is exactly the eight prescribed sections,
  *            in order, and nothing else;
  *   Spec 89  the top bar carries the identity strip and the two actions;
+ *   Spec 6/7/91/92  the Overview answers its five questions, offers the four
+ *            primary actions and states what needs attention;
+ *   Spec 8/9/10/11  the purchase area takes its options from the licence
+ *            policy, validates a mandatory Indian PIN, and never claims to
+ *            have sent a request that no endpoint accepts;
+ *   Spec 12  an issued licence reads as delivered to the registered email;
  *   Spec 13/14  build availability is driven by release state, and a missing
  *            release renders as unavailable rather than as a working download;
  *   Spec 15  the approved Update / Upgrade behaviour survived the redesign;
+ *   Spec 88  Licence & usage carries the prescribed field list, with explicit
+ *            absences where the service reports nothing;
  *   Section 58  dates render in IST through the shared formatter;
+ *   WS-K1-09  the update check reports the real release manifest, including
+ *            its two honest "nothing here" answers;
  *   Master Plan Section 6  no forbidden token and no simulated device or
  *            network state reaches the rendered output.
  *
@@ -20,7 +30,12 @@
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BuildManifest, EntitlementResult } from "../api";
+import {
+  PLAN_SLABS,
+  type BuildManifest,
+  type Entitlement,
+  type EntitlementResult,
+} from "../api";
 import { ADMIN_TIME_ZONE, formatDateTime } from "../admin/format/datetime";
 import { CustomerWorkspaceShell, WORKSPACE_NAV } from "./CustomerWorkspaceShell";
 
@@ -67,29 +82,34 @@ const NAV_LABELS = [
   "HELP",
 ];
 
-function entitlementResult(build: Partial<BuildManifest> = {}): EntitlementResult {
+function entitlementResult(
+  build: Partial<BuildManifest> = {},
+  overrides: Partial<Entitlement> = {},
+): EntitlementResult {
+  const base: Entitlement = {
+    customer: { companyName: "Acme Labs", email: "ops@acme.example" },
+    plan: { code: "PLAN_1", slab: "1", label: "1 Device Scans" },
+    licence: { status: "ACTIVE", sentence: "Active", maskedSerial: "CYVRA****0001" },
+    payment: { state: "known", status: "PAID", sentence: "Payment received" },
+    validity: { state: "unknown", startsAt: null, endsAt: null },
+    usage: {
+      activation: { activatedAt: null, hostBinding: "NOT_BOUND" },
+      scans: { state: "available-after-first-scan" },
+    },
+    build: {
+      state: "unavailable",
+      version: null,
+      sha256: null,
+      sizeBytes: null,
+      url: null,
+      releasedAt: null,
+      ...build,
+    },
+  };
+  const { build: buildOverride, ...rest } = overrides;
   return {
     kind: "ok",
-    entitlement: {
-      customer: { companyName: "Acme Labs", email: "ops@acme.example" },
-      plan: { code: "PLAN_1", slab: "1", label: "1 Device Scans" },
-      licence: { status: "ACTIVE", sentence: "Active", maskedSerial: "CYVRA****0001" },
-      payment: { state: "known", status: "PAID", sentence: "Payment received" },
-      validity: { state: "unknown", startsAt: null, endsAt: null },
-      usage: {
-        activation: { activatedAt: null, hostBinding: "unbound" },
-        scans: { state: "available-after-first-scan" },
-      },
-      build: {
-        state: "unavailable",
-        version: null,
-        sha256: null,
-        sizeBytes: null,
-        url: null,
-        releasedAt: null,
-        ...build,
-      },
-    },
+    entitlement: { ...base, ...rest, build: { ...base.build, ...buildOverride } },
   };
 }
 
@@ -397,36 +417,44 @@ describe("Spec 15: update and upgrade behaviour survived the redesign", () => {
     fireEvent.click(screen.getByRole("banner").querySelector('button[title="Check for software updates"]')!);
 
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText(/Secure Software Update/)).toBeTruthy();
+    expect(within(dialog).getByText(/Software Update/)).toBeTruthy();
     expect(
-      within(dialog).getByRole("button", { name: /Check for signed updates/ }),
+      within(dialog).getByRole("button", { name: /Check for updates/ }),
     ).toBeTruthy();
   });
 
-  it("runs check -> stage -> roll back without changing the approved flow", () => {
-    vi.useFakeTimers();
-    renderShell({ entitlement: entitlementResult({ version: "1.4.0" }) });
+  it("runs check -> download -> discard against the real manifest", async () => {
+    renderShell({
+      entitlement: entitlementResult({ version: "1.4.0" }),
+      refreshEntitlement: async () =>
+        entitlementResult({
+          state: "published",
+          version: "1.4.0",
+          sha256: "b".repeat(64),
+          sizeBytes: 5_000_000,
+          url: "https://releases.example.com/cyvra-mobile-windows.zip",
+          releasedAt: "2026-10-05T04:12:00.000Z",
+        }),
+    });
     fireEvent.click(screen.getByRole("banner").querySelector('button[title="Check for software updates"]')!);
 
     const dialog = screen.getByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /Check for signed updates/ }));
-
-    act(() => {
-      vi.advanceTimersByTime(1100);
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: /Check for updates/ }));
     });
-    expect(within(dialog).getByText(/New signed release available/)).toBeTruthy();
+
+    expect(within(dialog).getByText(/Published release available: v1.4.0/)).toBeTruthy();
+    // Section 58 - the release date is rendered in IST through the formatter.
+    expect(within(dialog).getByText("05-Oct-2026 09:42 IST")).toBeTruthy();
 
     fireEvent.click(
-      within(dialog).getByRole("button", { name: /Download, verify & stage update/ }),
+      within(dialog).getByRole("button", { name: /Download published package/ }),
     );
-    act(() => {
-      vi.advanceTimersByTime(3400);
-    });
-    expect(within(dialog).getByText(/verified and staged/)).toBeTruthy();
+    expect(within(dialog).getByText(/Package download started/)).toBeTruthy();
 
-    fireEvent.click(within(dialog).getByRole("button", { name: /Roll back staged update/ }));
-    // The panel's title and body both say "rolled back" — assert on the heading.
-    expect(within(dialog).getByRole("heading", { name: /rolled back/i })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: /Discard downloaded package/ }));
+    // The panel's title and body both say "discarded" — assert on the heading.
+    expect(within(dialog).getByRole("heading", { name: /discarded/i })).toBeTruthy();
   });
 
   it("keeps the change-plan dialog honest about the missing endpoint", () => {
@@ -437,6 +465,300 @@ describe("Spec 15: update and upgrade behaviour survived the redesign", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/no endpoint/i)).toBeTruthy();
     expect(within(dialog).queryByRole("button", { name: /confirm|pay|upgrade now/i })).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * WS-K1-09 - the update check reports the manifest, not a story
+ * ------------------------------------------------------------------ */
+
+describe("WS-K1-09: the update check reports the release manifest", () => {
+  /**
+   * The values the pre-Phase-3 implementation printed out of literals.
+   *
+   * Assembled from fragments for the same reason `FORBIDDEN_TOKENS` is: a
+   * grep over customer-facing code for any of them must return zero, and an
+   * assertion that spelled them out would fail its own gate.
+   */
+  const INVENTED = [
+    join(["3", "2", "2-g5"], "."),
+    join(["Ed", "25519"], ""),
+    `/${join(["opt", "cyvra", "updates", "staged"], "/")}`,
+    join(["Delta", "Package"], " "),
+  ];
+
+  async function openUpdateManager(
+    overrides: Partial<Parameters<typeof CustomerWorkspaceShell>[0]> = {},
+  ) {
+    renderShell({
+      entitlement: entitlementResult(),
+      refreshEntitlement: async () => entitlementResult(),
+      ...overrides,
+    });
+    fireEvent.click(
+      screen.getByRole("banner").querySelector('button[title="Check for software updates"]')!,
+    );
+    const dialog = screen.getByRole("dialog");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: /Check for updates/ }));
+    });
+    return dialog;
+  }
+
+  it("answers honestly that no release is published", async () => {
+    const dialog = await openUpdateManager();
+
+    expect(within(dialog).getByRole("heading", { name: /No release published/ })).toBeTruthy();
+    expect(within(dialog).getByText(/state "unavailable"/)).toBeTruthy();
+    expect(
+      within(dialog).queryByRole("button", { name: /stage update/i }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: /Return to update manager/ }),
+    ).toBeTruthy();
+  });
+
+  it("reports a failed read as a failure rather than as a release", async () => {
+    const dialog = await openUpdateManager({
+      refreshEntitlement: async () => ({ kind: "unavailable", message: "503" }),
+    });
+
+    expect(within(dialog).getByRole("heading", { name: /could not be read/i })).toBeTruthy();
+    expect(within(dialog).getByText(/503/)).toBeTruthy();
+  });
+
+  it("prints no invented release data anywhere in the Workspace", async () => {
+    await openUpdateManager();
+    for (const label of NAV_LABELS) goToNav(label);
+    const text = renderedText();
+    for (const value of INVENTED) {
+      expect(text).not.toContain(value);
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Spec 6 / 7 / 91 / 92 - the Overview
+ * ------------------------------------------------------------------ */
+
+describe("Spec 6/7/91/92: the Overview answers at a glance", () => {
+  it("shows the summary figures Spec 6 prescribes", () => {
+    renderShell({ entitlement: entitlementResult({ version: "1.4.0" }) });
+    for (const label of [
+      "Customer",
+      "Licence",
+      "Licence status",
+      "Application",
+      "Device activity",
+      "Reports",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("v1.4.0").length).toBeGreaterThan(0);
+    expect(screen.getByText("customer@example.com")).toBeTruthy();
+  });
+
+  it("states plainly when nothing needs attention", () => {
+    renderShell({
+      entitlement: entitlementResult({
+        state: "published",
+        version: "1.4.0",
+        sha256: "a".repeat(64),
+        url: "https://releases.example.com/cyvra-mobile-windows.zip",
+      }),
+    });
+    expect(screen.getByText(/Nothing needs your attention/)).toBeTruthy();
+  });
+
+  it("flags the unpublished release when there is no build", () => {
+    renderShell({ entitlement: entitlementResult() });
+    expect(
+      screen.getByText(/No CYVRA Mobile build has been published yet/),
+    ).toBeTruthy();
+  });
+
+  it("offers the four primary actions Spec 7 lists", () => {
+    renderShell({ entitlement: entitlementResult() });
+    for (const name of [
+      "Purchase CYVRA Mobile",
+      "Download Application (no published build)",
+      "Open Reporting & Audit",
+      "View Device Activity",
+    ]) {
+      expect(screen.getByRole("button", { name })).toBeTruthy();
+    }
+  });
+
+  it("offers the download as an orange link only when a release exists", () => {
+    renderShell({
+      entitlement: entitlementResult({
+        state: "published",
+        version: "1.4.0",
+        sha256: "a".repeat(64),
+        url: "https://releases.example.com/cyvra-mobile-windows.zip",
+      }),
+    });
+    const link = screen.getByRole("link", { name: "Download Application" });
+    expect(link.getAttribute("href")).toBe(
+      "https://releases.example.com/cyvra-mobile-windows.zip",
+    );
+    expect(link.className).toContain("ws-btn--action");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Spec 12 - the acceptance row
+ * ------------------------------------------------------------------ */
+
+describe("Acceptance: CYVRA06102026SC60B-1-1 (ISSUED, NOT_BOUND)", () => {
+  /** The live Neon row, as `GET /v1/me/entitlement` projects it. */
+  const issued = entitlementResult(
+    {},
+    {
+      licence: {
+        status: "ISSUED",
+        sentence: "Licence issued - check your email",
+        maskedSerial: "CYVRA*************-1-1",
+      },
+      usage: {
+        activation: { activatedAt: null, hostBinding: "NOT_BOUND" },
+        scans: { state: "available-after-first-scan" },
+      },
+    },
+  );
+
+  it("renders as Licence Issued / Sent to registered email on the Overview", () => {
+    renderShell({ entitlement: issued });
+    expect(screen.getAllByText("Licence Issued").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Sent to registered email").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Awaiting activation").length).toBeGreaterThan(0);
+  });
+
+  it("renders the same on Licence & usage, with the masked reference", () => {
+    renderShell({ entitlement: issued });
+    goToNav("LICENCE & USAGE");
+    expect(screen.getAllByText("Licence Issued").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Sent to registered email").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("CYVRA*************-1-1").length).toBeGreaterThan(0);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Spec 88 - Licence & usage field list
+ * ------------------------------------------------------------------ */
+
+describe("Spec 88: Licence & usage carries the prescribed field list", () => {
+  it("shows every field and names the ones the service does not report", () => {
+    renderShell({ entitlement: entitlementResult() });
+    goToNav("LICENCE & USAGE");
+
+    for (const key of [
+      "Licence type",
+      "Licence status",
+      "Issued date",
+      "Expiry",
+      "Device entitlement",
+      "Usage limit",
+      "Usage consumed",
+      "Remaining / available",
+      "Registered email",
+    ]) {
+      expect(screen.getAllByText(key).length).toBeGreaterThan(0);
+    }
+
+    expect(screen.getByText("Not reported by the licence service")).toBeTruthy();
+    expect(screen.getByText(/does not publish a fixed usage limit/)).toBeTruthy();
+    expect(screen.getByText("Not activated yet")).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Spec 8 / 9 / 10 / 11 - the purchase area
+ * ------------------------------------------------------------------ */
+
+describe("Spec 8/9/10/11: the purchase area", () => {
+  function fillValidRequest() {
+    fireEvent.change(screen.getByLabelText("Address line 1 *"), {
+      target: { value: "12 M G Road" },
+    });
+    fireEvent.change(screen.getByLabelText("PIN code *"), { target: { value: "110001" } });
+  }
+
+  it("heads the area the way Spec 8 prescribes", () => {
+    renderShell();
+    goToNav("CYVRA MOBILE");
+    expect(screen.getByRole("heading", { name: "PURCHASE CYVRA MOBILE" })).toBeTruthy();
+    expect(
+      screen.getByText(/Select the licence model required for your operation/),
+    ).toBeTruthy();
+  });
+
+  it("takes the licence options from the approved licence policy, not from literals", () => {
+    renderShell();
+    goToNav("CYVRA MOBILE");
+
+    const select = screen.getByLabelText("Licence Type") as HTMLSelectElement;
+    const values = within(select)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(values).toEqual(
+      PLAN_SLABS.map((slab) => `1 User / ${slab} ${slab === 1 ? "Device" : "Devices"}`),
+    );
+    // The specification's example list is illustrative; the policy is not.
+    expect(PLAN_SLABS).toContain(1);
+    expect(PLAN_SLABS).toContain(5);
+    expect(PLAN_SLABS).toContain(25);
+  });
+
+  it("populates the registered email from the account and keeps it read-only", () => {
+    renderShell();
+    goToNav("CYVRA MOBILE");
+
+    const email = screen.getByLabelText("Registered email") as HTMLInputElement;
+    expect(email.readOnly).toBe(true);
+    expect(email.value).toBe("customer@example.com");
+    expect(screen.getByText(/Same as Registered Email/)).toBeTruthy();
+  });
+
+  it("rejects a PIN code that is not an Indian PIN code", () => {
+    renderShell();
+    goToNav("CYVRA MOBILE");
+
+    fireEvent.change(screen.getByLabelText("Address line 1 *"), {
+      target: { value: "12 M G Road" },
+    });
+    fireEvent.change(screen.getByLabelText("PIN code *"), { target: { value: "012345" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review licence request" }));
+
+    expect(screen.getByRole("alert").textContent).toMatch(/Indian PIN/);
+    expect(screen.queryByText("Purchase record")).toBeNull();
+  });
+
+  it("accepts a valid request and shows the Spec 10 status summary", () => {
+    renderShell();
+    goToNav("CYVRA MOBILE");
+    fillValidRequest();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review licence request" }));
+
+    expect(screen.getByText("Purchase record")).toBeTruthy();
+    expect(screen.getByText(/no endpoint receives this request/)).toBeTruthy();
+    expect(screen.getByText(/nothing above left this page/)).toBeTruthy();
+    expect(screen.getByText(/110001/)).toBeTruthy();
+  });
+
+  it("marks payment complete without turning it into an entitlement", () => {
+    renderShell();
+    goToNav("CYVRA MOBILE");
+
+    fireEvent.change(screen.getByLabelText("Payment status"), { target: { value: "Done" } });
+    expect(screen.getByText("Payment marked complete.")).toBeTruthy();
+    expect(screen.getByText(/VALID LICENCE ISSUED/)).toBeTruthy();
+    expect(
+      screen.getAllByText(/does not, by itself, grant an application entitlement/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /pay now|checkout|gateway/i })).toBeNull();
   });
 });
 

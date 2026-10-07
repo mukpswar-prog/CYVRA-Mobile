@@ -1,12 +1,16 @@
-import { useState, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import {
+  api,
+  PLAN_SLABS,
   scansStateSentence,
   type AuthUser,
   type EntitlementResult,
+  type PlanSlab,
   type ReportDetail,
   type ReportSession,
   type ReportSummary,
 } from "../api";
+import { IN_STATES } from "../in-states";
 import { ReportView } from "../ReportView";
 import { formatDateTime } from "../admin/format/datetime";
 import {
@@ -14,6 +18,7 @@ import {
   DataTable,
   DownloadButton,
   ErrorPanel,
+  Field,
   LicenceCard,
   MetricCard,
   Modal,
@@ -27,19 +32,27 @@ import "./steel.css";
 /*
  * CYVRA Customer Workspace — light-steel shell (Phase 2).
  *
- * Replaces the legacy dark shell (CustomerDesktopShell.tsx + workstation.css),
- * which was deleted in this commit together with its simulation module.
+ * Phase 2 replaced the legacy dark shell (CustomerDesktopShell.tsx +
+ * workstation.css) together with its simulation module. Phase 3 builds the
+ * Overview home, the Purchase area, the manual Payment state, the honest
+ * Download card and the Licence & Usage page on top of it.
  *
  * Governing documents:
  *   Spec  4  DESIGN PHILOSOPHY                    light steel, colour semantics
  *   Spec  5  INFORMATION ARCHITECTURE             eight-item navigation
- *   Spec  6/7  OVERVIEW                           home screen answers
+ *   Spec  6/7  OVERVIEW                           home screen answers + actions
+ *   Spec  8/9/10  PURCHASE AREA / CUSTOMER INFO / PURCHASE RECORD
+ *   Spec 11 PAYMENT STATUS                        manual, never a gateway
+ *   Spec 12 LICENCE DELIVERY                      delivered to registered email
  *   Spec 13/14 APPLICATION DOWNLOAD / STATES      honest build availability
- *   Spec 15 UPDATE & UPGRADE                      behaviour preserved verbatim
+ *   Spec 15 UPDATE & UPGRADE                      flow kept, data made real
  *   Spec 70 UI COMPONENT SYSTEM                   reusable kit (steel.tsx)
  *   Spec 71 RESPONSIVE DESIGN                     collapse + scroll rules
+ *   Spec 88 LICENCE & USAGE PAGE                  the field list below
  *   Spec 89 CUSTOMER DASHBOARD TOP BAR            compact identity strip
  *   Spec 90 LEFT NAVIGATION                       the eight sections below
+ *   Spec 91 HOME SCREEN PRIORITY                  the order of the blocks
+ *   Spec 92 WORLD-CLASS UX PRINCIPLE              the six questions answered
  *
  * Data honesty rules carried over from the WS-K1-01 hotfix: every licence
  * figure comes from `GET /v1/me/entitlement`; a null field renders as an
@@ -83,25 +96,123 @@ export const WORKSPACE_NAV: readonly WorkspaceNavItem[] = [
   { id: "HELP", label: "HELP", icon: "?" },
 ] as const;
 
+/* ------------------------------------------------------------------ *
+ * Spec 6 + Spec 12 - how a licence status is *presented* to a customer.
+ *
+ * `GET /v1/me/entitlement` reports the raw status plus a server sentence.
+ * Spec 6 asks the Overview for three customer-facing buckets instead -
+ * "Green: Active / Orange: Awaiting / Red: Action Required" - and Spec 12
+ * supplies the delivery wording. The map below is presentation only: it never
+ * invents a status, and a status it does not recognise falls back to the
+ * server's own sentence on a neutral tone, so a future status still renders
+ * truthfully rather than silently becoming "Active".
+ * ------------------------------------------------------------------ */
+
+export type LicenceTone = "success" | "action" | "danger" | "neutral";
+
+const LICENCE_HEADLINES: Record<string, string> = {
+  DRAFT: "Being prepared",
+  PAYMENT_PENDING: "Awaiting payment",
+  PAYMENT_CONFIRMED: "Payment received",
+  READY_TO_GENERATE: "Licence key being prepared",
+  KEY_GENERATED: "Licence key ready",
+  ISSUED: "Licence Issued",
+  ACTIVE: "Active",
+  EXPIRED: "Expired",
+  SUSPENDED: "Suspended",
+  REVOKED: "Revoked",
+};
+
+/** Spec 6's "Orange: Awaiting" bucket. */
+const AWAITING_LICENCE = new Set([
+  "DRAFT",
+  "PAYMENT_PENDING",
+  "PAYMENT_CONFIRMED",
+  "READY_TO_GENERATE",
+  "KEY_GENERATED",
+  "ISSUED",
+]);
+
+/** Spec 6's "Red: Action Required" bucket. */
+const ATTENTION_LICENCE = new Set(["EXPIRED", "SUSPENDED", "REVOKED"]);
+
+/**
+ * Spec 12: an issued licence reaches the customer's registered email, so both
+ * `ISSUED` and `ACTIVE` carry the delivery line. A draft or an awaiting-payment
+ * row has nothing to have delivered yet, and says so by saying nothing.
+ */
+const DELIVERED_LICENCE = new Set(["ISSUED", "ACTIVE"]);
+
+export interface LicenceView {
+  /** Spec 6/12 headline - `null` only when no status has been reported. */
+  headline: string | null;
+  tone: LicenceTone;
+  /** Spec 12 delivery line, or `null` when nothing has been issued. */
+  delivery: string | null;
+  /** Spec 6's "Awaiting" caption, so colour is never the only signal. */
+  caption: string | null;
+}
+
+export function licencePresentation(status: string, sentence: string): LicenceView {
+  const known = LICENCE_HEADLINES[status] !== undefined;
+  return {
+    // An unknown status keeps the server's wording rather than being mapped to
+    // a bucket the server never claimed.
+    headline: known ? LICENCE_HEADLINES[status] : sentence,
+    tone: ATTENTION_LICENCE.has(status)
+      ? "danger"
+      : AWAITING_LICENCE.has(status)
+        ? "action"
+        : status === "ACTIVE"
+          ? "success"
+          : "neutral",
+    delivery: DELIVERED_LICENCE.has(status) ? "Sent to registered email" : null,
+    caption:
+      status === "ISSUED"
+        ? "Awaiting activation"
+        : ATTENTION_LICENCE.has(status)
+          ? "Action required"
+          : null,
+  };
+}
+
+/** Spec 9 - "Mandatory. Must be validated as an Indian PIN code." */
+export const INDIAN_PIN = /^[1-9][0-9]{5}$/;
+
+/**
+ * Spec 15's update state machine, extended for WS-K1-09.
+ *
+ * `NO_UPDATE` and `CHECK_FAILED` are new, and they are the point of the fix:
+ * before Phase 3 the "check" always answered AVAILABLE with an invented
+ * package, because there was no branch capable of saying "there is nothing
+ * here". The rest of the machine - check, download, staged, roll back - is
+ * Spec 15's approved flow, fed from the real release manifest instead of from
+ * literals.
+ */
 type UpdateStep =
   | "IDLE"
   | "CHECKING"
   | "AVAILABLE"
+  | "NO_UPDATE"
+  | "CHECK_FAILED"
   | "DOWNLOADING"
   | "STAGED"
   | "ROLLED_BACK";
 
-interface StagedRecord {
+/**
+ * WS-K1-09 - every field below is read from `build-manifest.json` through
+ * `GET /v1/me/entitlement`. There is deliberately no `signature`,
+ * `signatureAlgorithm`, `stagedPath`, `rollbackPath` or release-notes slot:
+ * the manifest publishes none of them, and rendering a plausible value in their
+ * place is precisely the defect this phase removes.
+ */
+interface ReleaseRecord {
   version: string;
-  releaseType: string;
-  channel: string;
-  size: string;
   sha256: string;
-  signatureAlgorithm: string;
-  signature: string;
-  stagedPath: string;
-  rollbackPath: string;
-  notes: string[];
+  sizeBytes: number | null;
+  url: string;
+  releasedAt: string | null;
+  installerName: string;
 }
 
 export function CustomerWorkspaceShell(props: {
@@ -111,6 +222,13 @@ export function CustomerWorkspaceShell(props: {
    * comes from here — there is no local fallback.
    */
   entitlement: EntitlementResult | null;
+  /**
+   * Re-reads `GET /v1/me/entitlement` when the customer asks the update
+   * manager to check for a release (WS-K1-09). Defaults to the real client
+   * call, so the production shell performs a genuine request; tests inject a
+   * stub so each honest branch can be driven without a server.
+   */
+  refreshEntitlement?: () => Promise<EntitlementResult>;
   sessions: ReportSession[];
   reports: ReportSummary[];
   reportDetail: ReportDetail | null;
@@ -121,6 +239,39 @@ export function CustomerWorkspaceShell(props: {
   onLogout: () => void;
 }) {
   const [activeNav, setActiveNav] = useState<WorkspaceNavId>("OVERVIEW");
+
+  /* ------------------------------------------------------------------ *
+   * Spec 9/10/11 - the licence request.
+   *
+   * Fields are prefilled from the authenticated account because Spec 9 says
+   * the design "should avoid repeatedly asking the customer for information
+   * already available". Nothing here is transmitted: no endpoint accepts a
+   * licence request yet, so submitting builds a clean status summary (Spec
+   * 10) on this device and says plainly that it was not sent.
+   * ------------------------------------------------------------------ */
+  const [purchase, setPurchase] = useState(() => ({
+    licenceSlab: PLAN_SLABS[0] as PlanSlab,
+    companyName: props.user.companyName || props.user.fullName || "",
+    addressLine1: props.user.addressLine1 || "",
+    addressLine2: props.user.addressLine2 || "",
+    pincode: props.user.pincode || "",
+    stateName: props.user.state || "",
+    // Spec 11's manual control. It is a declaration made on this page, not a
+    // payment: there is no gateway, no provider and no token anywhere in the
+    // product, and changing it changes nothing on the server.
+    paymentDone: false,
+  }));
+  const [purchaseErrors, setPurchaseErrors] = useState<Record<string, string>>({});
+  const [purchaseRecord, setPurchaseRecord] = useState<null | {
+    licenceSlab: PlanSlab;
+    companyName: string;
+    address: string;
+    pincode: string;
+    stateName: string;
+    paymentStatus: string;
+    preparedAt: string;
+  }>(null);
+  const [copyNote, setCopyNote] = useState("");
   // Spec 71: the left navigation collapses on small screens. Closed by default
   // at every width — the CSS decides whether it is visible at all.
   const [navOpen, setNavOpen] = useState(false);
@@ -135,14 +286,35 @@ export function CustomerWorkspaceShell(props: {
   const entitlement =
     props.entitlement?.kind === "ok" ? props.entitlement.entitlement : null;
 
+  /**
+   * Spec 6/12 presentation of the status the server actually reported. The
+   * raw sentence is kept alongside it so an unrecognised status still shows
+   * the server's own words instead of a bucket nobody claimed.
+   */
+  const licenceView = entitlement
+    ? licencePresentation(entitlement.licence.status, entitlement.licence.sentence)
+    : null;
+
   const license = {
     planName: entitlement?.plan.label ?? null,
-    status: entitlement?.licence.sentence ?? null,
+    planCode: entitlement?.plan.code ?? null,
+    slab: entitlement?.plan.slab ?? null,
+    status: licenceView?.headline ?? null,
+    tone: licenceView?.tone ?? "neutral",
+    delivery: licenceView?.delivery ?? null,
+    caption: licenceView?.caption ?? null,
+    statusSentence: entitlement?.licence.sentence ?? null,
     serialNumber: entitlement?.licence.maskedSerial ?? null,
     payment: entitlement?.payment.sentence ?? null,
+    paymentStatus: entitlement?.payment.status ?? null,
     scansState: entitlement
       ? scansStateSentence(entitlement.usage.scans.state)
       : null,
+    customerEmail: entitlement?.customer.email ?? null,
+    validityState: entitlement?.validity.state ?? "unknown",
+    validityEndsAt: entitlement?.validity.endsAt ?? null,
+    activatedAt: entitlement?.usage.activation.activatedAt ?? null,
+    hostBinding: entitlement?.usage.activation.hostBinding ?? null,
     version: entitlement?.build.version ?? null,
     buildState: entitlement?.build.state ?? "unavailable",
     /** null until a release job publishes a real installer URL. */
@@ -199,60 +371,90 @@ export function CustomerWorkspaceShell(props: {
    * ------------------------------------------------------------------ */
   const [updateStep, setUpdateStep] = useState<UpdateStep>("IDLE");
   const [updateProgressMsg, setUpdateProgressMsg] = useState<string>("");
-  const [stagedRecord, setStagedRecord] = useState<StagedRecord | null>(null);
+  const [release, setRelease] = useState<ReleaseRecord | null>(null);
 
-  function checkForSoftwareUpdates() {
+  /**
+   * WS-K1-09 - the check is now a real request to the real endpoint.
+   *
+   * Before this phase the "check" was a `setTimeout` that answered AVAILABLE
+   * with a hardcoded version, a hardcoded checksum, a hardcoded signature and
+   * a hardcoded set of release notes. None of it came from a server, and no
+   * server had published any of it. The branch below is the replacement: it
+   * re-reads `GET /v1/me/entitlement` and reports exactly what the release
+   * manifest says - including the case where it says nothing is published.
+   */
+  async function checkForSoftwareUpdates() {
     setUpdateStep("CHECKING");
-    setUpdateProgressMsg("Contacting CYVRA Update Service (GET /updates/manifest)...");
+    setUpdateProgressMsg("Re-reading the release manifest (GET /v1/me/entitlement)...");
 
-    setTimeout(() => {
+    const result = await (props.refreshEntitlement ?? api.entitlement)();
+
+    if (result.kind !== "ok") {
+      setRelease(null);
+      setUpdateStep("CHECK_FAILED");
+      setUpdateProgressMsg(
+        result.kind === "unauthenticated"
+          ? "Your session ended before the check completed. Sign in again to check for updates."
+          : `The release manifest could not be read: ${result.message}`,
+      );
+      return;
+    }
+
+    const build = result.entitlement.build;
+    if (
+      build.state === "published" &&
+      build.url !== null &&
+      build.version !== null &&
+      build.sha256 !== null
+    ) {
+      setRelease({
+        version: build.version,
+        sha256: build.sha256,
+        sizeBytes: build.sizeBytes,
+        url: build.url,
+        releasedAt: build.releasedAt,
+        installerName: build.url.split("/").pop() || "cyvra-mobile.zip",
+      });
       setUpdateStep("AVAILABLE");
       setUpdateProgressMsg("");
-      setStagedRecord({
-        version: "3.2.2-g5",
-        releaseType: "Delta Package",
-        channel: "Stable Channel",
-        size: "18.4 MB",
-        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        signatureAlgorithm: "Ed25519 (CYVORIQ-UPDATE-KEY-PROD-2026)",
-        signature: "SIG_ED25519_8f91a27e3d04b912c7...",
-        stagedPath: "/opt/cyvra/updates/staged/3.2.2-g5/update.delta",
-        rollbackPath: "/opt/cyvra/updates/staged/backup-3.2.1-g5.tar.gz",
-        notes: [
-          "Multi-OEM device probe enhancements for Android 15 & 16 developer preview",
-          "Automated camera focus & glare detection optimization in AI Physical Station",
-          "NIST SP 800-88 Rev. 2 post-reboot verification speed improvement",
-        ],
-      });
-    }, 1000);
+      return;
+    }
+
+    setRelease(null);
+    setUpdateStep("NO_UPDATE");
+    setUpdateProgressMsg(
+      build.state === "published"
+        ? `The release manifest is marked published but does not carry a download URL or a SHA-256, so no package can be offered. Reported state: "${build.state}".`
+        : `The release manifest reports state "${build.state}", so no release has been published. There is nothing to download, verify or stage.`,
+    );
   }
 
+  /**
+   * The one thing a browser can genuinely do with a published package: hand
+   * its URL to the download manager. Verification of the bytes against the
+   * published SHA-256 belongs to the CYVRA Mobile host that installs it, and
+   * the panel below says so rather than claiming a signature was checked.
+   */
   function downloadAndStageUpdate() {
+    if (!release) return;
     setUpdateStep("DOWNLOADING");
-    setUpdateProgressMsg("Downloading signed delta payload from updates.cyvoriq.co.in...");
+    setUpdateProgressMsg("Passing the published package to your browser's download manager...");
 
-    setTimeout(() => {
-      setUpdateProgressMsg("Verifying cryptographic Ed25519 manifest signature...");
-    }, 900);
+    const anchor = document.createElement("a");
+    anchor.href = release.url;
+    anchor.download = release.installerName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
 
-    setTimeout(() => {
-      setUpdateProgressMsg("Verifying SHA-256 binary hash digest matches manifest...");
-    }, 1700);
-
-    setTimeout(() => {
-      setUpdateProgressMsg("Staging verified binary to safe local update directory...");
-    }, 2500);
-
-    setTimeout(() => {
-      setUpdateStep("STAGED");
-      setUpdateProgressMsg("");
-    }, 3300);
+    setUpdateStep("STAGED");
+    setUpdateProgressMsg("");
   }
 
   function rollbackUpdate() {
     setUpdateStep("ROLLED_BACK");
     setUpdateProgressMsg(
-      "Staged update rolled back. The previously installed build is active again.",
+      "The downloaded package was discarded. Nothing on this workstation was changed: this Workspace never writes to the installed application.",
     );
   }
 
@@ -276,29 +478,78 @@ export function CustomerWorkspaceShell(props: {
     },
   ];
 
+  /**
+   * Spec 6's fifth question, Spec 91's fourth priority and Spec 92's
+   * "WHAT NEEDS MY ATTENTION?" - answered from data the shell actually has,
+   * with an explicit "nothing" branch so the screen can never be silent
+   * about it.
+   */
+  function attentionItem(): { tone: "success" | "danger" | "action" | "neutral"; badge: string; text: string } {
+    if (props.entitlement === null) {
+      return {
+        tone: "neutral",
+        badge: "CHECKING",
+        text: "Your licence is still being read from the server, so this cannot be confirmed yet.",
+      };
+    }
+    if (props.entitlement.kind !== "ok") {
+      return {
+        tone: "danger",
+        badge: "LICENCE",
+        text: `${entNotice}. Nothing else on this page can be confirmed until the licence service answers again.`,
+      };
+    }
+    if (license.tone === "danger") {
+      return {
+        tone: "danger",
+        badge: "LICENCE",
+        text: `${license.status}. Contact support quoting ${props.user.email}.`,
+      };
+    }
+    if (!buildAvailable) {
+      return {
+        tone: "action",
+        badge: "RELEASE",
+        text: "No CYVRA Mobile build has been published yet, so the download below stays disabled.",
+      };
+    }
+    return {
+      tone: "success",
+      badge: "NONE",
+      text: "Nothing needs your attention in this Workspace.",
+    };
+  }
+
   function renderOverview() {
+    const attention = attentionItem();
+
     return (
       <div className="ws-stack">
         <h1 className="ws-page-title">Overview</h1>
         <p className="ws-page-desc">
-          Who you are, what licence you hold, whether the application is ready, and what needs
-          your attention.
+          Who you are, what licence you hold, whether the application is ready, what is happening
+          with your devices, and what needs your attention.
         </p>
 
         {entNotice ? <StatusBadge tone="neutral">{entNotice}</StatusBadge> : null}
 
+        {/*
+         * Spec 6 - top summary area, in the specification's own label order.
+         * Every value is read from `GET /v1/me/entitlement` or from the
+         * session; nothing is defaulted into a plausible-looking figure.
+         */}
         <div className="ws-grid">
+          <MetricCard label="Customer" value={customerName} hint={props.user.email} />
+          <MetricCard
+            label="Licence"
+            value={license.planName ?? "\u2014"}
+            hint={license.planCode ?? "Plan not assigned"}
+          />
           <MetricCard
             label="Licence status"
             value={entNotice ?? license.status ?? "\u2014"}
-            hint={license.planName ?? "Plan not assigned"}
-            tone={license.status ? "success" : undefined}
-          />
-          <MetricCard label="Plan" value={license.planName ?? "\u2014"} hint="Devices covered" />
-          <MetricCard
-            label="Scans"
-            value={license.scansState ?? "\u2014"}
-            hint="Entitlement state, not a running balance"
+            hint={license.caption ?? license.statusSentence ?? "Not reported yet"}
+            tone={entNotice ? undefined : license.tone}
           />
           <MetricCard
             label="Application"
@@ -306,8 +557,97 @@ export function CustomerWorkspaceShell(props: {
             hint={buildAvailable ? "Installer published" : "No installer published yet"}
             tone={buildAvailable ? "success" : undefined}
           />
+          <MetricCard
+            label="Device activity"
+            value={String(props.sessions.length)}
+            hint="sessions awaiting Report 1; scan totals are not published"
+          />
+          <MetricCard
+            label="Reports"
+            value={String(props.reports.length)}
+            hint={`${props.sessions.length} awaiting Report 1. Failures are not reported.`}
+          />
         </div>
 
+        /*
+         * Spec 91's first priority, spelled out. The strip above states the
+         * status; this states what the customer actually holds, including
+         * Spec 12's delivery line.
+         */
+        <SteelCard
+          title="Your licence"
+          badge={<StatusBadge tone={entNotice ? "neutral" : license.tone}>
+            {entNotice ?? license.status ?? "\u2014"}
+          </StatusBadge>}
+          footer={
+            <button
+              type="button"
+              className="ws-btn ws-btn--ghost"
+              onClick={() => goTo("LICENCE_USAGE")}
+            >
+              Open Licence &amp; Usage
+            </button>
+          }
+        >
+          <LicenceCardLite
+            rows={[
+              { key: "Licence type", value: license.planName ?? "\u2014" },
+              { key: "Status", value: license.status ?? entNotice ?? "\u2014" },
+              { key: "Delivery", value: license.delivery ?? "Nothing issued yet" },
+              { key: "Reference", value: license.serialNumber ?? "Not issued yet" },
+              { key: "Payment", value: license.payment ?? "\u2014" },
+            ]}
+          />
+        </SteelCard>
+
+        <SteelCard
+          title="What requires your attention"
+          badge={<StatusBadge tone={attention.tone}>{attention.badge}</StatusBadge>}
+        >
+          <p className="ws-panel__text">{attention.text}</p>
+        </SteelCard>
+
+        {/* Spec 7 - primary actions, in the order the specification lists them. */}
+        <SteelCard title="Primary actions">
+          <div className="ws-actions">
+            <button
+              type="button"
+              className="ws-btn ws-btn--ghost"
+              onClick={() => goTo("CYVRA_MOBILE")}
+            >
+              Purchase CYVRA Mobile
+            </button>
+            {buildAvailable ? (
+              <a
+                className="ws-btn ws-btn--action"
+                href={license.downloadUrl ?? undefined}
+                download={license.installerName ?? undefined}
+              >
+                Download Application
+              </a>
+            ) : (
+              <button type="button" className="ws-btn ws-btn--ghost" disabled>
+                Download Application (no published build)
+              </button>
+            )}
+            <button
+              type="button"
+              className="ws-btn ws-btn--ghost"
+              onClick={() => goTo("REPORTING_AUDIT")}
+            >
+              Open Reporting &amp; Audit
+            </button>
+            <button
+              type="button"
+              className="ws-btn ws-btn--ghost"
+              onClick={() => goTo("DEVICE_ACTIVITY")}
+            >
+              View Device Activity
+            </button>
+          </div>
+        </SteelCard>
+
+        {/* Spec 13/14 - availability follows release state, never wishful thinking. */}
         <SteelCard
           title="CYVRA Mobile application"
           badge={
@@ -363,9 +703,123 @@ export function CustomerWorkspaceShell(props: {
               Frozen, immutable reports available to view and export.
             </p>
           </SteelCard>
+
+          {/* Spec 91, priority 5 - Update / Upgrade sits below the activity above. */}
+          <SteelCard
+            title={"Update & Upgrade"}
+            footer={
+              <button
+                type="button"
+                className="ws-btn ws-btn--ghost"
+                onClick={() => goTo("UPDATE_UPGRADE")}
+              >
+                Open Update &amp; Upgrade
+              </button>
+            }
+          >
+            <p className="ws-panel__text">
+              Updates maintain the application; upgrades change the plan your licence covers.
+            </p>
+            <p className="ws-panel__text">
+              Release state:{" "}
+              {buildAvailable && license.version
+                ? `v${license.version} published`
+                : `no build published (${license.buildState})`}
+              .
+            </p>
+          </SteelCard>
         </div>
       </div>
     );
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Spec 8/9/10/11 - the licence request.
+   *
+   * No endpoint in `services/api` accepts a purchase or licence request, so
+   * this form never claims to have sent one. It validates what Spec 9 makes
+   * mandatory, then produces the clean status summary Spec 10 describes and
+   * states plainly that nothing left the page.
+   * ------------------------------------------------------------------ */
+
+  /** Spec 8 - the option list is derived from the approved licence policy. */
+  function licenceLabel(slab: PlanSlab): string {
+    return `1 User / ${slab} ${slab === 1 ? "Device" : "Devices"}`;
+  }
+
+  function setPurchaseField<K extends keyof typeof purchase>(name: K, value: (typeof purchase)[K]) {
+    setPurchase((current) => ({ ...current, [name]: value }));
+  }
+
+  function validatePurchase(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    if (purchase.companyName.trim().length < 2) {
+      errors.companyName = "Enter the customer or company name the licence belongs to.";
+    }
+    if (purchase.addressLine1.trim().length < 3) {
+      errors.addressLine1 = "Enter the registered or business address.";
+    }
+    // Spec 9: "PIN CODE - Mandatory. Must be validated as an Indian PIN code."
+    if (!INDIAN_PIN.test(purchase.pincode)) {
+      errors.pincode = "Enter a valid 6-digit Indian PIN code, beginning with 1-9.";
+    }
+    return errors;
+  }
+
+  function submitPurchase(event: FormEvent) {
+    event.preventDefault();
+    const errors = validatePurchase();
+    setPurchaseErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setPurchaseRecord(null);
+      return;
+    }
+    setCopyNote("");
+    setPurchaseRecord({
+      licenceSlab: purchase.licenceSlab,
+      companyName: purchase.companyName.trim(),
+      address: [purchase.addressLine1.trim(), purchase.addressLine2.trim()]
+        .filter(Boolean)
+        .join(", "),
+      pincode: purchase.pincode,
+      stateName: purchase.stateName,
+      paymentStatus: purchase.paymentDone ? "Done" : "Not Done",
+      preparedAt: new Date().toISOString(),
+    });
+  }
+
+  /** The plain-text form of the Spec 10 status summary. */
+  function purchaseSummaryText(record: NonNullable<typeof purchaseRecord>): string {
+    return [
+      "CYVRA MOBILE LICENCE REQUEST - prepared in the Customer Workspace",
+      `Prepared: ${formatDateTime(record.preparedAt)}`,
+      `Registered email: ${props.user.email}`,
+      `Customer / company name: ${record.companyName}`,
+      `Address: ${record.address}${record.stateName ? `, ${record.stateName}` : ""}`,
+      `PIN code: ${record.pincode}`,
+      `Licence type: ${licenceLabel(record.licenceSlab)}`,
+      `Payment status: ${record.paymentStatus}`,
+      `Licence status on record: ${license.status ?? entNotice ?? "\u2014"}`,
+      `Licence reference: ${license.serialNumber ?? "Not issued yet"}`,
+      `Download availability: ${buildAvailable ? "BUILD AVAILABLE" : "BUILD NOT AVAILABLE"}`,
+      "",
+      "NOT SENT: no endpoint accepts a licence request yet. Place it with the business.",
+    ].join("\n");
+  }
+
+  async function copyPurchaseSummary() {
+    if (!purchaseRecord) return;
+    const text = purchaseSummaryText(purchaseRecord);
+    if (!navigator.clipboard?.writeText) {
+      setCopyNote("Copying is not available in this browser. Select the summary above to copy it.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyNote("Request summary copied to the clipboard.");
+    } catch {
+      setCopyNote("Copying was refused by the browser. Select the summary above to copy it.");
+    }
   }
 
   function renderCyvraMobile() {
@@ -375,6 +829,263 @@ export function CustomerWorkspaceShell(props: {
         <p className="ws-page-desc">
           Purchase, licence delivery and application download.
         </p>
+
+        {/* Spec 8 - purchase area. */}
+        <SteelCard
+          title="PURCHASE CYVRA MOBILE"
+          badge={<StatusBadge tone="neutral">LICENCE REQUEST</StatusBadge>}
+        >
+          <p className="ws-panel__text" style={{ marginBottom: 16 }}>
+            Select the licence model required for your operation.
+          </p>
+
+          <form onSubmit={submitPurchase} noValidate>
+            <div className="ws-grid">
+              <Field
+                htmlFor="purchase-licence-type"
+                label="Licence Type"
+                hint="Options come from the approved licence policy, not from this page."
+              >
+                <select
+                  id="purchase-licence-type"
+                  className="ws-input"
+                  value={purchase.licenceSlab}
+                  onChange={(e) =>
+                    setPurchaseField("licenceSlab", Number(e.target.value) as PlanSlab)
+                  }
+                >
+                  {PLAN_SLABS.map((slab) => (
+                    <option key={slab} value={slab}>
+                      {licenceLabel(slab)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              {/* Spec 9 - populated from the account, read-only by default. */}
+              <Field
+                htmlFor="purchase-email"
+                label="Registered email"
+                hint="Same as Registered Email - taken from your account."
+              >
+                <input
+                  id="purchase-email"
+                  className="ws-input"
+                  type="email"
+                  readOnly
+                  value={props.user.email}
+                />
+              </Field>
+
+              <Field
+                htmlFor="purchase-company"
+                label="Customer / company name *"
+                error={purchaseErrors.companyName}
+              >
+                <input
+                  id="purchase-company"
+                  className="ws-input"
+                  value={purchase.companyName}
+                  aria-invalid={purchaseErrors.companyName ? true : undefined}
+                  aria-describedby={
+                    purchaseErrors.companyName ? "purchase-company-error" : undefined
+                  }
+                  onChange={(e) => setPurchaseField("companyName", e.target.value)}
+                  required
+                />
+              </Field>
+
+              <Field
+                htmlFor="purchase-pin"
+                label="PIN code *"
+                hint="Mandatory. Validated as an Indian PIN code."
+                error={purchaseErrors.pincode}
+              >
+                <input
+                  id="purchase-pin"
+                  className="ws-input"
+                  inputMode="numeric"
+                  maxLength={6}
+                  pattern="[1-9][0-9]{5}"
+                  value={purchase.pincode}
+                  aria-invalid={purchaseErrors.pincode ? true : undefined}
+                  aria-describedby={purchaseErrors.pincode ? "purchase-pin-error" : undefined}
+                  onChange={(e) =>
+                    setPurchaseField("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  required
+                />
+              </Field>
+
+              <Field
+                htmlFor="purchase-address-1"
+                label="Address line 1 *"
+                error={purchaseErrors.addressLine1}
+              >
+                <input
+                  id="purchase-address-1"
+                  className="ws-input"
+                  value={purchase.addressLine1}
+                  aria-invalid={purchaseErrors.addressLine1 ? true : undefined}
+                  aria-describedby={
+                    purchaseErrors.addressLine1 ? "purchase-address-1-error" : undefined
+                  }
+                  onChange={(e) => setPurchaseField("addressLine1", e.target.value)}
+                  required
+                />
+              </Field>
+
+              <Field htmlFor="purchase-address-2" label="Address line 2">
+                <input
+                  id="purchase-address-2"
+                  className="ws-input"
+                  value={purchase.addressLine2}
+                  onChange={(e) => setPurchaseField("addressLine2", e.target.value)}
+                />
+              </Field>
+
+              <Field htmlFor="purchase-state" label="State">
+                <select
+                  id="purchase-state"
+                  className="ws-input"
+                  value={purchase.stateName}
+                  onChange={(e) => setPurchaseField("stateName", e.target.value)}
+                >
+                  <option value="">Select state</option>
+                  {IN_STATES.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              {/* Spec 11 - manual. No gateway, no provider, no token. */}
+              <Field
+                htmlFor="purchase-payment"
+                label="Payment status"
+                hint="Manual. Recorded by the authorised business - this page takes no payment."
+              >
+                <select
+                  id="purchase-payment"
+                  className="ws-input"
+                  value={purchase.paymentDone ? "Done" : "Not Done"}
+                  onChange={(e) => setPurchaseField("paymentDone", e.target.value === "Done")}
+                >
+                  <option value="Not Done">Not Done</option>
+                  <option value="Done">Done</option>
+                </select>
+              </Field>
+            </div>
+
+            {purchase.paymentDone ? (
+              <div style={{ marginTop: 16 }}>
+                <SuccessPanel title="Payment marked complete.">
+                  This is your own manual declaration on this page. It is not a payment, it was
+                  not sent anywhere, and on its own it authorises nothing.
+                </SuccessPanel>
+              </div>
+            ) : null}
+
+            <div className="ws-actions" style={{ marginTop: 16 }}>
+              <button type="submit" className="ws-btn ws-btn--primary">
+                Review licence request
+              </button>
+            </div>
+          </form>
+        </SteelCard>
+
+        {/* Spec 11 - the rule that keeps "Done" from being mistaken for a licence. */}
+        <SteelCard
+          title="Payment is not an entitlement"
+          badge={<StatusBadge tone="action">SPEC 11</StatusBadge>}
+        >
+          <p className="ws-panel__text">
+            There is no payment gateway, no payment processing, no payment credentials and no
+            payment-provider dependency anywhere in this product. A status of{" "}
+            <strong>Payment Done</strong> is a manual note, and it does not, by itself, grant an
+            application entitlement. The final operational authorization signal is{" "}
+            <strong>VALID LICENCE ISSUED</strong>, reached only through the existing licensing
+            and approval process.
+          </p>
+          <p className="ws-panel__text" style={{ marginTop: 10 }}>
+            Payment status on record for this account:{" "}
+            <strong>{license.payment ?? entNotice ?? "\u2014"}</strong>.
+          </p>
+        </SteelCard>
+
+        {purchaseRecord ? (
+          /*
+           * Spec 10 - a clean status summary, not internal administrative
+           * fields. Request ID and the server-side timestamps appear as
+           * absences, because nothing has been recorded on any server.
+           */
+          <>
+            <LicenceCard
+              title="Purchase record"
+              badge={<StatusBadge tone="neutral">STATUS SUMMARY</StatusBadge>}
+              footer={
+                <button
+                  type="button"
+                  className="ws-btn ws-btn--ghost"
+                  onClick={copyPurchaseSummary}
+                >
+                  Copy request summary
+                </button>
+              }
+              rows={[
+                {
+                  key: "Request ID",
+                  value: "Not assigned - no endpoint receives this request",
+                },
+                { key: "Registered email", value: props.user.email },
+                { key: "Customer / company name", value: purchaseRecord.companyName },
+                {
+                  key: "Address",
+                  value: `${purchaseRecord.address}${
+                    purchaseRecord.stateName ? `, ${purchaseRecord.stateName}` : ""
+                  }`,
+                },
+                { key: "PIN code", value: purchaseRecord.pincode },
+                { key: "Selected licence type", value: licenceLabel(purchaseRecord.licenceSlab) },
+                { key: "Payment status", value: purchaseRecord.paymentStatus },
+                {
+                  key: "Request date/time",
+                  value: `${formatDateTime(purchaseRecord.preparedAt)} (prepared on this device)`,
+                },
+                { key: "Licence status", value: license.status ?? entNotice ?? "\u2014" },
+                {
+                  key: "Licence issued date/time",
+                  value: "Not reported by the licence service",
+                },
+                { key: "Licence reference", value: license.serialNumber ?? "Not issued yet" },
+                {
+                  key: "Application entitlement",
+                  value: license.planName ?? entNotice ?? "\u2014",
+                },
+                {
+                  key: "Download availability",
+                  value: buildAvailable ? "BUILD AVAILABLE" : "BUILD NOT AVAILABLE",
+                },
+              ]}
+            />
+            <SteelCard
+              title="This request was not sent"
+              badge={<StatusBadge tone="neutral">NOT SENT</StatusBadge>}
+            >
+              <p className="ws-panel__text">
+                No endpoint in the API accepts a licence request yet, so nothing above left this
+                page and no record was created on the server. Place the request with the business,
+                or copy the summary and send it to them.
+              </p>
+              {copyNote ? (
+                <p className="ws-panel__text" style={{ marginTop: 10 }}>
+                  {copyNote}
+                </p>
+              ) : null}
+            </SteelCard>
+          </>
+        ) : null}
 
         <SteelCard
           title="Download CYVRA Mobile"
@@ -491,18 +1202,20 @@ export function CustomerWorkspaceShell(props: {
           <Stepper
             steps={[
               { id: "check", label: "Check" },
-              { id: "verify", label: "Verify signature" },
+              // The manifest publishes a SHA-256 integrity value and no
+              // signature, so the step is named for what can be verified.
+              { id: "verify", label: "Verify integrity" },
               { id: "stage", label: "Stage" },
               { id: "restart", label: "Restart to apply" },
             ]}
             currentId={
-              updateStep === "IDLE" || updateStep === "CHECKING"
-                ? "check"
-                : updateStep === "AVAILABLE" || updateStep === "DOWNLOADING"
-                  ? "verify"
+              updateStep === "AVAILABLE"
+                ? "verify"
+                : updateStep === "DOWNLOADING"
+                  ? "stage"
                   : updateStep === "STAGED"
                     ? "restart"
-                    : "stage"
+                    : "check"
             }
           />
         </SteelCard>
@@ -639,7 +1352,17 @@ export function CustomerWorkspaceShell(props: {
     );
   }
 
+  /**
+   * Spec 88 - the prescribed field list, and nothing that would duplicate the
+   * administrative licensing system. Where the entitlement projection carries
+   * no value (issued date, usage consumed) the row states the absence rather
+   * than borrowing a figure from somewhere it was not measured.
+   */
   function renderLicenceUsage() {
+    const usagePolicy =
+      "This licence model does not publish a fixed usage limit. Scan entitlement is recorded " +
+      "server-side and reported here as a state; the Workspace does not compute a balance.";
+
     return (
       <div className="ws-stack">
         <h1 className="ws-page-title">Licence &amp; usage</h1>
@@ -649,18 +1372,48 @@ export function CustomerWorkspaceShell(props: {
 
         <div className="ws-grid">
           <LicenceCard
-            title="Licence credentials"
+            title="Licence record"
             badge={
-              <StatusBadge tone={license.status ? "success" : "neutral"}>
+              <StatusBadge tone={entNotice ? "neutral" : license.tone}>
                 {entNotice ?? license.status ?? "\u2014"}
               </StatusBadge>
             }
             rows={[
+              { key: "Licence type", value: license.planName ?? "\u2014" },
+              {
+                key: "Licence status",
+                value: license.status ?? entNotice ?? "\u2014",
+              },
+              {
+                key: "Issued date",
+                value: "Not reported by the licence service",
+              },
+              {
+                key: "Expiry",
+                value: license.validityEndsAt
+                  ? formatDateTime(license.validityEndsAt)
+                  : "Not set for this licence",
+              },
+              {
+                key: "Device entitlement",
+                value: license.slab
+                  ? `${license.slab} ${license.slab === "1" ? "device" : "devices"}`
+                  : (license.planName ?? "\u2014"),
+              },
+              { key: "Usage limit", value: usagePolicy },
+              {
+                key: "Usage consumed",
+                value: "Not reported - scan debits are recorded server-side",
+              },
+              { key: "Remaining / available", value: license.scansState ?? "\u2014" },
+              { key: "Registered email", value: license.customerEmail ?? props.user.email },
+              { key: "Delivery", value: license.delivery ?? "Nothing issued yet" },
+              {
+                key: "Activation",
+                value: license.activatedAt ? formatDateTime(license.activatedAt) : "Not activated yet",
+              },
+              { key: "Licence reference", value: license.serialNumber ?? "Not issued yet" },
               { key: "Payment", value: license.payment ?? "\u2014" },
-              { key: "Serial", value: license.serialNumber ?? "Not issued yet" },
-              { key: "Assigned plan", value: license.planName ?? "\u2014" },
-              { key: "Scans entitlement", value: license.scansState ?? "\u2014" },
-              { key: "Status", value: entNotice ?? license.status ?? "\u2014" },
             ]}
           />
 
@@ -816,7 +1569,7 @@ export function CustomerWorkspaceShell(props: {
           <div className="ws-field">
             <span className="ws-field__label">Status</span>
             <span className="ws-field__value">
-              <StatusBadge tone={license.status && !entNotice ? "success" : "neutral"}>
+              <StatusBadge tone={entNotice ? "neutral" : license.tone}>
                 {entNotice ?? license.status ?? "\u2014"}
               </StatusBadge>
             </span>
@@ -904,7 +1657,7 @@ export function CustomerWorkspaceShell(props: {
             <div className="ws-nav__licence-plan">{license.planName ?? "\u2014"}</div>
             <div className="ws-nav__licence-sub">{license.scansState ?? "\u2014"}</div>
             <div style={{ marginTop: 8 }}>
-              <StatusBadge tone={license.status && !entNotice ? "success" : "neutral"}>
+              <StatusBadge tone={entNotice ? "neutral" : license.tone}>
                 {entNotice ?? license.status ?? "\u2014"}
               </StatusBadge>
             </div>
@@ -923,7 +1676,7 @@ export function CustomerWorkspaceShell(props: {
       {/* Spec 15 — UPDATE manager. Behaviour unchanged from the approved build. */}
       {updateModalOpen ? (
         <Modal
-          title="Secure Software Update"
+          title="Software Update"
           onClose={() => setUpdateModalOpen(false)}
           footer={
             <button
@@ -945,21 +1698,26 @@ export function CustomerWorkspaceShell(props: {
             }}
           >
             <span>
-              Installed version: <strong>v{license.version}</strong>
+              Latest published build:{" "}
+              <strong>{license.version ? `v${license.version}` : "none published"}</strong>
             </span>
-            <StatusBadge tone="neutral">SECURE UPDATE CHANNEL</StatusBadge>
+            <StatusBadge tone={buildAvailable ? "action" : "neutral"}>
+              {buildAvailable ? "RELEASE PUBLISHED" : "NO RELEASE PUBLISHED"}
+            </StatusBadge>
           </div>
 
           {updateStep === "IDLE" ? (
             <div>
               <div className="ws-panel ws-panel--success" style={{ marginBottom: 14 }}>
                 <p className="ws-panel__text" style={{ margin: 0 }}>
-                  System binaries and diagnostic collectors are active.
+                  This screen reports what the release pipeline has published. It does not inspect
+                  or modify the workstation.
                 </p>
               </div>
               <p className="ws-panel__text" style={{ marginBottom: 18 }}>
-                Updates maintain system binaries, diagnostic collectors and Platform-Tools. They
-                never modify your purchased scan entitlements, which are governed by upgrades.
+                Updates maintain the application, its diagnostic collectors and Platform-Tools.
+                They never modify your purchased scan entitlements, which are governed by
+                upgrades.
               </p>
               <button
                 type="button"
@@ -967,7 +1725,7 @@ export function CustomerWorkspaceShell(props: {
                 style={{ width: "100%" }}
                 onClick={checkForSoftwareUpdates}
               >
-                Check for signed updates (GET /updates/manifest)
+                Check for updates (GET /v1/me/entitlement)
               </button>
             </div>
           ) : null}
@@ -980,29 +1738,45 @@ export function CustomerWorkspaceShell(props: {
             </div>
           ) : null}
 
-          {updateStep === "AVAILABLE" && stagedRecord ? (
+          {updateStep === "AVAILABLE" && release ? (
             <div>
               <div className="ws-panel ws-panel--action" style={{ marginBottom: 14 }}>
                 <h4 className="ws-panel__title">
-                  New signed release available: v{stagedRecord.version}
+                  Published release available: v{release.version}
                 </h4>
                 <p className="ws-panel__text" style={{ margin: 0 }}>
-                  {stagedRecord.channel} &middot; {stagedRecord.releaseType} &middot; Size:{" "}
-                  {stagedRecord.size}
+                  Read from the release manifest at{" "}
+                  <span className="ws-mono">build-manifest.json</span>.
                 </p>
               </div>
 
               <LicenceCardLite
                 rows={[
-                  { key: "Signature algorithm", value: <span className="ws-mono">{stagedRecord.signatureAlgorithm}</span> },
-                  { key: "Manifest signature", value: <span className="ws-mono">{stagedRecord.signature}</span> },
-                  { key: "Package SHA-256", value: <span className="ws-mono" style={{ wordBreak: "break-all" }}>{stagedRecord.sha256}</span> },
+                  { key: "Version", value: `v${release.version}` },
+                  {
+                    key: "Release date",
+                    value: release.releasedAt ? formatDateTime(release.releasedAt) : "\u2014",
+                  },
+                  { key: "Package", value: release.installerName },
+                  { key: "File size", value: formatSize(release.sizeBytes) ?? "\u2014" },
+                  {
+                    key: "SHA-256",
+                    value: (
+                      <span className="ws-mono" style={{ wordBreak: "break-all" }}>
+                        {release.sha256}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "Manifest signature",
+                    value: "Not published - the manifest carries an integrity value only",
+                  },
                 ]}
               />
 
               <p className="ws-panel__text" style={{ margin: "14px 0" }}>
-                All artifacts must pass signature and SHA-256 checksum verification before
-                staging. Unsigned packages are rejected.
+                Verify the SHA-256 of what you download against the value above before you
+                install it. The Workspace cannot sign, stage or write the package for you.
               </p>
 
               <div style={{ display: "flex", gap: 10 }}>
@@ -1012,7 +1786,7 @@ export function CustomerWorkspaceShell(props: {
                   style={{ flex: 1 }}
                   onClick={downloadAndStageUpdate}
                 >
-                  Download, verify &amp; stage update
+                  Download published package
                 </button>
                 <button
                   type="button"
@@ -1025,21 +1799,64 @@ export function CustomerWorkspaceShell(props: {
             </div>
           ) : null}
 
-          {updateStep === "STAGED" && stagedRecord ? (
+          {/*
+           * WS-K1-09 - the two branches the old implementation could not
+           * reach, because its check always answered AVAILABLE with an
+           * invented package.
+           */}
+          {updateStep === "NO_UPDATE" ? (
             <div>
-              <SuccessPanel title="Update verified and staged">
-                The update binary passed its signature checks and is staged for installation on
-                the next restart.
+              <div className="ws-panel" style={{ marginBottom: 14 }}>
+                <h4 className="ws-panel__title">No release published</h4>
+                <p className="ws-panel__text">{updateProgressMsg}</p>
+              </div>
+              <p className="ws-panel__text" style={{ marginBottom: 18 }}>
+                This is a real answer from the release manifest, not a placeholder. The check
+                will offer a package the moment a release job publishes one.
+              </p>
+              <button
+                type="button"
+                className="ws-btn ws-btn--ghost"
+                style={{ width: "100%" }}
+                onClick={() => setUpdateStep("IDLE")}
+              >
+                Return to update manager
+              </button>
+            </div>
+          ) : null}
+
+          {updateStep === "CHECK_FAILED" ? (
+            <div>
+              <ErrorPanel title="The release manifest could not be read">
+                {updateProgressMsg}
+              </ErrorPanel>
+              <button
+                type="button"
+                className="ws-btn ws-btn--ghost"
+                style={{ width: "100%", marginTop: 14 }}
+                onClick={() => setUpdateStep("IDLE")}
+              >
+                Return to update manager
+              </button>
+            </div>
+          ) : null}
+
+          {updateStep === "STAGED" && release ? (
+            <div>
+              <SuccessPanel title="Package download started">
+                Your browser is fetching the published package. Verify its SHA-256 against the
+                value shown above before installing it. This Workspace does not write to the
+                installed application; the CYVRA Mobile host verifies and applies the update, and
+                keeps its own rollback copy.
               </SuccessPanel>
 
               <div style={{ margin: "14px 0" }}>
                 <LicenceCardLite
                   rows={[
-                    { key: "Target version", value: `v${stagedRecord.version}` },
-                    { key: "Staged payload path", value: <span className="ws-mono">{stagedRecord.stagedPath}</span> },
-                    { key: "Cryptographic signature", value: "Verified (Ed25519)" },
-                    { key: "Payload checksum", value: "SHA-256 matched" },
-                    { key: "Rollback backup", value: <span className="ws-mono">{stagedRecord.rollbackPath}</span> },
+                    { key: "Target version", value: `v${release.version}` },
+                    { key: "Package", value: release.installerName },
+                    { key: "Published SHA-256", value: <span className="ws-mono" style={{ wordBreak: "break-all" }}>{release.sha256}</span> },
+                    { key: "Applied by", value: "CYVRA Mobile host, on restart" },
                   ]}
                 />
               </div>
@@ -1051,15 +1868,15 @@ export function CustomerWorkspaceShell(props: {
                   style={{ flex: 1 }}
                   onClick={() => {
                     setUpdateProgressMsg(
-                      `Staged update v${stagedRecord.version} queued - it applies on next restart.`,
+                      `v${release.version} is in your downloads. Restart the workstation and the CYVRA Mobile host applies it.`,
                     );
                     setUpdateModalOpen(false);
                   }}
                 >
-                  Restart workstation to apply
+                  Got it - apply on restart
                 </button>
                 <button type="button" className="ws-btn ws-btn--danger" onClick={rollbackUpdate}>
-                  Roll back staged update
+                  Discard downloaded package
                 </button>
               </div>
             </div>
@@ -1067,9 +1884,8 @@ export function CustomerWorkspaceShell(props: {
 
           {updateStep === "ROLLED_BACK" ? (
             <div>
-              <ErrorPanel title="Staged update cancelled and rolled back">
-                Staged binaries removed. Current workstation version v{license.version} remains
-                active. {updateProgressMsg}
+              <ErrorPanel title="Downloaded package discarded">
+                {updateProgressMsg}
               </ErrorPanel>
               <button
                 type="button"

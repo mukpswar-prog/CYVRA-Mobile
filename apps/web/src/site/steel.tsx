@@ -20,7 +20,14 @@ import "./steel.css";
 export type Tone = "success" | "danger" | "action" | "neutral";
 
 /* ------------------------------------------------------------------ *
- * Spec 70 list (17 components)
+ * Spec 70 list (the 17 prescribed components, plus the form control
+ * the Spec 9 / Spec 11 purchase form needs).
+ *
+ * Spec 70's list is introduced with "Primary components:", so it is a
+ * floor rather than a ceiling - and its closing rule ("Do not create
+ * one-off visual styles for every screen") is exactly why the label +
+ * control + hint + error pattern below lives here instead of being
+ * re-declared inside the purchase screen.
  * ------------------------------------------------------------------ */
 
 /** 1. Steel card — the default container. */
@@ -397,5 +404,47 @@ export function Pagination(props: {
         Next
       </button>
     </nav>
+  );
+}
+
+/**
+ * 18. Field - label + control + hint + error.
+ *
+ * Spec 9 and Spec 11 both prescribe forms, and Spec 72 requires "proper
+ * labels" plus visible focus, so the association between a label and its
+ * control is made here rather than at every call site. The error slot is a
+ * `role="alert"` region so a validation failure is announced, and it is
+ * rendered as text - Spec 4 forbids signalling a state by colour alone.
+ *
+ * The caller owns the control itself (input, select, textarea) and passes it
+ * as `children`, because Spec 70 does not prescribe a control widget and the
+ * purchase form needs both text inputs and a dropdown.
+ */
+export function Field(props: {
+  /** `id` of the control this label describes. */
+  htmlFor: string;
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;
+  children: ReactNode;
+}) {
+  const { htmlFor, label, hint, error, children } = props;
+  return (
+    <div className={error ? "ws-field-block ws-field-block--invalid" : "ws-field-block"}>
+      <label className="ws-label" htmlFor={htmlFor}>
+        {label}
+      </label>
+      {children}
+      {hint ? (
+        <span className="ws-hint" id={`${htmlFor}-hint`}>
+          {hint}
+        </span>
+      ) : null}
+      {error ? (
+        <span className="ws-error" id={`${htmlFor}-error`} role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
