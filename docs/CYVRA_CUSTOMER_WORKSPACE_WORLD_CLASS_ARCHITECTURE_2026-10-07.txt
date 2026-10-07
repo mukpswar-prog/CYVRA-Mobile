@@ -1,0 +1,2438 @@
+CYVRA CUSTOMER WORKSPACE
+
+World-Class Customer Dashboard — Product, UX, Reporting & Engineering Architecture
+
+CYVORIQ Solutions Pvt. Ltd. | CYVRA Mobile
+
+Version 1.0 — Customer Workspace Redesign Specification
+
+------------------------------------------------------------------------
+
+1. PURPOSE
+
+This specification defines the redesigned customer-facing Workspace at:
+
+https://cyvoriq.co.in/dashboard
+
+The Workspace is the customer’s operational control centre for CYVRA
+Mobile.
+
+It is not intended to be a payment gateway, an online banking screen, or
+merely an application-download page.
+
+The Workspace shall provide one clean, professional environment for:
+
+1.  CYVRA Mobile licence selection/request.
+2.  Manual payment-status recording.
+3.  Licence authorization/status visibility.
+4.  CYVRA Mobile application download.
+5.  Existing Update and Upgrade functions.
+6.  Raw diagnostic/purge report upload.
+7.  Evidence organization and audit-report generation.
+8.  Device-level scan/report tracking.
+9.  Own-device and third-party-device audit operations.
+10. Settings.
+11. Help and support.
+
+The design must communicate that CYVRA Mobile is an evidence-led
+diagnostic, sanitization and reporting platform.
+
+Core product message:
+
+“Know the Device. Prove the Result.”
+
+Broader positioning:
+
+“From Device Intake to Final Disposition—Built on Evidence.”
+
+------------------------------------------------------------------------
+
+2. IMPORTANT COMMERCIAL RULE — NO PAYMENT GATEWAY
+
+The Customer Workspace SHALL NOT integrate a payment gateway.
+
+There shall be no card, UPI, bank-transfer, payment-processor or
+checkout integration inside this dashboard.
+
+The purchase area only records the commercial/licensing state.
+
+The customer selects the desired CYVRA Mobile Licence Type and the
+dashboard captures the required customer information.
+
+A simple Payment Status control shall be provided.
+
+Recommended states:
+
+-   Not Done
+-   Done
+
+The exact internal enum may be:
+
+PAYMENT_NOT_CONFIRMED PAYMENT_CONFIRMED
+
+The dashboard is not responsible for processing the payment.
+
+------------------------------------------------------------------------
+
+3. LICENCE AUTHORIZATION PRINCIPLE
+
+The licence received by the customer at the registered email address is
+the operational authorization signal.
+
+Customer-facing logic:
+
+1.  Customer selects a licence model.
+2.  Customer provides/validates required customer information.
+3.  Payment status is recorded manually by the authorized business/admin
+    process.
+4.  Licence is issued through the existing licensing/approval process.
+5.  Licence is delivered to the customer’s registered email address.
+6.  Receipt of a valid issued licence means the customer is authorized
+    to use the corresponding licensed CYVRA Mobile entitlement, subject
+    to the existing licensing rules.
+7.  The Workspace displays the resulting licence/application status.
+
+The Customer Workspace therefore should not duplicate the administrative
+approval engine.
+
+It should display the customer’s authoritative entitlement state.
+
+Recommended customer-facing status model:
+
+-   Request Not Submitted
+-   Request Submitted
+-   Payment Not Confirmed
+-   Awaiting Authorization
+-   Licence Issued
+-   Ready to Download
+-   Active
+-   Expired
+-   Suspended
+-   Upgrade Available
+
+Do not expose internal administrative workflow details unnecessarily.
+
+------------------------------------------------------------------------
+
+4. DESIGN PHILOSOPHY
+
+The current dark-blue dashboard shall be replaced.
+
+The new design should feel like a professional enterprise audit and
+evidence platform.
+
+Visual direction:
+
+-   Light professional steel background.
+-   White or very-light steel cards.
+-   Subtle grey borders.
+-   High readability.
+-   Strong hierarchy.
+-   Generous whitespace.
+-   Minimal gradients.
+-   No oversized decorative graphics.
+-   No dark navy page-wide background.
+-   No excessive neon colours.
+-   No gaming-style dashboard appearance.
+
+Colour semantics must be consistent:
+
+GREEN Meaning: - Completed - Successful - Approved - Active - Ready -
+Verified
+
+RED Meaning: - Error - Failed - Rejected - Blocked - Attention
+required - Missing required action
+
+ORANGE Meaning: - Download - Application package - Export/download
+action - Important customer action related to obtaining a file
+
+STEEL/GREY Meaning: - Neutral - Informational - Secondary - Disabled -
+Pending/non-action state
+
+The UI must never use colour alone to communicate a critical state.
+Every status should also contain text or an icon/semantic label.
+
+------------------------------------------------------------------------
+
+5. CUSTOMER WORKSPACE INFORMATION ARCHITECTURE
+
+Primary navigation:
+
+1.  OVERVIEW
+2.  CYVRA MOBILE
+3.  UPDATE & UPGRADE
+4.  REPORTING & AUDIT
+5.  DEVICE ACTIVITY
+6.  LICENCE & USAGE
+7.  SETTINGS
+8.  HELP
+
+The exact navigation labels may be consolidated after implementation
+review, but the underlying functions should remain.
+
+The first screen after login should be OVERVIEW.
+
+------------------------------------------------------------------------
+
+6. OVERVIEW — CUSTOMER HOME
+
+The Overview page should answer five questions immediately:
+
+1.  Who am I?
+2.  What licence do I have?
+3.  Is my application ready?
+4.  What is happening with my devices?
+5.  What requires my attention?
+
+Top summary area:
+
+CUSTOMER [Registered customer/company name]
+
+LICENCE [Licence Type]
+
+LICENCE STATUS [Green: Active / Orange: Awaiting / Red: Action Required]
+
+APPLICATION [Version / Ready / Update Available]
+
+DEVICE ACTIVITY [Scanned count]
+
+REPORTS [Generated / Pending / Failed]
+
+The page should avoid unnecessary dashboard decoration.
+
+------------------------------------------------------------------------
+
+7. OVERVIEW — PRIMARY ACTIONS
+
+Primary actions should be visually obvious:
+
+-   Purchase CYVRA Mobile
+-   Download Application
+-   Open Reporting & Audit
+-   View Device Activity
+
+Download action is ORANGE.
+
+Successful/ready states are GREEN.
+
+Errors/failed actions are RED.
+
+Neutral navigation is STEEL.
+
+------------------------------------------------------------------------
+
+8. CYVRA MOBILE PURCHASE AREA
+
+The customer should be able to initiate a CYVRA Mobile licence request
+from the Workspace.
+
+Heading:
+
+PURCHASE CYVRA MOBILE
+
+Subheading:
+
+Select the licence model required for your operation.
+
+Licence Type should be a dropdown.
+
+Example licence models may include:
+
+-   1 User / 1 Device
+-   1 User / 5 Devices
+-   1 User / 7 Devices
+-   1 User / 25 Devices
+
+The actual production options must come from the approved licence
+policy/configuration and must not be hard-coded into the UI
+specification as permanent values.
+
+------------------------------------------------------------------------
+
+9. CUSTOMER INFORMATION FOR LICENCE REQUEST
+
+The form shall capture:
+
+REGISTERED EMAIL - Automatically populated from the authenticated
+account. - Read-only by default. - Clearly marked “Same as Registered
+Email”.
+
+CUSTOMER / COMPANY NAME - Customer’s legal/business identity. - Must be
+associated with the account.
+
+ADDRESS - Full registered/business address.
+
+PIN CODE - Mandatory. - Must be validated as an Indian PIN code where
+applicable.
+
+The design should avoid repeatedly asking the customer for information
+already available in the authenticated account.
+
+------------------------------------------------------------------------
+
+10. PURCHASE RECORD
+
+The purchase/licence request record should conceptually contain:
+
+-   Request ID
+-   Customer account ID
+-   Registered email
+-   Customer/company name
+-   Address
+-   PIN code
+-   Selected licence type
+-   Payment status
+-   Request date/time
+-   Licence status
+-   Licence issued date/time
+-   Licence reference
+-   Application entitlement
+-   Download availability
+
+The customer should be able to see a clean status summary, not internal
+administrative fields.
+
+------------------------------------------------------------------------
+
+11. PAYMENT STATUS
+
+Payment status is MANUAL.
+
+UI control:
+
+PAYMENT STATUS [Dropdown]
+
+Values:
+
+-   Not Done
+-   Done
+
+No payment gateway.
+
+No payment processing.
+
+No payment credentials.
+
+No payment token.
+
+No payment-provider dependency.
+
+If payment status is “Done”, the customer-facing screen can show:
+
+GREEN — Payment marked complete.
+
+However, “Payment Done” alone should not be treated as an application
+entitlement unless the authoritative licence process has
+issued/authorized the licence.
+
+The final operational authorization signal is:
+
+VALID LICENCE ISSUED.
+
+------------------------------------------------------------------------
+
+12. LICENCE DELIVERY
+
+Once the licensing process issues the licence:
+
+The licence is delivered to the customer’s REGISTERED EMAIL.
+
+The Workspace should show:
+
+LICENCE STATUS GREEN — Licence Issued
+
+and:
+
+Licence delivery: Sent to registered email.
+
+The Workspace may display a masked licence reference/serial if
+appropriate.
+
+Do not unnecessarily expose sensitive licensing material in the browser.
+
+------------------------------------------------------------------------
+
+13. APPLICATION DOWNLOAD
+
+Once the customer is entitled to download CYVRA Mobile:
+
+The dashboard shall provide:
+
+DOWNLOAD CYVRA MOBILE
+
+The application package shall be provided as:
+
+CYVRA Mobile Windows Application ZIP
+
+The ZIP contains the distributable Windows application package as
+defined by the release process.
+
+The download action must be ORANGE.
+
+Example:
+
+[ DOWNLOAD CYVRA MOBILE .ZIP ]
+
+Supporting information:
+
+-   Version
+-   Release date
+-   Package type
+-   File size
+-   SHA-256 integrity value where available
+
+Download availability must be controlled by entitlement/release state.
+
+Do not display “Download” as available when no authorized release
+exists.
+
+------------------------------------------------------------------------
+
+14. DOWNLOAD STATES
+
+Possible states:
+
+BUILD NOT AVAILABLE Steel/neutral message.
+
+BUILD AVAILABLE Orange download action.
+
+DOWNLOAD DISABLED Grey disabled action with reason.
+
+UPDATE AVAILABLE Green status plus existing UPDATE action.
+
+DOWNLOAD ERROR Red status with actionable error.
+
+------------------------------------------------------------------------
+
+15. UPDATE & UPGRADE
+
+The existing Update and Upgrade functionality is already approved.
+
+DO NOT redesign its functional behaviour.
+
+The new Workspace only needs to place it correctly inside the new visual
+system.
+
+Existing functions:
+
+UPDATE UPGRADE
+
+remain intact.
+
+The visual design may be restyled from the current dark dashboard to the
+new light steel system, but the business behaviour must not change.
+
+------------------------------------------------------------------------
+
+16. REPORTING & AUDIT — CORE PURPOSE
+
+Reporting & Audit is a major part of the new Workspace.
+
+It should not be treated as a simple “upload file” screen.
+
+It is an evidence processing and audit-report workspace.
+
+The conceptual flow is:
+
+CYVRA MOBILE Device Connection → Identity → Android/Software → Hardware
+→ Storage → Memory → Battery → Security → Network → Applications →
+Capability → Diagnostic Result → Sanitization/Purge → Post-Purge
+Verification → Raw Report
+
+THEN
+
+CUSTOMER WORKSPACE Raw Report Upload → Validate → Extract Evidence →
+Normalize → Map Evidence Domains → Add Customer/Audit Metadata → Build
+Audit Record → Generate Professional Report → Authorize/Approve → Audit
+Seal → Final Report
+
+------------------------------------------------------------------------
+
+17. RAW REPORT UPLOAD
+
+Customer can upload the raw report produced by CYVRA Mobile after
+scanning and/or purging.
+
+The upload screen should show:
+
+-   File selector
+-   Accepted file type(s)
+-   Maximum file size
+-   Upload progress
+-   Validation status
+-   Processing status
+-   Error details if validation fails
+
+The system must not silently accept malformed or unrelated files.
+
+------------------------------------------------------------------------
+
+18. REPORT INGESTION PIPELINE
+
+Recommended engineering pipeline:
+
+1.  Receive upload.
+2.  Generate upload/request ID.
+3.  Validate file type.
+4.  Validate file integrity.
+5.  Parse report.
+6.  Validate schema/version.
+7.  Identify device/session.
+8.  Extract evidence records.
+9.  Preserve source provenance.
+10. Normalize data into the reporting model.
+11. Separate automated evidence from physical verification.
+12. Preserve unknown/restricted/conditional states.
+13. Attach customer/audit metadata.
+14. Generate report-ready dataset.
+15. Generate final report.
+16. Store report version and audit history.
+
+Raw evidence should never be silently overwritten by transformed data.
+
+------------------------------------------------------------------------
+
+19. EVIDENCE-FIRST REPORTING PRINCIPLE
+
+The dashboard and generated reports must follow:
+
+EVIDENCE BEFORE GRADING.
+
+Missing or restricted data must NOT automatically become PASS or FAIL.
+
+The system must preserve the distinction:
+
+ENUMERATED ≠ PHYSICALLY PRESENT ≠ FUNCTIONALLY TESTED
+
+This is a core engineering and audit principle.
+
+------------------------------------------------------------------------
+
+20. EVIDENCE SOURCE PROVENANCE
+
+The final reporting architecture must preserve where evidence came from.
+
+Possible sources include:
+
+-   Windows USB enumeration
+-   Controlled ADB
+-   Android companion component
+-   Android public APIs
+-   OEM adapter
+-   Controlled Wi-Fi fixture
+-   Controlled Bluetooth fixture
+-   Known-good charger/cable
+-   Technician observation
+-   Specialized service equipment
+
+Every evidence item should retain source/provenance where available.
+
+Recommended evidence metadata:
+
+-   Evidence ID
+-   Domain
+-   Diagnostic item
+-   Source
+-   Method
+-   Evidence type
+-   Result
+-   Confidence/authority
+-   Timestamp
+-   Device/session ID
+-   Software version
+-   Operator where applicable
+-   Physical verification status
+-   Notes
+-   Supporting evidence/photo reference where applicable
+
+------------------------------------------------------------------------
+
+21. MASTER DIAGNOSTIC DOMAINS
+
+The reporting architecture should recognize the following domains from
+the engineering matrix:
+
+1.  Connection
+2.  Identity
+3.  Security
+4.  Applications
+5.  Hardware
+6.  Storage
+7.  Battery
+8.  Display
+9.  Touch
+10. Camera
+11. Audio
+12. Sensors
+13. Biometrics
+14. Haptics
+15. Wi-Fi
+16. Bluetooth
+17. Cellular
+18. GNSS
+19. Mechanical
+20. Performance
+21. System
+22. Sanitization
+
+The UI does not need to show all domains as separate navigation items.
+
+The report engine should retain them as structured evidence domains.
+
+------------------------------------------------------------------------
+
+22. CAPABILITY SEMANTICS
+
+The system must preserve capability states such as:
+
+YES PARTIAL CONDITIONAL ASSISTED NO
+
+These must not be flattened into a simplistic PASS/FAIL value.
+
+Example:
+
+Battery swelling: CYVRA software capability = NO Physical verification =
+YES
+
+Therefore the report should communicate:
+
+“Physical verification required”
+
+rather than:
+
+“Battery swelling = PASS”
+
+------------------------------------------------------------------------
+
+23. RESULT SEMANTICS
+
+Recommended result vocabulary:
+
+PASS FAIL NOT TESTED NOT AVAILABLE NOT APPLICABLE CONDITIONAL ASSISTED
+PHYSICAL VERIFICATION REQUIRED RESTRICTED UNKNOWN ERROR
+
+A missing permission, unavailable OEM source or restricted identifier
+must not automatically become FAIL.
+
+------------------------------------------------------------------------
+
+24. IDENTIFIER RULE
+
+Never fabricate:
+
+-   IMEI
+-   Serial
+-   MAC
+-   Other restricted identifiers
+
+If unavailable:
+
+Record source/status.
+
+Examples:
+
+NOT EXPOSED RESTRICTED NOT AVAILABLE NOT COLLECTED CONDITIONAL
+
+The report must make the provenance clear.
+
+------------------------------------------------------------------------
+
+25. PHYSICAL VERIFICATION
+
+CYVRA Mobile can guide physical verification, but the system must never
+falsely claim that a software test has verified a physical condition.
+
+The application/workspace should distinguish:
+
+SOFTWARE EVIDENCE FUNCTIONAL SOFTWARE TEST ASSISTED PHYSICAL
+VERIFICATION PHYSICAL VERIFICATION SPECIALIZED SERVICE VERIFICATION
+
+Examples requiring physical/assisted verification include:
+
+-   Glass cracks/chips
+-   Dead/stuck pixels
+-   Burn-in
+-   Lens glass condition
+-   Speaker distortion
+-   Microphone acoustic quality
+-   Button tactile quality
+-   USB connector condition
+-   Charging connector looseness
+-   SIM tray/slot integrity
+-   Battery swelling
+-   Liquid/corrosion evidence
+-   Chassis deformation
+-   Water-resistance/IP seal
+-   Internal service-level conditions
+
+------------------------------------------------------------------------
+
+26. PHYSICAL VERIFICATION REPORTING
+
+The report should provide structured fields for physical checks.
+
+Example:
+
+CHECK: Battery swelling
+
+RESULT: CLEAR / SUSPECTED / REMOVE
+
+EVIDENCE: Observation + optional photograph
+
+OPERATOR: Named operator if applicable
+
+TIMESTAMP: Recorded timestamp
+
+This prevents human observations from being silently presented as
+automated software evidence.
+
+------------------------------------------------------------------------
+
+27. HYBRID TEST MODEL
+
+Some tests are best represented as:
+
+CYVRA TEST STIMULUS + TECHNICIAN CONFIRMATION
+
+Examples:
+
+-   Display patterns
+-   Touch grid
+-   Camera quality
+-   Audio
+-   Buttons
+-   Charging
+-   Wi-Fi controlled test
+-   Bluetooth controlled test
+-   Cellular controlled test
+-   GNSS test
+
+The reporting model should preserve both parts.
+
+Example:
+
+Software test: COMPLETED
+
+Technician confirmation: PASS
+
+Final evidence: HYBRID VERIFIED
+
+------------------------------------------------------------------------
+
+28. SANITIZATION / PURGE REPORTING
+
+The purge lifecycle must be represented as:
+
+Capability → Authorization → Method → Purge/Reset → Reboot → Reconnect →
+Post-Purge Verification → Final Report
+
+The reporting system should capture:
+
+-   Purge capability assessment
+-   Purge authorization
+-   Supported method
+-   Execution start
+-   Execution result
+-   Reboot completion
+-   Reconnection
+-   Post-purge state
+-   Residual-data evidence where supported
+-   Exceptions
+-   Final disposition
+
+------------------------------------------------------------------------
+
+29. PURGE RESULT PRINCIPLE
+
+The system must not claim more than the available evidence proves.
+
+For example:
+
+Physical NAND cell-level verification is not available through normal
+Android/Windows software.
+
+Therefore the report must not claim:
+
+“NAND cells physically verified clean.”
+
+Instead it may report the actual supported post-purge evidence and
+clearly state limitations.
+
+------------------------------------------------------------------------
+
+30. CUSTOMER AUDIT INFORMATION
+
+When creating the final audit report, the customer should
+provide/confirm:
+
+-   Customer/company name
+-   Address
+-   PIN code
+-   Audit/reference number where applicable
+-   Device ownership category
+-   Operator/auditor
+-   Audit date
+-   Customer reference/PO/reference if required
+-   Additional notes
+-   Physical inspection evidence where applicable
+
+The exact mandatory field list should be configurable by the report
+policy.
+
+------------------------------------------------------------------------
+
+31. OWN DEVICE VS THIRD-PARTY DEVICE
+
+The reporting workflow must support two important ownership contexts:
+
+OWN COMPANY DEVICE
+
+The licence holder is auditing its own assets.
+
+THIRD-PARTY DEVICE
+
+The licence holder is auditing a device belonging to another
+customer/owner.
+
+Recommended field:
+
+DEVICE OWNERSHIP
+
+Values:
+
+-   Own Company Asset
+-   Third-Party Asset
+-   Customer Asset
+-   Other
+
+If Third-Party Asset is selected, provide appropriate owner/customer
+reference fields.
+
+Do not force unnecessary personal information into the report.
+
+------------------------------------------------------------------------
+
+32. DEVICE ACTIVITY REGISTER
+
+The Workspace should maintain a device-level operational register.
+
+Each device/session should have a unique record.
+
+Recommended columns:
+
+-   Row number
+-   Device/session ID
+-   Manufacturer
+-   Model
+-   Model code
+-   Identifier status
+-   Ownership type
+-   Scan date/time
+-   Scan status
+-   Diagnostic status
+-   Purge status
+-   Post-purge verification
+-   Report status
+-   Report reference
+-   Final status
+-   Exception
+
+The exact identifier displayed depends on lawful availability and
+evidence policy.
+
+------------------------------------------------------------------------
+
+33. DEVICE ACTIVITY STATUS MODEL
+
+Recommended:
+
+NOT STARTED CONNECTED SCANNING SCAN COMPLETED SCAN FAILED PURGE
+AUTHORIZED PURGING PURGE COMPLETED PURGE FAILED POST-PURGE VERIFIED
+REPORT PENDING REPORT GENERATED REPORT FAILED CLOSED
+
+The UI should display only meaningful states relevant to the customer.
+
+------------------------------------------------------------------------
+
+34. DEVICE ACTIVITY SUMMARY
+
+Dashboard summary cards:
+
+TOTAL DEVICES Number of recorded device sessions.
+
+SCANNED Successful diagnostic sessions.
+
+PURGED Successful sanitization sessions.
+
+REPORTS GENERATED Completed final reports.
+
+PENDING Items requiring action.
+
+FAILED Sessions with an error/failure requiring attention.
+
+These are operational metrics, not grading scores.
+
+------------------------------------------------------------------------
+
+35. REPORT GENERATION STATUS
+
+Each device should make it obvious whether a report exists.
+
+Suggested states:
+
+GREEN: Report Generated
+
+ORANGE/STEEL: Report Pending
+
+RED: Report Failed
+
+The customer should be able to filter:
+
+-   All
+-   Completed
+-   Pending
+-   Failed
+-   Own Devices
+-   Third-Party Devices
+
+------------------------------------------------------------------------
+
+36. FINAL AUDIT REPORT STRUCTURE
+
+Recommended report structure:
+
+PAGE 1 AUDIT COVER / EXECUTIVE SUMMARY
+
+-   Customer/company
+-   Audit reference
+-   Date
+-   Device count
+-   Overall evidence status
+-   Sanitization status
+-   Report status
+-   Authorized/approved identity
+-   Audit Seal
+
+PAGE 2+ DEVICE REGISTER
+
+One row per device.
+
+Columns should include the important evidence and status fields.
+
+DEVICE DETAIL
+
+-   Identity
+-   Connection
+-   Software
+-   Hardware
+-   Storage
+-   Memory
+-   Battery
+-   Display
+-   Touch
+-   Camera
+-   Audio
+-   Sensors
+-   Biometrics
+-   Network
+-   Security
+-   Applications
+-   Performance
+-   Physical verification
+-   Sanitization
+-   Post-purge verification
+
+FINAL DISPOSITION
+
+-   Result
+-   Exceptions
+-   Notes
+-   Evidence limitations
+-   Operator/auditor
+-   Timestamp
+
+AUTHORIZATION
+
+Authorized & Approved By: [Purchasing Company / Licence Holder]
+
+Powered By: CYVORIQ SOLUTIONS PVT. LTD.
+
+AUDIT SEAL: [Approved Audit Seal]
+
+------------------------------------------------------------------------
+
+37. AUTHORIZATION MODEL
+
+The final report must clearly separate:
+
+REPORT OWNER / AUTHORIZING COMPANY
+
+from
+
+TECHNOLOGY PROVIDER
+
+Example:
+
+AUTHORIZED & APPROVED BY ABC REFURBISHMENT PRIVATE LIMITED
+
+POWERED BY CYVORIQ SOLUTIONS PVT. LTD.
+
+This is important because CYVORIQ is providing the platform, while the
+licensed company is responsible for its audit operation and
+authorization.
+
+------------------------------------------------------------------------
+
+38. AUDIT SEAL
+
+A formal CYVRA Audit Seal is required.
+
+The seal should eventually communicate:
+
+-   Authentic CYVRA report
+-   Report identity
+-   Report/reference number
+-   Verification mechanism if implemented
+-   CYVORIQ technology provenance
+-   Customer authorization relationship
+
+The seal design is NOT to be improvised as a decorative graphic.
+
+It should be designed as a controlled report-authenticity mark.
+
+Creation of the actual seal is a separate design task.
+
+------------------------------------------------------------------------
+
+39. REPORT INTEGRITY
+
+Every final report should have a unique report reference.
+
+Recommended:
+
+CYVRA report ID + Device/session reference + Report version
+
+If technically appropriate, store a cryptographic hash for the generated
+final artifact.
+
+The UI can optionally expose:
+
+SHA-256 Report Version Generated Timestamp
+
+This strengthens auditability.
+
+------------------------------------------------------------------------
+
+40. REPORT VERSIONING
+
+A report should not simply be overwritten.
+
+Recommended model:
+
+Report v1 Report v2 Report v3
+
+Each version should preserve:
+
+-   Who generated it
+-   When
+-   Why it changed
+-   Source data
+-   Report template/version
+-   Evidence version
+-   Customer metadata version
+
+Finalized reports should be immutable unless a controlled correction
+workflow exists.
+
+------------------------------------------------------------------------
+
+41. REPORT TEMPLATE VERSIONING
+
+The report engine should track:
+
+REPORT TEMPLATE VERSION
+
+This prevents ambiguity if the layout or audit field structure changes
+later.
+
+Example:
+
+CYVRA-AUDIT-REPORT-1.0
+
+Future:
+
+CYVRA-AUDIT-REPORT-1.1
+
+This is an engineering requirement, not just a visual feature.
+
+------------------------------------------------------------------------
+
+42. REPORT DATA MODEL — HIGH LEVEL
+
+Recommended logical entities:
+
+CUSTOMER LICENCE LICENCE_REQUEST APPLICATION_RELEASE DEVICE_SESSION
+EVIDENCE_ITEM DIAGNOSTIC_RESULT PHYSICAL_VERIFICATION
+SANITIZATION_SESSION REPORT REPORT_VERSION REPORT_AUDIT_EVENT
+AUDIT_METADATA DEVICE_OWNERSHIP ATTACHMENT/EVIDENCE_FILE
+
+Relationships:
+
+Customer → Licence → Device Sessions → Evidence → Sanitization → Reports
+
+------------------------------------------------------------------------
+
+43. CUSTOMER ENTITY
+
+Minimum conceptual fields:
+
+customer_id company_name registered_email address pin_code
+account_status created_at updated_at
+
+The customer identity should come from the authenticated account where
+possible.
+
+------------------------------------------------------------------------
+
+44. LICENCE ENTITY
+
+Minimum conceptual fields:
+
+licence_id customer_id licence_type licence_status issued_at expires_at
+if applicable device_entitlement usage_limit usage_consumed
+activation_state licence_reference
+
+Do not duplicate licence policy logic inside the reporting module.
+
+------------------------------------------------------------------------
+
+45. DEVICE SESSION ENTITY
+
+Recommended fields:
+
+session_id customer_id licence_id device_identity ownership_type
+connection_start connection_end software_version device_state
+diagnostic_status purge_status post_purge_status report_status
+
+------------------------------------------------------------------------
+
+46. EVIDENCE ITEM ENTITY
+
+Recommended fields:
+
+evidence_id session_id domain item_id item_name source method capability
+evidence_type result raw_value normalized_value status timestamp
+confidence/authority restriction notes
+
+This supports the master diagnostic matrix without forcing everything
+into PASS/FAIL.
+
+------------------------------------------------------------------------
+
+47. PHYSICAL VERIFICATION ENTITY
+
+Recommended fields:
+
+physical_check_id session_id protocol_id domain check_name procedure
+result notes operator timestamp photo/evidence reference fixture/tool
+conditions
+
+------------------------------------------------------------------------
+
+48. REPORT ENTITY
+
+Recommended fields:
+
+report_id customer_id session_id or audit_batch_id report_reference
+template_version status generated_at authorized_by powered_by
+audit_seal_reference file_hash final_artifact_reference
+
+------------------------------------------------------------------------
+
+49. AUDIT BATCH
+
+For customers processing multiple devices, introduce an AUDIT BATCH
+concept.
+
+Example:
+
+AUDIT BATCH: ABC-ITAD-2026-001
+
+Contains:
+
+Device 001 Device 002 Device 003 … Device N
+
+This allows multiple device reports to be grouped under one audit event.
+
+The individual device reports remain independently traceable.
+
+------------------------------------------------------------------------
+
+50. ONE DEVICE = ONE TRACEABLE RECORD
+
+The system must maintain device-level traceability.
+
+Even if several devices are processed under one audit batch:
+
+One device
+
+One device/session record.
+
+One report
+
+One traceable report record.
+
+This prevents mixed-device evidence and improves audit defensibility.
+
+------------------------------------------------------------------------
+
+51. REPORT UPLOAD SAFETY
+
+The upload processor should reject or quarantine:
+
+-   Unsupported file type
+-   Corrupt file
+-   Unknown report version
+-   Missing required device/session identity
+-   Invalid schema
+-   Duplicate upload where appropriate
+-   Tampered/inconsistent package where detectable
+
+The UI should explain the problem in plain language.
+
+Never display a generic:
+
+“Something went wrong.”
+
+Instead:
+
+“Report could not be processed because the report schema version is
+unsupported.”
+
+------------------------------------------------------------------------
+
+52. DUPLICATE REPORT HANDLING
+
+If the same raw report is uploaded twice:
+
+Do not silently create two identical audit records.
+
+The system should detect duplicates using appropriate report/session
+identifiers and/or cryptographic hashes.
+
+UI:
+
+“Duplicate report detected.”
+
+Then provide:
+
+-   View existing record
+-   Replace/re-upload if permitted
+-   Cancel
+
+------------------------------------------------------------------------
+
+53. ERROR DESIGN
+
+Red is reserved for genuine errors/failed states.
+
+Examples:
+
+RED Report processing failed.
+
+RED Licence not active.
+
+RED Application package unavailable.
+
+RED Device session failed.
+
+RED Required audit information missing.
+
+Errors should include an action.
+
+Example:
+
+[VIEW DETAILS] [RETRY] [CONTACT SUPPORT]
+
+------------------------------------------------------------------------
+
+54. SUCCESS DESIGN
+
+Green is reserved for completed/verified states.
+
+Examples:
+
+GREEN Licence Issued
+
+GREEN Application Ready
+
+GREEN Report Generated
+
+GREEN Purge Completed
+
+GREEN Post-Purge Verified
+
+GREEN Audit Record Complete
+
+------------------------------------------------------------------------
+
+55. DOWNLOAD DESIGN
+
+Orange is reserved for downloadable artifacts/actions.
+
+Examples:
+
+[DOWNLOAD CYVRA MOBILE ZIP]
+
+[DOWNLOAD FINAL REPORT]
+
+[DOWNLOAD RAW REPORT]
+
+[EXPORT DEVICE REGISTER]
+
+The same orange semantic should remain consistent across the Workspace.
+
+------------------------------------------------------------------------
+
+56. PROFESSIONAL REPORT TABLE
+
+The device register should be optimized for audit use.
+
+Suggested columns:
+
+S.No. Device Reference Manufacturer Model Identifier Status Ownership
+Scan Diagnostic Purge Post-Purge Report Final Status Report Reference
+
+Do not overload the table with every technical evidence field.
+
+The table is the control layer.
+
+The device detail/report is the evidence layer.
+
+------------------------------------------------------------------------
+
+57. REPORT DETAIL VIEW
+
+Selecting one device should open a structured detail page.
+
+Recommended sections:
+
+DEVICE SUMMARY IDENTITY CONNECTION SOFTWARE HARDWARE STORAGE MEMORY
+BATTERY DISPLAY & TOUCH CAMERA AUDIO SENSORS BIOMETRICS NETWORK SECURITY
+APPLICATIONS PERFORMANCE PHYSICAL VERIFICATION SANITIZATION POST-PURGE
+VERIFICATION EXCEPTIONS REPORT
+
+This mirrors the engineering capability architecture.
+
+------------------------------------------------------------------------
+
+58. EVIDENCE DISPLAY RULE
+
+Do not present all 100+ diagnostic records as one giant unstructured
+table.
+
+Use:
+
+Domain → Evidence item → Result → Source → Status → Notes
+
+Allow expansion for details.
+
+This gives the user both a high-level audit view and deep evidence
+traceability.
+
+------------------------------------------------------------------------
+
+59. COVERAGE DASHBOARD
+
+The engineering coverage dashboard can inform the reporting
+architecture.
+
+It should communicate:
+
+CYVRA can collect extensive software/system evidence and actively
+exercise many device functions.
+
+However:
+
+Physical verification remains essential for conditions software cannot
+directly observe.
+
+The customer-facing UI should NOT advertise unsupported claims such as:
+
+“100% device health verified.”
+
+Instead use evidence-based wording.
+
+------------------------------------------------------------------------
+
+60. GRADING POLICY
+
+Overall grading must remain a separate policy layer.
+
+Evidence collection ≠ grading
+
+Diagnostic result ≠ commercial grade
+
+Missing/restricted evidence ≠ automatic FAIL
+
+The Workspace report engine should therefore preserve evidence first and
+apply grading rules separately if/when a grading policy is configured.
+
+------------------------------------------------------------------------
+
+61. THIRD-PARTY AUDIT USE CASE
+
+Example:
+
+A refurbishment company owns a CYVRA Mobile licence.
+
+It receives 50 phones from Customer X.
+
+The company scans the phones.
+
+The ownership field identifies:
+
+THIRD-PARTY ASSET
+
+The system records:
+
+-   Device identity
+-   Evidence
+-   Diagnostic result
+-   Physical verification
+-   Purge result
+-   Report result
+-   Customer/reference information
+
+The final report identifies the licensed/refurbishment company as:
+
+AUTHORIZED & APPROVED BY
+
+and identifies CYVORIQ as:
+
+POWERED BY
+
+This clearly separates operational responsibility from technology
+provenance.
+
+------------------------------------------------------------------------
+
+62. OPERATIONAL DASHBOARD METRICS
+
+The Overview page should display:
+
+TOTAL DEVICES SCANNED PURGED REPORTS GENERATED PENDING FAILED
+
+Optional future metrics:
+
+-   Own devices
+-   Third-party devices
+-   Physical checks completed
+-   Physical checks pending
+-   Reports downloaded
+-   Exceptions
+
+Do not turn these into artificial performance scores.
+
+------------------------------------------------------------------------
+
+63. AUDIT EXCEPTIONS
+
+Introduce a clear EXCEPTIONS concept.
+
+Examples:
+
+-   Identifier restricted
+-   ADB unavailable
+-   OEM evidence unavailable
+-   Physical verification pending
+-   Purge method conditional
+-   Report generation failure
+-   Device disconnected
+-   Required fixture unavailable
+
+Each exception should include:
+
+Severity Source Description Action Resolution status
+
+------------------------------------------------------------------------
+
+64. EXCEPTION SEVERITY
+
+Suggested:
+
+INFO No action required.
+
+WARNING Review recommended.
+
+CRITICAL Action required before final report/disposition.
+
+ERROR Operation failed.
+
+This is better than using red for every non-perfect result.
+
+------------------------------------------------------------------------
+
+65. CUSTOMER WORKSPACE SECURITY
+
+The dashboard contains licensing and audit information.
+
+Therefore:
+
+-   Authenticated access only.
+-   Customer records isolated by customer/account.
+-   No cross-customer report visibility.
+-   Server-side authorization for every report/device request.
+-   Upload validation.
+-   Secure artifact access.
+-   Audit trail for report changes.
+-   Avoid exposing raw storage paths.
+-   Avoid exposing internal database IDs unnecessarily.
+-   Sensitive identifiers should be masked according to policy.
+
+------------------------------------------------------------------------
+
+66. REPORT ACCESS CONTROL
+
+A customer must only be able to access:
+
+-   Their own licence.
+-   Their own application entitlement.
+-   Their own device sessions.
+-   Their own reports.
+-   Their own uploaded files.
+
+Third-party device ownership does not mean the third-party owner
+automatically receives Workspace access.
+
+The licensed customer remains the authenticated reporting party unless a
+separate sharing workflow is introduced later.
+
+------------------------------------------------------------------------
+
+67. AUDIT LOGGING
+
+Important events should be recorded.
+
+Examples:
+
+-   Licence request created
+-   Payment status changed
+-   Licence issued
+-   Application downloaded
+-   Raw report uploaded
+-   Report processed
+-   Report generated
+-   Report downloaded
+-   Report corrected
+-   Report finalized
+-   Physical verification entered
+-   Settings changed
+
+This creates operational accountability.
+
+------------------------------------------------------------------------
+
+68. SETTINGS
+
+Settings should be deliberately simple in V1.
+
+Likely areas:
+
+ACCOUNT Company/profile information
+
+SECURITY Password/authentication/security options
+
+REPORTING Default report preferences
+
+NOTIFICATIONS Email/report notifications
+
+APPLICATION Download/update preferences where applicable
+
+AUDIT Default operator/report preferences where applicable
+
+Do not overload Settings with operational functions.
+
+------------------------------------------------------------------------
+
+69. HELP
+
+Help should contain:
+
+GETTING STARTED How to obtain and activate CYVRA Mobile.
+
+DEVICE CONNECTION USB/ADB prerequisites.
+
+DIAGNOSTICS How scanning works.
+
+SANITIZATION How purge authorization and verification work.
+
+REPORTING How to upload raw reports and generate final reports.
+
+PHYSICAL VERIFICATION What requires technician observation.
+
+LICENCE Licence and usage explanation.
+
+DOWNLOADS Application/report downloads.
+
+TROUBLESHOOTING Common failures.
+
+SUPPORT Contact/support route.
+
+------------------------------------------------------------------------
+
+70. UI COMPONENT SYSTEM
+
+Use reusable components.
+
+Primary components:
+
+-   Steel card
+-   Status badge
+-   Licence card
+-   Metric card
+-   Data table
+-   Evidence accordion
+-   Upload panel
+-   Timeline
+-   Stepper
+-   Modal
+-   Confirmation dialog
+-   Error panel
+-   Success panel
+-   Download button
+-   Filter bar
+-   Search
+-   Pagination
+
+Do not create one-off visual styles for every screen.
+
+------------------------------------------------------------------------
+
+71. RESPONSIVE DESIGN
+
+Desktop is the primary target because the customer Workspace is an
+enterprise Windows/desktop workflow.
+
+Nevertheless, the web dashboard should remain usable on:
+
+-   Laptop
+-   Desktop
+-   Tablet
+-   Mobile browser
+
+On small screens:
+
+-   Tables become horizontally scrollable or responsive cards.
+-   Navigation collapses.
+-   Evidence domains become accordions.
+-   Primary actions remain accessible.
+
+------------------------------------------------------------------------
+
+72. ACCESSIBILITY
+
+Use:
+
+-   High contrast.
+-   Keyboard navigation.
+-   Visible focus states.
+-   Proper labels.
+-   Semantic buttons.
+-   Text alternatives for icons.
+-   Status text in addition to colour.
+-   Error messages linked to fields.
+-   Accessible tables.
+
+The audit context makes readability more important than decorative
+design.
+
+------------------------------------------------------------------------
+
+73. PERFORMANCE
+
+The dashboard should not load the entire evidence database on initial
+page load.
+
+Use:
+
+-   Pagination.
+-   Server-side filtering.
+-   Lazy loading.
+-   Domain-level loading.
+-   On-demand report detail retrieval.
+-   Optimized artifact download.
+
+The Overview page should load the minimum required summary data first.
+
+------------------------------------------------------------------------
+
+74. REPORT PROCESSING ARCHITECTURE
+
+Recommended logical architecture:
+
+CUSTOMER WEB UI | v AUTHENTICATED API | +—- Licence/Entitlement Service
+| +—- Report Upload Service | +—- Evidence Normalization Service | +—-
+Report Generation Service | +—- Device Activity Service | +—-
+Audit/Event Service | v PERSISTENT DATA + SECURE REPORT STORAGE
+
+The frontend should not perform trusted report interpretation itself.
+
+------------------------------------------------------------------------
+
+75. RAW DATA VS NORMALIZED DATA
+
+Keep these separate.
+
+RAW REPORT Original customer-uploaded/generated artifact.
+
+NORMALIZED EVIDENCE Structured representation extracted from the raw
+report.
+
+FINAL REPORT Human-readable audit artifact generated from normalized
+evidence + audit metadata.
+
+Never destroy the raw evidence when generating the final report.
+
+------------------------------------------------------------------------
+
+76. SOURCE-OF-TRUTH MODEL
+
+For diagnostic evidence:
+
+CYVRA Mobile raw result is the original operational source.
+
+For customer identity:
+
+Authenticated customer/account is authoritative.
+
+For licence:
+
+Existing licensing/authorization service is authoritative.
+
+For report metadata:
+
+Customer-entered audit metadata is authoritative after validation.
+
+For final report:
+
+Report generation service creates the controlled artifact.
+
+For authorization:
+
+The licensed purchasing company is the report authorizing entity.
+
+For technology provenance:
+
+CYVORIQ SOLUTIONS PVT. LTD.
+
+------------------------------------------------------------------------
+
+77. REPORT FINALIZATION
+
+Before finalizing:
+
+System validates:
+
+-   Customer information complete.
+-   Device/session identified.
+-   Required evidence present or explicitly marked unavailable.
+-   Physical verification requirements addressed or marked not
+    performed.
+-   Sanitization status known.
+-   Exceptions acknowledged.
+-   Report metadata complete.
+
+Then:
+
+GENERATE FINAL REPORT
+
+After finalization:
+
+REPORT FINALIZED Green.
+
+The report should become controlled/immutable unless a formal
+correction/revision mechanism exists.
+
+------------------------------------------------------------------------
+
+78. REPORT QUALITY GATE
+
+The system should never generate a polished-looking report that hides
+incomplete evidence.
+
+If required information is missing:
+
+RED / WARNING:
+
+“Report cannot be finalized. Physical verification is incomplete.”
+
+or:
+
+“Report contains unresolved critical exceptions.”
+
+The report may still be saved as a draft if policy allows.
+
+------------------------------------------------------------------------
+
+79. DRAFT VS FINAL REPORT
+
+Recommended states:
+
+DRAFT Evidence/data still being prepared.
+
+READY FOR REVIEW All required data collected.
+
+FINALIZED Report approved/locked.
+
+REVISED A controlled revision exists.
+
+VOID Report invalidated with reason.
+
+This is preferable to silently replacing an old report.
+
+------------------------------------------------------------------------
+
+80. CUSTOMER REPORT WORKFLOW
+
+Recommended visible stepper:
+
+STEP 1 Upload Raw Report
+
+STEP 2 Validate Evidence
+
+STEP 3 Customer & Audit Details
+
+STEP 4 Review Device Evidence
+
+STEP 5 Physical Verification / Exceptions
+
+STEP 6 Generate Report
+
+STEP 7 Review
+
+STEP 8 Finalize
+
+STEP 9 Download
+
+This is the core reporting journey.
+
+------------------------------------------------------------------------
+
+81. DEVICE SCAN WORKFLOW
+
+The Workspace does not replace the Windows application.
+
+The Windows application performs:
+
+Connect → Identify → Diagnose → Purge → Verify
+
+The Workspace receives the resulting evidence/report and provides:
+
+Upload → Organize → Audit → Report → Track
+
+This boundary must remain clear.
+
+------------------------------------------------------------------------
+
+82. NO FALSE AUTOMATION
+
+The reporting engine must never convert:
+
+“not observable”
+
+into:
+
+“pass”
+
+and must never convert:
+
+“not tested”
+
+into:
+
+“fail”
+
+Examples:
+
+Battery swelling: Software cannot determine it. Result: PHYSICAL
+VERIFICATION REQUIRED.
+
+USB connector looseness: Software cannot determine it reliably. Result:
+PHYSICAL VERIFICATION REQUIRED.
+
+NAND cell-level verification: Not reliably determinable through normal
+workflow. Result: NOT AVAILABLE / OUTSIDE NORMAL SOFTWARE VERIFICATION.
+
+------------------------------------------------------------------------
+
+83. REPORT LANGUAGE
+
+Use professional evidence language.
+
+Avoid:
+
+“Device is perfect.”
+
+Prefer:
+
+“CYVRA evidence indicates the tested functions listed below completed
+successfully. Physical condition items requiring technician inspection
+are reported separately.”
+
+Avoid:
+
+“100% clean.”
+
+Prefer:
+
+“Post-purge verification completed for the supported evidence paths
+listed in this report.”
+
+This is critical for audit defensibility.
+
+------------------------------------------------------------------------
+
+84. ENGINEERING MATRIX INTEGRATION
+
+The existing Master Diagnostic Capability Matrix should remain the
+engineering source for diagnostic semantics.
+
+Each matrix row can map to:
+
+DOMAIN ITEM ID CAPABILITY SOURCE EVIDENCE TYPE PHYSICAL VERIFICATION
+RESULT PROCEDURE REPORT LABEL
+
+Examples:
+
+CON-001 USB device detection
+
+ID-003 Model/model code
+
+BAT-002 Battery percentage
+
+DIS-005 Touch grid/edge response
+
+CAM-003 Live preview/frame delivery
+
+PHY-005 Frame/corner dents
+
+PUR-005 Post-purge state
+
+The customer report engine should not invent a different interpretation
+of these engineering records.
+
+------------------------------------------------------------------------
+
+85. PHYSICAL VERIFICATION MATRIX INTEGRATION
+
+The Physical Verification Protocol should map directly to structured
+report checks.
+
+Examples:
+
+PV-001 Front glass cracks/chips
+
+PV-003 Dead/stuck pixels
+
+PV-005 Touch edge/corner condition
+
+PV-011 USB port condition/retention
+
+PV-015 Battery swelling
+
+PV-016 Liquid/corrosion evidence
+
+PV-021 Chassis deformation
+
+The report should identify whether each required check was:
+
+COMPLETED NOT COMPLETED NOT APPLICABLE REQUIRES SERVICE
+
+------------------------------------------------------------------------
+
+86. EVIDENCE CONFIDENCE
+
+Where the engineering matrix identifies different authority levels, the
+report should preserve them.
+
+For example:
+
+High confidence controlled fixture test
+
+vs.
+
+Technician observation
+
+vs.
+
+Conditional OEM source
+
+This should not necessarily become a numerical score in V1.
+
+A qualitative provenance model is safer and clearer.
+
+------------------------------------------------------------------------
+
+87. COVERAGE DASHBOARD — CUSTOMER INTERPRETATION
+
+The engineering coverage numbers should not be presented to customers
+as:
+
+“CYVRA tests X% of the phone.”
+
+Instead, communicate:
+
+“CYVRA combines software evidence, functional testing and guided
+physical verification across multiple device domains.”
+
+This avoids misleading coverage claims.
+
+------------------------------------------------------------------------
+
+88. LICENCE & USAGE PAGE
+
+This page should show:
+
+LICENCE TYPE LICENCE STATUS ISSUED DATE EXPIRY if applicable DEVICE
+ENTITLEMENT USAGE LIMIT USAGE CONSUMED REMAINING/AVAILABLE REGISTERED
+EMAIL
+
+If the licence model does not have a fixed usage limit, display the
+applicable policy wording instead.
+
+The page should not duplicate the administrative licensing system.
+
+------------------------------------------------------------------------
+
+89. CUSTOMER DASHBOARD TOP BAR
+
+Recommended structure:
+
+CYVRA MOBILE logo/identity
+
+CUSTOMER: [Company Name]
+
+LICENCE: [Licence Type]
+
+STATUS: [Green status]
+
+APPLICATION: [Version]
+
+Actions: UPDATE UPGRADE
+
+The top bar should remain compact.
+
+------------------------------------------------------------------------
+
+90. LEFT NAVIGATION
+
+Recommended:
+
+OVERVIEW
+
+CYVRA MOBILE Purchase / Licence Download
+
+UPDATE & UPGRADE
+
+REPORTING & AUDIT Report Upload Audit Reports Drafts Final Reports
+
+DEVICE ACTIVITY
+
+LICENCE & USAGE
+
+SETTINGS
+
+HELP
+
+The exact nesting may be reduced if the customer experience becomes too
+complex.
+
+------------------------------------------------------------------------
+
+91. HOME SCREEN PRIORITY
+
+The customer should not have to search for the most important actions.
+
+Priority order:
+
+1.  Licence status
+2.  Application readiness/download
+3.  Device/report activity
+4.  Action required
+5.  Update/Upgrade
+6.  Supporting functions
+
+------------------------------------------------------------------------
+
+92. WORLD-CLASS UX PRINCIPLE
+
+The dashboard should always answer:
+
+WHAT IS MY CURRENT STATE?
+
+WHAT CAN I DO NOW?
+
+WHAT HAS BEEN COMPLETED?
+
+WHAT FAILED?
+
+WHAT NEEDS MY ATTENTION?
+
+WHERE IS MY REPORT?
+
+The interface should never make the customer interpret engineering
+internals just to understand basic status.
+
+------------------------------------------------------------------------
+
+93. REPORTING SEARCH & FILTER
+
+The reporting register should support:
+
+Search: - Report ID - Device reference - Model - Customer reference -
+Audit batch
+
+Filters: - Date - Status - Ownership - Purge status - Report status -
+Exceptions
+
+Sort: - Latest - Oldest - Status - Device - Report ID
+
+------------------------------------------------------------------------
+
+94. EXPORT
+
+The device activity register may support export.
+
+Possible export:
+
+CSV/XLSX
+
+The exported operational register should clearly state:
+
+Generated by CYVRA Mobile Workspace
+
+and include export timestamp.
+
+Do not silently export restricted identifiers if policy prohibits them.
+
+------------------------------------------------------------------------
+
+95. NOTIFICATIONS
+
+Useful notifications:
+
+Licence issued Application ready Update available Report processing
+completed Report processing failed Audit report ready Critical report
+exception Licence nearing expiry where applicable
+
+Email notifications can be used where already supported by the existing
+platform.
+
+------------------------------------------------------------------------
+
+96. AUDIT TRAIL
+
+Every meaningful report state change should have an audit event.
+
+Example:
+
+10:15 Raw report uploaded.
+
+10:16 Evidence parsed.
+
+10:17 Physical verification completed.
+
+10:19 Report generated.
+
+10:21 Report reviewed.
+
+10:22 Report finalized.
+
+This makes the reporting process defensible.
+
+------------------------------------------------------------------------
+
+97. FUTURE-READY DESIGN
+
+The architecture should be able to support future capabilities without
+redesigning the entire dashboard:
+
+-   Multi-device operations
+-   Batch audits
+-   More Android OEMs
+-   OEM-specific evidence
+-   AI physical inspection
+-   Advanced grading policy
+-   Enterprise reporting
+-   Digital verification
+-   Report sharing
+-   API integrations
+-   Controlled report authenticity verification
+
+However, V1 should not expose unfinished functionality.
+
+------------------------------------------------------------------------
+
+98. AI PHYSICAL INSPECTION
+
+Existing CYVRA Station / AI Physical Inspection concepts should remain
+compatible with this architecture.
+
+AI inspection may later provide evidence for:
+
+-   Cracks
+-   Cosmetic damage
+-   Screen condition
+-   Back cover condition
+-   Frame damage
+-   Camera/lens condition
+
+But AI output must remain evidence with provenance.
+
+AI must not silently replace human physical verification where policy
+requires human confirmation.
+
+------------------------------------------------------------------------
+
+99. AUDIT SEAL FUTURE ARCHITECTURE
+
+The Audit Seal should eventually be tied to a report identity.
+
+Potential future mechanism:
+
+Seal → Report ID → Report hash → Customer → Timestamp → Verification
+endpoint
+
+This would allow a third party to verify that a report corresponds to an
+authentic CYVRA-generated record.
+
+This is a future architecture requirement, not a V1 promise.
+
+------------------------------------------------------------------------
+
+100. WHAT THE CUSTOMER SEES
+
+The final customer experience should be simple despite the engineering
+complexity.
+
+Example:
+
+WELCOME TO CYVRA MOBILE
+
+Licence: ACTIVE
+
+Application: READY
+
+Devices: 128 SCANNED
+
+Reports: 124 GENERATED
+
+Attention: 2 REPORTS PENDING 2 EXCEPTIONS
+
+Primary actions:
+
+[DOWNLOAD CYVRA MOBILE] [REPORTING & AUDIT] [DEVICE ACTIVITY]
+
+The complexity stays underneath the clean interface.
+
+------------------------------------------------------------------------
+
+101. WHAT THE ENGINEERING SYSTEM RETAINS
+
+Behind the clean UI, the system retains:
+
+-   Source provenance
+-   Diagnostic capability
+-   Evidence type
+-   Physical verification distinction
+-   Restricted/conditional states
+-   Device/session identity
+-   Sanitization state
+-   Audit metadata
+-   Report version
+-   Report template version
+-   Audit events
+-   Artifact integrity
+
+This is what makes the solution an evidence platform rather than a
+decorative dashboard.
+
+------------------------------------------------------------------------
+
+102. V1 SCOPE
+
+V1 SHOULD INCLUDE:
+
+-   Light steel customer Workspace.
+-   Licence Type selection.
+-   Registered email identity.
+-   Address.
+-   Mandatory PIN code.
+-   Manual Payment Status dropdown.
+-   Licence status.
+-   Licence issued email indication.
+-   CYVRA Mobile ZIP download.
+-   Existing Update/Upgrade functionality unchanged.
+-   Raw report upload.
+-   Raw report validation.
+-   Evidence normalization.
+-   Customer/audit metadata.
+-   Own/third-party ownership.
+-   Device activity register.
+-   Scan/purge/report statuses.
+-   Audit report generation.
+-   Report review/finalization.
+-   Final report download.
+-   Authorization/approval identity.
+-   Powered-by identity.
+-   Audit trail.
+-   Settings.
+-   Help.
+
+------------------------------------------------------------------------
+
+103. EXPLICITLY OUT OF SCOPE
+
+Do NOT add in this redesign:
+
+-   Payment gateway.
+-   Online checkout.
+-   Card processing.
+-   UPI processing.
+-   Banking integration.
+-   Fake payment confirmation.
+-   Automatic payment reconciliation unless an existing external process
+    supplies it.
+-   Unsupported diagnostic claims.
+-   Automatic physical-condition PASS.
+-   Fabricated identifiers.
+-   Hidden factory reset/lock bypass functionality.
+-   Unapproved OEM/private APIs.
+-   AI grading as a replacement for evidence.
+-   Unreleased features exposed as working features.
+
+------------------------------------------------------------------------
+
+104. RECOMMENDED BUILD ORDER
+
+PHASE 1 Design system and navigation shell.
+
+PHASE 2 Overview and licence/download area.
+
+PHASE 3 Licence request form.
+
+PHASE 4 Manual payment status and licence-state integration.
+
+PHASE 5 Application ZIP download.
+
+PHASE 6 Keep existing Update/Upgrade integration unchanged.
+
+PHASE 7 Report upload pipeline.
+
+PHASE 8 Evidence normalization and domain mapping.
+
+PHASE 9 Device Activity register.
+
+PHASE 10 Audit metadata and ownership.
+
+PHASE 11 Report generation.
+
+PHASE 12 Report review/finalization.
+
+PHASE 13 Audit trail.
+
+PHASE 14 Settings and Help.
+
+PHASE 15 Security, accessibility, performance and audit-readiness
+testing.
+
+------------------------------------------------------------------------
+
+105. FINAL DESIGN PRINCIPLE
+
+The new CYVORIQ Customer Workspace should look simple.
+
+The engineering underneath it should be rigorous.
+
+The customer should see:
+
+CLEAR STATUS CLEAR ACTION CLEAR EVIDENCE CLEAR REPORT CLEAR
+RESPONSIBILITY
+
+The system should preserve:
+
+PROVENANCE TRACEABILITY AUDITABILITY EVIDENCE LIMITATIONS
+PHYSICAL/SOFTWARE DISTINCTION LICENCE AUTHORIZATION REPORT INTEGRITY
+
+The central design principle is:
+
+“Simple for the customer. Rigorous underneath.”
+
+------------------------------------------------------------------------
+
+106. FINAL PRODUCT ARCHITECTURE SUMMARY
+
+CYVORIQ CUSTOMER ACCOUNT | v CUSTOMER WORKSPACE | +——————–+ | | v v
+LICENCE & APPLICATION UPDATE & UPGRADE | v CYVRA MOBILE WINDOWS APP | v
+DEVICE SESSION | +–> Identity +–> Software +–> Hardware +–> Storage +–>
+Battery +–> Display/Touch +–> Camera +–> Audio +–> Sensors +–> Network
++–> Security +–> Applications +–> Performance +–> Sanitization +–>
+Post-Purge Verification | v RAW REPORT | v CUSTOMER WORKSPACE | +–>
+Upload +–> Validate +–> Normalize Evidence +–> Physical Verification +–>
+Audit Metadata +–> Ownership +–> Exceptions | v PROFESSIONAL AUDIT
+REPORT | +–> Device Register +–> Device Evidence +–> Sanitization Result
++–> Physical Verification +–> Exceptions +–> Final Disposition +–>
+Authorized & Approved By +–> CYVORIQ Powered By +–> Audit Seal | v FINAL
+CONTROLLED REPORT
+
+------------------------------------------------------------------------
+
+107. DESIGN FREEZE RULE
+
+Before implementation is considered complete, the following must be
+approved:
+
+1.  Navigation.
+2.  Licence models.
+3.  Licence state model.
+4.  Customer fields.
+5.  Payment status semantics.
+6.  Download entitlement.
+7.  Report upload formats.
+8.  Audit metadata fields.
+9.  Device ownership model.
+10. Device activity table.
+11. Evidence status vocabulary.
+12. Physical verification model.
+13. Report structure.
+14. Authorization wording.
+15. Audit Seal specification.
+16. Report versioning.
+17. Security/access-control rules.
+18. V1 vs future functionality.
+
+Only after these are approved should implementation be treated as
+frozen.
+
+------------------------------------------------------------------------
+
+108. APPROVED WORDING — CORE IDENTITIES
+
+Product: CYVRA Mobile
+
+Company: CYVORIQ SOLUTIONS PVT. LTD.
+
+Customer authorization: AUTHORIZED & APPROVED BY [LICENSED CUSTOMER /
+COMPANY NAME]
+
+Technology provenance: POWERED BY CYVORIQ SOLUTIONS PVT. LTD.
+
+Core message: KNOW THE DEVICE. PROVE THE RESULT.
+
+Broader positioning: FROM DEVICE INTAKE TO FINAL DISPOSITION—BUILT ON
+EVIDENCE.
+
+------------------------------------------------------------------------
+
+END OF SPECIFICATION

@@ -75,9 +75,12 @@ Do **not** start from:
 
 When documents disagree, use this order:
 
-1. safety/compliance prohibition, **and — within its own scope — the Design Freeze**
+1. safety/compliance prohibition, **and — within its own scope — the two Precedence
+   Level 1 UI contracts**: the **Design Freeze**
    (`docs/design-freeze/admin-panel-design-freeze.txt` @ `73d3f3a`), the **Supreme UI/Admin
-   Contract**; see §2.1,
+   Contract**; see §2.1, **and** the **Customer Workspace Specification**
+   (`docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt`), the
+   **Supreme Customer-UI Contract**; see §2.2,
 2. Canonical Engineering Guideline,
 3. Final Forensic/System-Design Baseline,
 4. this Project Index,
@@ -126,6 +129,44 @@ ruling; it is never silently resolved against safety.
 
 ---
 
+## 2.2 Customer Workspace Specification — Supreme Customer-UI Contract
+
+| Field | Value |
+|---|---|
+| Path | `docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt` |
+| Ratified at | A5 — *docs: ratify Customer Workspace spec v1.0 (A5) + catalogue in Project Index*, 07-Oct-2026 |
+| Status | `ACTIVE-GOVERNING` — **Precedence Level 1** (Customer UI) |
+| Scope | `cyvoriq.co.in/dashboard` and every other Customer Workspace surface: page structure, left navigation, header, licence/status sentences, download and build states, colour and interaction rules, copy/tone |
+| Ruling | Chief Engineer, 07-Oct-2026 (approval A5) |
+
+**What governs what.** The two Level 1 contracts are **parallel, not stacked**. The Design Freeze
+(§2.1) governs the **admin panel**; this Specification governs the **Customer Workspace** at
+`cyvoriq.co.in/dashboard`. Neither overrides the other, because neither is authoritative inside the
+other's scope. A question about the admin console is decided by §2.1; a question about the customer
+dashboard is decided by this section. If a shared token (colour, date format, table rule) is decided
+differently by each, **each applies within its own surface** — there is no cross-override.
+
+**It is scoped, not supreme over safety.** As with §2.1, safety and compliance prohibitions sit at
+Level 1 alongside it and are never weakened (Final Forensic Baseline §0.1 rule 1). Where this
+Specification and a safety or compliance prohibition genuinely collide, the prohibition wins and the
+collision is escalated for ruling.
+
+**What it supersedes.** Any earlier customer-facing UI instruction — the legacy dark shell's
+navigation and simulation layout, an older customer manual, an implementation or rectification plan,
+or anything under `docs/archive/` — that disagrees with this Specification on a Customer Workspace
+question is superseded. This is the document that directs the Phase 2 deletion of the legacy dark
+shell (`apps/web/src/site/CustomerDesktopShell.tsx`) and the replacement of its desktop-oriented
+navigation with the §90 left navigation.
+
+**Source of record.** The ratified file is byte-identical to the Chief Engineer's delivered source:
+56,830 bytes, strict UTF-8, no BOM, LF, 2,438 lines (file ends with a terminating LF), sha256
+`7dfe31611611561c562f68fb9edc405c7341e212f8971ee5b779e94fba3a9b19`, first line `CYVRA CUSTOMER
+WORKSPACE`, last non-empty line `END OF SPECIFICATION`, zero `U+FFFD`.
+
+**Verification.** `git diff --stat` between the Downloads source and this path is empty.
+
+---
+
 # 3. Documentation status vocabulary
 
 Every documentation file must be classified as exactly one of the following.
@@ -155,6 +196,7 @@ No current CYVRA Mobile document is authorized for immediate deletion solely bec
 | `docs/CYVRA_MOBILE_FINAL_FORENSIC_SYSTEM_DESIGN_BASELINE_2026-09-19.md` | `ACTIVE-GOVERNING` | Forensic defects, mitigations, macro program |
 | `docs/CYVRA_MOBILE_PROJECT_INDEX.md` | `ACTIVE-GOVERNING` | Navigation, ownership, document classification, archive policy |
 | `docs/design-freeze/admin-panel-design-freeze.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** | Supreme UI/Admin Contract; frozen at `73d3f3a`; overrides older UI guidelines within UI/admin scope (§2.1) |
+| `docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** (Customer UI) | Supreme Customer-UI Contract; ratified at A5 on 07-Oct-2026; governs `cyvoriq.co.in/dashboard` (the Customer Workspace); parallel to the Design Freeze, which governs the admin panel (§2.2) |
 
 Long-term target: the three documents under `docs/` become the permanent primary governance set after root `GUIDELINE.md` has been safely consolidated.
 
@@ -524,6 +566,7 @@ Current architectural note:
 
 | Path | Status | Purpose |
 |---|---|---|
+| `docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt` | `ACTIVE-CONTRACT` + `ACTIVE-GOVERNING` | **Governs `cyvoriq.co.in/dashboard` (the Customer Workspace)** — page structure, §90 left navigation, header, licence/status sentences, download and build states, colour and interaction rules. Precedence Level 1 for Customer UI, parallel to the Admin Design Freeze @ `73d3f3a` (§2.2). |
 | `docs/architecture/d2-3-wpd-mtp-evidence-contract.md` | `ACTIVE-CONTRACT` | Current WPD/MTP evidence-plane boundary |
 | `docs/ANDROID_COMPATIBILITY_FREEZE.md` | `ACTIVE-CONTRACT` + `REWRITE-ACTIVE` | Android toolchain and compatibility baseline |
 | `docs/OEM_ADAPTER_ARCHITECTURE.md` | `ACTIVE-CONTRACT` / review | Generic-first OEM extension rules |
@@ -545,6 +588,7 @@ These files remain in place during P1.5A. They are not archive candidates until 
 
 | Path | Status | Required correction |
 |---|---|---|
+| `docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** (Customer UI) | none — ratified at A5 on 07-Oct-2026; this is the ratified customer contract that every `REWRITE-ACTIVE` row below must be reconciled against |
 | `docs/CUSTOMER_DESKTOP_PRODUCT_SPEC.md` | `REWRITE-ACTIVE` | current architecture/maturity |
 | `docs/CUSTOMER_DIAGNOSTIC_UX.md` | `REWRITE-ACTIVE` | independent USB/MTP/ADB states |
 | `docs/CUSTOMER_LICENSE_ARCHITECTURE.md` | `REWRITE-ACTIVE` | durable verification transaction |
