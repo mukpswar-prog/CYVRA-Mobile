@@ -10,7 +10,7 @@ import {
   type ReportSummary,
 } from "../api";
 import { IN_STATES } from "../in-states";
-import { CustomerDesktopShell } from "./CustomerDesktopShell";
+import { CustomerWorkspaceShell } from "./CustomerWorkspaceShell";
 import { Layout } from "./Layout";
 import { Link, navigate } from "./router";
 
@@ -211,7 +211,7 @@ export function WorkspaceApp(props: {
 
   if (user && !loadingSession) {
     return (
-      <CustomerDesktopShell
+      <CustomerWorkspaceShell
         user={user}
         entitlement={entitlement}
         sessions={sessions}
