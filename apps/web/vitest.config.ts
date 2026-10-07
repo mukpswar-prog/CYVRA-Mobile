@@ -2,7 +2,12 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 /**
- * Test runner for the admin console.
+ * Test runner for the admin console, and - since WS-K1-01 (07-Oct-2026) - for
+ * the customer workstation surface too. `src/site` was added because the
+ * compliance hotfix had to prove three things about `CustomerDesktopShell`
+ * that a grep alone cannot: that no certificate can be produced while the
+ * host engine is BLOCKED_NOT_IMPLEMENTED, that the purge surface says so in
+ * words, and that its dates go through the section 58 IST formatter.
  *
  * Deliberately a *separate* config rather than a `test` block bolted onto
  * `vite.config.ts`, for the same reason the desktop bundle has one: the
@@ -35,7 +40,7 @@ export default defineConfig({
      */
     maxWorkers: 2,
     testTimeout: 15_000,
-    include: ["src/admin/**/*.test.{ts,tsx}"],
+    include: ["src/admin/**/*.test.{ts,tsx}", "src/site/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
     restoreMocks: true,
   },

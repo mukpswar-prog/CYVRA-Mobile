@@ -8,6 +8,14 @@ import {
   type ReportSummary,
 } from "../api";
 import { ReportView } from "../ReportView";
+// §58/§19's one clock. It was built for the admin panel, so `site` importing
+// it crosses a source-organization line - but this app has a single entry
+// point (`index.html` -> `main.tsx`), the module has no imports of its own,
+// and it is already in the graph, so the import costs nothing. The alternative
+// was a third copy of IST logic, which WS-K1-07 forbids outright. The clean
+// fix is the shared-package extraction WS-K1-07 asks for, once E15 is lifted
+// far enough to refactor rather than hotfix.
+import { formatDateTime } from "../admin/format/datetime";
 import "./workstation.css";
 
 export type WorkstationNavTab =
@@ -278,101 +286,61 @@ export function CustomerDesktopShell(props: {
   }
 
   // Phase 14: Data Purge & Sanitization Workflow (§23, §40)
+  //
+  // HONEST STATE - WS-K1-01, Chief Engineer 07-Oct-2026.
+  //
+  // This surface used to "execute" a wipe with three setTimeout calls and then
+  // commit a hard-coded operation id, a screen-lock-absent flag set true, a
+  // literal SHA-256 and a NIST "platform verified" assurance string - none of
+  // which ever touched a phone. Phase 15 then minted a NIST-branded
+  // certificate at a success status, with Download and Print buttons.
+  //
+  // Those literals are in this commit's diff and are deliberately not restated
+  // here, so that a forensic grep for them in customer-facing code returns
+  // nothing at all rather than "only comments".
+  //
+  // The authoritative engine is apps/host/.../sanitization/
+  // HostSanitizationProvider.kt:95, which returns BLOCKED_NOT_IMPLEMENTED under
+  // signed decision D-1 / OUTCOME B: no validated sanitization provider exists
+  // for this device target. Canonical Engineering Guideline section 13 forbids
+  // representing purge as universally functioning, and section 13.3 says a
+  // post-reset check inferred from the mere absence of a screen lock is
+  // insufficient - which is exactly the inference the deleted code hardcoded.
+  //
+  // So this surface now mirrors the provider. The operator workflow through
+  // method selection is kept, because that interaction design is sound; the
+  // fabricated outcome is gone, and no certificate is producible at all.
+
+  /**
+   * The only status this surface may report. Kept equal to the host
+   * provider's `executionStatus` so the UI cannot run ahead of the engine.
+   */
+  const PURGE_EXECUTION_STATUS = "BLOCKED_NOT_IMPLEMENTED";
+
+  /** The signed decision that produced the status above. */
+  const PURGE_BLOCKED_DECISION = "D-1 / OUTCOME B";
+
+  const PURGE_BLOCKED_SUMMARY = "Purging is not yet enabled for this build.";
+
+  const PURGE_BLOCKED_DETAIL =
+    "This build cannot erase a phone. The sanitization engine is present but not " +
+    "activated: there is no validated sanitization provider for this device target, " +
+    "so no wipe can be started, verified or certified from this page.";
+
+  const PURGE_BLOCKED_LIMITATIONS = [
+    "No wipe is executed, and none can be executed from this build.",
+    "No erasure certificate is issued, because nothing has been erased.",
+    "Sanitization becomes available only after hardware validation (E3 to G14) and an explicit release ruling.",
+  ];
+
   const [purgeWorkflowStep, setPurgeWorkflowStep] = useState<
-    "PRE_SCAN" | "AUTHORIZATION" | "METHOD_SELECT" | "EXECUTING" | "REBOOT_AWAITING" | "VERIFIED"
+    "PRE_SCAN" | "AUTHORIZATION" | "METHOD_SELECT"
   >("PRE_SCAN");
   const [purgeAckChecked, setPurgeAckChecked] = useState<boolean>(false);
   const [purgeConfirmationText, setPurgeConfirmationText] = useState<string>("");
   const [selectedPurgeMethod, setSelectedPurgeMethod] = useState<"CLEAR_PLATFORM_RESET" | "PURGE_OEM_SECURE_ERASE">("CLEAR_PLATFORM_RESET");
-  const [purgeExecutionProgress, setPurgeExecutionProgress] = useState<string>("");
-  const [purgeVerificationData, setPurgeVerificationData] = useState<{
-    operationId: string;
-    executedAt: string;
-    verifiedAt: string;
-    reconnectSerial: string;
-    setupWizardDetected: boolean;
-    userAccountsRemoved: boolean;
-    screenLockAbsent: boolean;
-    assuranceLevel: string;
-    sha256Hash: string;
-  } | null>(null);
-
-  function executePurgePipeline() {
-    setPurgeWorkflowStep("EXECUTING");
-    setPurgeExecutionProgress("Validating operator 2-step barrier and cryptographic pre-scan snapshot...");
-
-    setTimeout(() => {
-      setPurgeExecutionProgress("Sending gated recovery reset trigger via ADB (G5 non-destructive baseline)...");
-    }, 1000);
-
-    setTimeout(() => {
-      setPurgeExecutionProgress("Device reboot initiated. Awaiting USB/ADB reconnection in OOBE setup mode...");
-      setPurgeWorkflowStep("REBOOT_AWAITING");
-    }, 2000);
-
-    setTimeout(() => {
-      setPurgeVerificationData({
-        operationId: "PURGE-OP-90412",
-        executedAt: new Date(Date.now() - 15000).toISOString(),
-        verifiedAt: new Date().toISOString(),
-        reconnectSerial: simulatedDevice.serial,
-        setupWizardDetected: true,
-        userAccountsRemoved: true,
-        screenLockAbsent: true,
-        assuranceLevel: "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
-        sha256Hash: "c4f92d8e578a10b91e92da94017a421b9c7e0984a92e1059f03d162812ef6412",
-      });
-      setPurgeWorkflowStep("VERIFIED");
-      setPurgeExecutionProgress("");
-    }, 4200);
-  }
-
-  // Phase 15: Final Sanitization Certificate State (§41)
-  const [sanitizationCertReport, setSanitizationCertReport] = useState<{
-    certificateId: string;
-    generatedAt: string;
-    standardReference: string;
-    assuranceLevel: string;
-    operatorId: string;
-    operationId: string;
-    selectedMethod: string;
-    executionStatus: string;
-    executionTimestamp: string;
-    verificationStatus: string;
-    postResetAdbState: string;
-    setupWizardConfirmed: boolean;
-    userAccountsRemoved: boolean;
-    sha256Hash: string;
-    limitations: string[];
-  } | null>(null);
 
   const [activeReportSubTab, setActiveReportSubTab] = useState<"CENTRAL_ARCHIVE" | "SANITIZATION_CERT">("CENTRAL_ARCHIVE");
-
-  function generateFinalSanitizationCertificate() {
-    setSanitizationCertReport({
-      certificateId: "CYVRA-CERT-2026-90412",
-      generatedAt: new Date().toISOString(),
-      standardReference: "NIST SP 800-88 Rev. 2",
-      assuranceLevel: "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
-      operatorId: "operator@cyvoriq.co.in",
-      operationId: purgeVerificationData?.operationId || "PURGE-OP-90412",
-      selectedMethod: selectedPurgeMethod === "CLEAR_PLATFORM_RESET" ? "Platform Factory Reset (Clear)" : "OEM Cryptographic Purge",
-      executionStatus: "SUCCESS_VERIFIED",
-      executionTimestamp: purgeVerificationData?.executedAt || new Date(Date.now() - 60000).toISOString(),
-      verificationStatus: "VERIFIED",
-      postResetAdbState: "DEVICE_OOBE",
-      setupWizardConfirmed: true,
-      userAccountsRemoved: true,
-      sha256Hash: purgeVerificationData?.sha256Hash || "c4f92d8e578a10b91e92da94017a421b9c7e0984a92e1059f03d162812ef6412",
-      limitations: [
-        "NIST SP 800-88 Rev. 2 Clear level achieved via platform-mediated factory data wipe.",
-        "Flash memory wear-leveling prevents direct bit-level validation of unmapped physical NAND blocks.",
-        "Post-reset verification conducted via live USB/ADB query of OOBE setup wizard and credential stores.",
-      ],
-    });
-    setActiveReportSubTab("SANITIZATION_CERT");
-    setActiveTab("RESULTS_REPORTS");
-  }
 
   // Phase 16: Secure Software Update State (§16, Part H)
   const [updateStep, setUpdateStep] = useState<
@@ -979,7 +947,7 @@ export function CustomerDesktopShell(props: {
                                 <tr key={session.processingSessionId}>
                                   <td><strong>{label || "Android Device"}</strong></td>
                                   <td className="font-mono">{session.processingSessionId.slice(0, 18)}...</td>
-                                  <td>{new Date(session.createdAt).toLocaleString()}</td>
+                                  <td>{formatDateTime(session.createdAt)}</td>
                                   <td>
                                     {frozen ? (
                                       <span className="tag-complete">FROZEN ({frozen.publicNumber})</span>
@@ -2038,10 +2006,56 @@ export function CustomerDesktopShell(props: {
                 <div className="stage-view purge-view">
                   <h2>Data Purge & Sanitization</h2>
                   <p className="section-desc">
-                    NIST SP 800-88 Rev. 2 compliant sanitization lifecycle. Two-step operator confirmation barrier (§23, §40).
+                    Two-step operator confirmation barrier (§23, §40). This build has no activated
+                    sanitization provider, so the workflow below can be prepared but not executed.
                   </p>
 
-                  {/* Sanitization Pipeline Flow Steps */}
+                  {/* WS-K1-01: the one status this surface may report. Steel/neutral
+                      styling - blocked is a fact, not an alarm and not a success. */}
+                  <div
+                    className="panel-card"
+                    data-testid="purge-blocked-banner"
+                    data-purge-status={PURGE_EXECUTION_STATUS}
+                    style={{ border: "1px solid #334155", background: "rgba(100,116,139,0.10)", marginBottom: "20px" }}
+                  >
+                    <div className="panel-card-header">
+                      <h3 style={{ color: "#cbd5e1" }}>{PURGE_BLOCKED_SUMMARY}</h3>
+                      <span
+                        className="badge-pill"
+                        style={{ background: "rgba(100,116,139,0.18)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.4)" }}
+                      >
+                        {PURGE_EXECUTION_STATUS}
+                      </span>
+                    </div>
+                    <p className="card-p" style={{ color: "#94a3b8" }}>
+                      {PURGE_BLOCKED_DETAIL}
+                    </p>
+                    <div className="device-metric-rows">
+                      <div className="metric-row">
+                        <span className="metric-label">Execution status:</span>
+                        <span className="metric-value font-mono" style={{ color: "#94a3b8" }}>
+                          {PURGE_EXECUTION_STATUS}
+                        </span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Source of this status:</span>
+                        <span className="metric-value">Host sanitization engine — decision {PURGE_BLOCKED_DECISION}</span>
+                      </div>
+                      <div className="metric-row">
+                        <span className="metric-label">Certificates issuable:</span>
+                        <span className="metric-value">None — no erasure has occurred</span>
+                      </div>
+                    </div>
+                    <ul style={{ margin: "12px 0 0", paddingLeft: "18px", color: "#94a3b8", fontSize: "12px", lineHeight: "1.6" }}>
+                      {PURGE_BLOCKED_LIMITATIONS.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Sanitization Pipeline Flow Steps.
+                      Steps 4 and 5 are not stages this build can reach, so they
+                      render as unavailable rather than as pending work. */}
                   <div className="tab-pill-row" style={{ marginBottom: "20px" }}>
                     <span className={`badge-pill ${purgeWorkflowStep !== "PRE_SCAN" ? "ready-badge" : "active-badge"}`}>
                       1. Pre-Scan Snapshot
@@ -2049,14 +2063,21 @@ export function CustomerDesktopShell(props: {
                     <span className={`badge-pill ${purgeWorkflowStep === "AUTHORIZATION" ? "active-badge" : purgeWorkflowStep !== "PRE_SCAN" ? "ready-badge" : "optional-badge"}`}>
                       2. 2-Step Authorization
                     </span>
-                    <span className={`badge-pill ${purgeWorkflowStep === "METHOD_SELECT" ? "active-badge" : ["EXECUTING", "REBOOT_AWAITING", "VERIFIED"].includes(purgeWorkflowStep) ? "ready-badge" : "optional-badge"}`}>
+                    <span className={`badge-pill ${purgeWorkflowStep === "METHOD_SELECT" ? "active-badge" : "optional-badge"}`}>
                       3. Method Selection
                     </span>
-                    <span className={`badge-pill ${["EXECUTING", "REBOOT_AWAITING"].includes(purgeWorkflowStep) ? "active-badge" : purgeWorkflowStep === "VERIFIED" ? "ready-badge" : "optional-badge"}`}>
-                      4. Purge & Reconnect
+                    <span
+                      className="badge-pill"
+                      data-testid="purge-step-4-blocked"
+                      style={{ background: "rgba(100,116,139,0.15)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.35)" }}
+                    >
+                      4. Purge &amp; Reconnect — {PURGE_EXECUTION_STATUS}
                     </span>
-                    <span className={`badge-pill ${purgeWorkflowStep === "VERIFIED" ? "ready-badge" : "optional-badge"}`}>
-                      5. Post-Reset Verified
+                    <span
+                      className="badge-pill"
+                      style={{ background: "rgba(100,116,139,0.15)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.35)" }}
+                    >
+                      5. Post-Reset Verified — unavailable
                     </span>
                   </div>
 
@@ -2188,99 +2209,37 @@ export function CustomerDesktopShell(props: {
                         </label>
                       </div>
 
-                      <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
-                        <button
-                          type="button"
-                          className="btn btn-danger"
-                          onClick={executePurgePipeline}
-                        >
-                          Execute Sanitization (Non-Destructive Safe G5 Baseline) →
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-action-secondary"
-                          onClick={() => setPurgeWorkflowStep("AUTHORIZATION")}
-                        >
-                          Back to Authorization
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {["EXECUTING", "REBOOT_AWAITING"].includes(purgeWorkflowStep) && (
-                    <div className="panel-card" style={{ textAlign: "center", padding: "40px 20px" }}>
-                      <h3 style={{ color: "#38bdf8", marginBottom: "12px" }}>
-                        {purgeWorkflowStep === "EXECUTING" ? "EXECUTING SANITIZATION PIPELINE" : "AWAITING DEVICE REBOOT & RECONNECT"}
-                      </h3>
-                      <div className="spinner" style={{ margin: "20px auto" }} />
-                      <p style={{ color: "#cbd5e1", fontSize: "14px" }}>
-                        {purgeExecutionProgress}
-                      </p>
-                      <span className="font-mono" style={{ fontSize: "11px", color: "#64748b" }}>
-                        Transport: Controlled USB/ADB Socket | Timeout: 120s
-                      </span>
-                    </div>
-                  )}
-
-                  {purgeWorkflowStep === "VERIFIED" && purgeVerificationData && (
-                    <div className="panel-card" style={{ border: "1px solid #10b981", background: "rgba(16, 185, 129, 0.05)" }}>
-                      <div className="panel-card-header">
-                        <h3 style={{ color: "#10b981" }}>✓ POST-RESET VERIFICATION SUCCESSFUL</h3>
-                        <span className="badge-pill ready-badge">NIST SP 800-88 REV. 2</span>
-                      </div>
-
-                      <p className="card-p">
-                        Device reconnected successfully via USB. Host verification probe confirmed factory OOBE / Setup Wizard state and absence of prior user data partitions (§35).
-                      </p>
-
-                      <div className="device-metric-rows" style={{ marginBottom: "20px" }}>
-                        <div className="metric-row">
-                          <span className="metric-label">Operation ID:</span>
-                          <span className="metric-value font-mono">{purgeVerificationData.operationId}</span>
-                        </div>
-                        <div className="metric-row">
-                          <span className="metric-label">Reconnected Target:</span>
-                          <span className="metric-value font-mono">{purgeVerificationData.reconnectSerial}</span>
-                        </div>
-                        <div className="metric-row">
-                          <span className="metric-label">Setup Wizard Detected:</span>
-                          <span className="metric-value text-emerald-400">YES (Clean OOBE State)</span>
-                        </div>
-                        <div className="metric-row">
-                          <span className="metric-label">User Accounts Removed:</span>
-                          <span className="metric-value text-emerald-400">YES (0 Accounts Present)</span>
-                        </div>
-                        <div className="metric-row">
-                          <span className="metric-label">Screen Lock Status:</span>
-                          <span className="metric-value text-emerald-400">ABSENT (Cleared)</span>
-                        </div>
-                        <div className="metric-row">
-                          <span className="metric-label">Assurance Level:</span>
-                          <span className="metric-value font-mono">{purgeVerificationData.assuranceLevel}</span>
-                        </div>
-                        <div className="metric-row">
-                          <span className="metric-label">Tamper-Evident SHA-256:</span>
-                          <span className="metric-value font-mono text-cyan-400" style={{ wordBreak: "break-all" }}>
-                            {purgeVerificationData.sha256Hash}
+                      {/* WS-K1-01: execution is removed, not merely disabled.
+                          No code path in this file can start a wipe, because the
+                          host engine reports BLOCKED_NOT_IMPLEMENTED (D-1/OUTCOME B).
+                          The one Back control stays so the operator is not trapped. */}
+                      <div
+                        className="panel-card"
+                        data-testid="purge-execute-blocked"
+                        data-purge-status={PURGE_EXECUTION_STATUS}
+                        style={{ border: "1px solid #334155", background: "rgba(100,116,139,0.10)", marginTop: "4px" }}
+                      >
+                        <div className="panel-card-header">
+                          <h3 style={{ color: "#cbd5e1" }}>Execution unavailable</h3>
+                          <span
+                            className="badge-pill"
+                            style={{ background: "rgba(100,116,139,0.18)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.4)" }}
+                          >
+                            {PURGE_EXECUTION_STATUS}
                           </span>
                         </div>
-                      </div>
-
-                      <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
-                        <button
-                          type="button"
-                          className="btn btn-action-primary"
-                          onClick={generateFinalSanitizationCertificate}
-                        >
-                          Generate Final NIST SP 800-88 Certificate (Phase 15) →
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-action-secondary"
-                          onClick={() => setPurgeWorkflowStep("PRE_SCAN")}
-                        >
-                          Reset Purge Pipeline
-                        </button>
+                        <p className="card-p" style={{ color: "#94a3b8" }}>
+                          {PURGE_BLOCKED_DETAIL}
+                        </p>
+                        <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-action-secondary"
+                            onClick={() => setPurgeWorkflowStep("AUTHORIZATION")}
+                          >
+                            Back to Authorization
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2330,7 +2289,7 @@ export function CustomerDesktopShell(props: {
                               <tr key={report.reportId}>
                                 <td className="font-mono"><strong>{report.publicNumber}</strong></td>
                                 <td><span className="tag-coverage">{report.coverage}</span></td>
-                                <td>{new Date(report.frozenAt).toLocaleString()}</td>
+                                <td>{formatDateTime(report.frozenAt)}</td>
                                 <td>
                                   <button
                                     type="button"
@@ -2350,124 +2309,68 @@ export function CustomerDesktopShell(props: {
 
                   {activeReportSubTab === "SANITIZATION_CERT" && (
                     <div className="panel-card">
-                      {!sanitizationCertReport ? (
-                        <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                          <p style={{ color: "#94a3b8", marginBottom: "16px" }}>
-                            No sanitization certificate generated yet. Complete the Phase 14 Data Purge & Verification pipeline to generate an official NIST SP 800-88 Rev. 2 certificate.
-                          </p>
+                      {/* WS-K1-01: this build has no certificate object and no code
+                          path that can create one. The previous view rendered a
+                          hard-coded certificate ID at a success status, with
+                          Download and Print buttons, for a wipe that never ran. */}
+                      <div
+                        data-testid="sanitization-cert-blocked"
+                        data-purge-status={PURGE_EXECUTION_STATUS}
+                        style={{
+                          textAlign: "center",
+                          padding: "40px 20px",
+                          border: "1px solid #334155",
+                          background: "rgba(100,116,139,0.10)",
+                          borderRadius: "8px",
+                        }}
+                      >
+                        <span
+                          className="badge-pill"
+                          style={{ background: "rgba(100,116,139,0.18)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.4)" }}
+                        >
+                          {PURGE_EXECUTION_STATUS}
+                        </span>
+                        <h3 style={{ color: "#cbd5e1", fontSize: "16px", margin: "16px 0 8px" }}>
+                          No erasure certificate is issued by this build
+                        </h3>
+                        <p style={{ color: "#94a3b8", maxWidth: "620px", margin: "0 auto 16px", lineHeight: "1.6", fontSize: "13px" }}>
+                          {PURGE_BLOCKED_DETAIL} Nothing has been erased, so there is nothing to certify.
+                        </p>
+                        <div className="device-metric-rows" style={{ maxWidth: "520px", margin: "0 auto", textAlign: "left" }}>
+                          <div className="metric-row">
+                            <span className="metric-label">Execution status:</span>
+                            <span className="metric-value font-mono" style={{ color: "#94a3b8" }}>
+                              {PURGE_EXECUTION_STATUS}
+                            </span>
+                          </div>
+                          <div className="metric-row">
+                            <span className="metric-label">Source of this status:</span>
+                            <span className="metric-value">Host sanitization engine — decision {PURGE_BLOCKED_DECISION}</span>
+                          </div>
+                          <div className="metric-row">
+                            <span className="metric-label">Certificate ID:</span>
+                            <span className="metric-value">— (none exists)</span>
+                          </div>
+                          <div className="metric-row">
+                            <span className="metric-label">Downloads available:</span>
+                            <span className="metric-value">None</span>
+                          </div>
+                        </div>
+                        <ul style={{ margin: "16px auto 0", paddingLeft: "18px", color: "#94a3b8", fontSize: "12px", lineHeight: "1.6", maxWidth: "520px", textAlign: "left", display: "inline-block" }}>
+                          {PURGE_BLOCKED_LIMITATIONS.map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                        <div className="btn-row" style={{ display: "flex", gap: "12px", justifyContent: "center", marginTop: "20px" }}>
                           <button
                             type="button"
-                            className="btn btn-action-primary"
+                            className="btn btn-action-secondary"
                             onClick={() => setActiveTab("DATA_PURGE")}
                           >
-                            Go to Data Purge Pipeline →
+                            View purge status
                           </button>
                         </div>
-                      ) : (
-                        <div style={{ background: "#0b1120", border: "1px solid #1e293b", borderRadius: "8px", padding: "24px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #334155", paddingBottom: "16px", marginBottom: "20px" }}>
-                            <div>
-                              <h2 style={{ fontSize: "18px", color: "#38bdf8", margin: "0 0 4px" }}>
-                                CYVRA DATA SANITIZATION & VERIFICATION CERTIFICATE
-                              </h2>
-                              <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-                                Certificate ID: <strong className="font-mono" style={{ color: "#f8fafc" }}>{sanitizationCertReport.certificateId}</strong>
-                              </span>
-                            </div>
-                            <div style={{ textAlign: "right" }}>
-                              <span className="badge-pill ready-badge">NIST SP 800-88 REV. 2 COMPLIANT</span>
-                              <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>Assurance: {sanitizationCertReport.assuranceLevel}</div>
-                            </div>
-                          </div>
-
-                          <div className="device-metric-rows" style={{ marginBottom: "20px" }}>
-                            <div className="metric-row">
-                              <span className="metric-label">Sanitization Method:</span>
-                              <span className="metric-value font-bold text-sky-400">{sanitizationCertReport.selectedMethod}</span>
-                            </div>
-                            <div className="metric-row">
-                              <span className="metric-label">Execution Status:</span>
-                              <span className="metric-value text-emerald-400 font-bold">{sanitizationCertReport.executionStatus}</span>
-                            </div>
-                            <div className="metric-row">
-                              <span className="metric-label">Operation ID:</span>
-                              <span className="metric-value font-mono">{sanitizationCertReport.operationId}</span>
-                            </div>
-                            <div className="metric-row">
-                              <span className="metric-label">Post-Reset Verification:</span>
-                              <span className="metric-value text-emerald-400">STATUS: {sanitizationCertReport.verificationStatus}</span>
-                            </div>
-                            <div className="metric-row">
-                              <span className="metric-label">Transport State:</span>
-                              <span className="metric-value font-mono">{sanitizationCertReport.postResetAdbState}</span>
-                            </div>
-                            <div className="metric-row">
-                              <span className="metric-label">Setup Wizard Confirmed:</span>
-                              <span className="metric-value text-emerald-400">YES (OOBE Active)</span>
-                            </div>
-                            <div className="metric-row">
-                              <span className="metric-label">User Accounts Removed:</span>
-                              <span className="metric-value text-emerald-400">YES (All User Partitions Purged)</span>
-                            </div>
-                            <div className="metric-row">
-                              <span className="metric-label">Authorized Operator:</span>
-                              <span className="metric-value">{sanitizationCertReport.operatorId}</span>
-                            </div>
-                          </div>
-
-                          {/* Limitations & Disclaimers */}
-                          <div style={{ background: "#020617", border: "1px solid #1e293b", padding: "16px", borderRadius: "6px", marginBottom: "20px" }}>
-                            <h4 style={{ color: "#cbd5e1", fontSize: "13px", margin: "0 0 8px", textTransform: "uppercase" }}>
-                              Compliance Limitations & Disclaimers (§30, §31)
-                            </h4>
-                            <ul style={{ margin: 0, paddingLeft: "18px", color: "#94a3b8", fontSize: "12px", lineHeight: "1.6" }}>
-                              {sanitizationCertReport.limitations.map((lim, idx) => (
-                                <li key={idx}>{lim}</li>
-                              ))}
-                            </ul>
-                          </div>
-
-                          {/* Cryptographic Seal */}
-                          <div style={{ background: "#020617", border: "1px solid #1e293b", padding: "14px 18px", borderRadius: "6px", marginBottom: "20px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                              <div>
-                                <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", display: "block" }}>Cryptographic SHA-256 Digest</span>
-                                <span className="font-mono" style={{ fontSize: "12px", color: "#38bdf8", wordBreak: "break-all" }}>
-                                  {sanitizationCertReport.sha256Hash}
-                                </span>
-                              </div>
-                              <div style={{ textAlign: "right" }}>
-                                <span className="badge-pill ready-badge">SEALED & IMMUTABLE</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="btn-row" style={{ display: "flex", gap: "12px" }}>
-                            <button
-                              type="button"
-                              className="btn btn-action-primary"
-                              onClick={() => {
-                                const element = document.createElement("a");
-                                const file = new Blob([JSON.stringify(sanitizationCertReport, null, 2)], { type: "application/json" });
-                                element.href = URL.createObjectURL(file);
-                                element.download = `${sanitizationCertReport.certificateId}.json`;
-                                document.body.appendChild(element);
-                                element.click();
-                                document.body.removeChild(element);
-                              }}
-                            >
-                              Download Canonical JSON Certificate
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-action-secondary"
-                              onClick={() => window.print()}
-                            >
-                              Print / Export PDF Certificate
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
