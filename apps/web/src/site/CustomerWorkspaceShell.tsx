@@ -610,11 +610,9 @@ export function CustomerWorkspaceShell(props: {
           />
         </div>
 
-        /*
-         * Spec 91's first priority, spelled out. The strip above states the
-         * status; this states what the customer actually holds, including
-         * Spec 12's delivery line.
-         */
+        {/* Spec 91's first priority, spelled out. The strip above states the
+            status; this states what the customer actually holds, including
+            Spec 12's delivery line. */}
         <SteelCard
           title="Your licence"
           badge={<StatusBadge tone={entNotice ? "neutral" : license.tone}>
