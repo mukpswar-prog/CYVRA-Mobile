@@ -33,11 +33,22 @@ function writeToken(token: string | undefined) {
  */
 export class ApiError extends Error {
   readonly status: number;
+  /**
+   * The parsed error body, when the server sent one.
+   *
+   * `POST /v1/licence-requests` answers 429 with `requestedAt` *inside* the
+   * refusal, so a client whose retry arrived after a request that had already
+   * landed can render "submitted" rather than a failure. Reading that back
+   * requires the body to survive the throw, which is what this field is for.
+   * Optional on purpose: callers that only need the status are unaffected.
+   */
+  readonly details: Record<string, unknown>;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, details: Record<string, unknown> = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -59,6 +70,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(
       (data as { error?: string }).error ?? `Request failed (${res.status})`,
       res.status,
+      data as unknown as Record<string, unknown>,
     );
   }
   return data as T;
@@ -153,6 +165,15 @@ export interface Entitlement {
     scans: { state: string };
   };
   build: BuildManifest;
+  /**
+   * WS-K3 (spec 10, "Request date/time") - when this customer submitted a
+   * licence request from the Workspace.
+   *
+   * `null` means "never requested", which is a real answer and not a missing
+   * field: the server distinguishes the two on purpose, so a dashboard can say
+   * "you have not asked yet" rather than showing a blank.
+   */
+  requestedAt: string | null;
 }
 
 /**
@@ -180,6 +201,35 @@ export type EntitlementResult =
 export function scansStateSentence(state: string): string {
   if (state === "available-after-first-scan") return "Available after first scan";
   return state.replace(/-/g, " ");
+}
+
+/**
+ * What the Workspace's purchase form submits (WS-K3, spec 9).
+ *
+ * Deliberately carries **no** payment field and no status: spec 11 says a
+ * "Payment Done" note is a customer declaration that authorises nothing, and
+ * spec 3 step 3 says payment is recorded by the authorised business. There is
+ * no code path that could accept it from here.
+ *
+ * `email` is absent as well - the server overwrites whatever it is given with
+ * the session's address, so sending one would only invite a false belief that
+ * the client decides whose request this is.
+ */
+export interface LicenceRequestInput {
+  /** The form's single "Customer / company name" field, as spec 9 labels it. */
+  fullName: string;
+  companyName: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  pincode: string;
+  state: string;
+  plan: PlanSlab;
+}
+
+/** The server's answer: an ISO-8601 stamp of when the request was recorded. */
+export interface LicenceRequestResult {
+  status: "SUBMITTED";
+  requestedAt: string;
 }
 
 export const api = {
@@ -259,6 +309,33 @@ export const api = {
       if (status === 404) return { kind: "no-licence", message };
       if (status === 503) return { kind: "unavailable", message };
       return { kind: "failed", message };
+    }
+  },
+  /**
+   * WS-K3 - the purchase form's submit (spec 9/10), replacing the honesty
+   * notice that used to say no endpoint existed.
+   *
+   * Throws like every other writer, so the shell decides what a refusal looks
+   * like - with one deliberate exception: **429 is not a failure.** The server
+   * refuses a second request inside its rate-limit window and sends the
+   * original stamp back inside the refusal. Rendering that as a red error would
+   * tell a customer their request failed at the exact moment it had in fact
+   * succeeded, which is what a lost response plus a retry produces.
+   */
+  licenceRequest: async (input: LicenceRequestInput): Promise<LicenceRequestResult> => {
+    try {
+      return await request<LicenceRequestResult>("/v1/licence-requests", {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        const stamp = err.details.requestedAt;
+        if (typeof stamp === "string") {
+          return { status: "SUBMITTED", requestedAt: stamp };
+        }
+      }
+      throw err;
     }
   },
 };

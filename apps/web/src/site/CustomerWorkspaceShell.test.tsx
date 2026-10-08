@@ -31,6 +31,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  api,
   PLAN_SLABS,
   type BuildManifest,
   type Entitlement,
@@ -96,6 +97,9 @@ function entitlementResult(
       activation: { activatedAt: null, hostBinding: "NOT_BOUND" },
       scans: { state: "available-after-first-scan" },
     },
+    // WS-K3: null is the state of every account that has not submitted a
+    // request, which is what these tests model unless they say otherwise.
+    requestedAt: null,
     build: {
       state: "unavailable",
       version: null,
@@ -155,6 +159,10 @@ function navButtonLabel(button: HTMLElement): string {
 
 afterEach(() => {
   vi.useRealTimers();
+  // WS-K3 tests spy on `api.licenceRequest`; without this the stub would
+  // survive into the next case and assert against a request that never went
+  // anywhere.
+  vi.restoreAllMocks();
 });
 
 /* ------------------------------------------------------------------ *
@@ -722,6 +730,7 @@ describe("Spec 8/9/10/11: the purchase area", () => {
   });
 
   it("rejects a PIN code that is not an Indian PIN code", () => {
+    const submit = vi.spyOn(api, "licenceRequest");
     renderShell();
     goToNav("CYVRA MOBILE");
 
@@ -729,23 +738,74 @@ describe("Spec 8/9/10/11: the purchase area", () => {
       target: { value: "12 M G Road" },
     });
     fireEvent.change(screen.getByLabelText("PIN code *"), { target: { value: "012345" } });
-    fireEvent.click(screen.getByRole("button", { name: "Review licence request" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit licence request" }));
 
     expect(screen.getByRole("alert").textContent).toMatch(/Indian PIN/);
     expect(screen.queryByText("Purchase record")).toBeNull();
+    expect(submit, "validation runs before any request leaves the page").not.toHaveBeenCalled();
   });
 
-  it("accepts a valid request and shows the Spec 10 status summary", () => {
+  it("accepts a valid request and shows the Spec 10 status summary", async () => {
+    const submit = vi.spyOn(api, "licenceRequest").mockResolvedValue({
+      status: "SUBMITTED",
+      requestedAt: "2026-10-08T09:15:00.000Z",
+    });
     renderShell();
     goToNav("CYVRA MOBILE");
     fillValidRequest();
 
-    fireEvent.click(screen.getByRole("button", { name: "Review licence request" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit licence request" }));
+    await screen.findByText("Request Submitted — awaiting admin review");
 
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(
+      submit.mock.calls[0]?.[0],
+      "spec 11: a payment declaration is never part of what the customer sends",
+    ).not.toHaveProperty("paymentStatus");
     expect(screen.getByText("Purchase record")).toBeTruthy();
-    expect(screen.getByText(/no endpoint receives this request/)).toBeTruthy();
-    expect(screen.getByText(/nothing above left this page/)).toBeTruthy();
+    expect(screen.getByText(/SUBMITTED - awaiting admin review/)).toBeTruthy();
+    expect(screen.getByText(/recorded by the licence service/)).toBeTruthy();
     expect(screen.getByText(/110001/)).toBeTruthy();
+
+    // Accepted means accepted: the control can only be refused afterwards, so
+    // it stops being offered rather than becoming a button that answers 429.
+    const button = screen.getByRole("button", {
+      name: "Request submitted",
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
+
+  it("shows a red panel with RETRY when the request cannot be delivered", async () => {
+    vi.spyOn(api, "licenceRequest").mockRejectedValue(new Error("Network unreachable"));
+    renderShell();
+    goToNav("CYVRA MOBILE");
+    fillValidRequest();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit licence request" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/Network unreachable/);
+    expect(alert.textContent).toMatch(/Nothing was recorded on the server/);
+    expect(screen.getByRole("button", { name: "RETRY" })).toBeTruthy();
+    // The Spec 10 summary survives the failure - it is prepared on this device.
+    expect(screen.getByText("Purchase record")).toBeTruthy();
+    expect(screen.getByText(/Not sent - delivery failed/)).toBeTruthy();
+  });
+
+  it("renders a request that already landed as submitted, without sending again", () => {
+    const submit = vi.spyOn(api, "licenceRequest");
+    renderShell({
+      entitlement: entitlementResult({}, { requestedAt: "2026-10-07T10:00:00.000Z" }),
+    });
+    goToNav("CYVRA MOBILE");
+
+    expect(screen.getByText("Request Submitted — awaiting admin review")).toBeTruthy();
+    expect(submit, "the stamp came from the server; nothing is re-sent").not.toHaveBeenCalled();
+
+    const button = screen.getByRole("button", {
+      name: "Request submitted",
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
   });
 
   it("marks payment complete without turning it into an entitlement", () => {

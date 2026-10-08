@@ -101,6 +101,9 @@ function serial(overrides: Partial<EntitlementRow["serial"]> = {}): EntitlementR
     addressLine2: null,
     pincode: null,
     state: null,
+    // WS-K3: NULL by default so a fixture models a customer who has not
+    // submitted a request yet - the state every pre-WS-K3 row is in.
+    requestedAt: null,
     devicesBound: 0,
     emailedAt: null,
     emailMessageId: null,
@@ -338,7 +341,22 @@ test("the success payload carries exactly the documented top-level shape", async
 
   assert.deepEqual(
     Object.keys(body).sort(),
-    ["build", "customer", "licence", "payment", "plan", "usage", "validity"],
+    [
+      "build",
+      "customer",
+      "licence",
+      "payment",
+      "plan",
+      "requestedAt",
+      "usage",
+      "validity",
+    ],
+    "WS-K3 added `requestedAt`: absent would mean the field is optional, and an optional field reads as missing rather than as never-requested",
+  );
+  assert.equal(
+    body.requestedAt,
+    null,
+    "the fixture never submitted a request, and NULL is the honest value for that",
   );
   assert.deepEqual(Object.keys(body.customer).sort(), ["companyName", "email"]);
   assert.equal(

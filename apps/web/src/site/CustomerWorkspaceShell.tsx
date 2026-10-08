@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   api,
   PLAN_SLABS,
@@ -215,6 +215,15 @@ interface ReleaseRecord {
   installerName: string;
 }
 
+/**
+ * WS-K3 - where the purchase form's request stands with the server.
+ *
+ * `sending` keeps the submit button disabled while the POST is in flight, so a
+ * double click cannot file the same request twice; `error` is kept separate
+ * from `idle` so RETRY can re-send without clearing what the customer typed.
+ */
+type RequestPhase = "idle" | "sending" | "submitted" | "error";
+
 export function CustomerWorkspaceShell(props: {
   user: AuthUser;
   /**
@@ -245,9 +254,13 @@ export function CustomerWorkspaceShell(props: {
    *
    * Fields are prefilled from the authenticated account because Spec 9 says
    * the design "should avoid repeatedly asking the customer for information
-   * already available". Nothing here is transmitted: no endpoint accepts a
-   * licence request yet, so submitting builds a clean status summary (Spec
-   * 10) on this device and says plainly that it was not sent.
+   * already available". Submitting sends the form to
+   * `POST /v1/licence-requests` (WS-K3), which stamps `requested_at` on the
+   * account's licence row and answers with the moment it recorded.
+   *
+   * Payment status is deliberately NOT sent: spec 11 says it authorises
+   * nothing, and spec 3 step 3 records it with the authorised business. The
+   * control below stays as the customer's own declaration on this page.
    * ------------------------------------------------------------------ */
   const [purchase, setPurchase] = useState(() => ({
     licenceSlab: PLAN_SLABS[0] as PlanSlab,
@@ -272,6 +285,18 @@ export function CustomerWorkspaceShell(props: {
     preparedAt: string;
   }>(null);
   const [copyNote, setCopyNote] = useState("");
+  /*
+   * WS-K3 - where the request stands with the server.
+   *
+   * `submitted` is reachable from two directions: a successful POST made here,
+   * or `requestedAt` already present in the entitlement when the page loads.
+   * That second path is why this is a phase and not a boolean - a customer who
+   * reloads after submitting must see their request as sent rather than as an
+   * untouched form.
+   */
+  const [requestPhase, setRequestPhase] = useState<RequestPhase>("idle");
+  const [requestedAt, setRequestedAt] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState("");
   // Spec 71: the left navigation collapses on small screens. Closed by default
   // at every width — the CSS decides whether it is visible at all.
   const [navOpen, setNavOpen] = useState(false);
@@ -285,6 +310,22 @@ export function CustomerWorkspaceShell(props: {
    * ------------------------------------------------------------------ */
   const entitlement =
     props.entitlement?.kind === "ok" ? props.entitlement.entitlement : null;
+
+  /*
+   * WS-K3 - a request that already landed renders as submitted on load.
+   *
+   * The guard on `idle` matters: after a local submit, the entitlement still
+   * reports the old (null) stamp until the next refresh, and letting that
+   * answer in would erase the timestamp the customer just received.
+   */
+  useEffect(() => {
+    if (requestPhase !== "idle") return;
+    const already = entitlement?.requestedAt ?? null;
+    if (already) {
+      setRequestedAt(already);
+      setRequestPhase("submitted");
+    }
+  }, [entitlement, requestPhase]);
 
   /**
    * Spec 6/12 presentation of the status the server actually reported. The
@@ -766,14 +807,23 @@ export function CustomerWorkspaceShell(props: {
     return errors;
   }
 
-  function submitPurchase(event: FormEvent) {
-    event.preventDefault();
+  /**
+   * The submit itself, without the form event.
+   *
+   * Split out so the RETRY button in the error panel can re-send exactly the
+   * same request instead of re-deriving it - two code paths here would be two
+   * places for the payload to drift apart.
+   */
+  async function sendLicenceRequest(): Promise<void> {
     const errors = validatePurchase();
     setPurchaseErrors(errors);
     if (Object.keys(errors).length > 0) {
       setPurchaseRecord(null);
       return;
     }
+    // The Spec 10 summary is built before the network call: it is the
+    // customer's own record of what they asked for, and it stands whether or
+    // not delivery succeeds.
     setCopyNote("");
     setPurchaseRecord({
       licenceSlab: purchase.licenceSlab,
@@ -786,6 +836,50 @@ export function CustomerWorkspaceShell(props: {
       paymentStatus: purchase.paymentDone ? "Done" : "Not Done",
       preparedAt: new Date().toISOString(),
     });
+
+    setRequestError("");
+    setRequestPhase("sending");
+    try {
+      const result = await api.licenceRequest({
+        // Spec 9 has one "Customer / company name" field, and `parseRegistration`
+        // requires a name of at least two characters - the client's own rule at
+        // `validatePurchase` is the same one, so this cannot pass here and fail
+        // there. `email` is intentionally absent: the server takes it from the
+        // session, not from this form.
+        fullName: purchase.companyName.trim(),
+        companyName: purchase.companyName.trim(),
+        addressLine1: purchase.addressLine1.trim(),
+        addressLine2: purchase.addressLine2.trim() || null,
+        pincode: purchase.pincode,
+        state: purchase.stateName,
+        plan: purchase.licenceSlab,
+      });
+      setRequestedAt(result.requestedAt);
+      setRequestPhase("submitted");
+    } catch (err) {
+      setRequestError(err instanceof Error ? err.message : "The request could not be sent.");
+      setRequestPhase("error");
+    }
+  }
+
+  function submitPurchase(event: FormEvent) {
+    event.preventDefault();
+    void sendLicenceRequest();
+  }
+
+  /**
+   * The last line of the copied Spec 10 summary: what actually happened to
+   * this request. The honesty notice is replaced by the truth in whichever
+   * direction it points - sent, failed, or not yet attempted.
+   */
+  function requestDeliveryLine(): string {
+    if (requestPhase === "submitted" && requestedAt) {
+      return `SUBMITTED to the licence service at ${formatDateTime(requestedAt)} - awaiting admin review.`;
+    }
+    if (requestPhase === "error") {
+      return `NOT SENT: ${requestError || "the request could not be delivered."}`;
+    }
+    return "PREPARED on this device - not yet submitted.";
   }
 
   /** The plain-text form of the Spec 10 status summary. */
@@ -803,7 +897,7 @@ export function CustomerWorkspaceShell(props: {
       `Licence reference: ${license.serialNumber ?? "Not issued yet"}`,
       `Download availability: ${buildAvailable ? "BUILD AVAILABLE" : "BUILD NOT AVAILABLE"}`,
       "",
-      "NOT SENT: no endpoint accepts a licence request yet. Place it with the business.",
+      requestDeliveryLine(),
     ].join("\n");
   }
 
@@ -988,8 +1082,22 @@ export function CustomerWorkspaceShell(props: {
             ) : null}
 
             <div className="ws-actions" style={{ marginTop: 16 }}>
-              <button type="submit" className="ws-btn ws-btn--primary">
-                Review licence request
+              {/*
+               * Disabled while in flight so a double click cannot file twice,
+               * and disabled for good once the server has accepted: the
+               * endpoint's own rate limit would answer 429, and offering a
+               * button that can only be refused is not an offered action.
+               */}
+              <button
+                type="submit"
+                className="ws-btn ws-btn--primary"
+                disabled={requestPhase === "sending" || requestPhase === "submitted"}
+              >
+                {requestPhase === "sending"
+                  ? "Sending request..."
+                  : requestPhase === "submitted"
+                    ? "Request submitted"
+                    : "Submit licence request"}
               </button>
             </div>
           </form>
@@ -1017,8 +1125,9 @@ export function CustomerWorkspaceShell(props: {
         {purchaseRecord ? (
           /*
            * Spec 10 - a clean status summary, not internal administrative
-           * fields. Request ID and the server-side timestamps appear as
-           * absences, because nothing has been recorded on any server.
+           * fields. "Request state" and "Request date/time" report what the
+           * server recorded once WS-K3 has answered, and say plainly that the
+           * form is only prepared on this device until then.
            */
           <>
             <LicenceCard
@@ -1035,8 +1144,15 @@ export function CustomerWorkspaceShell(props: {
               }
               rows={[
                 {
-                  key: "Request ID",
-                  value: "Not assigned - no endpoint receives this request",
+                  key: "Request state",
+                  value:
+                    requestPhase === "submitted"
+                      ? "SUBMITTED - awaiting admin review"
+                      : requestPhase === "sending"
+                        ? "Being sent to the licence service"
+                        : requestPhase === "error"
+                          ? "Not sent - delivery failed"
+                          : "Prepared on this device, not yet submitted",
                 },
                 { key: "Registered email", value: props.user.email },
                 { key: "Customer / company name", value: purchaseRecord.companyName },
@@ -1051,7 +1167,10 @@ export function CustomerWorkspaceShell(props: {
                 { key: "Payment status", value: purchaseRecord.paymentStatus },
                 {
                   key: "Request date/time",
-                  value: `${formatDateTime(purchaseRecord.preparedAt)} (prepared on this device)`,
+                  value:
+                    requestPhase === "submitted" && requestedAt
+                      ? `${formatDateTime(requestedAt)} (recorded by the licence service)`
+                      : `${formatDateTime(purchaseRecord.preparedAt)} (prepared on this device)`,
                 },
                 { key: "Licence status", value: license.status ?? entNotice ?? "\u2014" },
                 {
@@ -1069,21 +1188,38 @@ export function CustomerWorkspaceShell(props: {
                 },
               ]}
             />
-            <SteelCard
-              title="This request was not sent"
-              badge={<StatusBadge tone="neutral">NOT SENT</StatusBadge>}
-            >
-              <p className="ws-panel__text">
-                No endpoint in the API accepts a licence request yet, so nothing above left this
-                page and no record was created on the server. Place the request with the business,
-                or copy the summary and send it to them.
-              </p>
-              {copyNote ? (
-                <p className="ws-panel__text" style={{ marginTop: 10 }}>
-                  {copyNote}
-                </p>
-              ) : null}
-            </SteelCard>
+            {copyNote ? <p className="ws-panel__text">{copyNote}</p> : null}
+          </>
+        ) : null}
+
+        {/*
+         * WS-K3 - what happened to the request, rendered independently of the
+         * summary above. A customer who reloads after submitting prepared no
+         * summary in this session, and still has to be told it was sent.
+         *
+         * The RETRY control sits outside `ErrorPanel` because that component
+         * wraps its children in a single `<p>`; a button belongs there only as
+         * phrasing content, and keeping the actions block outside it is what
+         * lets the layout breathe.
+         */}
+        {requestPhase === "submitted" ? (
+          <SuccessPanel title="Request Submitted — awaiting admin review">
+            {`Your licence request is with the business.${requestedAt ? ` Received ${formatDateTime(requestedAt)}.` : ""} Nothing on this page grants a licence: the application entitlement is still decided through the existing licensing and approval process.`}
+          </SuccessPanel>
+        ) : requestPhase === "error" ? (
+          <>
+            <ErrorPanel title="The request was not sent">
+              {`${requestError} Nothing was recorded on the server, and the summary above still stands on this device. Retry when you are ready.`}
+            </ErrorPanel>
+            <div className="ws-actions">
+              <button
+                type="button"
+                className="ws-btn ws-btn--primary"
+                onClick={() => void sendLicenceRequest()}
+              >
+                RETRY
+              </button>
+            </div>
           </>
         ) : null}
 

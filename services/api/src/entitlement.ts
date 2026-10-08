@@ -330,6 +330,12 @@ export function projectEntitlement(
       },
       scans: { state: SCANS_STATE },
     },
+    // WS-K3 (spec 10, "Request date/time"): the moment the customer actually
+    // submitted a licence request from the Workspace. NULL is a real answer -
+    // "never requested" - so it is reported as null rather than omitted, letting
+    // the dashboard tell "has not asked" apart from "this API predates the
+    // endpoint".
+    requestedAt: serial.requestedAt === null ? null : serial.requestedAt.toISOString(),
     build,
   };
 }
