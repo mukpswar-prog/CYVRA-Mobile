@@ -40,6 +40,7 @@ function row(overrides: Partial<Row> = {}): Row {
     addressLine2: null,
     pincode: null,
     state: null,
+    requestedAt: null,
     devicesBound: 2,
     emailedAt: null,
     emailMessageId: null,

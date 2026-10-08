@@ -198,6 +198,22 @@ export const auditActionEnum = pgEnum("audit_action_enum", [
   "STAFF_ROLE_CHANGED",
   "STAFF_SUSPENDED",
   "STAFF_REVOKED",
+  /**
+   * WS-K3 - a customer submitted a licence request from the Workspace
+   * (`POST /v1/licence-requests`).
+   *
+   * Appended rather than inserted beside `SERIAL_CREATED`: PostgreSQL cannot
+   * reorder an enum's existing values without recreating the type, and
+   * drizzle-kit emits a plain `ALTER TYPE ... ADD VALUE` for an append. The
+   * value is a label, so its ordinal position carries no meaning - see
+   * `idx_audit_events_action`, which indexes the value itself.
+   *
+   * `SERIAL_CREATED` stays reserved for the registration bridge and for
+   * operator-created rows; conflating "a customer pressed a button" with
+   * "a licence row came into existence" would lose the distinction the audit
+   * log exists to keep.
+   */
+  "LICENCE_REQUESTED",
 ]);
 
 export const users = pgTable(
@@ -529,6 +545,21 @@ export const mobileSerials = pgTable(
     addressLine2: text("address_line2"),
     pincode: text("pincode"),
     state: text("state"),
+    /**
+     * WS-K3 / spec 10 "Request date/time" - when this customer actively
+     * submitted a licence request through `POST /v1/licence-requests`.
+     *
+     * `created_at` cannot answer that question: it is written by the
+     * registration bridge when the ROW is born, which may be months before the
+     * customer asks for anything. Stamping a request onto `created_at` would
+     * date it from an event that is not the request.
+     *
+     * NULL means "never explicitly requested", which is the truthful state of
+     * every row that exists today. It is deliberately nullable with no DEFAULT
+     * and no backfill: filling it in for existing rows would assert that
+     * somebody asked for something when nobody did.
+     */
+    requestedAt: timestamp("requested_at", { withTimezone: true }),
     devicesBound: integer("devices_bound").notNull().default(0),
     emailedAt: timestamp("emailed_at", { withTimezone: true }),
     emailMessageId: text("email_message_id"),

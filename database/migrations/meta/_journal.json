@@ -71,6 +71,13 @@
       "when": 1791286350771,
       "tag": "0009_payment_method",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791441451407,
+      "tag": "0010_workspace_licence_requests",
+      "breakpoints": true
     }
   ]
 }

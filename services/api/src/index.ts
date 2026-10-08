@@ -19,6 +19,7 @@ import { adminRoutes } from "./admin";
 import { activationRoutes } from "./activation";
 import { entitlementRoutes } from "./entitlement";
 import { evidenceRoutes } from "./evidence";
+import { licenceRequestRoutes } from "./licenceRequests";
 import { licenseRoutes } from "./license";
 import { reportRoutes } from "./reports";
 import type { Env } from "./env";
@@ -306,6 +307,11 @@ app.route("/v1", activationRoutes);
 // `GET /license` below is superseded by this route but stays mounted until a
 // hygiene commit retires it.
 app.route("/v1", entitlementRoutes);
+
+// WS-K3 - the customer's licence request (spec 9/10), mounted on the same
+// `/v1` prefix as the entitlement read so both live on the customer surface
+// and neither is mistaken for part of the desktop activation protocol.
+app.route("/v1", licenceRequestRoutes);
 
 app.post("/auth/logout", async (c) => {
   const db = c.get("db");

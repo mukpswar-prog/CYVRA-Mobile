@@ -1,5 +1,18 @@
 # WS-I — Release Pipeline Draft (E10)
 
+> **SUPERSEDED — storage layer only (WS-I v2, 08-Oct-2026)**
+>
+> The warehouse half of this draft is **dead**. WS-I v2 publishes to **GitHub
+> Releases** instead, and `.github/workflows/release-windows-installer.yml` has
+> been rewritten accordingly. The current design is
+> [`WS-I_V2_GITHUB_RELEASES_PIPELINE.md`](./WS-I_V2_GITHUB_RELEASES_PIPELINE.md).
+>
+> **Do not follow §3c, §4 or the runbook in §7.** They describe an
+> object-storage upload this pipeline no longer performs, against a credential
+> that is still not configured. What remains true here — the wire-value ruling
+> (`state`), the `normalizeBuild()` contract, and the safety model — is restated
+> in v2 and is still what the workflow enforces.
+
 | Field | Value |
 |---|---|
 | Status | `DRAFT` — authored under E10, **NOT executed against production** |

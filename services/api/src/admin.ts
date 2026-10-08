@@ -1929,6 +1929,10 @@ adminRoutes.post("/serials", async (c) => {
     addressLine2: String(body.addressLine2 ?? "").trim() || null,
     pincode: String(body.pincode ?? "").trim() || null,
     state: String(body.state ?? "").trim() || null,
+    // Operator-created row: nobody has requested anything through the
+    // Workspace, so the WS-K3 request clock starts at NULL. Writing the
+    // creation instant here would date a request that never happened.
+    requestedAt: null,
     devicesBound: 0,
     emailedAt: null,
     emailMessageId: null,
