@@ -870,6 +870,27 @@ describe("Master Plan Section 6 / J7: the shell renders no forbidden claim", () 
     }
   });
 
+  it("never renders a source comment (WS-K1-11)", () => {
+    renderShell({ entitlement: entitlementResult() });
+
+    /*
+     * A bare `/* ... *\/` written directly in JSX children is not a comment to
+     * React - it is a text node, and it ships to the customer word for word.
+     * `{/* ... *\/}` is the only form that is actually a comment there, so the
+     * rendered output is the one place the mistake is visible. Markers are
+     * assembled from fragments for the same reason the token lists are.
+     */
+    const markers = ["/" + "*", "*" + "/"];
+
+    for (const label of NAV_LABELS) {
+      goToNav(label);
+      const sectionText = renderedText();
+      for (const marker of markers) {
+        expect(sectionText).not.toContain(marker);
+      }
+    }
+  });
+
   it("never claims a certificate or assurance level was observed", () => {
     renderShell({ entitlement: entitlementResult() });
     for (const label of NAV_LABELS) goToNav(label);
