@@ -1,0 +1,139 @@
+CYVRA CORE ENGINE — ANDROID ACCESS, PURGE METHOD, ML PATCH/TELEMETRY & JOURNEY
+Version 2.0-FINAL — 08-Oct-2026 — CYVORIQ Solutions Pvt. Ltd.
+Status: FINAL — no further changes (Chief Engineer ruling 08-Oct-2026).
+Supersedes: journey diagram v1 (08-Oct draft). Governed revision; amendments
+only via ratified revision catalogued in the Project Index.
+
+SECTION 1 — SCOPE & MANDATES
+M1 Customer journey (purchase→licence→download) FROZEN COMPLETE; no changes.
+M2 .exe upgrades ONLY on fully verified outcome.
+M3 Android deep research + Android Studio verification.
+M4 AI scope & integration. Core application only: apps/desktop, apps/host,
+apps/android, telemetry service, docs.
+
+SECTION 2 — ANDROID ACCESS PLANES (verified 08-Oct)
+P1 USB/PnP      consent none        VID/PID, USB serial string, mfg/product,
+                                    connect state; nothing internal.
+P2 WPD/MTP      consent unlocked    shared-storage volumes + file metadata;
+                                    locked = empty; no identifiers/props.
+P3 ADB          consent debugging   getprop, dumpsys battery/display/sensors/
+                   + key accept     wifi/diskstats, pm list packages, df,
+                                    wm size, screencap, input stimulus,
+                                    reboot/recovery; no /data/data; no
+                                    non-interactive reset; IMEI masked A10+.
+P4 Companion    consent install     Camera2 frames, sensors, audio loopback,
+   APK          + runtime grants    touch grid, GNSS, Wi-Fi/BT scans; IMEI
+                                    still restricted A10+; no root.
+Version gates: A10 scoped storage · A11 package visibility + wireless
+debugging · A13+ selectors. Capability = f(plane, authorization, Android
+version, OEM skin), resolved via capability matrix + signed patches.
+
+SECTION 3 — PURGE METHOD PUR-DO-WIPE (sanctioned, conditional)
+Flow: controlled ADB → install signed CYVRA Sanitization Agent →
+adb shell dpm set-device-owner <agent> (precondition: NO accounts) →
+agent DevicePolicyManager.wipeData(flags) → userdata wipe ERASES THE AGENT
+(no userdata trace) → reboot to setup wizard → ASSISTED RECONNECT
+(technician re-authorizes ADB) → post-purge evidence chain → report.
+Preconditions: debugging authorized; device-owner slot free; OEM matrix row
+verified; recorded authorization + ownership attestation (SECTION 6).
+FRP reality: platform self-blocks enrollment on FRP-locked devices without
+owner credentials; CYVRA never bypasses. Owner-supplied credentials are
+entered only by owner/operator and recorded as owner evidence.
+Trace honesty: host-side pre-wipe logs exist and are disclosed; userdata is
+trace-free post-wipe. Report states limitations (no NAND claim, Spec §29).
+
+SECTION 4 — IDENTIFIER & TRACKING POLICY
+Never fabricate (Spec §24). IMEI = OPERATOR-captured evidence (photo of
+*#06# / sticker / About) with photo reference; no software extraction A10+.
+CYVRA Device Token = sha256(model + build fingerprint + storage CID sysfs
+where available + battery/display serials where available); stable across
+wipe; same-device confirmation key (Spec §28). Restricted states recorded
+verbatim (NOT EXPOSED / RESTRICTED / NOT COLLECTED).
+
+SECTION 5 — ML CORE / PATCH / TELEMETRY (advisor-actor, reproducible)
+5.1 Core ML engine lives in this repository (governed). Trains offline on
+    fixture corpus + OEM documentation + fleet telemetry. Never in the
+    customer actuation path.
+5.2 Output = CAPABILITY PATCH: versioned, ed25519-signed JSON:
+    {patch_id, engine_min_version, matrix_rows[], procedure_overrides[],
+     oem_scope, evidence_refs, created_by, approved_by}.
+5.3 Customer engine executes ONLY signed patches matching engine_min_version.
+    Engine version + patch-set version recorded in EVERY report
+    (reproducibility invariant).
+5.4 Field uplink: on-connect + periodic check-in (configurable cadence).
+    Payload = engine version, patch set, capability challenge events,
+    host system logs. NO customer device evidence content without explicit
+    consent; consent recorded; withdrawal honored; offline queue.
+5.5 Shadow learning: predictions logged vs ground truth; promotion to patch
+    only via governed PR + Chief Engineer approval.
+5.6 No runtime self-modification of actuation logic.
+
+SECTION 6 — LEGAL T&C CLAUSES (draft — legal review required)
+6.1 Ownership warranty: customer warrants lawful possession/authority and is
+    SOLELY responsible for verifying devices are not stolen/lost/encumbered.
+    CYVORIQ relies on the recorded attestation.
+6.2 Authorization record: every purge requires an explicit in-app
+    authorization event (operator, timestamp, ownership category, attestation
+    hash) reproduced in the report.
+6.3 Credentials: lock/FRP credentials entered only by owner/operator; CYVRA
+    never solicits or stores plaintext credentials.
+6.4 Limitation of assurance: supported evidence paths only; no NAND-level
+    warranty; post-purge verification = stated evidence only.
+6.5 Telemetry consent: scope, cadence, retention, withdrawal.
+6.6 Indemnity: customer indemnifies CYVORIQ for unlawful-device processing;
+    governed by laws of India (seat to be finalized by legal).
+
+SECTION 7 — JOURNEY DIAGRAM v2 (FINAL)
+HOST (Windows laptop/desktop) — CYVRA Mobile .exe
+┌──────────────────────────────────────────────────────────────────┐
+│ Desktop UI (React/Tauri)  intent · attestation · T&C acceptance   │
+│   ↓                                                               │
+│ Rust Native Layer         USB/PnP · WPD/MTP · ADB transport       │
+│   ↓                                                               │
+│ Kotlin Domain Engine      capability matrix + SIGNED PATCHES      │
+│                           evidence model · purge orchestration    │
+│                           licence/entitlement · report freeze     │
+│   ↓                              ↑                                │
+│ RAW REPORT (zip/json)       signed capability patches             │
+│   │                              ↑                                │
+│   │                        CORE ML ENGINE (this repo, governed)   │
+│   │                              ↑ fleet telemetry uplink         │
+│   ↓                              │ (on-connect/periodic, consent) │
+│ Telemetry/log sender ────────────┘                                │
+└──────────────────────────────────────────────────────────────────┘
+        │ controlled ADB (authenticated channel)
+        ▼
+DEVICE: install Sanitization Agent → dpm set-device-owner → wipeData()
+        → userdata + agent erased → setup wizard
+        ▼
+ASSISTED RECONNECT (technician re-authorizes ADB)
+        ▼
+POST-PURGE EVIDENCE: re-enumerate · factory state · storage empty ·
+lock/FRP status · CID same-device check · OPERATOR IMEI photo ·
+AI_INSPECTION findings (provenance-tagged, ASSISTED → human → HYBRID)
+        ▼
+RAW REPORT → CUSTOMER WORKSPACE (schema 0011, later) → normalize →
+audit report → AUTHORIZED & APPROVED BY [customer] →
+POWERED BY CYVORIQ SOLUTIONS PVT. LTD. → seal → final controlled report
+
+SECTION 8 — FEASIBILITY REGISTER (Chief Engineer suggestions)
+S1 T&C sole user responsibility + no-magic disclosure      FEASIBLE (draft §6)
+S2 ML trains on Android policy/OEM-skin adaptation         FEASIBLE (5.1/5.5)
+S3 Core engine in repo; signed patches consumed by app     FEASIBLE (5.2/5.3)
+S4 Field engine pings core on new version/challenge        FEASIBLE (5.4)
+S5 Periodic/on-connect check-in + system-log fetch         FEASIBLE (5.4, consent)
+S6 Reproducibility invariant (no self-mutating actor)      KEPT (5.6)
+S7 Journey v2 final                                        THIS DOCUMENT
+
+SECTION 9 — VERIFICATION PLAN (Android Studio)
+Emulator matrix API 26/30/33/36: read-only probe battery → fixtures.
+Physical session (Chief Engineer present): locked/unlocked/debugging-off
+matrix; companion test APK (debug-signed) evidence lanes.
+Sacrificial device (D-P5 pending): dpm set-device-owner → wipeData proof;
+post-wipe reconnect + evidence chain; agent-absence confirmation.
+
+SECTION 10 — OPEN ITEMS
+D-P5 sacrificial device · legal review owner for §6 · OEM matrix seed rows ·
+telemetry endpoint build (later phase) · schema 0011 (later) ·
+.exe upgrade gate (M2).
+END OF DOCUMENT

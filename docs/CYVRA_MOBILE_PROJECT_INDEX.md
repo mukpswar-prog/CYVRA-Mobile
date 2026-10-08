@@ -75,12 +75,14 @@ Do **not** start from:
 
 When documents disagree, use this order:
 
-1. safety/compliance prohibition, **and — within its own scope — the two Precedence
-   Level 1 UI contracts**: the **Design Freeze**
+1. safety/compliance prohibition, **and — within its own scope — the three Precedence
+   Level 1 contracts**: the **Design Freeze**
    (`docs/design-freeze/admin-panel-design-freeze.txt` @ `73d3f3a`), the **Supreme UI/Admin
-   Contract**; see §2.1, **and** the **Customer Workspace Specification**
+   Contract**; see §2.1; the **Customer Workspace Specification**
    (`docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt`), the
-   **Supreme Customer-UI Contract**; see §2.2,
+   **Supreme Customer-UI Contract**; see §2.2; and the **Core Engine Journey FINAL v2**
+   (`docs/CYVRA_CORE_ENGINE_JOURNEY_FINAL_V2_2026-10-08.txt`), the **Supreme Core-Application
+   Contract**; see §2.3,
 2. Canonical Engineering Guideline,
 3. Final Forensic/System-Design Baseline,
 4. this Project Index,
@@ -139,10 +141,10 @@ ruling; it is never silently resolved against safety.
 | Scope | `cyvoriq.co.in/dashboard` and every other Customer Workspace surface: page structure, left navigation, header, licence/status sentences, download and build states, colour and interaction rules, copy/tone |
 | Ruling | Chief Engineer, 07-Oct-2026 (approval A5) |
 
-**What governs what.** The two Level 1 contracts are **parallel, not stacked**. The Design Freeze
+**What governs what.** The three Level 1 contracts are **parallel, not stacked**. The Design Freeze
 (§2.1) governs the **admin panel**; this Specification governs the **Customer Workspace** at
-`cyvoriq.co.in/dashboard`. Neither overrides the other, because neither is authoritative inside the
-other's scope. A question about the admin console is decided by §2.1; a question about the customer
+`cyvoriq.co.in/dashboard`; the Core Engine Journey FINAL v2 (§2.3) governs the **core
+application**. None overrides another, because none is authoritative inside another's scope. A question about the admin console is decided by §2.1; a question about the customer
 dashboard is decided by this section. If a shared token (colour, date format, table rule) is decided
 differently by each, **each applies within its own surface** — there is no cross-override.
 
@@ -164,6 +166,51 @@ navigation with the §90 left navigation.
 WORKSPACE`, last non-empty line `END OF SPECIFICATION`, zero `U+FFFD`.
 
 **Verification.** `git diff --stat` between the Downloads source and this path is empty.
+
+---
+
+## 2.3 Core Engine Journey FINAL v2 — Supreme Core-Application Contract
+
+| Field | Value |
+|---|---|
+| Path | `docs/CYVRA_CORE_ENGINE_JOURNEY_FINAL_V2_2026-10-08.txt` |
+| Ratified at | TASK P — *docs: ratify CYVRA core-engine journey FINAL v2 (governed)*, 08-Oct-2026 |
+| Status | `ACTIVE-GOVERNING` — **Precedence Level 1** (Core Application) |
+| Scope | Core application: `apps/desktop`, `apps/host`, `apps/android`, the telemetry service and their documentation — Android access planes (P1–P4), the PUR-DO-WIPE purge method, identifier and tracking policy, ML core + signed capability patches, field telemetry, legal T&C clauses, and journey diagram v2 |
+| Ruling | Chief Engineer, 08-Oct-2026 (mandates M1–M4 in force) |
+| Supersedes | Journey diagram v1 (08-Oct draft) |
+
+**What governs what.** The three Level 1 contracts are **parallel, not stacked**. The Design Freeze
+(§2.1) governs the **admin panel**; the Customer Workspace Specification (§2.2) governs the
+**Customer Workspace**; this document governs the **core application**. None overrides another,
+because none is authoritative inside another's scope. A question about Android access planes, the
+purge method, identifier capture, capability patches, telemetry uplink or T&C clauses is decided by
+this section.
+
+**It is scoped, not supreme over safety.** As with §2.1 and §2.2, safety and compliance prohibitions
+sit at Level 1 alongside it and are never weakened (Final Forensic Baseline §0.1 rule 1). Where this
+document and a safety or compliance prohibition genuinely collide, the prohibition wins and the
+collision is escalated for ruling; it is never silently resolved against safety.
+
+**It does not reopen the customer journey.** Mandate M1 freezes the customer journey
+(purchase → licence → download) complete. Nothing in this section amends those surfaces, which stay
+owned by §2.2; the document routes the future raw report into the Customer Workspace (schema 0011,
+later phase) only.
+
+**What it supersedes.** The journey diagram v1 (08-Oct draft). Any earlier core-application,
+Android-access or purge instruction — in this index, in an older runbook, in an implementation plan,
+or under `docs/archive/` — that disagrees with this document on access planes, PUR-DO-WIPE,
+identifier policy, ML patching or telemetry is superseded. Amendments only via a ratified revision
+catalogued in this index.
+
+**Source of record.** The ratified file is byte-identical to the command text: 8,741 bytes, strict
+UTF-8, no BOM, LF, 139 content lines each LF-terminated (140 split elements including the trailing
+empty), sha256 `db9544cd6f5e852386e70a17d78b201e2ab0139a51931f5677d74f0e5905490c`, first line
+`CYVRA CORE ENGINE — ANDROID ACCESS, PURGE METHOD, ML PATCH/TELEMETRY & JOURNEY`, last non-empty
+line `END OF DOCUMENT`, zero `U+FFFD`.
+
+**Verification.** Three-way equality — command text == working file == committed blob — checked at
+commit time; the committed blob hash must reproduce the sha256 above.
 
 ---
 
@@ -197,6 +244,7 @@ No current CYVRA Mobile document is authorized for immediate deletion solely bec
 | `docs/CYVRA_MOBILE_PROJECT_INDEX.md` | `ACTIVE-GOVERNING` | Navigation, ownership, document classification, archive policy |
 | `docs/design-freeze/admin-panel-design-freeze.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** | Supreme UI/Admin Contract; frozen at `73d3f3a`; overrides older UI guidelines within UI/admin scope (§2.1) |
 | `docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** (Customer UI) | Supreme Customer-UI Contract; ratified at A5 on 07-Oct-2026; governs `cyvoriq.co.in/dashboard` (the Customer Workspace); parallel to the Design Freeze, which governs the admin panel (§2.2) |
+| `docs/CYVRA_CORE_ENGINE_JOURNEY_FINAL_V2_2026-10-08.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** (Core Application) | Supreme Core-Application Contract; ratified 08-Oct-2026 (TASK P); governs `apps/desktop`, `apps/host`, `apps/android` and the telemetry service — Android access planes P1–P4, PUR-DO-WIPE, identifier policy, signed capability patches, field telemetry, T&C clauses, journey diagram v2; supersedes journey diagram v1; parallel to §2.1 and §2.2, with safety/compliance above all (§2.3) |
 
 Long-term target: the three documents under `docs/` become the permanent primary governance set after root `GUIDELINE.md` has been safely consolidated.
 
