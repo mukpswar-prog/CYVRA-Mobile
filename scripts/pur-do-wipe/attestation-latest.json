@@ -1,0 +1,169 @@
+﻿{
+    "schema":  "cyvra.pur-do-wipe.attestation/1",
+    "tool":  "ForceCleanAccounts.ps1",
+    "deviceModel":  "SM-A107F",
+    "androidRelease":  "11",
+    "primitiveStatus":  "absent",
+    "baselineAccounts":  9,
+    "finalAccounts":  6,
+    "clean":  false,
+    "accountsRemoved":  3,
+    "removedPackages":  [
+                            "cn.wps.moffice_eng",
+                            "com.adobe.reader",
+                            "com.facebook.orca",
+                            "com.instagram.android",
+                            "com.microsoft.office.officehubrow",
+                            "com.microsoft.skydrive",
+                            "com.mygalaxy",
+                            "com.whatsapp.w4b",
+                            "us.zoom.videomeetings",
+                            "com.google.android.apps.tachyon",
+                            "com.google.android.gm",
+                            "com.osp.app.signin",
+                            "com.samsung.android.email.provider",
+                            "com.samsung.android.mobileservice"
+                        ],
+    "attempts":  [
+                     {
+                         "rung":  "PRIMITIVE",
+                         "target":  "n/a",
+                         "outcome":  "skipped: primitive absent",
+                         "countBefore":  9,
+                         "countAfter":  9,
+                         "at":  "2026-10-09T21:22:29.1647857+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "cn.wps.moffice_eng",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  9,
+                         "countAfter":  9,
+                         "at":  "2026-10-09T21:22:41.4375845+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.adobe.reader",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  9,
+                         "countAfter":  9,
+                         "at":  "2026-10-09T21:22:49.2480479+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.facebook.orca",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  9,
+                         "countAfter":  9,
+                         "at":  "2026-10-09T21:23:02.2926308+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.instagram.android",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  9,
+                         "countAfter":  9,
+                         "at":  "2026-10-09T21:23:12.6995401+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.microsoft.office.officehubrow",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  9,
+                         "countAfter":  9,
+                         "at":  "2026-10-09T21:23:27.0718749+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.microsoft.skydrive",
+                         "outcome":  "removed",
+                         "countBefore":  9,
+                         "countAfter":  8,
+                         "at":  "2026-10-09T21:23:39.2788879+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.mygalaxy",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  8,
+                         "countAfter":  8,
+                         "at":  "2026-10-09T21:23:48.4640333+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.whatsapp.w4b",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  8,
+                         "countAfter":  8,
+                         "at":  "2026-10-09T21:23:57.4169435+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "us.zoom.videomeetings",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  8,
+                         "countAfter":  8,
+                         "at":  "2026-10-09T21:24:06.9699485+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.google.android.apps.tachyon",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  8,
+                         "countAfter":  8,
+                         "at":  "2026-10-09T21:24:14.3886785+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.google.android.gm",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  8,
+                         "countAfter":  8,
+                         "at":  "2026-10-09T21:24:21.6804408+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.google.android.gms",
+                         "outcome":  "refused: Failure [DELETE_FAILED_DEVICE_POLICY_MANAGER]",
+                         "countBefore":  8,
+                         "countAfter":  8,
+                         "at":  "2026-10-09T21:24:26.8961015+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.osp.app.signin",
+                         "outcome":  "removed",
+                         "countBefore":  8,
+                         "countAfter":  6,
+                         "at":  "2026-10-09T21:24:35.5211956+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.samsung.android.email.provider",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  6,
+                         "countAfter":  6,
+                         "at":  "2026-10-09T21:24:47.0232059+05:30"
+                     },
+                     {
+                         "rung":  "AUTHENTICATOR",
+                         "target":  "com.samsung.android.mobileservice",
+                         "outcome":  "uninstalled, account count unchanged",
+                         "countBefore":  6,
+                         "countAfter":  6,
+                         "at":  "2026-10-09T21:24:55.3102236+05:30"
+                     },
+                     {
+                         "rung":  "HUMAN",
+                         "target":  "operator",
+                         "outcome":  "pending: 6 remain",
+                         "countBefore":  6,
+                         "countAfter":  6,
+                         "at":  "2026-10-09T21:24:56.1952267+05:30"
+                     }
+                 ],
+    "startedAt":  "2026-10-09T21:24:56.0972220+05:30",
+    "completedAt":  "2026-10-09T21:24:57.0092324+05:30",
+    "identifiersStored":  false,
+    "serialStored":  false
+}
