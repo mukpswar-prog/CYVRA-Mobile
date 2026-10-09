@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        BIND_DEVICE_ADMIN is deliberately NOT declared with <uses-permission>.
+
+        It is a signature-level permission that is only ever granted to system apps, so
+        a <uses-permission> entry would grant this app nothing at all — Lint rejects it
+        as ProtectedPermissions, and it would still be a no-op if Lint were silenced.
+
+        What actually protects the admin receiver is the android:permission attribute on
+        that receiver below, which the system enforces at bind time regardless of any
+        declaration here.
+    -->
+
+    <application
+        android:allowBackup="false"
+        android:label="CYVRA Sanitization [POC]"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.Light">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            The device-admin component. Guarded by BIND_DEVICE_ADMIN, so it can only be
+            driven by the system that binds it.
+
+            android:exported="true" is mandatory rather than discretionary: the system
+            binds this receiver from outside the app, and targetSdk 36 refuses to build
+            any intent-filter component that leaves android:exported unspecified. The
+            BIND_DEVICE_ADMIN guard is what keeps "exported" from meaning "open" — only
+            the system holds that signature-level permission.
+        -->
+        <receiver
+            android:name=".SanitizationAdmin"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            PROOF OF CONCEPT — deliberately exported and deliberately unguarded.
+
+            This receiver must be exported and unguarded for the commissioned proof to
+            work at all: the human operator drives it from `adb shell am broadcast`,
+            and the shell UID would not satisfy a custom signature permission reliably
+            across OEM builds.
+
+            That also means ANY app on the device can send this intent and factory-reset
+            it. This is acceptable only because the APK is a sacrificial proof artifact
+            that is erased by its own action. It must not be shipped. See README.md.
+        -->
+        <receiver
+            android:name=".SanitizationBroadcastReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.cyvra.sanitization.WIPE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
