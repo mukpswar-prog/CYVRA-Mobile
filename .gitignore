@@ -37,9 +37,16 @@ apps/android/.idea/
 # Studio/Gradle 9 "updateDaemonJvm" writes this and can pin JDK 25.
 # Freeze is JDK 21. Do not commit it.
 apps/android/gradle/gradle-daemon-jvm.properties
-# TASK O probe fixtures: captured locally, never committed or pushed.
+# TASK O probe fixtures: content captured locally, never committed or pushed.
 # Governed doc section 9 - fixtures stay local; no egress.
-apps/android/core/src/test/fixtures/
+# Chief Engineer ruling 09-Oct-2026 (TASK Q): this repository is PUBLIC, so real-
+# device fixture content - BSSID/MAC location data and a personal app inventory
+# (DPDP Act 2023) - must not egress. Only the hash manifest MANIFEST.md is tracked;
+# it records path/bytes/sha256 so fixture existence stays verifiable without content.
+# NOTE: the directory itself must NOT be ignored, or git will refuse to re-include
+# MANIFEST.md; ignore its contents instead.
+apps/android/core/src/test/fixtures/*
+!apps/android/core/src/test/fixtures/MANIFEST.md
 
 # logs / os
 *.log
