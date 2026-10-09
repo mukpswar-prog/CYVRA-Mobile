@@ -39,4 +39,7 @@ val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_RO
 val hasLocalSdk = file("local.properties").exists()
 if (!androidHome.isNullOrBlank() || hasLocalSdk) {
     include(":app")
+    // Android application module, so it needs the SDK for the same reason :app does.
+    // PROOF OF CONCEPT — see sanitization-agent/README.md.
+    include(":sanitization-agent")
 }

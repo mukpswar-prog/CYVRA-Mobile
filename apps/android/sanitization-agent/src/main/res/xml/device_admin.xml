@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    wipe-data is the only policy this agent declares. It is the least it can declare and
+    still be made device owner, and every additional policy would widen what the proof
+    could do beyond the wipe it exists to prove.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <wipe-data />
+    </uses-policies>
+</device-admin>
