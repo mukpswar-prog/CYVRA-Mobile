@@ -43,9 +43,15 @@
                    "publisher":  "CYVORIQ Solutions",
                    "copyright":  "Copyright (C) CYVORIQ Solutions",
                    "windows":  {
+                                   "webviewInstallMode":  {
+                                                              "silent":  true,
+                                                              "type":  "offlineInstaller"
+                                                          },
                                    "nsis":  {
                                                 "installerIcon":  "icons/icon.ico",
-                                                "uninstallerIcon":  "icons/icon.ico"
+                                                "uninstallerIcon":  "icons/icon.ico",
+                                                "installMode":  "perMachine",
+                                                "installerHooks":  "installer-hooks.nsh"
                                             }
                                }
                }

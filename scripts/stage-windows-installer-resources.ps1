@@ -8,6 +8,7 @@
       host/            the :host:installDist distribution (JARs)
       runtime/         a trimmed Java runtime built with jlink
       platform-tools/  adb.exe and its support DLLs
+      drivers/         Android USB driver packages (Samsung + Google)
 
     tauri.conf.json maps that tree to `resources/` inside the installation
     directory, and host_process.rs resolves it at runtime relative to the
@@ -24,9 +25,12 @@
 param(
     [string]$ResourcesDir,
     [string]$JdkHome = $env:JAVA_HOME,
+    [string]$DriversRoot,
     [switch]$SkipHost,
     [switch]$SkipRuntime,
     [switch]$SkipPlatformTools,
+    [switch]$SkipDrivers,
+    [switch]$RequireDrivers,
     [switch]$NoDownload,
     [switch]$Force
 )
@@ -305,6 +309,95 @@ if (-not $SkipPlatformTools) {
     }
 }
 
+# ----------------------------------------------------------------- drivers --
+#
+# Bundles the Android USB driver packages so a customer phone enumerates
+# without any manual driver install (P1 self-containment exit gate).
+#
+# installer-hooks.nsh consumes .resources/drivers/<name>/*.inf at install time
+# through pnputil, so the layout below is a contract with that file: one
+# sub-directory per package, its INF at the sub-directory root.
+#
+if (-not $SkipDrivers) {
+    $driverDir = Join-Path $ResourcesDir 'drivers'
+
+    # Destination sub-directory, and the INF that identifies the package.
+    $driverPackages = @(
+        @{ Name = 'ssudadb';        Inf = 'ssudadb.inf'        },
+        @{ Name = 'ssudbus';        Inf = 'ssudbus.inf'        },
+        @{ Name = 'android_winusb'; Inf = 'android_winusb.inf' }
+    )
+
+    $sourceRoot = $DriversRoot
+    if (-not $sourceRoot) {
+        <#
+         # Harvesting from the build machine works on a workstation that has the
+         # drivers installed, but it is NOT reproducible: a CI runner carries no
+         # Samsung package and would silently yield an installer with no drivers
+         # at all. A release build must pass -DriversRoot at a reviewed,
+         # checked-in package directory instead.
+         #>
+        $sourceRoot = Join-Path $env:SystemRoot 'System32\DriverStore\FileRepository'
+        Write-Host '[stage] drivers: harvesting from the local Windows DriverStore'
+    }
+    else {
+        Write-Host "[stage] drivers: using $sourceRoot"
+    }
+
+    if (-not (Test-Path $sourceRoot)) {
+        throw "DRIVERS_ROOT_MISSING: $sourceRoot"
+    }
+
+    if (Test-Path $driverDir) { Remove-Item $driverDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $driverDir -Force | Out-Null
+
+    $missing = @()
+
+    foreach ($pkg in $driverPackages) {
+        # The DriverStore names packages <inf>_amd64_<hash>; newest first so an
+        # OEM revision is preferred over a superseded one.
+        $found = Get-ChildItem -Path $sourceRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like ($pkg.Inf + '_amd64_*') } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+        if (-not $found) {
+            $missing += $pkg.Inf
+            continue
+        }
+
+        $dest = Join-Path $driverDir $pkg.Name
+        New-Item -ItemType Directory -Path $dest -Force | Out-Null
+
+        # The whole tree, not just the INF: the package references co-installer
+        # DLLs under amd64\, and pnputil refuses an incomplete package rather
+        # than installing a partial one.
+        Copy-Item -Path (Join-Path $found.FullName '*') -Destination $dest -Recurse -Force
+
+        $infFile = Get-ChildItem -Path $dest -Filter $pkg.Inf -Recurse |
+            Select-Object -First 1
+        if (-not $infFile) {
+            throw "DRIVER_INF_NOT_COPIED: $($pkg.Inf) did not land under $dest"
+        }
+
+        Write-Host ('[stage]   driver {0,-16} <- {1}' -f $pkg.Name, $found.Name)
+    }
+
+    if ($missing.Count -gt 0) {
+        $msg = "DRIVER_PACKAGE_NOT_FOUND: $($missing -join ', ') under $sourceRoot"
+        if ($RequireDrivers) {
+            throw $msg
+        }
+        # Not fatal for a developer build, but stated plainly: the resulting
+        # installer will not see a phone on a machine lacking the driver.
+        Write-Host "[stage] WARNING: $msg"
+        Write-Host '[stage] WARNING: the installer will be built WITHOUT USB drivers.'
+    }
+
+    $stagedCount = @(Get-ChildItem -Path $driverDir -Directory -ErrorAction SilentlyContinue).Count
+    Write-Host "[stage]   driver packages  : $stagedCount"
+}
+
 # ------------------------------------------------------------------ validate --
 $jarDir = Join-Path $ResourcesDir 'host\lib'
 $jarCount = @(Get-ChildItem $jarDir -Filter '*.jar' -ErrorAction SilentlyContinue).Count
@@ -323,6 +416,17 @@ if (-not $SkipRuntime) {
 }
 if (-not $SkipPlatformTools) {
     Write-Host ("[stage]   platform-tools   : {0:N0} bytes" -f (Get-DirectorySizeBytes (Join-Path $ResourcesDir 'platform-tools')))
+}
+if (-not $SkipDrivers) {
+    $stagedDrivers = Join-Path $ResourcesDir 'drivers'
+    $stagedDriverCount = @(Get-ChildItem -Path $stagedDrivers -Directory -ErrorAction SilentlyContinue).Count
+    if ($stagedDriverCount -gt 0) {
+        Write-Host ("[stage]   usb drivers      : {0} packages ({1:N0} bytes)" -f $stagedDriverCount,
+            (Get-DirectorySizeBytes $stagedDrivers))
+    }
+    else {
+        Write-Host '[stage]   usb drivers      : NONE STAGED (installer will not auto-detect phones)'
+    }
 }
 
 Write-Host ''
