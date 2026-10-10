@@ -1,8 +1,18 @@
 CYVRA CORE ENGINE — ANDROID ACCESS, PURGE METHOD, ML PATCH/TELEMETRY & JOURNEY
-Version 2.0-FINAL — 08-Oct-2026 — CYVORIQ Solutions Pvt. Ltd.
-Status: FINAL — no further changes (Chief Engineer ruling 08-Oct-2026).
+Version 3.0 — 10-Oct-2026 — CYVORIQ Solutions Pvt. Ltd.
+Status: RATIFIED REVISION V3 (Chief Engineer ruling 10-Oct-2026).
 Supersedes: journey diagram v1 (08-Oct draft). Governed revision; amendments
 only via ratified revision catalogued in the Project Index.
+
+REVISION RECORD
+  V2.0-FINAL  08-Oct-2026  Initial governed journey; mandates M1-M4 in force.
+  V3.0        10-Oct-2026  Product journey moved wholly into the .exe (new M5,
+                           rewritten §7 tail). Rationale: §7 previously routed
+                           the report chain to "CUSTOMER WORKSPACE (schema 0011,
+                           later)", which left the product dead-ending at
+                           RAW REPORT. Seven line changes ratified by the Chief
+                           Engineer. The frozen commercial journey (M1) is
+                           untouched by this revision.
 
 SECTION 1 — SCOPE & MANDATES
 M1 Customer journey (purchase→licence→download) FROZEN COMPLETE; no changes.
@@ -10,6 +20,8 @@ M2 .exe upgrades ONLY on fully verified outcome.
 M3 Android deep research + Android Studio verification.
 M4 AI scope & integration. Core application only: apps/desktop, apps/host,
 apps/android, telemetry service, docs.
+M5 The product journey (scan → report → purge → final controlled report) is
+owned entirely by the .exe. No web surface is required to complete it.
 
 SECTION 2 — ANDROID ACCESS PLANES (verified 08-Oct)
 P1 USB/PnP      consent none        VID/PID, USB serial string, mfg/product,
@@ -31,6 +43,9 @@ version, OEM skin), resolved via capability matrix + signed patches.
 SECTION 3 — PURGE METHOD PUR-DO-WIPE (sanctioned, conditional)
 Flow: controlled ADB → install signed CYVRA Sanitization Agent →
 adb shell dpm set-device-owner <agent> (precondition: NO accounts) →
+STATUS 10-Oct-2026: the agent is built, installed and enrolled on D-P5, but is
+NOT yet release-signed. Signing awaits the keystore-custody ruling; until then
+"signed" above is the target state, not the present state. →
 agent DevicePolicyManager.wipeData(flags) → userdata wipe ERASES THE AGENT
 (no userdata trace) → reboot to setup wizard → ASSISTED RECONNECT
 (technician re-authorizes ADB) → post-purge evidence chain → report.
@@ -112,9 +127,13 @@ POST-PURGE EVIDENCE: re-enumerate · factory state · storage empty ·
 lock/FRP status · CID same-device check · OPERATOR IMEI photo ·
 AI_INSPECTION findings (provenance-tagged, ASSISTED → human → HYBRID)
         ▼
-RAW REPORT → CUSTOMER WORKSPACE (schema 0011, later) → normalize →
-audit report → AUTHORIZED & APPROVED BY [customer] →
-POWERED BY CYVORIQ SOLUTIONS PVT. LTD. → seal → final controlled report
+RAW REPORT → NORMALIZE → OPERATOR AUTHORISATION → SEAL →
+FINAL CONTROLLED REPORT (zip/json)  — every step executed inside the .exe (M5),
+no web surface required to complete it.
+  [V3] The V2 wording routed these four steps to "CUSTOMER WORKSPACE (schema
+  0011, later)". That surface never received them, so the product dead-ended at
+  RAW REPORT and the customer never obtained a final controlled report. Withdrawn.
+  The commercial storefront (M1: purchase→licence→download) is unaffected.
 
 SECTION 8 — FEASIBILITY REGISTER (Chief Engineer suggestions)
 S1 T&C sole user responsibility + no-magic disclosure      FEASIBLE (draft §6)
@@ -126,10 +145,12 @@ S6 Reproducibility invariant (no self-mutating actor)      KEPT (5.6)
 S7 Journey v2 final                                        THIS DOCUMENT
 
 SECTION 9 — VERIFICATION PLAN (Android Studio)
-Emulator matrix API 26/30/33/36: read-only probe battery → fixtures.
+Emulator matrix API 34/36 (only images installed; 26/30/33 absent):
+read-only probe battery → fixtures.
 Physical session (Chief Engineer present): locked/unlocked/debugging-off
 matrix; companion test APK (debug-signed) evidence lanes.
-Sacrificial device (D-P5 pending): dpm set-device-owner → wipeData proof;
+Sacrificial device (D-P5 — owner enrolled 09-Oct-2026, verified; wipeData
+proof NOT yet executed): dpm set-device-owner → wipeData proof;
 post-wipe reconnect + evidence chain; agent-absence confirmation.
 
 SECTION 10 — OPEN ITEMS
