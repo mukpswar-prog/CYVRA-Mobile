@@ -325,6 +325,38 @@ function envelopeReason(envelope: HostEnvelope | null, okFallback: string): stri
   return okFallback;
 }
 
+/**
+ * Describes an application inventory from the payload alone.
+ *
+ * A-10: this row previously used a fixed optimistic sentence whenever the envelope status
+ * was "OK", so a payload whose enumeration was `UNAVAILABLE`, which had timed out, and
+ * which carried zero applications still rendered as a successful read. The inventory card
+ * below already reported the truth; this row must never contradict it.
+ *
+ * `limitations` always carries two baseline scope caveats (user scope, application labels),
+ * so their mere presence is not a failure signal - `enumerationCompleteness` is.
+ */
+function inventoryOutcomeText(envelope: HostEnvelope | null): string {
+  const payload = payloadOf(envelope);
+  const completeness = readString(payload, "enumerationCompleteness");
+  const total = readCount(payload, "totalApplications");
+
+  if (completeness === null || completeness === "UNAVAILABLE") {
+    const detail = readList(payload, "limitations").find((line) => line.includes("UNAVAILABLE"));
+    return detail ? `Application list not read: ${detail}` : "Application list not read.";
+  }
+
+  if (total === null) {
+    return `The phone did not report a total (enumeration is ${completeness}).`;
+  }
+
+  const noun = total === 1 ? "application" : "applications";
+
+  return completeness === "COMPLETE"
+    ? `Application list read for this phone: ${total} ${noun}.`
+    : `Application list read for this phone: ${total} ${noun} (enumeration is ${completeness}).`;
+}
+
 /** Renders a placeholder when the Host never reported a value for this key. */
 function Value({ value, fallback = "-" }: { value: string | null; fallback?: string }) {
   return <>{value === null || value === "" ? fallback : value}</>;
@@ -885,7 +917,7 @@ function App() {
     patchRow(target, {
       phase: "idle",
       status: envelope?.status === "OK" ? "Ok" : "Failed",
-      reason: envelopeReason(envelope, "Application list read for this phone."),
+      reason: envelopeReason(envelope, inventoryOutcomeText(envelope)),
     });
   };
 
