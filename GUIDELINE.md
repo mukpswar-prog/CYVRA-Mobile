@@ -268,7 +268,7 @@ Resend is how **mobile registration** proves an email. Windows Erase login stays
 | Send path | Worker only. Never the browser. |
 | Idempotency | Always. Format `otp/<email-hash>/<challenge-id>`. 24h window. |
 | SDK | Node `resend` ≥ 6.14. Check `{ data, error }` — the SDK does not throw API errors. |
-| Test addresses | `delivered@resend.dev` / `bounced@resend.dev` / `complained@resend.dev`. Never fake `test@gmail.com`. |
+| Test addresses | `delivered@resend.dev` / `bounced@resend.dev` / `complained@resend.dev`. Never fake a Gmail address. |
 | Webhooks | Verify Svix signatures. Treat bounce/complaint as suppression. |
 | Key | `RESEND_API_KEY` Worker secret. Sending-only key is enough for v1 mail. |
 

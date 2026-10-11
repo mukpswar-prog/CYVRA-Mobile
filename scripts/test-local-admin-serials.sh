@@ -73,13 +73,13 @@ WRONG="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/serials" \
 echo "$WRONG"
 echo "$WRONG" | grep -q "HTTP:401"
 
-echo "[test] POST /admin/auth/request rejects gmail"
-GMAIL="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/auth/request" \
+echo "[test] POST /admin/auth/request rejects a non-corporate address"
+NONCORP="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/auth/request" \
   -H "content-type: application/json" \
   -H "Origin: https://admin.cyvoriq.co.in" \
-  -d '{"email":"user@gmail.com"}')"
-echo "$GMAIL"
-echo "$GMAIL" | grep -q "HTTP:403"
+  -d '{"email":"user@example.com"}')"
+echo "$NONCORP"
+echo "$NONCORP" | grep -q "HTTP:403"
 
 echo "[test] POST /admin/auth/request rejects unnominated @cyvoriq.com"
 UNNOM="$(curl -sS -w "\nHTTP:%{http_code}\n" -X POST "$API/admin/auth/request" \

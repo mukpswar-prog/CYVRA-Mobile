@@ -202,7 +202,7 @@ Never paste token values into chat or Git.
             Zone    → Workers Routes      → Edit
 
           Account Resources (appears after the Account rows):
-            Include → Specific account → Mukpswar@gmail.com's Account
+            Include → Specific account → &lt;redacted email&gt;'s Account
             Do not choose All accounts.
 
           Zone Resources (already correct on your screenshot):
