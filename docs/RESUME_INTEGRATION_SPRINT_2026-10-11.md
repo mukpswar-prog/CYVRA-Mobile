@@ -1,6 +1,6 @@
 # RESUME — CYVRA Integration Sprint
 
-**Date:** 11-Oct-2026 · **Status:** mid-sprint, clean stop point · **Next:** WP-3
+**Date:** 11-Oct-2026 · **Status:** mid-sprint, clean stop point · **Next:** report finalisation
 
 This is the re-entry point. Read this file first, then
 `docs/CYVRA_GOVERNANCE_LEDGER.md` for the rules, then continue.
@@ -10,21 +10,22 @@ This is the re-entry point. Read this file first, then
 ## 1. Where we are, in one paragraph
 
 The desktop `.exe` integration sprint is **on plan**. WP-1 (self-contained
-installer: USB drivers, offline WebView2, `perMachine`) and WP-2 (keystore
-ignore rules, unsigned agent bundling) are **both merged to `main`** and
-accepted. Two A-class defects found during the sprint, A-10 (dishonest
-inventory status) and A-12 (adb pipe deadlock), are fixed, regression-tested and
-merged. The governance ledger is open, and the standing holds are now
-machine-verified by a repeatable script rather than remembered. All nine
-prohibitions were confirmed today against evidence. Nothing destructive has ever
-been executed: the bench phone is unharmed, the agent is installed, device
-ownership is intact, and `wipeData` has never run.
+installer: USB drivers, offline WebView2, `perMachine`), WP-2 (keystore ignore
+rules, unsigned agent bundling) and **WP-3 (force-clean decision core as native
+Rust)** are all **merged to `main`** and accepted. WP-3 landed at `fba759d` with
+all 43 parity assertions holding. Two A-class defects found during the sprint,
+A-10 (dishonest inventory status) and A-12 (adb pipe deadlock), are fixed,
+regression-tested and merged. The governance ledger is open, the standing holds
+are machine-verified by a repeatable script rather than remembered, and all nine
+prohibitions were confirmed against evidence. Nothing destructive has ever been
+executed: the bench phone is unharmed, the agent is installed, device ownership
+is intact, and `wipeData` has never run.
 
 ---
 
 ## 2. Repository state
 
-**`main` = `b0c0a2a`** — contains everything below.
+**`main` = `fba759d`** = `origin/main`, working tree **CLEAN**, **0 untracked**.
 
 | Commit | Content | State |
 |---|---|---|
@@ -34,15 +35,15 @@ ownership is intact, and `wipeData` has never run.
 | `bdbb32c` | V3 amendment, forensic audit, activity review | merged |
 | `2866db0` | **WP-1** — self-contained installer | merged (PR #59) |
 | `3d62589` | **WP-2** — keystore rules, unsigned agent | merged (PR #60) |
+| `ec1d441` | Governance ledger | merged (PR #61) |
+| `bbfc08a` | `verify-standing-holds.ps1` | merged (PR #61) |
+| `12c817a` | Previous resume document | merged (PR #61) |
+| `af9bd02` | Ledger registered as Governance Record; WP-3 rationale | merged |
+| `fba759d` | **WP-3** — force-clean decision core in Rust | merged |
 
-**Branch `feat/wp2-agent-bundle-unsigned`** — 2 commits **not yet merged**:
-
-| Commit | Content |
-|---|---|
-| `ec1d441` | `docs/CYVRA_GOVERNANCE_LEDGER.md` |
-| `bbfc08a` | `scripts/verify-standing-holds.ps1` |
-
-Working tree **CLEAN**, **0 unpushed commits**. Awaiting a PR whenever you want it.
+**Your main folder** `C:\Users\User\Documents\GitHub\CYVRA-Mobile` was switched
+from the stale `audit-and-planning-2026-09-26` branch to `main` earlier today.
+That branch still exists with its commit intact.
 
 ---
 
@@ -67,82 +68,87 @@ Last run: **ALL HOLDS INTACT — 0 breaches.**
 
 ---
 
-## 4. NEXT TASK — WP-3
+## 4. WP-3 — DONE, merged at `fba759d`
 
-**Convert the PowerShell force-clean logic to native Rust product code, with the
-existing assertions as parity oracles.**
+Force-clean is now a native capability the `.exe` invokes directly, with no
+PowerShell dependency on the operator's machine.
 
-### Source of truth
+### What landed
 
-`scripts/pur-do-wipe/ForceCleanAccounts.psm1` — **309 lines, 9 functions:**
+| Path | Content |
+|---|---|
+| `apps/desktop/src-tauri/src/force_clean.rs` | decision core, 1,034 lines, all 9 functions |
+| `apps/desktop/src-tauri/src/commands.rs` | `force_clean_assess`, `force_clean_redact`, `force_clean_redact_view`, `force_clean_attestation` |
+| `apps/desktop/src-tauri/src/lib.rs` | commands registered |
+| `apps/desktop/src-tauri/Cargo.toml` | `regex = "1"` |
 
-| # | Function | Concern |
-|---|---|---|
-| 1 | `Get-AccountCountFromContentDump` | parse count; **-1 on failure, never 0** |
-| 2 | `Test-DeviceOwnerPrecondition` | owner must be enrolled |
-| 3 | `Test-RemoveAccountPrimitiveAvailable` | ladder rung availability |
-| 4 | `Get-AuthenticatorMap` | authenticator resolution |
-| 5 | `Get-IdentifierToken` | stable redaction token |
-| 6 | `Get-RedactedAccountView` | identifier-free view |
-| 7 | `Get-RemovalLadder` | AUTHENTICATOR → PRIMITIVE |
-| 8 | `Get-RemovalOrder` | deterministic ordering |
-| 9 | `New-AttestationRecord` | identifier-free by construction |
+The four commands are **pure text in, text out**. None opens a device, starts a
+process, writes a file, or removes an account. The destructive driver remains
+operator-driven and separately gated.
 
-### Parity oracle
+### Gates at merge
 
-`scripts/pur-do-wipe/ForceCleanAccounts.Tests.ps1` — **43 assertions.**
+`cargo test --lib` 236 passed / 0 failed · `cargo test --lib force_clean`
+49 passed / 0 failed · `cargo check` 0 warnings, 0 dead code ·
+`pnpm -r typecheck` exit 0 · `pnpm -r test` desktop 71, web 305, api, evidence
+all pass · `wrangler deploy --dry-run` exit 0 at 759.74 KiB · UTF-8 clean,
+no BOM · standing holds 0 breaches.
 
-```
-Baseline run 11-Oct-2026:   TOTAL  pass=43  fail=0   (exit 0)
-```
+### Parity
 
-> **Correction to earlier notes:** these are **not Pester tests**. They are a
-> standalone harness using `Assert-Equal` / `Assert-True` / `Assert-False`.
-> The count 43 is correct; the framework name was not.
+The oracle `scripts/pur-do-wipe/ForceCleanAccounts.Tests.ps1` is reproduced
+verbatim as `P-01`…`P-43`, labelled so the count is verifiable by search rather
+than trusted. **The oracle itself was never modified** — it remains the
+reference.
 
-### Port target
+### Two load-bearing behaviours, preserved
 
-`apps/desktop/src-tauri/` — crate `cyvra-mobile-desktop` (lib `app_lib`).
-Existing modules: `commands.rs`, `host_process.rs`, `ledger.rs`, `lib.rs`,
-`main.rs`. **65 `#[test]`/`#[cfg(test)]` sites already exist**, so the crate has
-an established test convention to follow.
-
-**Proposed:** new module `apps/desktop/src-tauri/src/force_clean.rs` with a
-`#[cfg(test)]` block carrying all 43 cases as Rust tests.
-
-### The two load-bearing behaviours
-
-These are the reasons the port is not a mechanical translation:
-
-1. **A failed parse must yield `-1`, never `0`.** A silent `0` reports a clean
-   device that is not clean. This is the exact false-positive Samsung's dump
-   format causes, and it is the single most dangerous bug this module could have.
-2. **Nothing reaching the attestation may carry an account identifier.** No
-   email, no local part, no domain, no IMEI-shaped literal, no serial. Only the
+1. An unreadable count yields **`-1`, never `0`**.
+2. Nothing reaching the attestation carries an account identifier — only the
    local-part *length* survives.
 
-### Constraints (unchanged, restated)
+### Three defects caught in my own work
 
-No signing key · no APK signing · **no device wipe** · no customer-journey
-change · no `ReportGenerator` early claim · no release gate weakened.
-Purge execution remains gated on live entitlement.
+- A **real Gmail address** was carried into the new fixture from the reference
+  test. Replaced with a synthetic local part of identical length. (The first
+  grep reported clean only because `git grep` returns zero for untracked files —
+  a check that cannot see the file under test will always report success.)
+- `is_platform_package` **sliced a `str` by byte offset**, panicking when a
+  multi-byte character straddles it. Now uses `str::get`, with a test that
+  reproduces the exact panic.
+- `serde_json::to_value` **reorders keys** through a `BTreeMap`, so the claimed
+  field order held only for direct serialisation. The guard now asserts on the
+  serialised string, which is what actually ships.
 
 ---
 
-## 5. Open questions awaiting your ruling
+## 5. The five questions — ALL ANSWERED, applied and merged
 
-1. **Register the ledger in `CYVRA_MOBILE_PROJECT_INDEX.md`?** That file is a
-   Precedence Level 1 governed document, and it was not maintained for the 10-Oct
-   documents either. I did not restructure it unasked.
-2. **Merge the two documentation commits** (`ec1d441`, `bbfc08a`) as PR #61 now,
-   or hold them until WP-3 lands and merge together?
-3. **S1 agent wiring** — you approved bringing device-side application labels
-   into "the next evidence/agent work package". Should that be folded into WP-3,
-   or kept as a separate WP-3b?
-4. **R-2/R-3 string cleanup** — precondition before WP-5. Do it as its own small
-   package now, or immediately before WP-5?
-5. **A-15** (`-SkipHost` validation quirk) — recorded as low-priority
-   housekeeping. Fix opportunistically, or leave?
+| # | Question | Ruling | Applied |
+|---|---|---|---|
+| 1 | Register the ledger in the Project Index? | **Yes, but below Level 1** — its own class "Governance Records" | `af9bd02`, index §2.4 |
+| 2 | Merge PR #61 now or with WP-3? | **Void** — already merged during the break | moot |
+| 3 | S1 agent wiring in WP-3 or separate? | **Separate — WP-3b** | not started |
+| 4 | R-2/R-3 string cleanup now or before WP-5? | **Just before WP-5** | not started |
+| 5 | A-15 staging quirk — fix or leave? | **Leave**, fix opportunistically | recorded |
+
+Ledger precedence sentence, as ruled:
+
+> The ledger records rulings; it does not override Level 1 contracts. Any ruling
+> that amends a contract takes effect only through that contract's own
+> ratification path.
+
+### Two deferred fixes to the oracle itself — do these after WP-3 is accepted
+
+Both were deliberately **not** corrected during the port, because editing the
+reference under a parity claim would undermine the claim.
+
+1. **A real Gmail address** remains in `ForceCleanAccounts.Tests.ps1`. Only the
+   local-part length is ever asserted, so it can be replaced with a synthetic
+   value without changing what is proved.
+2. **Line 217 asserts the wrong variable** — it re-checks `$token` instead of
+   `$opaque`. The Rust port asserts against `$opaque`, which is plainly what was
+   meant, so the port is stricter than the original while still passing it.
 
 ---
 
@@ -150,9 +156,10 @@ Purge execution remains gated on live entitlement.
 
 | Phase | Content | Gate |
 |---|---|---|
-| **WP-3** | PowerShell → Rust force-clean, 43 parity assertions | next |
-| Report finalisation | normalise → operator authorisation → seal → final report; releases `ReportGenerator` L52–53 and L63 | after WP-3 |
-| WP-4 | real-hardware UI proof — human clicks Scan, evidence returns, report generated | needs WP-3 |
+| ~~**WP-3**~~ | ~~PowerShell → Rust force-clean, 43 parity assertions~~ | **DONE** `fba759d` |
+| Report finalisation | normalise → operator authorisation → seal → final report; releases `ReportGenerator` L52–53 and L63 | **NEXT** |
+| WP-3b | S1 agent wiring — device-side application labels | approved, separate |
+| WP-4 | real-hardware UI proof — human clicks Scan, evidence returns, report generated | needs WP-3 ✓ |
 | Final `.exe` | desktop build for you to install and verify feature-by-feature | needs WP-4 + R-B drivers as CI secret |
 | WP-5 | sanitization execution | **gated**: live entitlement + R-2/R-3 + key custody |
 | P-C | limitation rectification (all Android users/work profiles; positive source wording) | approved, before P-B |
@@ -160,6 +167,24 @@ Purge execution remains gated on live entitlement.
 | P-D | physical verification module, operator-attested | after UI hardware validation |
 | P-E | 1–50 concurrent devices — **session-model redesign**, not tuning | after final `.exe` |
 | P-F | AI / certified grading | after hardware, legal/T&C, P-D |
+
+### Still blocked, unchanged
+
+- **`ReportGenerator.kt` L52–53 and L63** held until report finalisation.
+- **WP-5** — gated on live entitlement granting `sanitizeExecute`; A-13 licence
+  gate at `HostProtocolDispatcher.kt:832` fires before D-1, and that refusal is
+  correct behaviour.
+- **WP-2 signing / agent release-signing** — blocked on Ed25519 custody (R-I);
+  no keystore may be generated.
+- **R-B** — driver redistribution open with legal; gates only the final release
+  `.exe` build.
+
+### Known environment note
+
+`pnpm -r test` fails **recursively** on this 6.9 GB machine at ~2 GB free —
+vitest cannot start its threads workers. Zero TypeScript was touched by WP-3,
+and every suite passes when run package-by-package with `--maxWorkers=1`.
+Recorded in ledger §11.7 as pre-existing fragility, not a regression.
 
 ---
 
