@@ -9,6 +9,7 @@
       runtime/         a trimmed Java runtime built with jlink
       platform-tools/  adb.exe and its support DLLs
       drivers/         Android USB driver packages (Samsung + Google)
+      agent/           the sanitization agent APK, UNSIGNED (see R-I)
 
     tauri.conf.json maps that tree to `resources/` inside the installation
     directory, and host_process.rs resolves it at runtime relative to the
@@ -26,10 +27,12 @@ param(
     [string]$ResourcesDir,
     [string]$JdkHome = $env:JAVA_HOME,
     [string]$DriversRoot,
+    [string]$AgentApk,
     [switch]$SkipHost,
     [switch]$SkipRuntime,
     [switch]$SkipPlatformTools,
     [switch]$SkipDrivers,
+    [switch]$SkipAgent,
     [switch]$RequireDrivers,
     [switch]$NoDownload,
     [switch]$Force
@@ -334,8 +337,14 @@ if (-not $SkipDrivers) {
          # Harvesting from the build machine works on a workstation that has the
          # drivers installed, but it is NOT reproducible: a CI runner carries no
          # Samsung package and would silently yield an installer with no drivers
-         # at all. A release build must pass -DriversRoot at a reviewed,
-         # checked-in package directory instead.
+         # at all.
+         #
+         # RULING (Chief Engineer, 11-Oct-2026) - R-B, OPTION B. Redistribution
+         # of the Samsung and Google driver packages is an OPEN commercial item
+         # with legal, so the binaries must NOT be committed to this public
+         # repository. A release build supplies them to CI as a PRIVATE SECRET
+         # and passes that location via -DriversRoot. R-B gates only the final
+         # release .exe; it gates nothing else.
          #>
         $sourceRoot = Join-Path $env:SystemRoot 'System32\DriverStore\FileRepository'
         Write-Host '[stage] drivers: harvesting from the local Windows DriverStore'
@@ -398,6 +407,121 @@ if (-not $SkipDrivers) {
     Write-Host "[stage]   driver packages  : $stagedCount"
 }
 
+# --------------------------------------------------------------------- agent --
+#
+# Stages the sanitization agent APK so the installed product can deploy it to a
+# phone without a network fetch.
+#
+# SIGNING IS DEFERRED (R-I). Ed25519 / APK key custody has no ruling yet, so only
+# an UNSIGNED artifact may reach the installer.
+#
+# The checks below VERIFY that rather than trust the file name. A signed APK
+# landing in the installer would mean a private key was used before custody was
+# settled, and the name "-unsigned" alone would not have stopped it.
+#
+if (-not $SkipAgent) {
+    $agentDir = Join-Path $ResourcesDir 'agent'
+    $agentOutputs = Join-Path $androidDir 'sanitization-agent\build\outputs\apk\release'
+
+    $apk = $null
+    if ($AgentApk) {
+        # Explicit override. Used by release engineering to stage a reviewed
+        # artifact, and by the signature-guard tests.
+        if (-not (Test-Path $AgentApk)) {
+            throw "AGENT_APK_NOT_FOUND: -AgentApk was given as '$AgentApk' but does not exist"
+        }
+        Write-Host "[stage] agent: using -AgentApk $AgentApk"
+        $apk = Get-Item -Path $AgentApk
+    }
+    else {
+        $apk = Get-ChildItem -Path $agentOutputs -Filter '*.apk' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+    }
+
+    if (-not $apk) {
+        # Building here mirrors how the host JARs are produced above: the artifact
+        # is derived from source on every machine rather than carried along.
+        $gradlew = Join-Path $androidDir 'gradlew.bat'
+        if (-not (Test-Path $gradlew)) {
+            throw "GRADLEW_MISSING: $gradlew"
+        }
+
+        Write-Host '[stage] agent: building :sanitization-agent:assembleRelease ...'
+        Push-Location $androidDir
+        try {
+            Invoke-Native $gradlew @(':sanitization-agent:assembleRelease', '--console=plain') `
+                'AGENT_BUILD_FAILED'
+        }
+        finally {
+            Pop-Location
+        }
+
+        $apk = Get-ChildItem -Path $agentOutputs -Filter '*.apk' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+    }
+
+    if (-not $apk) {
+        throw "AGENT_APK_MISSING: no APK produced under $agentOutputs"
+    }
+
+    # ---------------------------------------------- verify it is unsigned --
+    # Three independent signals. Any one of them alone is weak; together they
+    # cover both APK signature schemes plus the naming convention.
+
+    $signingEvidence = @()
+
+    # 1. Name. A release build with no signingConfig assembles "-unsigned".
+    if ($apk.Name -notmatch '-unsigned') {
+        $signingEvidence += "file name '$($apk.Name)' does not carry the -unsigned suffix"
+    }
+
+    # 2. v1 (JAR) signature scheme: entries under META-INF/ at the archive root.
+    #    Guarded because the assembly is not preloaded in every PowerShell host.
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($apk.FullName)
+        try {
+            $signingEvidence += @($zip.Entries | Where-Object {
+                $_.FullName -match '^META-INF/[^/]+\.(RSA|DSA|EC|SF|MF)$'
+            } | ForEach-Object { "v1 signature entry $($_.FullName)" })
+        }
+        finally {
+            $zip.Dispose()
+        }
+    }
+    catch {
+        Write-Host '[stage] agent: WARNING - v1 signature scan unavailable; relying on v2 scan and name'
+    }
+
+    # 3. v2/v3 signature scheme. The APK Signing Block sits immediately before the
+    #    ZIP central directory and is NOT a ZIP entry, so scan 2 can never see it.
+    #    It carries the literal marker "APK Sig Block 42". Latin-1 gives a strict
+    #    byte-to-character mapping, so a string search here is a byte search - and
+    #    it runs in milliseconds instead of a per-byte loop.
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+    $rawText = $latin1.GetString([System.IO.File]::ReadAllBytes($apk.FullName))
+    if ($rawText.IndexOf('APK Sig Block 42', [StringComparison]::Ordinal) -ge 0) {
+        $signingEvidence += 'APK Signing Block present (v2/v3 signature)'
+    }
+
+    if ($signingEvidence.Count -gt 0) {
+        throw ("AGENT_APK_SIGNED_UNEXPECTED: refusing to stage a signed APK. " +
+            "Signing is deferred until the Ed25519 custody ruling (R-I). " +
+            "Evidence: $($signingEvidence -join '; ')")
+    }
+
+    if (Test-Path $agentDir) { Remove-Item $agentDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $agentDir -Force | Out-Null
+
+    # Staged under a stable name so downstream references do not depend on the
+    # build variant that produced the bytes.
+    $stagedAgent = Join-Path $agentDir 'sanitization-agent-unsigned.apk'
+    Copy-Item -Path $apk.FullName -Destination $stagedAgent -Force
+
+    Write-Host ('[stage]   agent apk        : {0} ({1:N0} bytes, verified unsigned)' -f
+        $apk.Name, $apk.Length)
+}
+
 # ------------------------------------------------------------------ validate --
 $jarDir = Join-Path $ResourcesDir 'host\lib'
 $jarCount = @(Get-ChildItem $jarDir -Filter '*.jar' -ErrorAction SilentlyContinue).Count
@@ -426,6 +550,16 @@ if (-not $SkipDrivers) {
     }
     else {
         Write-Host '[stage]   usb drivers      : NONE STAGED (installer will not auto-detect phones)'
+    }
+}
+if (-not $SkipAgent) {
+    $stagedAgentApk = Join-Path $ResourcesDir 'agent\sanitization-agent-unsigned.apk'
+    if (Test-Path $stagedAgentApk) {
+        Write-Host ("[stage]   agent apk        : {0} (UNSIGNED - signing deferred, R-I)" -f
+            (Get-Item $stagedAgentApk).Name)
+    }
+    else {
+        Write-Host '[stage]   agent apk        : NOT STAGED (device-side sanitization agent absent)'
     }
 }
 

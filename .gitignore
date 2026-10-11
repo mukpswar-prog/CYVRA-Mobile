@@ -48,6 +48,33 @@ apps/android/gradle/gradle-daemon-jvm.properties
 apps/android/core/src/test/fixtures/*
 !apps/android/core/src/test/fixtures/MANIFEST.md
 
+# ------------------------------------------------------------------------------
+# Signing key material - never committed.
+#
+# Ruling (Chief Engineer, 10-Oct-2026): Ed25519 / APK signing key custody is
+# DEFERRED (R-I). No key may be generated, used, or published until the custody
+# ruling lands.
+#
+# This block is PREVENTIVE, not a cleanup. Nothing matching it is tracked today
+# (verified: zero matches across git ls-files). Its purpose is that if a keystore
+# does appear on a developer machine during WP-2 or any later work package, git
+# refuses it outright instead of letting a private key ride into a PUBLIC
+# repository. The failure mode this prevents is silent and irreversible.
+#
+# Deliberately NOT ignored: *.pem, *.crt, *.cer, *.der - these commonly hold
+# PUBLIC certificates, which the product will legitimately need to commit.
+# ------------------------------------------------------------------------------
+*.jks
+*.keystore
+*.pepk
+*.pk8
+*.p12
+*.pfx
+*.key
+keystore.properties
+signing.properties
+*.keystore.properties
+
 # logs / os
 *.log
 .DS_Store
