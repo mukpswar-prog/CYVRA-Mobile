@@ -90,7 +90,7 @@ correct behaviour and must not be bypassed.
 | WP-1 | Self-contained installer: USB drivers, offline WebView2, `perMachine` | **DONE** `2866db0` |
 | WP-2 | Keystore ignore rules, unsigned agent bundling | **DONE** `3d62589` |
 | WP-3 | PowerShell force-clean → Rust, **43 assertions from the standalone assertion harness (`Assert-Equal`/`Assert-True`/`Assert-False`)** as parity oracles | **NEXT** |
-| Report finalisation | Normalise → operator authorisation → seal → final report | pending |
+| Report finalisation | Normalise → operator authorisation → seal → final report, wired to `FINALISE_REPORT` and a desktop control | **DONE** |
 | WP-4 | Real-hardware UI proof | pending |
 | Final `.exe` | Desktop build for installation and verification | pending |
 
@@ -381,3 +381,82 @@ fixture content, and not a consumer mailbox. Retained on that basis.
 - **Real personal identifiers: 0** — account address, local part and device serial all
   absent. The only remaining consumer-domain string is the frozen-path placeholder
   ruled on above.
+
+
+---
+
+## Amendment — 11 Oct 2026 — Step 5 report finalisation EXECUTED
+
+Authorised by the Chief Engineer ("Go ahead and approved"). Delivers the ratified V3
+§7 tail — RAW REPORT → NORMALIZE → OPERATOR AUTHORISATION → SEAL → FINAL CONTROLLED
+REPORT — with every step executed inside the .exe (M5), no web surface required.
+
+### §3 held lines — RELEASED
+
+Both lines held in §3 were released at Step 5 and are now changed. The holds harness
+was **not modified**:
+
+- **L52–53** — the §7 docstring was rewritten from the superseded V2 wording (which
+  routed the four steps to "CUSTOMER WORKSPACE (schema 0011, later)") to the ratified V3
+  chain. It **continues to decline** the claim, exactly as §3 requires: those steps are
+  **not** claimed by this class. That phrase is kept verbatim on one line because the
+  harness matches it literally.
+- **L63** — keeps the value `0011-DRAFT`. See the ruling below.
+
+### Ruling — schema 0011 stays a DRAFT reservation
+
+The Chief Engineer delegated this decision to a reading of our own documents.
+
+Two governed documents both defer it:
+
+- `CYVRA_CAPABILITY_PATCH_SCHEMA.md` §9.4 — "Report schema integration — `schema 0011`
+  is a later phase; the fields above are reserved now."
+- Journey V3 §10 Open Items — "schema 0011 (later)".
+
+V3 also records that routing these steps to "CUSTOMER WORKSPACE (schema 0011, later)"
+was **Withdrawn**. So no document defines what `0011` looks like.
+
+**Therefore no schema shape was invented.** The reservation is kept, and finality is
+carried by the operator authorisation and the seal rather than by a version number. The
+final controlled report echoes the identifier and states in its own provenance that the
+schema is an open item. `ReportFinaliserTest.theFinalReportMirrorsTheReservedSchemaTheRawReportCarries`
+pins the raw and final identifiers together so they cannot drift.
+
+### What was built
+
+- `apps/host/.../engine/ReportFinaliser.kt` — the four steps.
+  - **Normalise** is deterministic and idempotent: only ordering and whitespace move, so
+    the same report always encodes to the same bytes and therefore the same digest.
+  - **Authorise** records operator, timestamp and attestation hash as governed §6.2
+    requires. A blank operator is refused rather than sealed.
+  - **Seal** covers the canonical normalised report and separately records the digest of
+    the authorisation, binding artifact to approver.
+  - **Safety property:** `finalise` refuses to seal when the sealed digest is not the
+    digest the operator attested to. An operator can never be shown one artifact and
+    have a different one sealed.
+- `FINALISE_REPORT` host command (protocol v1, 15 → 16 commands) and a desktop control on
+  the report step. The raw report is built from the capability matrix on disk and is
+  never read off the wire, so a caller cannot hand the Host a report of its own to seal.
+- **Entitlement: nothing is spent.** `record_scan_ledger` falls through to `Ok(())` for
+  this command — finalising is neither a scan nor a certificate, so there is no debit.
+
+### What "FINAL" does not claim
+
+Only that the report was normalised, authorised and sealed. It is not a sanitization
+certificate, it never reports a purge as performed, and every domain keeps the honest
+status the raw report recorded (Spec §82). Per the rev-2 instruction, unit tests are
+**not** treated as product support: the proof this works on an installed workstation is
+the `.exe` verification, not this suite.
+
+### Note on an observation
+
+One desktop run failed after Gradle and cargo had saturated memory, with the vitest
+worker-timeout signature already recorded in §11.7. It did not reproduce: two clean runs
+followed at 71/71 with the 172–175 s baseline duration.
+
+### Gates
+
+`pnpm -r typecheck` 0 · desktop `tsc -b` 0 · `cargo test --lib` 236 pass / 0 fail ·
+host `:host:test` 271 pass / 0 fail (ReportFinaliserTest 13/13) · desktop `pnpm test`
+71 pass / 0 fail, twice · holds harness ALL HOLDS INTACT — 0 breaches, harness file
+unmodified · journey paths 0 touched · UTF-8 clean, no BOM · real identifiers 0.

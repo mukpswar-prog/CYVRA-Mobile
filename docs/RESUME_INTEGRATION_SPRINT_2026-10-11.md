@@ -166,7 +166,7 @@ forward-only. A denylist check for them now runs in
 | Phase | Content | Gate |
 |---|---|---|
 | ~~**WP-3**~~ | ~~PowerShell → Rust force-clean, 43 parity assertions~~ | **DONE** `fba759d` |
-| Report finalisation | normalise → operator authorisation → seal → final report; releases `ReportGenerator` L52–53 and L63 | **NEXT** |
+| ~~**Report finalisation**~~ | ~~normalise → operator authorisation → seal → final report; releases `ReportGenerator` L52–53 and L63~~ | **DONE** this commit |
 | WP-3b | S1 agent wiring — device-side application labels | approved, separate |
 | WP-4 | real-hardware UI proof — human clicks Scan, evidence returns, report generated | needs WP-3 ✓ |
 | Final `.exe` | desktop build for you to install and verify feature-by-feature | needs WP-4 + R-B drivers as CI secret |
@@ -179,7 +179,6 @@ forward-only. A denylist check for them now runs in
 
 ### Still blocked, unchanged
 
-- **`ReportGenerator.kt` L52–53 and L63** held until report finalisation.
 - **WP-5** — gated on live entitlement granting `sanitizeExecute`; A-13 licence
   gate at `HostProtocolDispatcher.kt:832` fires before D-1, and that refusal is
   correct behaviour.

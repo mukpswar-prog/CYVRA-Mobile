@@ -3,6 +3,9 @@ package cyvra.mobile.host.protocol
 import cyvra.mobile.core.AuthorizationRequirement
 import cyvra.mobile.core.PreSanitizationRecord
 import cyvra.mobile.core.SanitizationMethodType
+import cyvra.mobile.host.engine.CapabilityMatrixLoader
+import cyvra.mobile.host.engine.ReportFinaliser
+import cyvra.mobile.host.engine.ReportGenerator
 import cyvra.mobile.host.license.LicenseFileResult
 import cyvra.mobile.host.license.LicenseProvider
 import cyvra.mobile.host.license.SignedEntitlementProvider
@@ -107,6 +110,7 @@ class HostProtocolDispatcher(
             HostCommand.SANITIZE_EXECUTE -> sanitizeExecuteResponse(request)
             HostCommand.SANITIZE_VERIFY -> sanitizeVerifyResponse(request)
             HostCommand.GET_FINAL_REPORT -> finalReportResponse(request)
+            HostCommand.FINALISE_REPORT -> finaliseReportResponse(request)
         }
     }
 
@@ -626,6 +630,94 @@ class HostProtocolDispatcher(
                         put("markdownSha256", written.markdownSha256)
                     },
                 )
+            },
+        )
+    }
+
+    /**
+     * FINALISE_REPORT runs the ratified V3 §7 chain — normalise → operator authorisation
+     * → seal → final controlled report — entirely inside this Host.
+     *
+     * The raw report is built here from the capability matrix on disk and the applied
+     * patch set: the same inputs Report 1 is derived from. Nothing report-shaped is read
+     * off the wire, so a caller can never hand the Host a report of its own to seal.
+     *
+     * **It spends nothing.** No device is written to and no sanitization lifecycle starts,
+     * so there is no entitlement to debit — finalising is not a scan and not a
+     * certificate. The operator named here is the person releasing the artifact; they are
+     * not asserting anything about the device, and the report keeps every honest status
+     * the raw artifact recorded.
+     */
+    private fun finaliseReportResponse(request: HostRequest): HostResponse {
+        val scan = lastScan ?: return noScanError(request, "FINALISE_REPORT")
+        val operatorId = request.stringPayload(KEY_OPERATOR_ID) ?: scan.report.header.operatorId
+
+        val finalised = try {
+            val generator = ReportGenerator(
+                loader = CapabilityMatrixLoader(),
+                engineVersion = HostProtocolV1.DEFAULT_HOST_VERSION,
+            )
+            ReportFinaliser().finalise(generator.generate(), operatorId)
+        } catch (error: Exception) {
+            return errorResponse(
+                request = request,
+                code = REPORT_WRITE_FAILED,
+                message = error.message ?: "The report could not be finalised",
+            )
+        }
+
+        val reportId = "CYVRA-FCR-${java.time.Year.now().value}-" +
+            java.util.UUID.randomUUID().toString().take(6).uppercase()
+        val jsonContent = ReportFinaliser().toJson(finalised)
+
+        val written = try {
+            reportStore.writeReport(
+                reportId = reportId,
+                jsonContent = jsonContent,
+                markdownContent = finalised.provenance.joinToString("\n"),
+            )
+        } catch (error: Exception) {
+            return errorResponse(
+                request = request,
+                code = REPORT_WRITE_FAILED,
+                message = error.message ?: "Final controlled report could not be written to disk",
+            )
+        }
+
+        val zip = try {
+            ReportFinaliser().writeZip(
+                finalised,
+                java.io.File(written.jsonPath).parentFile?.let { dir ->
+                    java.io.File(dir, "$reportId.zip")
+                } ?: java.io.File("$reportId.zip"),
+            )
+        } catch (error: Exception) {
+            return errorResponse(
+                request = request,
+                code = REPORT_WRITE_FAILED,
+                message = error.message ?: "Final controlled report archive could not be written",
+            )
+        }
+
+        return okResponse(
+            request,
+            buildJsonObject {
+                put("reportId", reportId)
+                put("status", ReportFinaliser.STATUS_FINAL)
+                put("schemaVersion", finalised.schemaVersion)
+                put("finalisedAt", finalised.finalisedAt)
+                put("operatorId", finalised.authorisation.operatorId)
+                put("decision", finalised.authorisation.decision)
+                put("algorithm", finalised.seal.algorithm)
+                put("sealDigest", finalised.seal.digest)
+                put("attestationDigest", finalised.authorisation.attestationDigestSha256)
+                put("sealMatchesAttestation", finalised.seal.digest == finalised.authorisation.attestationDigestSha256)
+                put("reportJson", jsonContent)
+                put("reportJsonPath", written.jsonPath)
+                put("manifestPath", written.manifestPath)
+                put("zipPath", zip.absolutePath)
+                put("provenance", JsonArray(finalised.provenance.map { JsonPrimitive(it) }))
+                put("artifactsWritten", true)
             },
         )
     }

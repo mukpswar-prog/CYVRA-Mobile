@@ -571,6 +571,8 @@ function App() {
     EMPTY_SANITIZE,
   );
   const [exported, setExported] = useState<HostEnvelope | null>(null);
+  /** FINALISE_REPORT: the sealed, operator-authorised final controlled report. */
+  const [finalised, setFinalised] = useState<HostEnvelope | null>(null);
 
   const [bridgeError, setBridgeError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -980,6 +982,37 @@ function App() {
     }
   };
 
+  /**
+   * Runs the ratified V3 §7 finalisation chain - normalise, operator authorisation,
+   * seal, final controlled report - entirely on the Host.
+   *
+   * The operator id is whatever this screen already holds. Finalisation refuses a blank
+   * one rather than sealing a report no person signed, so the refusal is shown as-is.
+   */
+  const runFinalise = async () => {
+    const target = (lastScanSerial ?? serial).trim();
+
+    patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
+
+    const envelope = await send("FINALISE_REPORT", { operatorId: operatorId.trim() });
+    setFinalised(envelope);
+
+    if (envelope?.status === "OK") {
+      patchRow(target, {
+        phase: "exported",
+        status: "Ok",
+        reason: "Report finalised, operator-authorised and sealed.",
+        exportedOk: true,
+      });
+    } else {
+      patchRow(target, {
+        phase: "idle",
+        status: "Failed",
+        reason: envelopeReason(envelope, ""),
+      });
+    }
+  };
+
   const hostConnected = host?.connected === true;
   const scanPayload = payloadOf(scan);
   const scanOk = scan?.status === "OK";
@@ -1005,6 +1038,11 @@ function App() {
   const reportJsonPath = readString(exportPayload, "reportJsonPath");
   const reportMarkdownPath = readString(exportPayload, "reportMarkdownPath");
   const manifestPath = readString(exportPayload, "manifestPath");
+
+  const finalPayload = payloadOf(finalised);
+  const sealDigest = readString(finalPayload, "sealDigest");
+  const finalReportPath = readString(finalPayload, "reportJsonPath");
+  const finalZipPath = readString(finalPayload, "zipPath");
 
   /*
    * Stage state. Every value below is read from the predicates the buttons
@@ -2144,6 +2182,53 @@ function App() {
                     The workstation did not report any file locations on this response - read the
                     message above, then try the download again.
                   </p>
+                )}
+
+                {/*
+                  Finalisation. The download above writes the scan report; the final
+                  controlled report only exists once it has been normalised, authorised
+                  by a named operator and sealed - which is this control.
+                */}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!scanOk || busy !== null || operatorId.trim() === ""}
+                  title={
+                    operatorId.trim() === ""
+                      ? "Name the operator authorising this report before it can be sealed."
+                      : lockDownload ?? undefined
+                  }
+                  aria-label={
+                    busy === "FINALISE_REPORT" ? "Sealing..." : "Finalise and seal the report"
+                  }
+                  onClick={() => void runFinalise()}
+                >
+                  {busy === "FINALISE_REPORT" ? "Sealing..." : "Finalise and seal the report"}
+                </button>
+
+                <Outcome envelope={finalised} />
+
+                {finalised?.status === "OK" && (
+                  <div className="kv-grid">
+                    <div className="kv">
+                      <span className="card-label">seal digest (SHA-256)</span>
+                      <strong className="path">
+                        <Value value={sealDigest} fallback="Not returned" />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">final report path</span>
+                      <strong className="path">
+                        <Value value={finalReportPath} fallback="Not returned" />
+                      </strong>
+                    </div>
+                    <div className="kv">
+                      <span className="card-label">archive path</span>
+                      <strong className="path">
+                        <Value value={finalZipPath} fallback="Not returned" />
+                      </strong>
+                    </div>
+                  </div>
                 )}
               </>
             )}

@@ -38,6 +38,17 @@ enum class HostCommand {
     SANITIZE_EXECUTE,
     SANITIZE_VERIFY,
     GET_FINAL_REPORT,
+
+    /**
+     * Runs the §7 finalisation chain — normalise → operator authorisation → seal → final
+     * controlled report — entirely inside this Host, with no web surface required.
+     *
+     * It never writes to a device and never starts a sanitization lifecycle, so it moves
+     * **no entitlement**: finalising a report this workstation already produced is not a
+     * second scan and not a certificate. It observes nothing new; it finalises what is
+     * already held.
+     */
+    FINALISE_REPORT,
 }
 
 enum class HostResponseStatus {

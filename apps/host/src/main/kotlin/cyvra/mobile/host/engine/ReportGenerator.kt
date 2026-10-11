@@ -47,10 +47,18 @@ data class RestrictedStateRecord(
 /**
  * The RAW REPORT (governed §7).
  *
- * This is the first artifact of the §7 chain — `RAW REPORT → CUSTOMER WORKSPACE
- * (schema 0011, later) → normalize → audit report → customer authorisation → seal →
- * final controlled report`. Normalisation, customer approval and sealing are downstream
- * and are **not** claimed by this class.
+ * This is the first artifact of the ratified V3 chain — `RAW REPORT → NORMALIZE →
+ * OPERATOR AUTHORISATION → SEAL → FINAL CONTROLLED REPORT`, every step executed inside
+ * the .exe (M5).
+ *
+ * This class produces **only** the raw artifact: it is the input to that chain, not the
+ * chain itself. Normalisation, operator authorisation and sealing belong to
+ * [ReportFinaliser]; those steps are **not** claimed by this class.
+ *
+ * The superseded V2 wording routed those four steps to "CUSTOMER WORKSPACE (schema 0011,
+ * later)". That surface never received them, so the product dead-ended at the raw report
+ * and the customer never obtained a final controlled report — which is why V3 withdrew
+ * the routing and moved the whole chain into the product.
  *
  * Adheres to:
  * - Spec §24 (never fabricate identifiers), §29 (claim no more than evidence proves),
@@ -59,7 +67,14 @@ data class RestrictedStateRecord(
  */
 @Serializable
 data class RawReport(
-    /** Reserved for schema 0011, which is a later phase. Never presented as final. */
+    /**
+     * Reserved for schema 0011, which is **still** a later phase — governed doc §9.4 and
+     * journey §10 both list it as an open item — so the identifier stays a DRAFT
+     * reservation and no schema shape is invented here.
+     *
+     * Never presented as a final report: finality is produced by [ReportFinaliser], which
+     * normalises this artifact, records the operator's authorisation and seals it.
+     */
     val schemaVersion: String = "0011-DRAFT",
     val generatedAt: String,
     val engineVersion: String,

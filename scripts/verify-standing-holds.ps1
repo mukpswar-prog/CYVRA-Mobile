@@ -33,7 +33,8 @@ param(
     # so this list is part of the gate, not bookkeeping.
     [string[]]$SprintCommits = @(
         'e175945', '45687d7', 'bdbb32c', '2866db0', '3d62589', 'ec1d441',
-        'bbfc08a', '12c817a', 'af9bd02', 'fba759d', '02963dc', '74c6d5f'
+        'bbfc08a', '12c817a', 'af9bd02', 'fba759d', '02963dc', '74c6d5f',
+        '92c11de'
     ),
     # Skip the ADB probe when no bench phone should be attached.
     [switch]$SkipDevice

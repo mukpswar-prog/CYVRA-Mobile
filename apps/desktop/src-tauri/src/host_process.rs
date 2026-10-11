@@ -1408,7 +1408,7 @@ mod host_command_bridge_tests {
     /// This array is the bridge's allow-list: adding a command to the Host
     /// means adding it here, and the length assertion fails until you do.
     #[test]
-    fn all_fifteen_host_commands_pass_the_shape_check() {
+    fn all_sixteen_host_commands_pass_the_shape_check() {
         let commands = [
             "GET_HOST_INFO",
             "GET_PREFLIGHT",
@@ -1425,9 +1425,10 @@ mod host_command_bridge_tests {
             "SANITIZE_EXECUTE",
             "SANITIZE_VERIFY",
             "GET_FINAL_REPORT",
+            "FINALISE_REPORT",
         ];
 
-        assert_eq!(commands.len(), 15, "HostCommand changed; update this list");
+        assert_eq!(commands.len(), 16, "HostCommand changed; update this list");
 
         for command in commands {
             assert!(
