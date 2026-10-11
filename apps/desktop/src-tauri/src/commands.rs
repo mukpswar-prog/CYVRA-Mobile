@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Mutex};
 use serde::Serialize;
 
 use crate::activation::{entitlement, state, store};
+use crate::force_clean;
 use crate::host_process::{self, HostInfo, HostProcessManager};
 use crate::ledger::{self, Clock};
 
@@ -585,4 +586,133 @@ pub async fn scan_wpd_device_metadata(
         let _ = (state, session_device_id);
         Err("WPD_UNSUPPORTED_PLATFORM".to_string())
     }
+}
+
+// ---------------------------------------------------------------------------
+// Force-clean assessment (WP-3)
+//
+// The decision core of the PUR-DO-WIPE force-clean sequence, exposed as a
+// native capability the application invokes directly.
+//
+// Everything here is pure parsing of text the caller already holds. No command
+// in this block opens a device, starts a process, writes a file, or removes an
+// account. The destructive half of the sequence remains the operator-driven
+// driver, which is gated separately - and an assessment is never evidence that
+// a wipe happened, only that these strings parsed this way.
+// ---------------------------------------------------------------------------
+
+/// What a force-clean assessment reports.
+///
+/// A parsed count, whether it could be read at all, the enrolment verdict, and
+/// the ladder that *would* be attempted. It reports no outcome of any action,
+/// because no action was taken.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForceCleanAssessmentResult {
+    /// `-1` when the `Accounts:` header could not be read. Never a fabricated 0.
+    pub account_count: i32,
+    /// `false` when the count is unreadable, so a caller cannot mistake `-1`
+    /// for a measured value.
+    pub readable: bool,
+    pub device_owner_ready: bool,
+    /// Whether this build exposes `cmd account remove-account`.
+    pub primitive_available: bool,
+    pub ladder: Vec<force_clean::Rung>,
+    pub authenticator_packages: Vec<force_clean::RemovalEntry>,
+}
+
+/// Assesses how clean a device is, from captures the caller already holds.
+///
+/// Takes two strings: the output of `dumpsys content` (for the account count)
+/// and the output of `cmd account help` (for the primitive probe). Both are
+/// supplied rather than fetched, so this command cannot reach a device at all.
+///
+/// The count is `-1` when the header could not be read. Callers must treat that
+/// as failure and never as zero - a silent 0 reports a dirty device as clean,
+/// which is precisely the false positive Samsung's dump format induces.
+#[tauri::command]
+pub async fn force_clean_assess(
+    content_dump: String,
+    primitive_usage: String,
+) -> ForceCleanAssessmentResult {
+    let account_count = force_clean::account_count_from_content_dump(&content_dump);
+    let primitive_available = force_clean::remove_account_primitive_available(&primitive_usage);
+    let authenticators = force_clean::authenticator_map(&content_dump);
+
+    ForceCleanAssessmentResult {
+        readable: account_count >= 0,
+        device_owner_ready: force_clean::device_owner_precondition(account_count),
+        account_count,
+        primitive_available,
+        ladder: force_clean::removal_ladder(primitive_available),
+        authenticator_packages: force_clean::removal_order(&authenticators),
+    }
+}
+
+/// Redacts an account identifier to a non-identifying token.
+///
+/// Provided so that anything persisted by the application - a log line, an
+/// attestation, a report - carries a token instead of an address. Only the
+/// local-part *length* survives; the domain and the local part are dropped
+/// entirely, so the token cannot be reversed, matched against a wordlist, or
+/// correlated across runs.
+#[tauri::command]
+pub async fn force_clean_redact(
+    identifier: String,
+    account_type: String,
+) -> String {
+    force_clean::identifier_token(&identifier, &account_type)
+}
+
+/// Redacts a whole account list at once.
+///
+/// The batched form of `force_clean_redact`, for the UI hierarchy dump where
+/// One UI briefly reveals account names. Those names are needed transiently to
+/// tap the right row; anything persisted comes from here, and never carries the
+/// identifier.
+#[tauri::command]
+pub async fn force_clean_redact_view(
+    accounts: Vec<force_clean::AccountInput>,
+) -> Vec<force_clean::RedactedAccount> {
+    let borrowed: Vec<force_clean::AccountRef<'_>> = accounts
+        .iter()
+        .map(force_clean::AccountRef::from)
+        .collect();
+
+    force_clean::redacted_account_view(&borrowed)
+}
+
+/// Builds the attestation record for a completed force-clean run.
+///
+/// Identifier-free by construction: counts, types, rungs, timestamps and
+/// outcomes. Nothing that reaches it may carry an account identifier - only a
+/// local-part *length* survives redaction - so the record can be committed while
+/// the phone's actual contents stay on the phone.
+///
+/// It records what the caller reports happened. It does not verify that the run
+/// occurred, and must not be read as though it did: an attestation is a record
+/// of a claim, not proof of an operation.
+#[tauri::command]
+pub async fn force_clean_attestation(
+    baseline_count: i32,
+    final_count: i32,
+    device_model: String,
+    android_release: String,
+    primitive_status: String,
+    attempts: Vec<force_clean::Attempt>,
+    removed_packages: Vec<String>,
+    started_at: String,
+    completed_at: String,
+) -> force_clean::AttestationRecord {
+    force_clean::new_attestation_record(
+        baseline_count,
+        final_count,
+        &device_model,
+        &android_release,
+        &primitive_status,
+        attempts,
+        removed_packages,
+        &started_at,
+        &completed_at,
+    )
 }

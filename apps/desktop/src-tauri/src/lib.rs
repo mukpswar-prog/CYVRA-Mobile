@@ -6,6 +6,7 @@ mod wpd;
 
 mod activation;
 mod commands;
+mod force_clean;
 mod host_process;
 mod ledger;
 
@@ -50,7 +51,11 @@ pub fn run() {
             commands::send_host_command,
             activation::commands::activation_launch,
             activation::commands::activation_submit,
-            commands::ledger_read
+            commands::ledger_read,
+            commands::force_clean_assess,
+            commands::force_clean_redact,
+            commands::force_clean_redact_view,
+            commands::force_clean_attestation
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

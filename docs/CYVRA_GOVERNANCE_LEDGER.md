@@ -175,5 +175,125 @@ Journey FINAL v2.
 
 ---
 
+## 11. WP-3 execution — decisions and findings
+
+### 11.1 Rulings taken during execution (Chief Engineer, 11-Oct-2026)
+
+| # | Question | Ruling |
+|---|---|---|
+| 1 | The reference attestation records `tool = "ForceCleanAccounts.ps1"`. A Rust port emitting that string would attest to a script that never ran — an A-10 violation. No oracle assertion covers this field. | **Honest provenance.** `tool` now reads `cyvra-mobile-desktop force_clean (rust)`. The schema ID `cyvra.pur-do-wipe.attestation/1` is unchanged, so existing consumers still key on it. |
+| 2 | PowerShell *throws* when the account count overflows `[int]`. Rust must not panic inside a shipping Tauri command. | **Return `-1`.** Consistent with the module's own documented contract ("−1 when the header cannot be found, treated as failure, never as zero"). Divergence from the reference's throw is deliberate and recorded here. |
+
+### 11.2 `regex` dependency — declared, and proven cost-free
+
+`regex = "1"` was added to `Cargo.toml` so the port reuses the reference engine
+rather than hand-rolling a re-implementation of patterns whose exact semantics
+are the entire point of the parity suite.
+
+This was verified before it was done, not assumed:
+
+```
+cargo tree -i regex --edges normal
+  regex v1.13.1
+  ├── tauri-utils v2.9.3 → tauri v2.11.5 → cyvra-mobile-desktop
+  └── urlpattern v0.3.0 → tauri-utils v2.9.3
+cargo tree -i regex --edges dev
+  warning: nothing to print.
+```
+
+`regex` was already a **shipping** dependency of this binary, compiled and linked
+today. Declaring it directly therefore added **zero** new `[[package]]` entries to
+`Cargo.lock` and zero bytes to the installed product.
+
+### 11.3 Three probe "divergences" that were defects in the probe, not the code
+
+Before writing the port, PowerShell's behaviour was measured rather than
+reasoned about. Three of my own expectations came back wrong, and in each case
+the reference was correct:
+
+| Expectation | Actual | Why the reference is right |
+|---|---|---|
+| `remove-accounts` (plural) should match | no match | `\b` requires a word boundary; `t`→`s` is not one. The probe recognises the subcommand, not a longer word beginning with it. |
+| `{type= sp } , ComponentInfo{ pkgX /S}` should parse | no match | The pattern demands `},` with no space before the comma. Capture classes exclude `,`/`}` and `/`; `Trim` runs after capture. |
+| A 12-digit count should yield a number | **throws** | PowerShell casts to `[int]`. See ruling 2 above — the port returns `-1`. |
+
+Recording these matters: a report claiming "the PowerShell has bugs" would have
+been wrong three times over.
+
+### 11.4 Defect found in the parity oracle — **not** corrected during WP-3
+
+`scripts/pur-do-wipe/ForceCleanAccounts.Tests.ps1` line 217:
+
+```powershell
+$opaque = Get-IdentifierToken -Identifier 'someone@example.org' -Type 'com.samsung.android.email'
+Assert-True -Condition ($token -cnotmatch 'gmail') -Because 'redaction is case-safe and identifier-free'
+```
+
+The assertion re-checks `$token` — the value from line 210 — instead of
+`$opaque`. It passes, but it tests the wrong variable and so does not prove what
+it says it proves.
+
+**Deliberately left unfixed.** Editing the oracle while porting it would mean the
+reference changed underneath the parity claim. The Rust test asserts against
+`$opaque`, which is plainly what was meant, so the port is *stricter* than the
+original while still passing it. Correct the oracle in a separate change, after
+WP-3 is accepted, with the count remaining 43.
+
+### 11.5 The oracle itself was not touched
+
+```
+git status --porcelain -- scripts/pur-do-wipe/   →   0 files
+```
+
+`ForceCleanAccounts.psm1` and `ForceCleanAccounts.Tests.ps1` are byte-identical
+to `HEAD`. They remain the reference; the Rust module is measured against them
+and does not replace them.
+
+### 11.6 A real account identifier was carried into the port — caught, not shipped
+
+The reference fixture embeds a genuine Gmail address. Copying the redaction tests
+across, that address was reproduced verbatim in `force_clean.rs`, which would
+have put a second copy of a real account identifier into the tree — in breach of
+the standing rule that no account name or Gmail address appears in any file.
+
+It was caught by grepping the **working tree**, not by `git grep`, which silently
+reports zero for untracked files and so returned a false clean on the very first
+pass. The lesson is recorded because the method matters as much as the catch:
+a check that cannot see the file under test will always report success.
+
+The port now uses a synthetic local part of the same length. Nothing the
+assertion proves depends on the address being genuine — only on its local-part
+length — so parity is unaffected.
+
+**Pre-existing, reported not fixed:** the original address remains in
+`ForceCleanAccounts.Tests.ps1`. It stays for the same reason the oracle is not
+otherwise edited during WP-3: changing the reference under the parity claim would
+undermine the claim. Correct it after WP-3 is accepted.
+
+### 11.7 Gate 2 (`pnpm -r test`) failed for an environmental reason
+
+The recursive run failed with *"Failed to start threads worker"*. That is vitest
+being unable to **start**, not a test asserting wrongly. Investigated before
+reporting, per the standing rule:
+
+- **0** TypeScript files were touched by WP-3 — the change is Rust and docs only.
+- The machine had ~2 GB free of 6.9 GB, with Chrome, Defender and GitHub Desktop
+  resident. `vitest.config.ts` runs `pool: 'threads'` with `environment: 'jsdom'`,
+  whose own comment already records a prior Windows struggle with `forks`.
+
+Each suite passes when run package-by-package with `--maxWorkers=1`:
+
+| Package | Result |
+|---|---|
+| `apps/desktop` | 5 files, 71 passed, exit 0 |
+| `apps/web` | 15 files, 305 passed, exit 0 |
+| `services/api` | exit 0, assertions ran |
+| `packages/evidence` | exit 0, assertions ran |
+
+**This is pre-existing fragility, not a WP-3 regression.** It will recur on any
+machine under memory pressure regardless of this change.
+
+---
+
 *Amendments append below this line with a date and the ruling that authorised
 them. Do not edit the entries above in place.*
