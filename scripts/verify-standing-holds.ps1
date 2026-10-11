@@ -179,7 +179,8 @@ Findings 7 'No adb.exe committed' ($adbTracked.Count -eq 0) `
 $denyList = @(
     @{ what = 'bench device serial';     b64 = 'UjlCTjMwMTVOUUo=' },
     @{ what = 'bench account address';   b64 = 'a2EyOTU3OTA0MDQwMkBnbWFpbC5jb20=' },
-    @{ what = 'bench account localpart'; b64 = 'a2EyOTU3OTA0MDQwMg==' }
+    @{ what = 'bench account localpart'; b64 = 'a2EyOTU3OTA0MDQwMg==' },
+    @{ what = 'personal account address'; b64 = 'TXVrcHN3YXJAZ21haWwuY29t' }
 )
 $idHits = @()
 foreach ($d in $denyList) {

@@ -307,3 +307,77 @@ machine under memory pressure regardless of this change.
 
 *Amendments append below this line with a date and the ruling that authorised
 them. Do not edit the entries above in place.*
+
+---
+
+## Amendment — 11 Oct 2026 — Chief Engineer rulings on R-2, F-3 and the sanitization sweep
+
+### §11.7 CLOSED — environmental, resolved by host configuration
+
+Gate 2 re-run after the Chief Engineer increased virtual memory on 11 Oct 2026,
+executed by the Chief Engineer on his own machine:
+
+| Package | Files / suites | Tests | Result |
+|---|---|---|---|
+| `apps/desktop` | 5 files | 71 | pass |
+| `apps/web` | 15 files | 305 | pass |
+| `packages/evidence` | 8 suites | 26 | pass |
+| `services/api` | 72 suites | 413 | pass |
+| **Total** | | **815** | **0 fail — EXIT=0** |
+
+Scope reported by pnpm: *5 of 6 workspace projects*.
+
+The finding was environmental from the start: vitest could not **start** its threads
+workers under memory pressure, which is not a test asserting wrongly. Confirmed two
+ways — the same suites already passed package-by-package before, and the whole
+recursive run now passes after the host change. **No code was altered to achieve
+this and no release gate was weakened (H7).**
+
+### F-3 CLOSED
+
+`docs/token-inventory.txt:205` carried a real personal account address in a public
+repo. Replaced with `<redacted email>`; the instruction still reads "pick the specific
+account, not all accounts". The literal now occurs **0** times. Authorised by the
+Chief Engineer: *"keep the content, remove the email ID."* Detection added to the
+holds harness denylist so a reintroduction fails the check.
+
+### Sanitization sweep — three rulings
+
+1. **`services/api/test/staff.test.ts:12` — LEAVE AS IS.** H2 freezes `services/api`
+   by path and the harness asserts by path. The address there is a synthetic
+   placeholder, not a real mailbox, so keeping it costs nothing while editing it
+   would cross a standing hold. Chief Engineer: *"leave it … You take a call."*
+2. **Corporate addresses — RETAIN as product identity.** Analysis below.
+3. **Archived baseline edit — ACCEPTED.** Chief Engineer: *"editing the archived
+   baseline was acceptable."*
+
+### Corporate address impact analysis — 317 occurrences, 69 files
+
+Sanitizing was assessed against the running product and **rejected**, because it
+breaks real behaviour:
+
+- `services/api/src/admin/principal.ts:74` exports `SUPER_ADMIN_EMAIL` — the identity
+  the entire admin authorisation gate is built on.
+- `database/migrations/0007_w5_admin_control_plane.sql:306` **promotes that exact
+  address to `SUPER_ADMIN`**, and line 521 is a migration assertion that **raises an
+  exception** if it is not. The migration has already been applied to the live
+  database; an applied migration is not edited.
+- `services/api/src/email.ts:174` uses `noreply@cyvoriq.co.in` as the sending From
+  address, a domain verified in Resend. A substituted address would fail SPF/DKIM and
+  outbound mail would stop.
+- `services/api/src/bridge.ts:127` names the audit actor for registration events.
+- `services/api/src/admin.ts:950` and `principal.ts:362,371` appear inside
+  customer-facing refusal sentences.
+
+**Retaining has no negative impact: sanitizing does.** These are the product's own
+corporate identity, deliberately published in its own user interface — not device
+fixture content, and not a consumer mailbox. Retained on that basis.
+
+### Sweep results recorded
+
+- **Phone numbers: 0.** A loose pattern first reported 812 hits, all dates, version
+  strings and checksums. Tightened to `+` international prefix (0) and bare 10-digit
+  mobile (24, every one a `Cargo.lock` checksum). No phone number exists in the tree.
+- **Real personal identifiers: 0** — account address, local part and device serial all
+  absent. The only remaining consumer-domain string is the frozen-path placeholder
+  ruled on above.

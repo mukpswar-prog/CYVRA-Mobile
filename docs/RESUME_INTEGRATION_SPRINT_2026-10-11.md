@@ -188,12 +188,22 @@ forward-only. A denylist check for them now runs in
 - **R-B** — driver redistribution open with legal; gates only the final release
   `.exe` build.
 
-### Known environment note
+### Known environment note — CLOSED by TASK R-2, 11 Oct 2026
 
-`pnpm -r test` fails **recursively** on this 6.9 GB machine at ~2 GB free —
-vitest cannot start its threads workers. Zero TypeScript was touched by WP-3,
-and every suite passes when run package-by-package with `--maxWorkers=1`.
-Recorded in ledger §11.7 as pre-existing fragility, not a regression.
+`pnpm -r test` failed **recursively** on this 6.9 GB machine at ~2 GB free —
+vitest could not start its threads workers. Zero TypeScript was touched by WP-3,
+and every suite passed when run package-by-package with `--maxWorkers=1`.
+
+**Closed.** Virtual memory was increased on 11 Oct 2026 and the Chief Engineer
+re-ran the full recursive gate, which passed: **815 tests, 0 fail, EXIT=0**
+(desktop 71, web 305, evidence 26, api 413; 5 of 6 workspace projects).
+
+Environmental throughout — vitest could not *start*, which is not a test asserting
+wrongly. No code was changed to achieve it and no release gate was weakened (H7).
+Recorded in ledger §11.7, now **CLOSED**.
+
+Note: this "R-2" is *host config verification*. It is a different item from the
+**R-2/R-3 string-cleanup ruling**, which still stands and is still due before WP-5.
 
 ---
 
