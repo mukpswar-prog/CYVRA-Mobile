@@ -214,6 +214,34 @@ commit time; the committed blob hash must reproduce the sha256 above.
 
 ---
 
+## 2.4 Governance Records
+
+| Field | Value |
+|---|---|
+| Path | `docs/CYVRA_GOVERNANCE_LEDGER.md` |
+| Class | `ACTIVE-GOVERNING` — **Governance Record** |
+| Scope | Standing holds, rulings, held code, gated work, open commercial items, approved sequences |
+| Ruling | Chief Engineer, 11-Oct-2026 |
+
+**The ledger records rulings; it does not override Level 1 contracts. Any ruling
+that amends a contract takes effect only through that contract's own ratification
+path.**
+
+**Why this is its own class, and not Precedence Level 1.** Level 1 is held by the
+three Supreme Contracts (§2.1–§2.3), which *are* the authority within their scope
+and are amended only by ratification. The ledger is the durable record of what has
+been *decided*. Elevating a record to the rank of a contract would allow a
+transcript note to silently outrank a ratified document — the precise failure mode
+the precedence ladder exists to prevent. The Chief Engineer superseded an earlier
+instruction to register it at Level 1 on 11-Oct-2026 with this classification.
+
+**Amendment rule.** Append-forward, dated, citing the ruling that authorised each
+entry. Entries are never rewritten in place. Dated forensic records — for example
+`docs/FORENSIC_AUDIT_2026-10-10.md` — are never amended to carry later rulings;
+the ledger absorbs them instead.
+
+---
+
 # 3. Documentation status vocabulary
 
 Every documentation file must be classified as exactly one of the following.
@@ -245,6 +273,7 @@ No current CYVRA Mobile document is authorized for immediate deletion solely bec
 | `docs/design-freeze/admin-panel-design-freeze.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** | Supreme UI/Admin Contract; frozen at `73d3f3a`; overrides older UI guidelines within UI/admin scope (§2.1) |
 | `docs/CYVRA_CUSTOMER_WORKSPACE_WORLD_CLASS_ARCHITECTURE_2026-10-07.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** (Customer UI) | Supreme Customer-UI Contract; ratified at A5 on 07-Oct-2026; governs `cyvoriq.co.in/dashboard` (the Customer Workspace); parallel to the Design Freeze, which governs the admin panel (§2.2) |
 | `docs/CYVRA_CORE_ENGINE_JOURNEY_FINAL_V2_2026-10-08.txt` | `ACTIVE-GOVERNING` — **Precedence Level 1** (Core Application) | Supreme Core-Application Contract; ratified 08-Oct-2026 (TASK P); governs `apps/desktop`, `apps/host`, `apps/android` and the telemetry service — Android access planes P1–P4, PUR-DO-WIPE, identifier policy, signed capability patches, field telemetry, T&C clauses, journey diagram v2; supersedes journey diagram v1; parallel to §2.1 and §2.2, with safety/compliance above all (§2.3) |
+| `docs/CYVRA_GOVERNANCE_LEDGER.md` | `ACTIVE-GOVERNING` — **Governance Record** | Living record of rulings and standing holds; **records decisions, does not override Level 1** — a ruling amends a contract only through that contract's own ratification path (§2.4) |
 
 Long-term target: the three documents under `docs/` become the permanent primary governance set after root `GUIDELINE.md` has been safely consolidated.
 

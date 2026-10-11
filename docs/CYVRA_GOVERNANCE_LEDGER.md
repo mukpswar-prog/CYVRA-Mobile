@@ -89,7 +89,7 @@ correct behaviour and must not be bypassed.
 |------|---------|-------|
 | WP-1 | Self-contained installer: USB drivers, offline WebView2, `perMachine` | **DONE** `2866db0` |
 | WP-2 | Keystore ignore rules, unsigned agent bundling | **DONE** `3d62589` |
-| WP-3 | PowerShell force-clean → Rust, 43 Pester assertions as parity oracles | **NEXT** |
+| WP-3 | PowerShell force-clean → Rust, **43 assertions from the standalone assertion harness (`Assert-Equal`/`Assert-True`/`Assert-False`)** as parity oracles | **NEXT** |
 | Report finalisation | Normalise → operator authorisation → seal → final report | pending |
 | WP-4 | Real-hardware UI proof | pending |
 | Final `.exe` | Desktop build for installation and verification | pending |
@@ -129,8 +129,49 @@ Corollaries, all in force:
 
 | Commit | Content |
 |--------|---------|
-| `2866db0` | WP-1 — self-contained Windows installer (drivers, offline WebView2, `perMachine`) |
-| `3d62589` | WP-2 — keystore ignore rules and unsigned agent bundling |
+| `2866db0` | WP-1 — self-contained Windows installer (drivers, offline WebView2, `perMachine`) — merged PR #59 |
+| `3d62589` | WP-2 — keystore ignore rules and unsigned agent bundling — merged PR #60 |
+| `ec1d441` | Governance ledger opened — merged PR #61 |
+| `bbfc08a` | `verify-standing-holds.ps1`, makes H1–H7 machine-checked — merged PR #61 |
+| `12c817a` | Integration-sprint resume document — merged PR #61 |
+
+---
+
+## 9. WP-3 rationale — recorded as ruled, both reasons labelled
+
+**PRIMARY — this is the acceptance criterion for "done":**
+
+> Force-clean becomes a **native product capability that the `.exe` invokes
+> directly**, removing any PowerShell dependency on the customer's machine.
+
+**SECONDARY BENEFIT — recorded, but not the acceptance criterion:**
+
+> Reduced Defender/EDR friction.
+
+**Correction on record.** An earlier plain-English summary justified WP-3 on the
+ground that *"PowerShell scripts inside a commercial installer trigger security
+warnings."* That rationale was wrong on the facts: `scripts/pur-do-wipe/` is a
+source-tree development artifact and is **never staged into the installer**. The
+staging script produces exactly `host/`, `runtime/`, `platform-tools/`,
+`drivers/` and `agent/`. The distinction is load-bearing, not cosmetic — if the
+reason were security warnings, the goal could appear met simply by not shipping
+the script, when the actual requirement is a native invocation path.
+
+---
+
+## 10. Precedence classification — recorded as ruled
+
+The ledger is registered in `CYVRA_MOBILE_PROJECT_INDEX.md` §2.4 as its own class,
+**Governance Records** — `ACTIVE-GOVERNING`, but **not** Precedence Level 1.
+
+> The ledger records rulings; it does not override Level 1 contracts. Any ruling
+> that amends a contract takes effect only through that contract's own
+> ratification path.
+
+This supersedes the earlier instruction to register it at Level 1 (Chief Engineer,
+11-Oct-2026). Level 1 remains held exclusively by the three Supreme Contracts:
+§2.1 Design Freeze, §2.2 Customer Workspace Specification, §2.3 Core Engine
+Journey FINAL v2.
 
 ---
 
