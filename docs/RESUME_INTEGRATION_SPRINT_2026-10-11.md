@@ -138,17 +138,26 @@ Ledger precedence sentence, as ruled:
 > that amends a contract takes effect only through that contract's own
 > ratification path.
 
-### Two deferred fixes to the oracle itself — do these after WP-3 is accepted
+### Two deferred fixes to the oracle itself — DONE (R-1a, R-1b)
 
 Both were deliberately **not** corrected during the port, because editing the
-reference under a parity claim would undermine the claim.
+reference under a parity claim would undermine the claim. Both are now applied
+after WP-3 acceptance, with parity re-run and still **43 pass / 0 fail**.
 
-1. **A real Gmail address** remains in `ForceCleanAccounts.Tests.ps1`. Only the
-   local-part length is ever asserted, so it can be replaced with a synthetic
-   value without changing what is proved.
-2. **Line 217 asserts the wrong variable** — it re-checks `$token` instead of
-   `$opaque`. The Rust port asserts against `$opaque`, which is plainly what was
-   meant, so the port is stricter than the original while still passing it.
+1. **A real Gmail address** has been removed from
+   `ForceCleanAccounts.Tests.ps1`, replaced by
+   `fixtureacct13@example.invalid` — the same synthetic fixture the Rust side
+   already used, so both halves now redact identical input. The local part is
+   still 13 characters, so the pins `local-part-len=13` and
+   `[com.google local-part-len=13]` were unchanged.
+2. **Line 217 asserted the wrong variable** — it re-checked `$token` instead of
+   `$opaque`. Corrected to `$opaque`, which is what the Rust port asserts, so
+   the two now assert the same variable rather than the port passing a weaker
+   original.
+
+Neither identifier is gone from **git history**; both corrections are
+forward-only. A denylist check for them now runs in
+`scripts/verify-standing-holds.ps1`.
 
 ---
 

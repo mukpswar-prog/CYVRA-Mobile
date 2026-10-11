@@ -29,7 +29,12 @@ param(
     # The Design Freeze baseline. H2/H3 are measured from here.
     [string]$Baseline = '73d3f3a',
     # Integration Sprint commits. Extend this list as the sprint progresses.
-    [string[]]$SprintCommits = @('e175945', '45687d7', 'bdbb32c', '2866db0', '3d62589', 'ec1d441'),
+    # A commit missing from here is a commit the H2 journey check does not see,
+    # so this list is part of the gate, not bookkeeping.
+    [string[]]$SprintCommits = @(
+        'e175945', '45687d7', 'bdbb32c', '2866db0', '3d62589', 'ec1d441',
+        'bbfc08a', '12c817a', 'af9bd02', 'fba759d', '02963dc'
+    ),
     # Skip the ADB probe when no bench phone should be attached.
     [switch]$SkipDevice
 )
@@ -152,6 +157,39 @@ Write-Host ''
 $adbTracked = @(git ls-files | Select-String -Pattern 'adb\.exe$')
 Findings 7 'No adb.exe committed' ($adbTracked.Count -eq 0) `
     ('tracked adb.exe={0}' -f $adbTracked.Count)
+
+# --- tracked-artifact hygiene (real bench-device identifiers) ----------------
+#
+# A DENYLIST, not a pattern. Every shape-based detector was measured against
+# this tracked tree before being rejected:
+#
+#   serial-shaped  154 hits - SHA256SUMS.txt and every uppercase token
+#   IMEI-shaped      8 hits - Cargo.lock checksums, plus Kotlin tests that
+#                             deliberately assert IMEIs are scrubbed
+#   email-shaped   344 hits - legitimate corporate addresses
+#
+# A check that fires on innocent content teaches readers to ignore it, which is
+# worse than no check at all. So this detects the identifiers actually observed
+# leaking, and nothing else.
+#
+# Entries are base64-encoded so the harness can search for them without itself
+# committing a fresh copy of each literal. That is not secrecy - the serial was
+# already public in git history. It stops the tree gaining MORE copies while
+# still letting the check work.
+$denyList = @(
+    @{ what = 'bench device serial';     b64 = 'UjlCTjMwMTVOUUo=' },
+    @{ what = 'bench account address';   b64 = 'a2EyOTU3OTA0MDQwMkBnbWFpbC5jb20=' },
+    @{ what = 'bench account localpart'; b64 = 'a2EyOTU3OTA0MDQwMg==' }
+)
+$idHits = @()
+foreach ($d in $denyList) {
+    $needle = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($d.b64))
+    $found = @(git grep -n -I -F -- "$needle" 2>$null)
+    if ($found.Count -gt 0) { $idHits += ('{0}: {1}' -f $d.what, ($found -join '; ')) }
+}
+Findings 3 'No real bench-device identifier committed' ($idHits.Count -eq 0) `
+    ('denylist matches={0}' -f $idHits.Count)
+$idHits | ForEach-Object { Write-Host ('          VIOLATION: ' + $_) }
 
 Write-Host ''
 Write-Host '=============================================================='

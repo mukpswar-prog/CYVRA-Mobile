@@ -203,18 +203,22 @@ Assert-True -Condition $ladderOn[0].Enabled -Because 'PRIMITIVE rung is enabled 
 
 Write-Output '--- identifier redaction: nothing egresses ---'
 
-# Local part 'ka29579040402' is 13 characters. The exact value is asserted
+# Local part 'fixtureacct13' is 13 characters. The exact value is asserted
 # because a token that silently became length-preserving-but-wrong, or that
 # collapsed to a constant, would both still pass a loose "contains no @" check.
-$email = 'ka29579040402@gmail.com'
+#
+# Synthetic and RFC 6761 reserved, and identical to the fixture on the Rust
+# side, so both halves redact the same input rather than two compatible ones.
+# Real account content does not enter the repository.
+$email = 'fixtureacct13@example.invalid'
 $token = Get-IdentifierToken -Identifier $email -Type 'com.google'
-Assert-False -Condition ($token -match 'ka29579040402') -Because 'the local part never survives redaction'
+Assert-False -Condition ($token -match 'fixtureacct13') -Because 'the local part never survives redaction'
 Assert-False -Condition ($token -match '@')             -Because 'the domain never survives redaction'
 Assert-True  -Condition ($token -match 'local-part-len=13') -Because 'only the local-part length survives'
 Assert-Equal -Expected '[com.google local-part-len=13]' -Actual $token -Because 'token format is stable'
 
 $opaque = Get-IdentifierToken -Identifier 'someone@example.org' -Type 'com.samsung.android.email'
-Assert-True -Condition ($token -cnotmatch 'gmail') -Because 'redaction is case-safe and identifier-free'
+Assert-True -Condition ($opaque -cnotmatch 'gmail') -Because 'redaction is case-safe and identifier-free'
 
 $blank = Get-IdentifierToken -Identifier '' -Type 'com.google'
 Assert-Equal -Expected '[unknown-identifier]' -Actual $blank -Because 'an unknown identifier is marked, not blanked into a clean-looking result'

@@ -109,7 +109,7 @@ The harness was written, but **no fixture was produced**, because the emulator m
 Present but insufficient: emulator package (`Sdk\emulator\emulator.exe`), platform-tools
 (`Sdk\platform-tools\adb.exe`), Android Studio at `C:\Program Files\Android\Android Studio`.
 
-Also observed: a **physical device is attached** (`R9BN3015NQJ`, unauthorised). It was **not
+Also observed: a **physical device is attached** (serial redacted, unauthorised). It was **not
 probed** — no command was executed against it, and the harness will refuse it by design.
 
 **Not done, deliberately:** no fixture was simulated, synthesised or copied from elsewhere, and no

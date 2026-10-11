@@ -251,7 +251,7 @@ and does not replace them.
 
 ### 11.6 A real account identifier was carried into the port — caught, not shipped
 
-The reference fixture embeds a genuine Gmail address. Copying the redaction tests
+The reference fixture embedded a genuine Gmail address. Copying the redaction tests
 across, that address was reproduced verbatim in `force_clean.rs`, which would
 have put a second copy of a real account identifier into the tree — in breach of
 the standing rule that no account name or Gmail address appears in any file.
@@ -265,10 +265,20 @@ The port now uses a synthetic local part of the same length. Nothing the
 assertion proves depends on the address being genuine — only on its local-part
 length — so parity is unaffected.
 
-**Pre-existing, reported not fixed:** the original address remains in
-`ForceCleanAccounts.Tests.ps1`. It stays for the same reason the oracle is not
-otherwise edited during WP-3: changing the reference under the parity claim would
-undermine the claim. Correct it after WP-3 is accepted.
+**Closed by TASK R-1a, after WP-3 acceptance.** The original address was
+removed from `ForceCleanAccounts.Tests.ps1` and replaced by
+`fixtureacct13@example.invalid` — the identical value the port already used, so
+both halves now redact the same input rather than two compatible ones. The local
+part remains 13 characters, so the `local-part-len=13` pins were untouched, and
+the oracle re-ran at **43 pass / 0 fail**. Line 217 was corrected from `$token`
+to `$opaque` in the same pass (R-1b), so the reference and the port now assert
+the same variable rather than the port merely clearing a weaker original.
+
+Both identifiers remain visible in **git history**; the correction is
+forward-only, and no history rewrite was ordered. Detection now runs in
+`scripts/verify-standing-holds.ps1`, which carries a denylist check for the
+bench device serial and the retired account address. A second instance was
+found by that wider sweep and is recorded as **F-3**, pending ruling.
 
 ### 11.7 Gate 2 (`pnpm -r test`) failed for an environmental reason
 

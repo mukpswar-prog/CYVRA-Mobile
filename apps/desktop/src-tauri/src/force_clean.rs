@@ -757,10 +757,10 @@ mod tests {
 
     // --- identifier redaction: nothing egresses -----------------------------
     //
-    // A synthetic address, not a real one. The reference fixture carries a real
-    // Gmail account; this only needs a local part of length 13, and nothing the
-    // assertion proves depends on the address being genuine. Real device fixture
-    // content does not enter the codebase.
+    // Synthetic and RFC 6761 reserved, and identical to the fixture in the
+    // PowerShell reference since TASK R-1a, so both halves redact the same
+    // input rather than two compatible ones. The local part is 13 characters,
+    // which the pins below depend on.
     //
     // The length is pinned because a token that silently became
     // length-preserving-but-wrong, or that collapsed to a constant, would both
@@ -801,10 +801,9 @@ mod tests {
 
     #[test]
     fn p32_redaction_is_case_safe_and_identifier_free() {
-        // The reference asserts against the wrong variable here: it re-checks the
-        // earlier `$token` rather than `$opaque`. This asserts against `$opaque`,
-        // which is plainly what was meant, so the check is strictly stronger than
-        // the original while still passing it.
+        // Asserted against `$opaque`, which is what the reference asserted
+        // after TASK R-1b corrected it from `$token`. Both halves now assert
+        // the same variable, so this is parity rather than a divergence pin.
         let token = identifier_token("someone@example.org", "com.samsung.android.email");
         assert!(!token.to_lowercase().contains("gmail")); // P-32
     }
