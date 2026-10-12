@@ -647,3 +647,115 @@ Each suite passes when run with a single worker, and no change in this work pack
 touches TypeScript test code. §11.7 governs the same class of failure and forbids
 weakening the gate to make it pass (H7) — so the gate was not weakened, it was re-run
 under the memory constraint the machine actually has.
+
+---
+
+## Amendment - 12 Oct 2026 - Stage 0/1: fabricated measurements removed, collector extended
+
+**Authority:** Chief Engineer rulings, 12-Oct-2026 (A1 Option B, A3, A4, A5, and the
+instruction that everything unimplemented is implemented first and tested after).
+
+### How the defect was found
+
+Not by a test. By comparing the three external forensics documents and the two
+engineering workbooks against the production source, field by field. A test suite
+could not have found it, because the existing unit test asserted the fabricated
+values - it pinned the defect rather than catching it.
+
+### The defect
+
+`apps/host/.../evidence/AdbGenericEvidenceProvider.kt` returned hardcoded literals for
+security and storage state, stamped `EvidenceStatus.AVAILABLE`:
+
+| Field | Line | Asserted | Reality |
+|---|---|---|---|
+| `secureBootEnabled` | `:156` | `true` | never queried |
+| `deviceOwnerActive` | `:157` | `false` | never queried, and **proven wrong** - the bench device *was* a device owner that five separate commands refused to remove |
+| `adbEnabled` | `:158` | `true` | never queried |
+| `externalStoragePresent` | `:142` | `false` | never queried |
+| `scopedStorageEnforced` | `:143` | `true` | never queried |
+
+Two of these five are **not among the ratified 114 parameters** at all - ad-hoc fields
+with no requirement behind them. `scopedStorageEnforced` additionally propagated into
+customer-facing narrative text at `:144`, so the fabrication reached report output.
+
+### A second fault in the same function
+
+`collectSecurity()` substituted `false` when `dumpsys trust` **failed**, then still
+stamped the result `AVAILABLE`. A failed measurement was being converted into a
+negative finding. It was the only collector that degraded this way - `collectBattery()`
+correctly returned `ERROR` and `collectStorage()` correctly returned `NOT_AVAILABLE`.
+This breaches the standing honesty rule directly: unavailable evidence is never
+converted to FAIL.
+
+### What was built
+
+- Security states are now **read**: `ro.boot.verifiedbootstate`, `settings get global
+  adb_enabled`, `dumpsys device_policy`. Each carries the raw observation in its reason
+  so a boolean never stands alone unsupported.
+- Device-owner parsing treats the empty `Device Owner:` header as evidence of *neither*
+  direction; only a resolved component name establishes an owner.
+- `externalStoragePresent` is genuinely measured (`ls /storage`).
+  `scopedStorageEnforced` is reported `NOT_AVAILABLE` with the true reason - it is a
+  per-application policy with no shell-visible signal.
+- Failure now reports `ERROR` with the reason, never a substituted value.
+- **BAT-004** battery temperature was in the `dumpsys battery` output the collector
+  already fetched and discarded. It is now captured - and deliberately **not converted
+  to Celsius**, because the device's native divisor has not been measured against a
+  reference. A wrong divisor would put a wrong number in a customer report.
+- **ID-005** now also captures the build fingerprint, binding a report to one specific
+  software image rather than to a marketing version.
+- `ExtendedDeviceEvidence` added: additive, default-null, carrying ~34 further
+  parameters across hardware, display, sensors, camera, audio, radios, performance,
+  system and SEC-003.
+- Every parameter carries its ratified workbook identifier, so product coverage is
+  **computed from the data** rather than asserted by a person.
+
+### The honesty primitive
+
+All extended measurements pass through one choke point that maps *failed command ->
+ERROR*, *succeeded but uninterpretable -> NOT_AVAILABLE with reason*, *interpretable ->
+AVAILABLE*. No collector can produce a value by any other route. This is what makes the
+honesty rule structural rather than a convention a future contributor may forget.
+
+### Rulings recorded
+
+- **A1 Option B approved** - Stage 6 physical/AI inspection track added. CYVRA AI-Enabled
+  Grading is gated behind all three verifications, purge, factory reset and post-purge
+  verification. A grade issued before purge describes the previous owner's data.
+- **A4 approved** - the change boundary is "anything except `apps/web` and
+  `services/api`". `apps/desktop` is in scope; it is the product surface, not a
+  nice-to-have.
+- **A5 approved** - Stage 5 names the document, not the number: the purge-verification
+  contract, governed section 29 of this ledger.
+- **Stage 1 approved first**, then WP-4.
+- **Technician checklist approved** for the 13 human/specialist parameters, so the 114
+  is complete in process where it cannot be complete in automation.
+
+### Supporting documents produced
+
+- `docs/CYVRA_FINAL_PLAN_VS_ACTUAL_HANDSHAKE_MATRIX_2026-10-12.md` - all 114 parameters
+  in rows and columns: today's code state, application role, AI agent role, human role,
+  gap, tested status, stage.
+- `scripts/verify-stage-gates.ps1` - the acceptance gate runner, so every stage exits
+  against the same published definition of done.
+
+### What this does not claim (H8)
+
+- It does **not** claim the product is complete. The measured position is **20 of 114
+  parameters** collected before this work package; the ratified plan authorises 74 as
+  collectible by the application alone.
+- It does **not** claim any extended parameter is *validated*. They are implemented and
+  compile; whether each command returns a usable reading on real hardware is a separate
+  measurement, and any that does not must be reported as not available rather than
+  quietly dropped.
+- It does **not** claim purge is verified. That contract remains unratified.
+- Battery temperature is recorded in **device-native units**, not Celsius, because the
+  divisor has not been measured.
+- Nothing here is RELEASE-VALIDATED.
+
+### Gates
+
+PENDING - to be run by the Chief Engineer via `scripts/verify-stage-gates.ps1` and
+recorded here with the actual output. **No gate is recorded as passed until its output
+has been observed.**

@@ -60,6 +60,19 @@ data class DeviceIdentityEvidence(
     val platformIdentifier: EvidenceFieldResult<String>,
     val hardwareSerial: DeviceIdentifierRecord,
     val imei: DeviceIdentifierRecord,
+    /**
+     * ID-005's fingerprint half. Additive and default-null.
+     *
+     * Deliberately declared last. Inserting an optional field mid-class shifts the
+     * argument positions of every field after it, which silently retypes positional
+     * construction sites in other modules instead of failing loudly. Additive fields
+     * append; that is what makes them additive.
+     *
+     * The build identifier alone does not identify a build uniquely, so a fingerprint
+     * is what binds a report to one specific software image rather than to a marketing
+     * version.
+     */
+    val buildFingerprint: EvidenceFieldResult<String>? = null,
 )
 
 /**
@@ -71,6 +84,17 @@ data class BatteryEvidence(
     val isCharging: EvidenceFieldResult<Boolean>,
     val health: EvidenceFieldResult<String>,
     val stateOfHealthSoh: EvidenceFieldResult<Int>, // Restricted / unavailable in S1/generic
+    /**
+     * BAT-004. The temperature integer exactly as the device publishes it under
+     * `dumpsys battery`.
+     *
+     * Deliberately left unconverted. The device's native scale is not assumed here:
+     * shipping a value labelled Celsius on an unverified divisor would put a wrong
+     * number in a customer report. The divisor is confirmed by measurement against a
+     * reference thermometer during Stage 1 validation, and only then is a Celsius
+     * figure derived.
+     */
+    val rawTemperatureDeviceUnits: EvidenceFieldResult<Int>? = null,
 )
 
 /**
@@ -82,7 +106,13 @@ data class StorageEvidence(
     val internalAvailableBytes: EvidenceFieldResult<Long>,
     val externalStoragePresent: EvidenceFieldResult<Boolean>,
     val scopedStorageEnforced: EvidenceFieldResult<Boolean>,
-    val accessLimitation: String = "Scoped storage enforced; unrestricted filesystem access withheld",
+    /**
+     * Default must assert nothing. A default argument is applied by every constructor
+     * that does not supply one, so a default carrying a policy claim would re-assert
+     * "scoped storage enforced" from call sites that never measured it. The caller that
+     * has actually observed the device may override this with what it saw.
+     */
+    val accessLimitation: String = "No directory crawl is performed; only reported capacity figures are captured",
 )
 
 /**
@@ -123,4 +153,12 @@ data class GenericDeviceEvidence(
      * completeness, limitations, and conflicts verbatim. Additive and default-null.
      */
     val reconciledApplicationInventory: ReconciledApplicationInventory? = null,
+    /**
+     * Optional extended device evidence (hardware, display, sensors, camera, audio,
+     * radios, performance, system, and the security states that require a real query).
+     *
+     * Null means the extended collectors were not run - it does NOT mean the device
+     * is free of any condition. Additive and default-null: legacy JSON still decodes.
+     */
+    val extended: ExtendedDeviceEvidence? = null,
 )
