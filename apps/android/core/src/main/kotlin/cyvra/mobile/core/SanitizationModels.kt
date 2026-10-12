@@ -87,10 +87,26 @@ data class VerificationResult(
     val verifiedAt: String = java.time.Instant.now().toString(),
     val status: SanitizationVerificationStatus,
     val postResetStateDetected: Boolean,
-    val userDataInaccessible: Boolean,
+    /**
+     * Whether user data was established as inaccessible after the reset.
+     *
+     * `null` means NOT ESTABLISHED, and that is the default, because this product does
+     * not currently measure user-data accessibility. Both `true` and `false` are claims
+     * about the device; only `null` is a claim about our knowledge.
+     *
+     * This used to be a non-nullable Boolean derived from screen-lock state, which meant
+     * a device that had simply never been given a lock reported as though its data had
+     * been cleared. An absence of evidence was being published as evidence of absence.
+     */
+    val userDataInaccessible: Boolean? = null,
     val setupWizardDetected: Boolean,
     val limitations: List<String> = emptyList(),
-    val assuranceLevel: String, // e.g. "NIST_SP_800_88_REV2_CLEAR", "PLATFORM_REPORTED_FACTORY_RESET"
+    /**
+     * What was actually established. The former default of this field in derived reports
+     * cited `NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED`; no NIST procedure has been
+     * executed by this product, so a NIST citation here would be unearned.
+     */
+    val assuranceLevel: String, // e.g. "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED"
     val notes: String? = null,
 )
 

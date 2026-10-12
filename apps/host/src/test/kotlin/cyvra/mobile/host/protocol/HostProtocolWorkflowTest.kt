@@ -955,7 +955,10 @@ class HostProtocolWorkflowTest {
         assertEquals("REQUIRES_EXTERNAL_VERIFICATION", str(verify, "status"))
         assertEquals("REQUIRES_EXTERNAL_VERIFICATION", str(verify, "assuranceLevel"))
         assertEquals(false, bool(verify, "postResetStateDetected"))
-        assertEquals(false, bool(verify, "userDataInaccessible"))
+        // null on the wire = NOT ESTABLISHED. JsonNull is a JsonPrimitive whose content
+        // is "null", so booleanOrNull yields null rather than false - the tri-state
+        // survives serialization instead of being coerced into a claim.
+        assertNull(bool(verify, "userDataInaccessible"))
         assertEquals(false, bool(verify, "setupWizardDetected"))
         assertEquals(false, bool(verify, "successClaimed"))
         assertTrue(list(verify, "limitations").isNotEmpty(), "assurance must carry its limitations")

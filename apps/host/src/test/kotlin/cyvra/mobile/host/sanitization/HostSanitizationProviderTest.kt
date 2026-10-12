@@ -25,6 +25,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class HostSanitizationProviderTest {
@@ -167,9 +168,28 @@ class HostSanitizationProviderTest {
         )
 
         val verifiedResult = verifier.verifyPostReset("OP-001", "SESS-001", postEvidence)
-        assertEquals(SanitizationVerificationStatus.VERIFIED, verifiedResult.status)
         assertTrue(verifiedResult.postResetStateDetected)
+        // Screen-lock absence is CONSISTENT with a post-reset OOBE state, so the
+        // setup-wizard observation is recorded. It is one boolean, though, and a device
+        // whose owner never set a lock presents identically - so it earns only
+        // PARTIALLY_VERIFIED. This assertion previously required VERIFIED, which is the
+        // exact claim the fix removed.
         assertTrue(verifiedResult.setupWizardDetected)
-        assertTrue(verifiedResult.userDataInaccessible)
+        assertEquals(
+            SanitizationVerificationStatus.PARTIALLY_VERIFIED,
+            verifiedResult.status,
+        )
+        // null = NOT ESTABLISHED. The old assertion here was assertTrue, encoding the
+        // fabrication: user-data inaccessibility was inferred from screen-lock state.
+        assertNull(verifiedResult.userDataInaccessible)
+        // The assurance level must not name a standard this product has not executed.
+        assertFalse(
+            verifiedResult.assuranceLevel.contains("NIST"),
+            "assurance must describe what was observed, not cite an unexecuted standard",
+        )
+        assertTrue(
+            verifiedResult.limitations.any { it.contains("does not establish erasure") },
+            "the limitations must state what this check cannot prove",
+        )
     }
 }

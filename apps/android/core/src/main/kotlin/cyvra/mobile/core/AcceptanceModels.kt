@@ -29,16 +29,26 @@ enum class AcceptanceJourneyStage {
 
 /**
  * Status of an acceptance milestone check.
+ *
+ * [NOT_EVALUATED] is the default and the honest starting state: a check has not been
+ * performed yet. It is deliberately distinct from [SKIPPED], which records that a check
+ * was considered and consciously not run for a stated reason.
  */
 @Serializable
 enum class AcceptanceStatus {
     PASSED,
     FAILED,
     SKIPPED,
+    NOT_EVALUATED,
 }
 
 /**
  * Detailed verification item across the 8 Acceptance Categories of §80.
+ *
+ * The default status is [AcceptanceStatus.NOT_EVALUATED], not [AcceptanceStatus.PASSED].
+ * It previously defaulted to PASSED, so any constructor that omitted `status` published a
+ * passing check it had never run - a claim issued by omission, which is the hardest kind
+ * to notice because no line of code looks like a claim.
  */
 @Serializable
 data class AcceptanceCheckItem(
@@ -46,7 +56,7 @@ data class AcceptanceCheckItem(
     val checkId: String,
     val title: String,
     val description: String,
-    val status: AcceptanceStatus = AcceptanceStatus.PASSED,
+    val status: AcceptanceStatus = AcceptanceStatus.NOT_EVALUATED,
     val evidenceDigest: String? = null,
 )
 
@@ -62,6 +72,12 @@ data class SystemAcceptanceReport(
     val totalCheckCount: Int,
     val passedCheckCount: Int,
     val failedCheckCount: Int,
+    /**
+     * Checks that have not been performed. Defaults to 0 for callers that supply every
+     * result explicitly; a report with a non-zero value here has not completed its
+     * evaluation, and [isSystemAcceptancePassed] cannot be true while it is non-zero.
+     */
+    val notEvaluatedCount: Int = 0,
     val isSystemAcceptancePassed: Boolean,
     val checks: List<AcceptanceCheckItem> = emptyList(),
     val sha256VerificationSeal: String,

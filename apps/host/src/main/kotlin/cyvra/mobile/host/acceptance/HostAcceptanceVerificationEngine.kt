@@ -33,15 +33,30 @@ class HostAcceptanceVerificationEngine {
 
     /**
      * Executes the comprehensive §80 acceptance check across all 8 architectural categories.
+     *
+     * This method measures nothing about the product itself. It therefore reports every
+     * check as [AcceptanceStatus.NOT_EVALUATED] unless a caller passes real results in
+     * [observations], keyed by check ID. It previously stamped every check PASSED by
+     * default and then sealed the result with an SHA-256 over the string
+     * "VERIFIED-ACCEPTANCE", so the report always declared full acceptance - and looked
+     * tamper-evident while doing so. A gate that cannot fail is not a gate.
+     *
+     * @param observations real results keyed by check ID; absent IDs stay NOT_EVALUATED.
+     * @param completedStages journey stages actually observed as completed.
      */
     fun evaluateSystemAcceptance(
         targetVersion: String = "3.2.2-g5",
         simulateFailureCheckId: String? = null,
+        observations: Map<String, AcceptanceStatus> = emptyMap(),
+        completedStages: List<AcceptanceJourneyStage> = emptyList(),
     ): SystemAcceptanceReport {
         val checks = mutableListOf<AcceptanceCheckItem>()
 
         fun addCheck(category: String, id: String, title: String, desc: String) {
-            val status = if (simulateFailureCheckId == id) AcceptanceStatus.FAILED else AcceptanceStatus.PASSED
+            val status = when {
+                simulateFailureCheckId == id -> AcceptanceStatus.FAILED
+                else -> observations[id] ?: AcceptanceStatus.NOT_EVALUATED
+            }
             checks.add(
                 AcceptanceCheckItem(
                     category = category,
@@ -93,18 +108,28 @@ class HostAcceptanceVerificationEngine {
 
         val passedCount = checks.count { it.status == AcceptanceStatus.PASSED }
         val failedCount = checks.count { it.status == AcceptanceStatus.FAILED }
-        val isAllPassed = failedCount == 0
+        val notEvaluatedCount = checks.count { it.status == AcceptanceStatus.NOT_EVALUATED }
+        // Passing requires evidence for every single check. NotEvaluated checks mean the
+        // evaluation is incomplete, and an incomplete evaluation is not a pass.
+        val isAllPassed =
+            failedCount == 0 && notEvaluatedCount == 0 && passedCount == checks.size
 
-        val sealData = "VERIFIED-ACCEPTANCE-$targetVersion:$passedCount/$${checks.size}:$isAllPassed"
+        // The seal previously began "VERIFIED-ACCEPTANCE", which asserted verification in
+        // the very string being hashed. It now records the counts that produced it, so a
+        // reader can see from the digest input whether anything was actually evaluated.
+        val sealData =
+            "ACCEPTANCE-$targetVersion:passed=$passedCount/${checks.size}:" +
+                "failed=$failedCount:notEvaluated=$notEvaluatedCount:passed=$isAllPassed"
         val sealHash = computeSha256(sealData)
 
         return SystemAcceptanceReport(
             acceptanceId = "ACC-E2E-${UUID.randomUUID().toString().take(8).uppercase()}",
             targetVersion = targetVersion,
-            completedStages = AcceptanceJourneyStage.entries.toList(),
+            completedStages = completedStages,
             totalCheckCount = checks.size,
             passedCheckCount = passedCount,
             failedCheckCount = failedCount,
+            notEvaluatedCount = notEvaluatedCount,
             isSystemAcceptancePassed = isAllPassed,
             checks = checks,
             sha256VerificationSeal = sealHash,

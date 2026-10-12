@@ -25,6 +25,7 @@ import cyvra.mobile.host.transport.HostPreflightVerifier
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
@@ -1033,7 +1034,12 @@ class HostProtocolDispatcher(
             buildJsonObject {
                 put("status", verification.status.name)
                 put("postResetStateDetected", verification.postResetStateDetected)
-                put("userDataInaccessible", verification.userDataInaccessible)
+                // Tri-state. null means NOT ESTABLISHED and must not be coerced into a
+                // boolean, because both false and true would be a claim about the device.
+                put(
+                    "userDataInaccessible",
+                    verification.userDataInaccessible?.let { JsonPrimitive(it) } ?: JsonNull,
+                )
                 put("setupWizardDetected", verification.setupWizardDetected)
                 put("assuranceLevel", verification.assuranceLevel)
                 put("limitations", stringArray(verification.limitations))

@@ -759,3 +759,135 @@ honesty rule structural rather than a convention a future contributor may forget
 PENDING - to be run by the Chief Engineer via `scripts/verify-stage-gates.ps1` and
 recorded here with the actual output. **No gate is recorded as passed until its output
 has been observed.**
+
+---
+
+## Amendment - Post-reset verification claims corrected, and the acceptance gate made fail-able (WP-1b)
+
+Date: 12-Oct-2026. Status: CODE COMPLETE. Gates: PENDING (Chief Engineer to run
+`scripts/verify-stage-gates.ps1`).
+
+This work package was opened by reading, not by building. Two fabrications of the same
+class as the Stage 0 findings were found in product code and corrected. Neither was
+reported by a test; both had tests asserting the fabricated behaviour.
+
+### Finding 1 - the sanitization certificate asserted NIST-verified erasure from a lock-screen check
+
+`HostSanitizationProvider.verifyPostReset` (PUR-005) treated the absence of a screen lock
+as proof of erasure. It returned `VERIFIED`, stamped
+`assuranceLevel = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED"`, set
+`userDataInaccessible = !lockPresent`, and recorded
+`notes = "Device returned to factory setup state; user account data cleared"`.
+
+A device whose owner had simply never set a screen lock presented identically to a
+factory-reset device. The check cannot distinguish the two, so both `true` and `false`
+were claims about the device, and neither had been measured.
+
+This reached the customer-facing **CYVRA Data Sanitization & Verification Certificate**
+via `assuranceDeclaration = assuranceLevel` and
+`userAccountsRemoved = userDataInaccessible`. The overall outcome was protected -
+`deriveSanitizationLifecycleOutcome` prevents a blocked execution reaching
+`EXECUTED_VERIFIED` - but those two fields were set unconditionally, so even a
+"blocked, not executed" certificate carried a NIST clear-verified declaration and a claim
+that user accounts had been removed.
+
+Two adjacent defects of the same shape:
+
+- `SanitizationCertificateReport` defaulted `userAccountsRemoved = true` and
+  `setupWizardConfirmed = true`. Any constructor omitting them published both as achieved.
+  A claim issued by omission is the hardest kind to notice, because no line of code looks
+  like a claim.
+- `HostSanitizationWorkflowEngine` set `screenLockAbsent = verification.userDataInaccessible`
+  - "user data is inaccessible" mapped onto "screen lock is absent". The two only ever
+  coincided because both had been derived from the same single boolean.
+
+### Finding 2 - the system acceptance gate could not fail
+
+`HostAcceptanceVerificationEngine.evaluateSystemAcceptance` marked all 20 §80 acceptance
+checks `PASSED` unconditionally, marked all 18 journey stages completed, and sealed the
+result with an SHA-256 over the string `"VERIFIED-ACCEPTANCE"`. It performed no
+verification of anything. `AcceptanceCheckItem.status` also defaulted to `PASSED`, so an
+omitted status published a passing check that had never been run.
+
+A gate that cannot fail is not a gate.
+
+### What changed
+
+Honesty model:
+
+- `VerificationResult.userDataInaccessible` is now `Boolean?`, default `null`. `null`
+  means NOT ESTABLISHED and is the default because both `true` and `false` are claims
+  about the device, whereas `null` is a claim about our knowledge. `null` survives the
+  protocol as `JsonNull` rather than being coerced to a boolean.
+- `verifyPostReset` reports `PARTIALLY_VERIFIED` where the lock state was readable and
+  `REQUIRES_EXTERNAL_VERIFICATION` where it was not. It never returns `VERIFIED`, and its
+  `assuranceLevel` is `OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED` - it names what
+  was observed, not a standard this product has not executed.
+- Its limitations now state plainly that screen-lock absence cannot distinguish a reset
+  device from a device never given a lock, and that account and contact counts were never
+  taken after reset (PUR-006).
+- Certificate defaults for `userAccountsRemoved` / `setupWizardConfirmed` are now `null`.
+- The report renderer prints `NOT_ESTABLISHED` rather than a bare `null`.
+- The workflow parks at `POST_RESET_VERIFIED` instead of advancing to
+  `CERTIFICATION_READY`: a partially verified reset must not be advanced toward a
+  certificate.
+- Test-fixture strings that supplied the NIST assurance value were replaced with the
+  value the product actually emits.
+
+Acceptance gate:
+
+- `AcceptanceStatus` gains `NOT_EVALUATED`; `AcceptanceCheckItem.status` defaults to it.
+- `evaluateSystemAcceptance` accepts `observations: Map<String, AcceptanceStatus>` and
+  `completedStages`. An unobserved check reports `NOT_EVALUATED`; no journey stage is
+  marked completed unless supplied.
+- `isSystemAcceptancePassed` now requires every check `PASSED`, so a non-zero
+  `notEvaluatedCount` withholds acceptance.
+- The seal records the counts that produced it instead of asserting "VERIFIED".
+- The capability is retained: a new test supplies a complete observation set and the
+  engine still reaches acceptance. It is no longer able to pass for free.
+
+Scope note on Finding 2: this engine was wired only to its own test. No product flow,
+report or protocol route consumed it, so no customer-facing claim had yet been issued by
+it. It is corrected because it sits in `apps/host/src/main` and is shaped like the §80
+release gate (H7), where an always-passing check is the most expensive defect available.
+
+### Effect on the ratified 114
+
+- **Correction to my own earlier reporting.** The previous entry's figure of 20 uncoded
+  application-owned rows over-states the gap. PUR-001 through PUR-005 already exist in
+  the sanitization subsystem - `assessCapability`, `requestAuthorization`, `selectMethod`,
+  `execute`/`executePurge`, `verifyPostReset` - but are not keyed to the ratified workbook
+  identifiers, so the handshake matrix reported them as NOT IMPLEMENTED. The honest count
+  of genuinely uncoded application-owned rows is **15**.
+- PUR-004 stays counted as not implemented on purpose: the code is present but execution
+  is blocked and records `BLOCKED_NOT_IMPLEMENTED`. Code presence is not execution.
+- PUR-006 (residual user-data evidence) has no implementation. `AdbApplicationInventoryProvider.collect()`
+  already counts the very artefacts PUR-006 would need, so PUR-006 is implementable by
+  re-running that inventory post-reset against a pre-purge baseline - the same measurement
+  that was taken by hand on the bench. Identified, not built.
+- The 15 uncoded rows are stimulus-dependent (BT-002, BT-003, CAM-002, CAM-003, DIS-010,
+  GNSS-002, HW-005, PERF-001, PERF-003, STO-003, STO-004, WIFI-003, WIFI-004, PUR-006)
+  with one exception: **PHY-008**, SIM tray/slot integrity, which the workbook marks
+  physical-required with capability "No" yet maps to "Conditional / assisted". That is an
+  inconsistency internal to the ratified workbook. It is flagged for the Chief Engineer,
+  not silently corrected.
+
+### What this does not claim (H8)
+
+- It does not claim purge is verified. The purge-verification contract remains unratified
+  and PUR-004 execution remains blocked.
+- It does not claim any of the 56 coded parameters has been validated on hardware. None
+  has run end-to-end against a real device through the product path.
+- Correcting these claims narrows what the product asserts. It adds no capability, and no
+  stage of the plan is advanced by it.
+- Nothing here is RELEASE-VALIDATED.
+
+### Gates
+
+PENDING - to be run by the Chief Engineer via `scripts/verify-stage-gates.ps1` and
+recorded here with the actual output. **No gate is recorded as passed until its output
+has been observed.**
+
+Assisted evidence available at the time of writing: `:core:test` and `:host:test` both
+BUILD SUCCESSFUL (3m 30s) with both fixes in the tree. That is assistant-run evidence on
+the bench machine, not Chief Engineer verification.

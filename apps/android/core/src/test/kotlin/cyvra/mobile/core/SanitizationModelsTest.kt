@@ -29,7 +29,7 @@ class SanitizationModelsTest {
             userDataInaccessible = true,
             setupWizardDetected = true,
             limitations = listOf("Direct flash cell validation withheld (§33)"),
-            assuranceLevel = "NIST_SP_800_88_REV2_CLEAR",
+            assuranceLevel = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
         )
 
         val json = Json { prettyPrint = true }

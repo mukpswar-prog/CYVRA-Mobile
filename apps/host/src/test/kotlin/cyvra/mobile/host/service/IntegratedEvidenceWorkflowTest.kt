@@ -664,7 +664,7 @@ class IntegratedEvidenceWorkflowTest {
             postResetStateDetected = status == SanitizationVerificationStatus.VERIFIED,
             userDataInaccessible = status == SanitizationVerificationStatus.VERIFIED,
             setupWizardDetected = status == SanitizationVerificationStatus.VERIFIED,
-            assuranceLevel = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
+            assuranceLevel = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
         )
 
         val executed = SanitizationExecutionResult(

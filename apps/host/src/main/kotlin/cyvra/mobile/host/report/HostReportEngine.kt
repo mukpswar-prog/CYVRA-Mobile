@@ -387,8 +387,16 @@ class HostReportEngine(
             appendLine("- **Verification Status:** ${report.verificationResult.status}")
             appendLine("- **Post-Reset Transport State:** ${report.postResetAdbState}")
             appendLine("- **Setup Wizard Detected:** ${report.verificationResult.setupWizardDetected}")
-            appendLine("- **User Data Inaccessible:** ${report.verificationResult.userDataInaccessible}")
-            appendLine("- **User Accounts Removed:** ${report.userAccountsRemoved}")
+            // `null` here means NOT ESTABLISHED. Rendering it as a bare null would be
+            // accurate to the machine but meaningless to the reader, so it is stated in
+            // the same language the field itself uses.
+            appendLine(
+                "- **User Data Inaccessible:** " +
+                    (report.verificationResult.userDataInaccessible ?: "NOT_ESTABLISHED"),
+            )
+            appendLine(
+                "- **User Accounts Removed:** " + (report.userAccountsRemoved ?: "NOT_ESTABLISHED"),
+            )
             appendLine()
             appendLine("## 3. Evidence Provenance & Conflicts")
             if (report.evidenceProvenance.isEmpty()) {

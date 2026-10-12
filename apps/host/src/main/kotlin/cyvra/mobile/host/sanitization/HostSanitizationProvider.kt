@@ -119,7 +119,9 @@ class HostVerificationProvider(
                 sessionUuid = sessionUuid,
                 status = SanitizationVerificationStatus.REQUIRES_EXTERNAL_VERIFICATION,
                 postResetStateDetected = false,
-                userDataInaccessible = false,
+                // null = NOT ESTABLISHED. This branch has no post-reboot evidence at all,
+                // so claiming `false` would be a claim about the device made from silence.
+                userDataInaccessible = null,
                 setupWizardDetected = false,
                 limitations = listOf("Device not yet reconnected or post-reset scan not supplied (§38)"),
                 assuranceLevel = "REQUIRES_EXTERNAL_VERIFICATION",
@@ -127,17 +129,23 @@ class HostVerificationProvider(
             )
         }
 
-        // Check whether lock screen is absent and storage reflects clean state
-        val lockPresent = postRebootEvidence.security.screenLockPresent.value == true
-        val storageAvail = postRebootEvidence.storage.internalAvailableBytes.value ?: 0L
+        // What was actually observed: the screen-lock state, and nothing more.
+        val lockValue = postRebootEvidence.security.screenLockPresent.value
+        val lockEstablished = lockValue != null
+        val lockPresent = lockValue == true
 
-        // In Setup Wizard / OOBE state, screen lock is absent
-        val isSetupWizard = !lockPresent
+        // A device in OOBE has no screen lock. So does a device whose owner never set
+        // one. The two are indistinguishable from this observation alone, so absence of a
+        // lock is recorded as CONSISTENT with a reset rather than as proof of one. The
+        // previous code treated it as proof, returned VERIFIED, and stamped an assurance
+        // level citing NIST SP 800-88 - asserting a standard this product has not
+        // executed, derived from a single boolean.
+        val consistentWithOobe = lockEstablished && !lockPresent
 
-        val status = if (isSetupWizard) {
-            SanitizationVerificationStatus.VERIFIED
-        } else {
+        val status = if (lockEstablished) {
             SanitizationVerificationStatus.PARTIALLY_VERIFIED
+        } else {
+            SanitizationVerificationStatus.REQUIRES_EXTERNAL_VERIFICATION
         }
 
         return VerificationResult(
@@ -145,14 +153,33 @@ class HostVerificationProvider(
             sessionUuid = sessionUuid,
             status = status,
             postResetStateDetected = true,
-            userDataInaccessible = !lockPresent,
-            setupWizardDetected = isSetupWizard,
+            // NOT established. See VerificationResult.userDataInaccessible: this product
+            // does not measure user-data accessibility, so it reports no answer rather
+            // than inferring one from the lock screen.
+            userDataInaccessible = null,
+            setupWizardDetected = consistentWithOobe,
             limitations = listOf(
                 "Verification performed via post-reset ADB reconnection (§35)",
-                "Flash wear-leveling prevents direct physical NAND cell verification without chip desoldering",
+                "Screen-lock absence is consistent with a post-reset OOBE state but does " +
+                    "not establish erasure: a device whose owner never set a lock presents " +
+                    "identically, so this check cannot distinguish the two.",
+                "User-account removal and user-data erasure were NOT measured - no account, " +
+                    "contact or media count was taken after the reset. These require a " +
+                    "residual-data scan (PUR-006).",
+                "Flash wear-leveling prevents direct physical NAND cell verification without " +
+                    "chip desoldering (PUR-007)",
             ),
-            assuranceLevel = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
-            notes = "Device returned to factory setup state; user account data cleared",
+            assuranceLevel = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
+            notes = if (!lockEstablished) {
+                "Post-reset reconnection observed, but screen-lock state was not readable; " +
+                    "verification cannot proceed from this evidence."
+            } else if (consistentWithOobe) {
+                "Post-reset reconnection observed with no screen lock present, consistent " +
+                    "with OOBE. Erasure and account removal were not established by this check."
+            } else {
+                "Post-reset reconnection observed with a screen lock still present, which " +
+                    "is NOT consistent with a factory-reset OOBE state."
+            },
         )
     }
 }

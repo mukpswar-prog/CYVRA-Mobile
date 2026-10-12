@@ -184,7 +184,7 @@ class ReportModelsTest {
             postResetStateDetected = true,
             userDataInaccessible = true,
             setupWizardDetected = true,
-            assuranceLevel = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
+            assuranceLevel = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
         )
 
         val certReport = SanitizationCertificateReport(
@@ -196,7 +196,7 @@ class ReportModelsTest {
             executionResult = executionResult,
             verificationResult = verificationResult,
             nistStandardReference = "NIST SP 800-88 Rev. 2",
-            assuranceDeclaration = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
+            assuranceDeclaration = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
             postResetAdbState = "DEVICE_OOBE",
             setupWizardConfirmed = true,
             userAccountsRemoved = true,
@@ -213,8 +213,10 @@ class ReportModelsTest {
         assertEquals("CYVRA-CERT-2026-90412", decoded.header.reportId)
         assertEquals("NIST SP 800-88 Rev. 2", decoded.nistStandardReference)
         assertEquals("DEVICE_OOBE", decoded.postResetAdbState)
-        assertTrue(decoded.setupWizardConfirmed)
-        assertTrue(decoded.userAccountsRemoved)
+        // Both are Boolean? now: `== true` reads the tri-state as an assertion without
+        // asserting that the field itself is non-null.
+        assertTrue(decoded.setupWizardConfirmed == true)
+        assertTrue(decoded.userAccountsRemoved == true)
         assertEquals(SanitizationVerificationStatus.VERIFIED, decoded.verificationResult.status)
     }
 }

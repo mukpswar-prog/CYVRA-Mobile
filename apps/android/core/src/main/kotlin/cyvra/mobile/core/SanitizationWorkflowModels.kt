@@ -45,7 +45,8 @@ data class DeviceReconnectionState(
     val isReconnected: Boolean = false,
     val postResetAdbState: String = "DISCONNECTED",
     val setupWizardDetected: Boolean = false,
-    val userAccountsRemoved: Boolean = false,
+    /** `null` = not established. Defaults must never assert that accounts were removed. */
+    val userAccountsRemoved: Boolean? = null,
     val screenLockAbsent: Boolean = false,
     val reconnectedAt: String? = null,
 )

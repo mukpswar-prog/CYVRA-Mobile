@@ -142,8 +142,14 @@ data class SanitizationCertificateReport(
     val nistStandardReference: String = "NIST SP 800-88 Rev. 2",
     val assuranceDeclaration: String,
     val postResetAdbState: String = "DEVICE_OOBE",
-    val setupWizardConfirmed: Boolean = true,
-    val userAccountsRemoved: Boolean = true,
+    /**
+     * Both nullable and null by default: `true` was previously the DEFAULT, so any
+     * constructor that omitted them published "setup wizard confirmed" and "user accounts
+     * removed" without a measurement. A default that asserts success is a claim issued by
+     * omission, which is the hardest kind to notice. `null` means not established.
+     */
+    val setupWizardConfirmed: Boolean? = null,
+    val userAccountsRemoved: Boolean? = null,
     val limitations: List<String> = emptyList(),
     val integrity: ReportIntegrityRecord? = null,
     /** Reference to the Report 1 (device verification) report this Final Report follows. */

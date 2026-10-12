@@ -165,7 +165,10 @@ class HostReportEngineTest {
             userDataInaccessible = true,
             setupWizardDetected = true,
             limitations = listOf("Direct NAND cell inspection withheld"),
-            assuranceLevel = "NIST_SP_800_88_REV2_CLEAR_PLATFORM_VERIFIED",
+            // The product no longer emits a NIST assurance: no NIST procedure has been
+            // executed, so a fixture supplying one would describe a value that
+            // cannot occur.
+            assuranceLevel = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
         )
 
         val cert = engine.generateSanitizationCertificate(

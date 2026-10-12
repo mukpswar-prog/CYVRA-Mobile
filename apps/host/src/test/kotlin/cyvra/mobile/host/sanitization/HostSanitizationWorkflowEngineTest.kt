@@ -23,6 +23,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class HostSanitizationWorkflowEngineTest {
@@ -187,9 +188,13 @@ class HostSanitizationWorkflowEngineTest {
         val postRebootEvidence = createSampleEvidence(screenLockPresent = false)
         session = workflowEngine.verifyReconnection(session, "TEST-DEVICE-01", postRebootEvidence)
 
-        assertEquals(SanitizationWorkflowStep.CERTIFICATION_READY, session.currentStep)
+        // PARTIALLY_VERIFIED does not earn CERTIFICATION_READY. The workflow parks at
+        // POST_RESET_VERIFIED because erasure was never established - a device that
+        // simply had no screen lock must not be advanced toward a certificate.
+        assertEquals(SanitizationWorkflowStep.POST_RESET_VERIFIED, session.currentStep)
         assertTrue(session.reconnectionState?.setupWizardDetected == true)
-        assertTrue(session.reconnectionState?.userAccountsRemoved == true)
-        assertTrue(session.verificationResult?.userDataInaccessible == true)
+        // null = accounts were NOT measured. Both of these asserted true before the fix.
+        assertNull(session.reconnectionState?.userAccountsRemoved)
+        assertNull(session.verificationResult?.userDataInaccessible)
     }
 }

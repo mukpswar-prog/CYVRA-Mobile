@@ -172,7 +172,11 @@ class HostSanitizationWorkflowEngine(
             postResetAdbState = if (postRebootEvidence != null) "DEVICE_OOBE" else "DISCONNECTED",
             setupWizardDetected = verification.setupWizardDetected,
             userAccountsRemoved = verification.userDataInaccessible,
-            screenLockAbsent = verification.userDataInaccessible,
+            // Previously `verification.userDataInaccessible`, which mapped "user data is
+            // inaccessible" onto "screen lock is absent". The two only ever coincided
+            // because both had been derived from the same single boolean; they are
+            // different facts and the field must carry the one it names.
+            screenLockAbsent = verification.setupWizardDetected,
             reconnectedAt = java.time.Instant.now().toString(),
         )
 
