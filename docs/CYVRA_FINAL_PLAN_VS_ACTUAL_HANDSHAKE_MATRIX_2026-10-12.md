@@ -89,8 +89,8 @@ own words, not mine:
 | BAT-004 | Battery | Battery temperature | **Stage 1** temperature: from dumpsys battery (device-native units; divisor not yet measured) | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | BAT-005 | Battery | Full-charge/design capacity | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
 | BAT-006 | Battery | Battery health/wear estimate | dumpsys battery -> health:  (a health string, not a wear estimate) | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | BAT-006 still reports a health string, not a wear estimate | TESTED — command proven on hardware by Q1; product path unit-tested, NOT device-run | Stage 6 (fixture) |
-| BAT-007 | Battery | Battery swelling | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
-| BAT-008 | Battery | Charging connector looseness | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| BAT-007 | Battery | Battery swelling | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
+| BAT-008 | Battery | Charging connector looseness | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | DIS-001 | Display | Display presence/logical display | **Stage 1** dumpsys display -> mDisplayId | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | DIS-002 | Display | Resolution | **Stage 1** wm size | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | DIS-003 | Display | Refresh rate | **Stage 1** dumpsys display -> fps | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
@@ -109,7 +109,7 @@ own words, not mine:
 | CAM-006 | Camera | Lens glass condition | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
 | CAM-007 | Camera | Image quality/haze/artifacts | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
 | AUD-001 | Audio | Speaker playback path | **Stage 1** ls /proc/asound (path presence only) | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
-| AUD-002 | Audio | Speaker distortion/weakness | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| AUD-002 | Audio | Speaker distortion/weakness | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | AUD-003 | Audio | Microphone input path | **Stage 1** ls /proc/asound (path presence only) | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | AUD-004 | Audio | Microphone distortion/noise | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
 | AUD-005 | Audio | Headphone jack function where present | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
@@ -120,7 +120,7 @@ own words, not mine:
 | SEN-005 | Sensors | Ambient light sensor | **Stage 1** dumpsys sensorservice -> light entry | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | SEN-006 | Sensors | Barometer | **Stage 1** dumpsys sensorservice -> barometer entry | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | BIO-001 | Biometrics | Fingerprint capability/state | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
-| BIO-002 | Biometrics | Fingerprint sensor surface condition | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| BIO-002 | Biometrics | Fingerprint sensor surface condition | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | HAP-001 | Haptics | Vibration command/response | **Stage 1** pm list features -> android.hardware.vibrator | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | WIFI-001 | Wi-Fi | Wi-Fi capability/state | **Stage 1** dumpsys wifi -> Wi-Fi state | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | WIFI-002 | Wi-Fi | Wi-Fi scan/discovery | **Stage 1** dumpsys wifi -> count of scan-result access points | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
@@ -133,24 +133,24 @@ own words, not mine:
 | CELL-002 | Cellular | SIM detected | **Stage 1** getprop gsm.sim.state | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | CELL-003 | Cellular | Network registration | **Stage 1** dumpsys telephony.registry -> mServiceState | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | CELL-004 | Cellular | Mobile data path | **Stage 1** settings get global mobile_data | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
-| CELL-005 | Cellular | RF/antenna performance | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| CELL-005 | Cellular | RF/antenna performance | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | GNSS-001 | GNSS | GNSS capability | **Stage 1** pm list features -> android.hardware.location.gps | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | GNSS-002 | GNSS | GNSS fix acquisition | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement ADB collector (Stage 1) | NOT IMPLEMENTED — Q1 measured the probe obtainable; product does not collect it | Stage 1 |
-| PHY-001 | Mechanical | Power button tactile function | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
-| PHY-002 | Mechanical | Volume buttons tactile function | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
-| PHY-003 | Mechanical | USB connector mechanical fit | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
-| PHY-004 | Mechanical | USB port debris/corrosion | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| PHY-001 | Mechanical | Power button tactile function | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
+| PHY-002 | Mechanical | Volume buttons tactile function | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
+| PHY-003 | Mechanical | USB connector mechanical fit | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
+| PHY-004 | Mechanical | USB port debris/corrosion | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | PHY-005 | Mechanical | Frame/corner dents | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
 | PHY-006 | Mechanical | Back cover cracks/lift | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
 | PHY-007 | Mechanical | Liquid/corrosion evidence | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
 | PHY-008 | Mechanical | SIM tray/slot integrity | not collected | Collects where OEM/version permits; else reports NOT_AVAILABLE | – | Guided exception when the OEM blocks it | Implement collector (Stage 1) | NOT TESTED | Stage 1 (conditional) |
-| PHY-009 | Mechanical | microSD slot integrity where present | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| PHY-009 | Mechanical | microSD slot integrity where present | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | PHY-010 | Mechanical | Wireless charging function where supported | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
 | PHY-011 | Mechanical | Sustained charging rate | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
 | PHY-012 | Mechanical | Speaker grille/mesh condition | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
 | PHY-013 | Mechanical | Chassis deformation | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
-| PHY-014 | Mechanical | Water-resistance/IP seal integrity | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
-| PHY-015 | Mechanical | Internal screws/fasteners condition | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| PHY-014 | Mechanical | Water-resistance/IP seal integrity | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
+| PHY-015 | Mechanical | Internal screws/fasteners condition | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | PERF-001 | Performance | CPU workload response | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement ADB collector (Stage 1) | NOT IMPLEMENTED — Q1 measured the probe obtainable; product does not collect it | Stage 1 |
 | PERF-002 | Performance | Memory pressure behavior | **Stage 1** MemAvailable vs MemTotal from /proc/meminfo | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | PERF-003 | Performance | Storage I/O responsiveness | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement ADB collector (Stage 1) | NOT IMPLEMENTED — Q1 measured the probe obtainable; product does not collect it | Stage 1 |
@@ -165,7 +165,7 @@ own words, not mine:
 | PUR-004 | Sanitization | Purge execution/reboot completion | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
 | PUR-005 | Sanitization | Post-purge state | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
 | PUR-006 | Sanitization | Residual user-data evidence through supported paths | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
-| PUR-007 | Sanitization | Physical NAND cell-level verification | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Technician checklist — app records the result, never software evidence (Stage 6) | NOT TESTED — physical protocol not yet written into product | Stage 6 (protocol) |
+| PUR-007 | Sanitization | Physical NAND cell-level verification | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 
 ---
 
@@ -186,9 +186,10 @@ own words, not mine:
 
 | Evidence position | Count |
 |---|---|
-| NOT TESTED | 45 |
 | IMPLEMENTED (Stage 1) - NOT validated on hardware | 36 |
+| NOT TESTED | 32 |
 | TESTED (command proven by Q1; product path unit-tested, NOT device-run) | 18 |
+| CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | 13 |
 | NOT IMPLEMENTED | 9 |
 | TESTED on bench (hardware) | 4 |
 | UNIT-TESTED only (NOT device-run) | 2 |
@@ -304,6 +305,55 @@ Only a measurement that survives independent re-execution counts.
 | SQLite parsing | **none in product code** — all 280 grep hits are `@types/node` ambient declarations |
 | Report export beyond JSON | `ReportGenerator.writeZip()` emits `report.json` + `PROVENANCE.txt` only |
 | Any release claim | nothing in this repository is RELEASE-VALIDATED |
+
+---
+
+### 7.3 The technician checklist — complete in process, not in automation
+
+Thirteen of the 114 are marked in the workbook as `No / not safely replaceable`,
+with CYVRA Capability `No` or `Assisted`. Each is a physical or specialist condition
+— a swollen cell, a corroded port, an antenna, a NAND array — that no collector on
+any plane can establish. Rather than leave them absent, they are delivered into the
+product as a checklist the .exe presents and records.
+
+| ID | Check | Priority |
+|---|---|---|
+| AUD-002 | Speaker distortion/weakness | P1 |
+| BAT-007 | Battery swelling | P1 |
+| BAT-008 | Charging connector looseness | P1 |
+| BIO-002 | Fingerprint sensor surface condition | P1 |
+| CELL-005 | RF/antenna performance | P1 |
+| PHY-001 | Power button tactile function | P1 |
+| PHY-002 | Volume buttons tactile function | P1 |
+| PHY-003 | USB connector mechanical fit | P1 |
+| PHY-004 | USB port debris/corrosion | P1 |
+| PHY-009 | microSD slot integrity where present | P1 |
+| PHY-014 | Water-resistance/IP seal integrity | P1 |
+| PHY-015 | Internal screws/fasteners condition | P1 |
+| PUR-007 | Physical NAND cell-level verification | P0 |
+
+**What the checklist does:**
+
+- Records that a named technician carried out each check, when, and what they found.
+- Attributes every result to `OPERATOR`, by a fixed getter that no constructor can
+  override. A human opinion can therefore never be indistinguishable in the report
+  from a shell observation — which is what a fabrication looks like to a reader.
+- Treats `NOT_PERFORMED` as **unanswered**, so a checklist nobody worked cannot
+  summarise identically to one where a technician found nothing.
+- Treats `NOT_APPLICABLE` as a real answer, because a device with no microSD slot is
+  not a device that passed a microSD check.
+
+**What it does not claim:**
+
+- **No execution has been recorded.** The capability is in the product; the evidence
+  is not. Until a technician works a device, these 13 remain untested.
+- It does not convert a technician's finding into software evidence, and never will.
+- `PHY-001` / `PHY-002` are `Assisted` in the workbook: the application can prompt for
+  a press and observe that the input event arrived. That is an **electrical**
+  observation. A button that reports while feeling wrong is still a defect, and only
+  the technician judges the feel.
+- `PUR-007` (NAND cell-level verification) is the one P0. The workbook records its
+  evidence type as `Not reliably determinable`, so no software method may claim it.
 
 ---
 
