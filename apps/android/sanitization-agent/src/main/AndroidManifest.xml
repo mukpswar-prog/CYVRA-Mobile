@@ -13,8 +13,38 @@
         declaration here.
     -->
 
+    <!--
+        android:testOnly="true" must be present BEFORE `dpm set-device-owner` runs.
+
+        Android refuses `dpm remove-active-admin` for any admin whose application did
+        not declare itself test-only, so without this attribute the module becomes a
+        Device Owner that can be cleared only by factory-resetting the device.
+
+        The timing was proved by failure on an Android 11 bench device. A build that
+        was made device owner WITHOUT this flag was later rebuilt WITH it and installed
+        over the top (the package reports TEST_ONLY, confirmed by dumpsys). Every
+        removal method was then retried and every one still refused:
+
+          - plain uninstall for user 0  -> DELETE_FAILED_DEVICE_POLICY_MANAGER
+          - disable the package         -> "Cannot disable a protected package"
+          - clear the package data      -> "Cannot clear data for a protected package"
+          - release the active admin    -> "Attempt to remove non-test admin"
+
+        The reason is that the system stores the test-only answer at grant time and
+        never re-reads it. Retrofitting the flag onto an existing grant does nothing.
+        Only a factory reset removed it.
+
+        So this attribute is a precondition, not a repair. Declared here it does two
+        things a proof-of-concept should do:
+          - it makes the admin releasable with `dpm remove-active-admin`, provided it
+            was set as device owner after this build, so the device can be left exactly
+            as it was found with no wipe and no residue; and
+          - it makes the APK uninstallable through normal means, so it cannot be
+            mistaken for or installed as a production component.
+    -->
     <application
         android:allowBackup="false"
+        android:testOnly="true"
         android:label="CYVRA Sanitization [POC]"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light">

@@ -559,3 +559,91 @@ encoded in the collector rather than a defect.
 0 fail · core `:core:test` 148 pass / 0 fail · host `:host:test` 273 pass / 0 fail (was 271,
 +2 WP-3b wiring tests) · `:app:compileDebugKotlin` 0 · holds harness ALL HOLDS INTACT —
 0 breaches · journey paths 0 touched · UTF-8 clean, no BOM · real identifiers 0.
+
+## Amendment - 12 Oct 2026 - remote factory reset EXECUTED on the bench device
+
+Commissioned by the Chief Engineer in writing after the consequences (irreversible,
+device re-setup by hand, loss of USB contact during the wipe) were stated. Standing hold
+H1 permits a destructive device operation only as an explicitly commissioned sequence;
+this was that sequence. Record: `docs/CYVRA_FACTORY_RESET_PROOF_2026-10-12.md`.
+
+### Ruling - rebuild-and-clear was tried first and FAILED
+
+Before wiping, the Chief Engineer chose to attempt removal **without** a factory reset.
+A build declaring `android:testOnly="true"` was produced, installed over the existing
+Device Owner, and confirmed present via `dumpsys` (`TEST_ONLY` set). Every removal
+method was then retried. All five refused:
+
+| Method | Result |
+|---|---|
+| `pm uninstall` | `DELETE_FAILED_DEVICE_POLICY_MANAGER` |
+| `pm uninstall` per-user | `DELETE_FAILED_DEVICE_POLICY_MANAGER` |
+| `pm disable-user` | `Cannot disable a protected package` |
+| `pm clear` | `Cannot clear data for a protected package` |
+| `dpm remove-active-admin` | `Attempt to remove non-test admin` |
+
+The system stores the test-only answer **at grant time** and never re-reads it, so
+retrofitting the flag onto an existing grant accomplishes nothing. Recorded as a
+negative result, not smoothed over (H8).
+
+### Two defects found by running it
+
+1. **The documented wipe command never fired.** `am broadcast -a <action>` is an
+   *implicit* broadcast; Android 8.0+ does not deliver those to manifest-declared
+   receivers of background apps. The command printed `Broadcast completed: result=0`,
+   reading exactly like success, while Android logged `BroadcastQueue: Background
+   execution not allowed` and the receiver never ran. Two attempts were lost to this.
+   The README now names the component explicitly and explains why.
+2. **`testOnly` is a precondition, not a repair** — see the ruling above. The manifest
+   now declares it with a comment recording the measured failure.
+
+### Result
+
+One command over ADB erased the device: packages 363 -> 333, third-party 40 -> 4
+(the 4 installed +222 s to +267 s **after** the reset boot by the device's own
+provisioning, not survivors), contacts 294 -> 1, media 288 -> 20 (stock entries the OS
+recreates), accounts 1 -> 0, CYVRA packages 2 -> 0. The bootloader independently
+records `ro.boot.bootreason = reboot,factory_reset`, boot pinned to 11:41:24 from
+monotonic `/proc/uptime`.
+
+The **decisive** line is CYVRA Device Owner references 4 -> 0: no command could remove
+that owner, only a factory reset could, and it is gone. That follows from a measured
+negative result rather than from an inference about what a wipe should look like.
+
+### An observation I could not explain and did not use as evidence
+
+After the wipe the device reported `adb_enabled=1`, `development_settings_enabled=1`,
+`user_setup_complete=1` and the launcher in front — a state a factory reset does not
+produce by itself, since developer options are normally off afterwards. The device was
+not in my custody between the reset and those readings, so I cannot say who completed
+setup or re-enabled debugging, and I did not do it. Reported as observed only.
+
+A separate check I ran produced a phantom "5.5-hour clock skew". That was a defect in
+**my epoch arithmetic** (a naive local-1970 baseline), not in the device. Phone and PC
+agree. Recorded here so the faulty check is not mistaken later for a finding.
+
+### What this does not claim (H8)
+
+- **Not agent-less.** The proof used an installed sacrificial artifact holding Device
+  Owner rights. It does **not** demonstrate purging a device on which nothing of ours
+  is installed. The agent-less question remains open and untested.
+- **One device.** Android 11, one OEM, one model. Cross-OEM support is not established.
+- **Verification still unratified.** The erasure is confirmed; a ratified verification
+  contract under governed §29 is not, and capability-matrix row `PUR-DO-WIPE` is not
+  changed by this record.
+- **Scale untested.** One device under direct supervision, not 50 per batch.
+
+### Gates
+
+`pnpm -r typecheck` 0 · desktop 71/71 · web 305/305 · `packages/evidence` 0 ·
+`services/api` 0 · `cargo test` 236/0 · `:sanitization-agent:assembleDebug` 0 ·
+`:sanitization-agent:testDebugUnitTest` 0 · `wrangler deploy --dry-run` 0 · holds
+harness ALL HOLDS INTACT — 0 breaches · journey paths 0 touched · UTF-8 clean, no BOM ·
+real identifiers 0 · absolute-claim scan 0.
+
+`pnpm -r test` reported a failure that was **environmental, not a test defect**: parallel
+vitest workers exhausted this machine's 6.9 GB RAM (`Failed to start threads worker`).
+Each suite passes when run with a single worker, and no change in this work package
+touches TypeScript test code. §11.7 governs the same class of failure and forbids
+weakening the gate to make it pass (H7) — so the gate was not weakened, it was re-run
+under the memory constraint the machine actually has.

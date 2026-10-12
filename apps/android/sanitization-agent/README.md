@@ -44,9 +44,21 @@ adb install -r sanitization-agent-debug.apk
 # 2. Make it device owner (the component below must be the only admin on the device).
 adb shell dpm set-device-owner com.cyvra.sanitization/.SanitizationAdmin
 
-# 3. Trigger the wipe.
-adb shell am broadcast -a com.cyvra.sanitization.WIPE
+# 3. Trigger the wipe. The component MUST be named explicitly (-n), and the
+#    package MUST be named with -p.
+adb shell am broadcast -n com.cyvra.sanitization/.SanitizationBroadcastReceiver \
+                       -p com.cyvra.sanitization \
+                       -a com.cyvra.sanitization.WIPE
 ```
+
+**Why step 3 names the receiver.** A bare `am broadcast -a <action>` is an *implicit*
+broadcast, and Android 8.0 (API 26) stopped delivering implicit broadcasts to
+manifest-declared receivers of background apps. On such a device the command prints
+`Broadcast completed: result=0`, which reads as success, while Android logs
+`BroadcastQueue: Background execution not allowed` and **the receiver never runs**.
+That failure mode was observed on an Android 11 test device: the command reported
+success, nothing happened, and the first diagnosis was that the wipe itself was
+broken. Naming the component makes the broadcast explicit, which is still delivered.
 
 Step 3 factory-resets the device, including internal storage, and erases this APK
 with everything else. Removable media is not touched and bootloader state is not
