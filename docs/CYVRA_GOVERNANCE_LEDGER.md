@@ -460,3 +460,95 @@ followed at 71/71 with the 172–175 s baseline duration.
 host `:host:test` 271 pass / 0 fail (ReportFinaliserTest 13/13) · desktop `pnpm test`
 71 pass / 0 fail, twice · holds harness ALL HOLDS INTACT — 0 breaches, harness file
 unmodified · journey paths 0 touched · UTF-8 clean, no BOM · real identifiers 0.
+
+## Amendment - 12 Oct 2026 - WP-3b S1 agent wiring EXECUTED
+
+WP-3b closes the gap the collector recorded about itself: *"Not wired into orchestration,
+report generation, or the receiver in this checkpoint - collector + tests only."*
+
+Four pieces existed and none of them connected to each other:
+
+| Piece | Built | Production caller |
+|---|---|---|
+| `S1ApplicationInventoryCollector` (`:core`) | yes — 29-test suite | **none** |
+| `PackageManagerPackageMetadataSource` (`:app`) | yes | **none** |
+| `HostAndroidComponentBridge` (`:host`) | yes — tested | **none** |
+| `RUN_SCAN` `deviceSideInventory` parameter | yes — validated | desktop never sent it |
+
+The destination already existed: the host reconciles S1+S2 through
+`ApplicationInventoryReconciler` and `GenericDeviceEvidence` already carried the slot. WP-3b
+is the wiring that makes anything arrive there.
+
+### Ruling - the host collects S1 itself (Chief Engineer, 12-Oct-2026)
+
+Two routes were offered: the host pulling S1 over the ADB transport it already owns, or the
+desktop collecting it and passing it up inside `RUN_SCAN`. **The Chief Engineer chose the
+host route.** Consequence: WP-3b makes **no desktop change at all**, and the existing
+`deviceSideInventory` parameter remains valid and unchanged for other callers and tests.
+
+### What was built
+
+- `apps/android/core/.../AndroidComponentModels.kt` — `applicationInventory` added to
+  `AndroidComponentEvidencePayload`, **additive and default-null**. A payload written by an
+  APK that predates the field still decodes, and decodes to **null** rather than to an
+  invented empty inventory a reader would take as "this phone has no applications
+  installed". Pinned by `AndroidComponentModelsTest.aPayloadWrittenBeforeTheInventoryFieldStillDecodesToNull`.
+- `apps/android/app/.../ComponentEvidenceReceiver.kt` — the receiver now runs the collector
+  through `PackageManagerPackageMetadataSource`, so the phone's own inventory is produced on
+  the device in the same pass as the component facts, under one shared collection instant.
+  A failure degrades only that field to null; the component evidence is still written.
+- `apps/host/.../WorkstationSessionOrchestrator.kt` — the orchestrator now instantiates
+  `HostAndroidComponentBridge`, its first production caller, and prefers the inventory the
+  host collected from the device over a caller-supplied document: its provenance is that the
+  host triggered the collection and read the result back.
+
+### Honesty properties carried
+
+- **Completeness is never raised.** S1 enumeration is filtered by Android package-visibility
+  rules, so `enumerationCompleteness` stays `FILTERED` and the reason travels with the
+  evidence. The label — the human-readable application name that is the point of this
+  package — is proven to survive the wire in `AndroidComponentModelsTest.inventoryTravelsWithThePayloadAndKeepsItsLabel`.
+- **Null means "not collected", never "no applications installed."**
+- **Fail-closed.** A workstation with no APK installed still scans: the bridge contributes
+  nothing and breaks nothing
+  (`IntegratedEvidenceWorkflowTest.scanStillSucceedsWhenTheComponentIsNotInstalled`).
+- **No serial reaches an evidence file.** `HostAndroidComponentBridge` requires a
+  `deviceLifecycleId`; the host passes the session id that drove the collection — deliberately
+  **not** the device serial, which is a machine identifier. The host tracks no device
+  lifecycle, so it does not invent one either.
+- The receiver reads metadata only: package names, labels, platform flags, enabled setting,
+  version, UID. Application content is never touched.
+
+### Android SDK enablement - ruled and recorded (Chief Engineer, 12-Oct-2026)
+
+`settings.gradle.kts` excludes `:app` and `:sanitization-agent` unless an SDK is wired in,
+so the device-side change could not be compiled on this workstation. The Chief Engineer chose
+to enable it now rather than defer to WP-4.
+
+- `apps/android/local.properties` created with `sdk.dir=…` — **gitignored**
+  (`.gitignore:35`), so it does not enter the repository.
+- `ANDROID_HOME` set at User scope so Android Studio and other tools resolve the same SDK.
+
+**Effect, stated plainly:** `:app` and `:sanitization-agent` now join every Gradle
+configuration on this machine. That is a deliberate build-configuration change and it is
+recorded here rather than left implicit. It does not sign anything: release builds of the
+sanitization agent remain intentionally unsigned (H4) and no key generation is involved.
+
+A green baseline for `:app:compileDebugKotlin` was captured **before** any source change
+(5 m 38 s, exit 0), so a later failure could be attributed correctly.
+
+### What WP-3b does not claim
+
+Per the rev-2 instruction, compilation and unit tests are **not** product support. The
+device-side collection is proven to compile, to carry its label, and to preserve completeness
+through the wire; it is **not** yet proven against a physical phone. That proof is WP-4, where
+the Chief Engineer clicks Scan on the installed application against the bench device. On
+Android 11 S1 legitimately reports a visibility-filtered subset, and that is honest behaviour
+encoded in the collector rather than a defect.
+
+### Gates
+
+`pnpm -r typecheck` 0 · desktop `pnpm test` 71 pass / 0 fail · `cargo test --lib` 236 pass /
+0 fail · core `:core:test` 148 pass / 0 fail · host `:host:test` 273 pass / 0 fail (was 271,
++2 WP-3b wiring tests) · `:app:compileDebugKotlin` 0 · holds harness ALL HOLDS INTACT —
+0 breaches · journey paths 0 touched · UTF-8 clean, no BOM · real identifiers 0.

@@ -18,6 +18,7 @@ import cyvra.mobile.core.WorkstationDeviceDescriptor
 import cyvra.mobile.core.deriveSanitizationEligibility
 import cyvra.mobile.host.evidence.AdbApplicationInventoryProvider
 import cyvra.mobile.host.evidence.AdbGenericEvidenceProvider
+import cyvra.mobile.host.evidence.HostAndroidComponentBridge
 import cyvra.mobile.host.evidence.HostCapabilityCoordinator
 import cyvra.mobile.host.report.HostReportEngine
 import cyvra.mobile.host.sanitization.HostSanitizationProvider
@@ -184,6 +185,43 @@ class WorkstationSessionOrchestrator(
         val genericEvidence = evidenceProvider.collectAll()
         val profile = evidenceProvider.getCapabilityProfile()
 
+        /*
+         * 2a. S1 device-side application inventory.
+         *
+         * The CYVRA Android Component reads PackageManager itself, so this is the
+         * phone's own view of what is installed, collected without enumerating
+         * anything through ADB. The host triggers it over the ADB transport it
+         * already owns and reads the result; it never fabricates one.
+         *
+         * Everything here is optional and fail-closed. APK absent, broadcast
+         * rejected, output unreadable or a device that will not answer all degrade
+         * to "S1 not collected" and never fail the scan: a workstation with no APK
+         * installed still produces a complete scan from S2 alone.
+         *
+         * The lifecycle argument records the session that drove this collection.
+         * It deliberately is NOT the device serial - a serial is a machine
+         * identifier and must never reach an evidence file.
+         */
+        val componentInventory = try {
+            if (serial.isBlank()) {
+                null
+            } else {
+                HostAndroidComponentBridge(adbClient, serial)
+                    .triggerEvidenceCollection(sessionUuid, sessionUuid)
+                    .payload
+                    ?.applicationInventory
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        /*
+         * Prefer the inventory the host collected from the device: its provenance is
+         * that the host triggered the collection and read the result back. A
+         * caller-supplied document is used only when the device did not answer.
+         */
+        val s1Inventory = componentInventory ?: deviceSideInventory
+
         // 2b. Application inventory: S2 authorized-ADB enrichment (optional, never required),
         //     then deterministic S1+S2 reconciliation. ADB being off/unauthorized/failing
         //     only means S2 contributes nothing — S1 evidence is unaffected.
@@ -193,13 +231,13 @@ class WorkstationSessionOrchestrator(
             null
         }
         val reconciledInventory =
-            if (deviceSideInventory == null && adbInventory == null) {
+            if (s1Inventory == null && adbInventory == null) {
                 null
             } else {
-                ApplicationInventoryReconciler.reconcile(deviceSideInventory, adbInventory)
+                ApplicationInventoryReconciler.reconcile(s1Inventory, adbInventory)
             }
         val evidence = genericEvidence.copy(
-            applicationInventory = deviceSideInventory ?: adbInventory,
+            applicationInventory = s1Inventory ?: adbInventory,
             reconciledApplicationInventory = reconciledInventory,
         )
 

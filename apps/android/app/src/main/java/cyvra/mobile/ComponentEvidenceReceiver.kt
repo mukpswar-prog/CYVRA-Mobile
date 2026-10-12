@@ -13,6 +13,7 @@ import cyvra.mobile.core.ComponentBatteryExtras
 import cyvra.mobile.core.ComponentDisplayMetrics
 import cyvra.mobile.core.FeatureFact
 import cyvra.mobile.core.PermissionFact
+import cyvra.mobile.core.S1ApplicationInventoryCollector
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -47,6 +48,10 @@ class ComponentEvidenceReceiver : BroadcastReceiver() {
         sessionUuid: String,
         deviceLifecycleId: String,
     ): AndroidComponentEvidencePayload {
+        // One collection instant shared by the component facts and the S1 inventory, so
+        // both describe the same pass over the device rather than two different moments.
+        val collectedAt = java.time.Instant.now().toString()
+
         val dm: DisplayMetrics = context.resources.displayMetrics
         val displayMetrics = ComponentDisplayMetrics(
             densityDpi = dm.densityDpi,
@@ -119,9 +124,27 @@ class ComponentEvidenceReceiver : BroadcastReceiver() {
             ),
         )
 
+        // S1 device-side installed-application inventory, collected in this same pass
+        // through PackageManager. No ADB and no host is involved: this is the phone's own
+        // view, so it works with USB connected, ADB OFF, or no workstation at all.
+        //
+        // The collector records honestly that enumeration is FILTERED by Android package
+        // visibility and covers only the profile visible to this application; it never
+        // reports COMPLETE. A failure here degrades only this field to null - the
+        // component evidence above is still written, so one optional source can never
+        // destroy the rest (DEVICE_EVIDENCE_ARCHITECTURE §17).
+        val applicationInventory = try {
+            S1ApplicationInventoryCollector(
+                source = PackageManagerPackageMetadataSource(context),
+                collectedAt = collectedAt,
+            ).collect()
+        } catch (e: Exception) {
+            null
+        }
+
         return AndroidComponentEvidencePayload(
             componentVersion = "0.0.0-g5",
-            collectedAt = java.time.Instant.now().toString(),
+            collectedAt = collectedAt,
             source = "ANDROID_COMPONENT",
             deviceLifecycleId = deviceLifecycleId,
             sessionUuid = sessionUuid,
@@ -129,6 +152,7 @@ class ComponentEvidenceReceiver : BroadcastReceiver() {
             batteryExtras = batteryExtras,
             runtimePermissions = runtimePermissions,
             declaredFeatures = declaredFeatures,
+            applicationInventory = applicationInventory,
             limitations = listOf("Collected via on-device supporting Android Component (S1/APK)."),
         )
     }

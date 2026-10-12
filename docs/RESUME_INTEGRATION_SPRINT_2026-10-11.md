@@ -128,7 +128,7 @@ reference.
 |---|---|---|---|
 | 1 | Register the ledger in the Project Index? | **Yes, but below Level 1** — its own class "Governance Records" | `af9bd02`, index §2.4 |
 | 2 | Merge PR #61 now or with WP-3? | **Void** — already merged during the break | moot |
-| 3 | S1 agent wiring in WP-3 or separate? | **Separate — WP-3b** | not started |
+| 3 | S1 agent wiring in WP-3 or separate? | **Separate — WP-3b** | delivered 12 Oct — see §6 |
 | 4 | R-2/R-3 string cleanup now or before WP-5? | **Just before WP-5** | not started |
 | 5 | A-15 staging quirk — fix or leave? | **Leave**, fix opportunistically | recorded |
 
@@ -166,9 +166,9 @@ forward-only. A denylist check for them now runs in
 | Phase | Content | Gate |
 |---|---|---|
 | ~~**WP-3**~~ | ~~PowerShell → Rust force-clean, 43 parity assertions~~ | **DONE** `fba759d` |
-| ~~**Report finalisation**~~ | ~~normalise → operator authorisation → seal → final report; releases `ReportGenerator` L52–53 and L63~~ | **DONE** this commit |
-| WP-3b | S1 agent wiring — device-side application labels | approved, separate |
-| WP-4 | real-hardware UI proof — human clicks Scan, evidence returns, report generated | needs WP-3 ✓ |
+| ~~**Report finalisation**~~ | ~~normalise → operator authorisation → seal → final report; releases `ReportGenerator` L52–53 and L63~~ | **DONE** `11c143c` |
+| ~~**WP-3b**~~ | ~~S1 agent wiring — device-side application labels; host pulls S1 itself; Android SDK enabled locally~~ | **DONE** this commit |
+| WP-4 | real-hardware UI proof — human clicks Scan, evidence returns, report generated | needs WP-3 ✓ + WP-3b ✓ |
 | Final `.exe` | desktop build for you to install and verify feature-by-feature | needs WP-4 + R-B drivers as CI secret |
 | WP-5 | sanitization execution | **gated**: live entitlement + R-2/R-3 + key custody |
 | P-C | limitation rectification (all Android users/work profiles; positive source wording) | approved, before P-B |

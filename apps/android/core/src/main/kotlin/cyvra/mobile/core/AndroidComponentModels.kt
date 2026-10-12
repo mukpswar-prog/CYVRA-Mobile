@@ -21,6 +21,24 @@ data class AndroidComponentEvidencePayload(
     val batteryExtras: ComponentBatteryExtras,
     val runtimePermissions: List<PermissionFact>,
     val declaredFeatures: List<FeatureFact>,
+    /**
+     * Optional S1 device-side installed-application inventory, collected on-device by
+     * [S1ApplicationInventoryCollector].
+     *
+     * **Null means "not collected", never "no applications installed."** When present, the
+     * record carries its own [ApplicationInventoryEvidence.enumerationCompleteness] and
+     * limitations, which state honestly that PackageManager enumeration is filtered by
+     * Android package-visibility rules and covers only the user/profile scope visible to
+     * this application. This field does not and cannot raise that to COMPLETE.
+     *
+     * It travels with the component payload because both are collected in the same
+     * on-device pass under the same source (`ANDROID_COMPONENT`) and the same session id,
+     * so a reader that receives one always receives the other or neither.
+     *
+     * Additive and default-null: a payload written before this field existed still
+     * decodes, and decodes to null rather than to an invented empty inventory.
+     */
+    val applicationInventory: ApplicationInventoryEvidence? = null,
     val limitations: List<String> = emptyList(),
 )
 

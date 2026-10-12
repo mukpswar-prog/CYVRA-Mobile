@@ -1,5 +1,6 @@
 package cyvra.mobile.host.service
 
+import cyvra.mobile.core.AndroidComponentEvidencePayload
 import cyvra.mobile.core.ApplicationClassification
 import cyvra.mobile.core.ApplicationClassificationStatus
 import cyvra.mobile.core.ApplicationEnabledState
@@ -7,6 +8,8 @@ import cyvra.mobile.core.ApplicationEnumerationCompleteness
 import cyvra.mobile.core.ApplicationInventoryEvidence
 import cyvra.mobile.core.ApplicationInventoryRecord
 import cyvra.mobile.core.AuthorizationRequirement
+import cyvra.mobile.core.ComponentBatteryExtras
+import cyvra.mobile.core.ComponentDisplayMetrics
 import cyvra.mobile.core.CustomerLicenseRecord
 import cyvra.mobile.core.EvidenceFieldResult
 import cyvra.mobile.core.EvidenceStatus
@@ -20,6 +23,7 @@ import cyvra.mobile.core.SanitizationVerificationStatus
 import cyvra.mobile.core.SanitizationWorkflowStep
 import cyvra.mobile.core.VerificationResult
 import cyvra.mobile.host.evidence.AdbApplicationInventoryProvider
+import cyvra.mobile.host.evidence.HostAndroidComponentBridge
 import cyvra.mobile.host.report.HostReportEngine
 import cyvra.mobile.host.transport.AdbClient
 import cyvra.mobile.host.transport.DefaultProcessExecutionResult
@@ -28,10 +32,13 @@ import cyvra.mobile.host.transport.ProcessRunner
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 /**
  * End-to-end integration tests for the first integrated engineering application path:
@@ -236,6 +243,125 @@ class IntegratedEvidenceWorkflowTest {
         ),
         operatorId = OPERATOR,
     )
+
+    /**
+     * ADB fake with the CYVRA Android Component installed on the device, answering the
+     * bridge exactly as the phone does. Everything not specific to the component is
+     * answered by [IntegratedAdbRunner], so S2 and the generic evidence are unchanged.
+     */
+    private class ComponentInstalledAdbRunner(
+        adbAuthorized: Boolean,
+        private val componentEvidenceJson: String,
+    ) : ProcessRunner {
+        private val base = IntegratedAdbRunner(adbAuthorized)
+
+        override fun execute(command: List<String>, timeoutMs: Long): ProcessExecutionResult {
+            val shell = command.joinToString(" ")
+                .substringAfter(" shell ", missingDelimiterValue = "")
+            return when {
+                shell.startsWith("pm list packages ${HostAndroidComponentBridge.DEFAULT_PACKAGE_NAME}") ->
+                    DefaultProcessExecutionResult(
+                        0,
+                        "package:${HostAndroidComponentBridge.DEFAULT_PACKAGE_NAME}\n",
+                        "",
+                    )
+
+                shell.startsWith("dumpsys package ${HostAndroidComponentBridge.DEFAULT_PACKAGE_NAME}") ->
+                    DefaultProcessExecutionResult(0, "    versionName=0.0.1-poc\n", "")
+
+                shell.startsWith("am broadcast") ->
+                    DefaultProcessExecutionResult(0, "Broadcast completed: result=0\n", "")
+
+                shell.startsWith("cat ${HostAndroidComponentBridge.COMPONENT_DATA_PATH}") ->
+                    DefaultProcessExecutionResult(0, componentEvidenceJson, "")
+
+                else -> base.execute(command, timeoutMs)
+            }
+        }
+    }
+
+    /**
+     * A component payload shaped exactly as the on-device receiver writes it, carrying an
+     * S1 inventory. It is authored by the fixture, never by the host — the host's job is
+     * to read it, not to construct one.
+     */
+    private fun componentPayloadWith(inventory: ApplicationInventoryEvidence?) =
+        AndroidComponentEvidencePayload(
+            componentVersion = "0.0.1-poc",
+            deviceLifecycleId = "lifecycle-fixture",
+            sessionUuid = "session-fixture",
+            displayMetrics = ComponentDisplayMetrics(420, 1080, 2340, 384, 420f, 420f),
+            batteryExtras = ComponentBatteryExtras(
+                isPresent = true,
+                technology = "Li-poly",
+                temperatureDeciCelsius = 310,
+                voltageMilliVolts = 4050,
+                capacityPercent = 78,
+            ),
+            runtimePermissions = emptyList(),
+            declaredFeatures = emptyList(),
+            applicationInventory = inventory,
+        )
+
+    // ---------------------------------------------------------------
+    // WP-3b. The host obtains S1 from the device itself.
+    // ---------------------------------------------------------------
+
+    /**
+     * The host obtains the device-side inventory without being handed one.
+     *
+     * `deviceSideInventory` is deliberately left at its default of null. The component is
+     * installed, so the host triggers it over the ADB transport it already owns and reads
+     * the inventory back. Before this package the parameter was the only route, so S1 was
+     * always null in a real scan — that is the wiring gap WP-3b closes.
+     */
+    @Test
+    fun hostCollectsTheS1InventoryFromTheDeviceWithoutBeingHandedOne() {
+        val runner = ComponentInstalledAdbRunner(
+            adbAuthorized = true,
+            componentEvidenceJson = Json { encodeDefaults = true }
+                .encodeToString(componentPayloadWith(s1Evidence())),
+        )
+
+        val result = orchestrator(runner)
+            .executeDiagnostic(serial = SERIAL, operatorId = OPERATOR)
+
+        val inventory = assertNotNull(
+            result.evidence.applicationInventory,
+            "the host must obtain S1 from the device rather than waiting to be handed it",
+        )
+        assertEquals("ANDROID_COMPONENT", inventory.evidenceSource)
+        assertEquals("ANDROID_PACKAGE_MANAGER", inventory.collectionMethod)
+        assertEquals(3, inventory.applications.size)
+        assertEquals(
+            ApplicationEnumerationCompleteness.FILTERED,
+            inventory.enumerationCompleteness,
+            "S1 completeness must survive unchanged, never promoted to COMPLETE",
+        )
+
+        // Reconciliation still ran, now against the S1 the host collected itself.
+        assertNotNull(result.evidence.reconciledApplicationInventory)
+    }
+
+    /**
+     * Fail-closed: a workstation without the component installed must still scan. The
+     * bridge failing to find the APK contributes nothing and breaks nothing — S2 still
+     * supplies the inventory, and the report is produced as before.
+     */
+    @Test
+    fun scanStillSucceedsWhenTheComponentIsNotInstalled() {
+        val result = orchestrator(IntegratedAdbRunner(adbAuthorized = true))
+            .executeDiagnostic(serial = SERIAL, operatorId = OPERATOR)
+
+        assertNotNull(result.report, "absence of the optional component must never fail a scan")
+
+        val inventory = assertNotNull(result.evidence.applicationInventory)
+        assertNotEquals(
+            "ANDROID_COMPONENT",
+            inventory.evidenceSource,
+            "with no component on the device, nothing may be attributed to it",
+        )
+    }
 
     // ---------------------------------------------------------------
     // 1. USB + ADB OFF (S1 must still run; S2 must not be required)
