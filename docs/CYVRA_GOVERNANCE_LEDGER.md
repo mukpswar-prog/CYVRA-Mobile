@@ -23,6 +23,13 @@ package completes.
 | **H5** | No third-party driver binary is committed to this public repository while R-B is open with legal. | **IN FORCE** |
 | **H6** | Sanitization execution stays gated on a live entitlement granting `sanitizeExecute`. A cached entitlement must never be coerced into granting it. | **IN FORCE** |
 | **H7** | No release gate is weakened. No `continue-on-error`, no relaxed grep, no skip flag added to make a build pass. | **IN FORCE** |
+| **H8** | No feature, and no part of the product vision or mission, may be compromised, removed, downgraded or quietly scoped out in order to make the agent-less route look better. Where the agent-less route is **weaker** than the agent-based route, the report must say so in those words, with the measurement that shows it. An agent-less finding that reads as favourable must be reproducible from the recorded commands. | **IN FORCE** |
+
+**H8 origin (Chief Engineer, 12-Oct-2026), verbatim intent:** the agent-less
+investigation is approved on the condition that it does not flatter itself. The
+rule exists so that a conclusion reached in favour of "no agent installed" is
+earned, not arranged. It applies to the Question 1/2/3 research package and to
+every later decision that cites it.
 
 ---
 
