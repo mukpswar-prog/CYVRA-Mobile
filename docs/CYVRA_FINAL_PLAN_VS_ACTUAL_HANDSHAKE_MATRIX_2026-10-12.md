@@ -36,10 +36,10 @@ own words, not mine:
 | Owner | Workbook's own label | Count | Meaning |
 |---|---|---|---|
 | **Application alone** | `Yes — deterministic software test` / `status only` / `No` (AI not needed) | 61 | the .exe alone |
-| **Application (OEM-conditional)** | `Conditional / assisted` | 13 | the .exe, where the OEM permits it |
+| **Application (OEM-conditional)** | `Conditional / assisted` | 12 | the .exe, where the OEM permits it |
 | **Application + human stimulus** | `Yes — controlled test + optional AI` | 17 | the .exe drives, a human supplies the stimulus |
 | **AI vision agent** | `Yes — controlled vision` | 10 | the CYVRA AI-Enabled vision agent |
-| **Human / specialist** | `No / not safely replaceable` | 13 | a technician; the .exe only records the result |
+| **Human / specialist** | `No / not safely replaceable` | 14 | a technician; the .exe only records the result |
 | | **TOTAL** | **114** | |
 
 ---
@@ -143,7 +143,7 @@ own words, not mine:
 | PHY-005 | Mechanical | Frame/corner dents | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
 | PHY-006 | Mechanical | Back cover cracks/lift | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
 | PHY-007 | Mechanical | Liquid/corrosion evidence | not collected | Records the AI finding + confidence; never invents one | Detects + localises the defect from controlled frames | Reviews low-confidence / occluded frames only | Requires inspection station + model (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (vision) |
-| PHY-008 | Mechanical | SIM tray/slot integrity | not collected | Collects where OEM/version permits; else reports NOT_AVAILABLE | – | Guided exception when the OEM blocks it | Implement collector (Stage 1) | NOT TESTED | Stage 1 (conditional) |
+| PHY-008 | Mechanical | SIM tray/slot integrity | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | PHY-009 | Mechanical | microSD slot integrity where present | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 | PHY-010 | Mechanical | Wireless charging function where supported | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
 | PHY-011 | Mechanical | Sustained charging rate | not collected | Drives the stimulus and records the response | Optional defect assist on captured frames | Places device, supplies stimulus/fixture | Requires controlled fixture + operator handling (Stage 6) | NOT TESTED — requires station/fixture that does not exist yet | Stage 6 (fixture) |
@@ -159,12 +159,12 @@ own words, not mine:
 | SYS-001 | System | Date/time/timezone | **Stage 1** date -u + getprop persist.sys.timezone | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | SYS-002 | System | Locale/language | **Stage 1** getprop persist.sys.locale | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
 | SYS-003 | System | Screen-on/power/display state | **Stage 1** dumpsys power -> mWakefulness | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Collector in place — **must be validated against real hardware, then re-measured** | IMPLEMENTED (Stage 1) — compiles + unit-tested; **NOT validated on hardware** | Stage 1 |
-| PUR-001 | Sanitization | Purge capability assessment | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | NOT TESTED | Stage 1 |
-| PUR-002 | Sanitization | Purge authorization | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | NOT TESTED | Stage 1 |
-| PUR-003 | Sanitization | Supported purge/reset method | not collected | Collects where OEM/version permits; else reports NOT_AVAILABLE | – | Guided exception when the OEM blocks it | Implement collector (Stage 1) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 (conditional) |
-| PUR-004 | Sanitization | Purge execution/reboot completion | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
-| PUR-005 | Sanitization | Post-purge state | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
-| PUR-006 | Sanitization | Residual user-data evidence through supported paths | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Implement collector (Stage 1) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
+| PUR-001 | Sanitization | Purge capability assessment | HostSanitizationProvider.assessCapability(DeviceCapabilityAssessment) -> SanitizationMethodType; exercised by the workflow tests | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | None — capability assessment in place; **not yet run through the product against hardware** | UNIT-TESTED only — product path exists; NOT device-run | Stage 1 |
+| PUR-002 | Sanitization | Purge authorization | 2-step authorization barrier (requestAuthorization + toggleStep1Acknowledgement/submitStep2Confirmation); preventsExecutionWithoutSatisfying2StepConfirmationBarrier | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | None — authorization barrier in place; **not yet run through the product against hardware** | UNIT-TESTED only — product path exists; NOT device-run | Stage 1 |
+| PUR-003 | Sanitization | Supported purge/reset method | HostSanitizationWorkflowEngine.selectMethod() behind the barrier; exercised by executesPurgeAndVerifiesPostResetReconnection | Collects where OEM/version permits; else reports NOT_AVAILABLE | – | Guided exception when the OEM blocks it | None — method selection in place; **not yet run through the product against hardware** | TESTED on bench (hardware) — re-executable proof exists | Stage 1 (conditional) |
+| PUR-004 | Sanitization | Purge execution/reboot completion | executePurge()/execute() - unit-tested for dry-run only; real purge returns BLOCKED_NOT_IMPLEMENTED (no validated provider bound) | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Execution gated twice: `execute()` returns BLOCKED_NOT_IMPLEMENTED (no validated sanitization provider bound) **and** the offline entitlement must grant `sanitizeExecute` (WP-5) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
+| PUR-005 | Sanitization | Post-purge state | verifyPostReset(); returns PARTIALLY_VERIFIED or REQUIRES_EXTERNAL_VERIFICATION, never VERIFIED (WP-1b fix) | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | None — post-reset verification in place and deliberately declines to claim erasure; residual counts still require PUR-006 | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
+| PUR-006 | Sanitization | Residual user-data evidence through supported paths | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | **Not implemented.** `verifyPostReset` discloses in `limitations` that no account, contact or media count is taken after reset. Known path: re-run `AdbApplicationInventoryProvider.collect()` post-reset against a pre-purge baseline | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
 | PUR-007 | Sanitization | Physical NAND cell-level verification | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 
 ---
@@ -176,10 +176,10 @@ own words, not mine:
 | Owner | Count | % of 114 |
 |---|---|---|
 | Application alone | 61 | 53.5% |
-| Application (OEM-conditional) | 13 | 11.4% |
+| Application (OEM-conditional) | 12 | 10.5% |
 | Application + human stimulus | 17 | 14.9% |
 | AI vision agent | 10 | 8.8% |
-| Human / specialist | 13 | 11.4% |
+| Human / specialist | 14 | 12.3% |
 | **TOTAL** | **114** | **100%** |
 
 ### 4.2 By evidence position
@@ -187,27 +187,27 @@ own words, not mine:
 | Evidence position | Count |
 |---|---|
 | IMPLEMENTED (Stage 1) - NOT validated on hardware | 36 |
-| NOT TESTED | 32 |
+| NOT TESTED | 29 |
 | TESTED (command proven by Q1; product path unit-tested, NOT device-run) | 18 |
-| CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | 13 |
+| CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | 14 |
 | NOT IMPLEMENTED | 9 |
+| UNIT-TESTED only (NOT device-run) | 4 |
 | TESTED on bench (hardware) | 4 |
-| UNIT-TESTED only (NOT device-run) | 2 |
 
 ### 4.3 What the numbers mean, in plain terms
 
-> **The product now holds code to collect 56 of 114 parameters (49%), up from 20.**
+> **The product now holds code to collect 61 of 114 parameters (54%), up from 25.**
 >
-> **Read that number carefully — it is not a validation claim.** The 56 split three ways:
+> **Read that number carefully — it is not a validation claim.** The 61 split three ways:
 >
 > | Tier | Count | What it means |
 > |---|---|---|
-> | Code present **before** Stage 1 | 20 | product path exists and is unit-tested |
+> | Code present **before** Stage 1 | 25 | product path exists and is unit-tested |
 > | Added **by Stage 1** | 36 | compiles and unit-tested; **zero hardware validation so far** |
 > | Of those, commands independently proven on hardware by Q1 | 52 | the *command* works on the device class; our *product path* has not been run on a device |
 > | **End-to-end product scan validated on hardware** | **0** | **no full scan has yet been run through the product against a real device** |
 >
-> The plan authorises **74** of the 114 as collectible by the application alone,
+> The plan authorises **73** of the 114 as collectible by the application alone,
 > with no camera and no human.
 >
 > **All 5 fabrications found on 12-Oct-2026 were removed the same day (Stage 0).** Code
@@ -263,14 +263,14 @@ fabricated constants, which is why no test could find the defect.
 | Identity | 9 | 9 | 0 | complete |
 | Mechanical | 15 | 0 | 15 | **entirely absent** |
 | Performance | 5 | 2 | 3 | partial |
-| Sanitization | 7 | 0 | 7 | **entirely absent** |
+| Sanitization | 7 | 5 | 2 | partial |
 | Security | 5 | 5 | 0 | complete |
 | Sensors | 6 | 6 | 0 | complete |
 | Storage | 4 | 2 | 2 | partial |
 | System | 3 | 3 | 0 | complete |
 | Touch | 2 | 0 | 2 | **entirely absent** |
 | Wi-Fi | 4 | 2 | 2 | partial |
-| **TOTAL** | **114** | **56** | **58** | |
+| **TOTAL** | **114** | **61** | **53** | |
 
 ---
 
@@ -294,11 +294,11 @@ Only a measurement that survives independent re-execution counts.
 
 | Area | Honest position |
 |---|---|
-| **All 56 collected parameters, as a product path** | **none has been run end-to-end through the .exe against a real device.** Compilation and unit tests are not product support |
+| **All 61 collected parameters, as a product path** | **none has been run end-to-end through the .exe against a real device.** Compilation and unit tests are not product support |
 | The 36 Stage 1 additions specifically | compiled and unit-tested; **zero hardware validation**; several of their commands were not in Q1's probe set at all |
 | Device-owner detection via `dumpsys device_policy` | **not yet measured since the reset** — labelled unproven until measured, not assumed |
 | Battery temperature conversion | recorded in **device-native units**; the divisor has never been compared against a reference thermometer |
-| The remaining 58 parameters | no product collection exists |
+| The remaining 53 parameters | no product collection exists |
 | Purge verification | `governed §29` contract remains **unratified**; the bench proof is not a verification contract |
 | Physical verification PV-001..PV-017 | protocol exists in the workbook only; no station, no fixtures |
 | CYVRA AI-Enabled Grading | not built; depends on Stage 6 station and models |
@@ -327,6 +327,7 @@ product as a checklist the .exe presents and records.
 | PHY-002 | Volume buttons tactile function | P1 |
 | PHY-003 | USB connector mechanical fit | P1 |
 | PHY-004 | USB port debris/corrosion | P1 |
+| PHY-008 | SIM tray/slot integrity | P1 |
 | PHY-009 | microSD slot integrity where present | P1 |
 | PHY-014 | Water-resistance/IP seal integrity | P1 |
 | PHY-015 | Internal screws/fasteners condition | P1 |
@@ -370,8 +371,8 @@ product as a checklist the .exe presents and records.
 
 **May NOT be claimed today:**
 
-- That the .exe covers the 114-parameter plan. It has code for 56.
-- That those 56 are verified. **Zero** have been validated as a product path on hardware.
+- That the .exe covers the 114-parameter plan. It has code for 61.
+- That those 61 are verified. **Zero** have been validated as a product path on hardware.
 - That the 36 Stage 1 additions work at all on a real device. That is the next measurement.
 - That removing the fabrications proves their replacements correct. Removal and
   verification are separate acts; only the second one counts.
@@ -381,5 +382,7 @@ product as a checklist the .exe presents and records.
 
 ---
 
-*Generated 12-Oct-2026 from the two Chief Engineer workbooks plus source reading.*
-*Every figure above is reproducible by re-running the count against the workbooks.*
+*Generated 2026-10-13 by scripts/gen_handshake.py from the two Chief Engineer workbooks
+*plus source reading of the code named in each row. Re-run that script against the*
+*workbooks to reproduce every figure above. It exits non-zero if the product's*
+*technician checklist and the workbook disagree, so a drifting count cannot publish.*

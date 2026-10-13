@@ -1,16 +1,22 @@
 package cyvra.mobile.core
 
 /**
- * The ratified technician checklist: the 13 parameters the engineering workbook marks
- * `No / not safely replaceable`.
+ * The ratified technician checklist: the 14 parameters that no software path can
+ * establish - 13 that the engineering workbook marks `No / not safely replaceable`,
+ * plus PHY-008, added by ruling CE-2 (Chief Engineer, 13-Oct-2026).
  *
  * Why these are a checklist and not collectors
  * -------------------------------------------
- * Every item below is one the workbook records as `CYVRA Capability = No` or `Assisted`,
- * needing `Physical required`, `Assisted physical` or `Physical/service required` evidence.
+ * Every item below is one the workbook records as `CYVRA Capability = No`, needing
+ * `Physical required`, `Assisted physical` or `Physical/service required` evidence.
  * No ADB command, no Windows plane and no camera pass can establish any of them, because
  * each is a physical or specialist condition of the device body, a connector, an acoustic
- * path, an antenna or a NAND array.
+ * path, an antenna, a card tray or a NAND array.
+ *
+ * PHY-008 is the one row whose Automation Impact entry reads `Conditional / assisted`
+ * rather than `No / not safely replaceable`. Both workbooks are reconciled inside its
+ * own `whyNotAutomatable` text rather than being silently collapsed, because a reader
+ * who opens the second workbook must find what this file claims it says.
  *
  * Presenting them as a checklist is what lets the 114-parameter plan be COMPLETE IN
  * PROCESS without pretending to be complete in AUTOMATION. The distinction is the whole
@@ -24,9 +30,13 @@ package cyvra.mobile.core
 object TechnicianChecklistCatalog {
 
     /**
-     * The workbook's own boundary sentence, repeated verbatim for each of the 13 rows:
+     * The workbook's own boundary sentence, verbatim. It applies to the 13 rows the
+     * workbook marks `No / not safely replaceable`:
      * "AI may flag visible clues but cannot establish the complete physical or specialist
      * condition."
+     *
+     * PHY-008 deliberately does NOT use this sentence: its Automation Impact row carries a
+     * different Reason / Boundary, quoted inside its own entry below.
      */
     private const val WORKBOOK_BOUNDARY =
         "Workbook boundary: AI may flag visible clues but cannot establish the complete " +
@@ -126,6 +136,28 @@ object TechnicianChecklistCatalog {
                 "Requires looking inside the port, normally with magnification and raking " +
                     "light. Corrosion may coexist with a working data session. " +
                     WORKBOOK_BOUNDARY,
+        ),
+        TechnicianCheckDefinition(
+            id = "PHY-008",
+            domain = "Mechanical",
+            item = "SIM tray/slot integrity",
+            priority = "P1",
+            whyNotAutomatable =
+                "Workbook Capability Matrix records CYVRA Capability = `No`, Evidence Type = " +
+                    "`Physical required`, Primary Source / Method = `Physical insertion/handling`, " +
+                    "Typical Evidence / Output = `Fit/contact/retention`, Physical Check / Fixture = " +
+                    "`Known-good SIM/tray`, and the Limitation / Caveat verbatim as `Software SIM " +
+                    "state is insufficient`. A software SIM state says nothing about whether the " +
+                    "tray seats, makes contact, or is retained. " +
+                    "WHY THIS ROW IS HERE DESPITE A DIFFERENT WORKBOOK COLUMN: the Automation " +
+                    "Impact Matrix records this row as `Conditional / assisted` with Recommended " +
+                    "Product Action `Capability-aware collector + guided exception workflow`, " +
+                    "which describes a human working the check WITH the application guiding them, " +
+                    "not software answering it. Read that way the two workbooks agree, and the " +
+                    "Capability Matrix - which is the capability statement - governs. Recorded as " +
+                    "the 14th item by ruling CE-2 (Chief Engineer, 13-Oct-2026). " +
+                    "Workbook boundary for this row: OEM/version/permission or physical boundary " +
+                    "applies.",
         ),
         TechnicianCheckDefinition(
             id = "PHY-009",

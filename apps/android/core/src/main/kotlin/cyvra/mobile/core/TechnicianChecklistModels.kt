@@ -27,7 +27,9 @@ enum class TechnicianCheckOutcome {
 /**
  * One ratified physical or specialist check that no collector in this product can perform.
  *
- * These are the 13 parameters the engineering workbook marks `No / not safely replaceable`.
+ * These are the 14 parameters no software path in this product can establish: the 13
+ * the engineering workbook marks `No / not safely replaceable`, plus PHY-008 which the
+ * workbook marks `CYVRA Capability = No` / `Physical required` (ruling CE-2, 13-Oct-2026).
  * They exist here so the product can present, prompt for and record them - NOT so it can
  * claim to have performed them.
  */
@@ -77,7 +79,7 @@ data class TechnicianCheckResult(
 /**
  * The complete technician checklist for one device session.
  *
- * Holds all 13 definitions implicitly (see [TechnicianChecklistCatalog]) and whichever
+ * Holds all 14 definitions implicitly (see [TechnicianChecklistCatalog]) and whichever
  * have been answered. [unansweredIds] is what makes incompleteness visible: a checklist
  * that has been opened but not finished must not read like one that was finished with
  * everything passing.

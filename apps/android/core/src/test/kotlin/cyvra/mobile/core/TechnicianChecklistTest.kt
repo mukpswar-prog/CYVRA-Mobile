@@ -11,19 +11,21 @@ import kotlin.test.assertTrue
 
 class TechnicianChecklistTest {
 
-    /** The 13 ids exactly as they appear in the Chief Engineer's workbook. Pinned so the
-     *  catalog cannot drift from the ratified plan without a test failing. */
+    /** The 14 ids exactly as they appear in the Chief Engineer's workbook: the original 13
+     *  plus PHY-008, added by ruling CE-2 (13-Oct-2026). Pinned as literals, deliberately
+     *  NOT derived from the catalog - a derived pin cannot fail, and a pin that cannot fail
+     *  is not a pin. */
     private val ratifiedIds = listOf(
         "AUD-002", "BAT-007", "BAT-008", "BIO-002", "CELL-005",
-        "PHY-001", "PHY-002", "PHY-003", "PHY-004", "PHY-009",
-        "PHY-014", "PHY-015", "PUR-007",
+        "PHY-001", "PHY-002", "PHY-003", "PHY-004", "PHY-008",
+        "PHY-009", "PHY-014", "PHY-015", "PUR-007",
     )
 
     @Test
-    fun catalogHoldsExactlyTheThirteenRatifiedChecks() {
-        assertEquals(13, TechnicianChecklistCatalog.all.size)
+    fun catalogHoldsExactlyTheFourteenRatifiedChecks() {
+        assertEquals(14, TechnicianChecklistCatalog.all.size)
         assertEquals(ratifiedIds.sorted(), TechnicianChecklistCatalog.ids.sorted())
-        assertEquals(13, TechnicianChecklistCatalog.ids.distinct().size, "no id may repeat")
+        assertEquals(14, TechnicianChecklistCatalog.ids.distinct().size, "no id may repeat")
     }
 
     @Test
@@ -82,7 +84,7 @@ class TechnicianChecklistTest {
     @Test
     fun aFreshChecklistIsOpenNotClean() {
         val record = TechnicianChecklistCatalog.newRecord("SESS-001", "device-class")
-        assertEquals(13, record.expectedCount)
+        assertEquals(14, record.expectedCount)
         assertEquals(0, record.answeredCount)
         assertNull(record.completedAt, "an unanswered checklist must not carry a completion time")
         assertFalse(record.isComplete(TechnicianChecklistCatalog.ids))
@@ -99,7 +101,7 @@ class TechnicianChecklistTest {
             checklistId = "TECH-SESS-002",
             sessionUuid = "SESS-002",
             deviceIdentifier = "device-class",
-            expectedCount = 13,
+            expectedCount = 14,
             results = allNotPerformed,
         )
         assertEquals(TechnicianCheckOutcome.NOT_PERFORMED, record.outcomeFor("PHY-001"))
@@ -109,7 +111,7 @@ class TechnicianChecklistTest {
             "NOT_PERFORMED must never be confusable with PASS",
         )
         // Every id has a row, yet none was carried out: the checklist is still open.
-        assertEquals(13, record.recordedCount)
+        assertEquals(14, record.recordedCount)
         assertEquals(0, record.answeredCount, "NOT_PERFORMED is not an answer")
         assertFalse(record.isComplete(TechnicianChecklistCatalog.ids))
         assertEquals(
@@ -124,10 +126,10 @@ class TechnicianChecklistTest {
         val results = listOf(
             TechnicianCheckResult("PHY-009", TechnicianCheckOutcome.NOT_APPLICABLE, "TECH-17", "t0"),
         )
-        val record = TechnicianChecklistRecord("TECH-S", "SESS-003", "device-class", 13, results)
+        val record = TechnicianChecklistRecord("TECH-S", "SESS-003", "device-class", 14, results)
         assertEquals(TechnicianCheckOutcome.NOT_APPLICABLE, record.outcomeFor("PHY-009"))
         assertEquals(1, record.answeredCount)
-        assertEquals(12, record.unansweredIds(TechnicianChecklistCatalog.ids).size)
+        assertEquals(13, record.unansweredIds(TechnicianChecklistCatalog.ids).size)
         assertFalse(record.isComplete(TechnicianChecklistCatalog.ids))
     }
 
@@ -140,13 +142,13 @@ class TechnicianChecklistTest {
             checklistId = "TECH-SESS-004",
             sessionUuid = "SESS-004",
             deviceIdentifier = "device-class",
-            expectedCount = 13,
+            expectedCount = 14,
             results = results,
             completedAt = "2026-10-12T19:10:00Z",
         )
         assertTrue(record.isComplete(TechnicianChecklistCatalog.ids))
         assertEquals(0, record.unansweredIds(TechnicianChecklistCatalog.ids).size)
-        assertEquals(13, record.answeredCount)
+        assertEquals(14, record.answeredCount)
     }
 
     /** An unknown id must not silently satisfy anything. */
@@ -156,13 +158,13 @@ class TechnicianChecklistTest {
             checklistId = "TECH-SESS-005",
             sessionUuid = "SESS-005",
             deviceIdentifier = "device-class",
-            expectedCount = 13,
+            expectedCount = 14,
             results = listOf(
                 TechnicianCheckResult("PHY-999", TechnicianCheckOutcome.PASS, "TECH-17", "t0"),
             ),
         )
         assertNull(record.outcomeFor("PHY-001"))
-        assertEquals(13, record.unansweredIds(TechnicianChecklistCatalog.ids).size)
+        assertEquals(14, record.unansweredIds(TechnicianChecklistCatalog.ids).size)
         assertFalse(record.isComplete(TechnicianChecklistCatalog.ids))
     }
 
@@ -172,7 +174,7 @@ class TechnicianChecklistTest {
             checklistId = "TECH-SESS-006",
             sessionUuid = "SESS-006",
             deviceIdentifier = "device-class",
-            expectedCount = 13,
+            expectedCount = 14,
             results = listOf(
                 TechnicianCheckResult(
                     id = "BAT-007",
@@ -192,6 +194,6 @@ class TechnicianChecklistTest {
         assertEquals("TECH-17", decoded.results.single().operatorId)
         assertEquals("OPERATOR", decoded.results.single().source)
         assertNull(decoded.completedAt)
-        assertEquals(12, decoded.unansweredIds(TechnicianChecklistCatalog.ids).size)
+        assertEquals(13, decoded.unansweredIds(TechnicianChecklistCatalog.ids).size)
     }
 }
