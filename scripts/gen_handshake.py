@@ -274,6 +274,44 @@ PERF-001 PERF-002 PERF-003 PERF-004
 SYS-001 SYS-002 SYS-003
 CON-001 CON-002 CON-003""".split())
 
+# ---------------------------------------------------------------------------
+# CORRECTION, 13-Oct-2026 - recorded here rather than edited away silently, so
+# that the belief and its refutation both stay in the tree.
+#
+# Two groups were carried in Q1_OBTAINABLE that the cited document does not
+# support. Each was checked line by line against
+# docs/CYVRA_AGENTLESS_RESEARCH_Q1_2026-10-12.md:
+#
+# PROBE_NOT_MEASURED. The words bluetooth, gnss, location, gps, wifi, wi-fi,
+# responsiveness, latency, throughput, fix, pair and scan do not occur in that
+# file at all. camera and disk occur on one line each of a six-row class
+# summary, and neither read/write responsiveness nor frame delivery was
+# measured there. The file carries no 114-parameter ID whatever - the only
+# ID-shaped match in it is "Oct-202", a fragment of its own date. So Q1 never
+# exercised Bluetooth, GNSS or Wi-Fi, and never measured responsiveness, frame
+# delivery, pairing or fix acquisition. Those nine could not have been
+# measured obtainable by it.
+#
+# Q1_NOT_STATED. The words "brand" and "security patch" are absent from the
+# file too, and neither property appears in its Identity & build row, which
+# lists build fingerprint, API level, hardware/chipset, board platform,
+# manufacturer and model. Both product paths are unit-tested and stay
+# implemented; what goes is only the assertion that Q1 proved them.
+#
+# CON-001/002/003 stay. Section 4 records that USB debugging must be enabled
+# and the host authorised on the device screen, which is exactly what those
+# three parameters assert.
+#
+# Everything here failed independent re-execution, which the prohibition rule
+# does not permit. Row counts move: TESTED 18 -> 16, UNIT-TESTED 4 -> 6,
+# Q1_OBTAINABLE 61 -> 50. No row changes owner, stage or implementation state.
+PROBE_NOT_MEASURED = set("""STO-003 CAM-002 CAM-003 WIFI-003 BT-002 BT-003
+GNSS-002 PERF-001 PERF-003""".split())
+
+Q1_NOT_STATED = set("""ID-002 ID-006""".split())
+
+Q1_OBTAINABLE -= PROBE_NOT_MEASURED | Q1_NOT_STATED
+
 PUR_PROVEN = {   # bench proof, 12-Oct-2026, documented
     "PUR-003": "PROVEN on bench - factory reset executed via installed artifact",
     "PUR-004": "PROVEN on bench - ro.boot.bootreason=reboot,factory_reset; boot pinned 11:41:24",
@@ -288,10 +326,12 @@ def tested_status(oid, owner):
         return "TESTED on bench (hardware) \u2014 re-executable proof exists"
     if oid in IMPLEMENTED_BASE:
         if oid in Q1_OBTAINABLE:
-            return "TESTED \u2014 command proven on hardware by Q1; product path unit-tested, NOT device-run"
+            return "TESTED \u2014 data class returned on hardware by Q1; per-parameter command not recorded; product path unit-tested, NOT device-run"
         return "UNIT-TESTED only \u2014 product path exists; NOT device-run"
     if oid in STAGE1:
         return "IMPLEMENTED (Stage 1) \u2014 compiles + unit-tested; **NOT validated on hardware**"
+    if oid in PROBE_NOT_MEASURED:
+        return "NOT IMPLEMENTED \u2014 probe obtainability NOT measured for this parameter; product does not collect it"
     if oid in Q1_OBTAINABLE:
         return "NOT IMPLEMENTED \u2014 Q1 measured the probe obtainable; product does not collect it"
     if owner in ("AI", "APP+H"):
@@ -304,7 +344,7 @@ def tier_of(st):
     """Short label for the totals table. Explicit rather than string-splitting:
     splitting on a separator the statuses no longer contain produced garbled rows."""
     if st.startswith("TESTED on bench"):   return "TESTED on bench (hardware)"
-    if st.startswith("TESTED"):            return "TESTED (command proven by Q1; product path unit-tested, NOT device-run)"
+    if st.startswith("TESTED"):            return "TESTED (data class returned on hardware by Q1; per-parameter command not recorded; product path unit-tested, NOT device-run)"
     if st.startswith("UNIT-TESTED"):       return "UNIT-TESTED only (NOT device-run)"
     if st.startswith("IMPLEMENTED"):       return "IMPLEMENTED (Stage 1) - NOT validated on hardware"
     if st.startswith("NOT IMPLEMENTED"):   return "NOT IMPLEMENTED"
@@ -707,4 +747,6 @@ print("owners:", dict(owner_ct))
 print("stages:", dict(stage_ct))
 print("tested:", dict(tested_ct))
 print("implemented:", n_impl, "  fabrications-removed:", n_fab, "  live-fabrications:", len(FABRICATED))
+print("provenance-corrections:", len(PROBE_NOT_MEASURED) + len(Q1_NOT_STATED),
+      " (Q1 attribution withdrawn: 9 never measured + 2 never stated)")
 print("wrote:", OUT, os.path.getsize(OUT), "bytes")

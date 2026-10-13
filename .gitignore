@@ -84,3 +84,9 @@ signing.properties
 # before being committed; 13-Oct scan returned 0 hits on all 5 logs.
 !docs/evidence/*.log
 .DS_Store
+
+# python bytecode (gen_handshake.py). Build output like node_modules,
+# build/ and target/ above: never part of a deliverable, and not text,
+# so G-F has no business reading it.
+__pycache__/
+*.py[cod]

@@ -1067,3 +1067,112 @@ GREEN."** Log `gate-run-20261013-124246.log`. G-B passed at 11:24 and again at
 exhaustion on this 6.9 GB machine rather than to a defect in the suite.
 
 Full suite: **PENDING** the Chief Engineer via `scripts/verify-stage-gates.ps1`.
+
+---
+
+## Amendment - 13 Oct 2026 - Q1 provenance corrected before the 14 collectors (WP-A)
+
+### How it was found
+
+Beginning the 14 uncoded collectors, the assistant read the generator's status
+string for those rows instead of trusting it. The string carries a citation -
+`gen_handshake.py` names `docs/CYVRA_AGENTLESS_RESEARCH_Q1_2026-10-12.md`
+directly above the set it depends on. That document exists, is tracked, and is
+126 lines long. **None of the 14 row IDs appears anywhere in it.**
+
+### The defect - 27 rows asserted a Q1 measurement
+
+**Tier B - nine rows, a false attribution.** `NOT IMPLEMENTED - Q1 measured the
+probe obtainable`. Checked line by line against the cited file:
+
+| What was searched for | Result |
+|---|---|
+| `bluetooth`, `gnss`, `location`, `gps`, `wifi`, `wi-fi` | absent from the file entirely |
+| `responsiveness`, `latency`, `throughput`, `fix`, `pair`, `scan` | absent - these are the dimensions the nine rows measure |
+| `camera`, `disk` | one line each, inside a six-row class summary |
+| any 114-parameter ID | none; the only ID-shaped match in the file is `Oct-202`, a fragment of its own date |
+
+Q1 therefore never exercised Bluetooth, GNSS or Wi-Fi, and never measured
+responsiveness, frame delivery, pairing or fix acquisition. The nine could not
+have been measured obtainable by it.
+
+**Tier A - eighteen rows, overstated rather than false.** Thirteen map to a
+named entry in Q1's class table (manufacturer, API level, build fingerprint,
+package inventory, storage volumes, battery state and health, screen-lock
+state, Android ID). `CON-001/002/003` are supported by section 4, which records
+that USB debugging must be enabled and the host authorised on the device
+screen. Two - `ID-002` Brand and `ID-006` Security patch level - are absent
+from the file entirely: neither the word "brand" nor "security patch" occurs in
+it, and neither appears in its Identity & build row.
+
+Q1 records **four commands, all of them refusals** (`ls /data/data`,
+`cat /data/system/packages.xml`, `su -c id`, call log). No successful probe's
+command is recoverable, so "command proven" was not supportable wording.
+
+**A third defect, inside Q1 itself.** Its closing line read *"Reproduce every
+figure above from the commands recorded in this report."* Only the four
+refusals were recorded. Omitting the raw dumps was correct and stays - the
+egress rule required it - but commands carry no identifiers, so nothing
+required omitting them.
+
+### What was corrected
+
+1. `PROBE_NOT_MEASURED` (9) and `Q1_NOT_STATED` (2) subtracted from
+   `Q1_OBTAINABLE`, with the reasoning and the measurements written into a
+   comment above the subtraction, so that the belief and its refutation both
+   remain in the tree.
+2. `tested_status()` gained a branch returning `probe obtainability NOT
+   measured for this parameter` for the nine. The tier stays `NOT IMPLEMENTED`.
+3. `gap()` now returns `Implement collector (Stage 1)` for those nine rather
+   than `Implement ADB collector (Stage 1)`. That removes an unmeasured
+   presumption - that ADB suffices for `BT-003` pairing and `WIFI-003`'s
+   controlled access point. Nothing has measured it.
+4. Tier A wording became `data class returned on hardware by Q1; per-parameter
+   command not recorded`, in both `tested_status()` and `tier_of()`.
+5. Q1's closing line replaced with a dated re-execution caveat.
+6. `RESUME` section 5 restated to measured values; it also still carried the
+   pre-`797693a` note saying the PUR remap had not been done.
+7. The generator now prints `provenance-corrections`, so the correction is
+   visible in its own output rather than only in prose.
+
+### Why the fabrication counters did not move
+
+`fabrications-removed: 5` and `live-fabrications: 0` are unchanged, deliberately.
+That counter covers `FAB_LIST` - five hardcoded values stamped `AVAILABLE` in
+product code - a different class from a research attribution error in a
+documentation generator. Folding these eleven in with those five would merge two
+distinct defects under one number. The new `provenance-corrections: 11` line
+keeps them separate and both visible.
+
+### Measured effect
+
+| Quantity | Before | After |
+|---|---:|---:|
+| rows | 114 | 114 |
+| implemented | 61 | 61 |
+| TESTED (Q1) | 18 | 16 |
+| UNIT-TESTED only | 4 | 6 |
+| NOT IMPLEMENTED | 9 | 9 |
+| NOT TESTED | 29 | 29 |
+| CHECKLIST IN PRODUCT | 14 | 14 |
+| TESTED on bench | 4 | 4 |
+| Q1_OBTAINABLE | 61 | 50 |
+| provenance-corrections | absent | 11 |
+
+4 + 16 + 6 + 36 + 14 + 9 + 29 = 114. No row changed owner, stage or
+implementation state. `ID-002` and `ID-006` change tier only, and their product
+paths remain unit-tested: `AdbGenericEvidenceProviderTest.kt:22` stubs
+`ro.product.brand`, `:29` stubs `ro.build.version.security_patch`, with four
+workflow tests behind them.
+
+`tested_status()`'s branch reading `Q1 measured the probe obtainable` is now
+reached by **zero rows**, measured directly. It is retained because it stays
+correct for whatever remains in the set, and would be true by construction for
+any genuinely measured row added later.
+
+### Standing
+
+Nothing here weakens a gate (H7) and no frozen file was touched - `apps/web`
+and `services/api` are unchanged. The nine rows now say what is true today, and
+what replaces `NOT measured` is the collector run on the bench device, which is
+the next work package.

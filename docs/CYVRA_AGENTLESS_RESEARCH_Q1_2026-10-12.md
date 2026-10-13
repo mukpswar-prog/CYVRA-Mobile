@@ -121,6 +121,9 @@ facts in hand.
 - **Question 3** — map which devices support the gentle method, and confirm the automated
   one-command factory reset as the fallback tier.
 
-Reproduce every figure above from the commands recorded in this report. Raw device dumps
-were **never written to the repository**; no serial, account name, contact or phone number
-appears in this file.
+**Re-execution caveat, added 13-Oct-2026.** The commands behind the 63 successful probes
+were never recorded in this report; only the four refusals above appear as commands. Those
+figures therefore cannot be re-executed from this file alone, and nothing above may be
+quoted as proof of a *named* parameter unless that parameter's own test is recorded
+elsewhere. Raw device dumps were **never written to the repository**; no serial, account
+name, contact or phone number appears in this file.
