@@ -1176,3 +1176,86 @@ Nothing here weakens a gate (H7) and no frozen file was touched - `apps/web`
 and `services/api` are unchanged. The nine rows now say what is true today, and
 what replaces `NOT measured` is the collector run on the bench device, which is
 the next work package.
+
+---
+
+## Amendment - 13 Oct 2026 - the matrix under-reported its own product (WP-A2)
+
+### Ruling
+
+Chief Engineer, 13-Oct-2026, option A: **credit the thirteen as in evidence
+path with an honest `NOT_AVAILABLE`, distinguish them from `PUR-006`, and
+correct the Method table's provenance claim.** `no code in evidence path`
+**14 -> 1**.
+
+### How it was found
+
+Planning the fourteen uncoded collectors, the assistant grepped the provider
+instead of trusting the plan. All fourteen identifiers are in tracked source.
+
+| Where | What the code does |
+|---|---|
+| `AdbExtendedEvidenceProvider.kt` | 13 of the 14 emitted via `notMeasurableByShell(...)` - ratified ID, `value = null`, `NOT_AVAILABLE`, `source = "ADB"`, and a reason |
+| `HostSanitizationProvider.kt:168` | `PUR-006` appears only inside a `limitations` string, where the product declares it did **not** measure it |
+
+`collect()` adds every group, so all thirteen emit at runtime.
+
+### The defect
+
+The matrix printed `not collected` for those rows and counted them as `no code
+in evidence path`. Its Method table also claimed:
+
+> `| Today's code state | read from source at exact line references, 12-Oct-2026 | yes - open the files |`
+> "No row in this table was written from memory or estimation."
+> *Today* = what the code does right now (measured from source).
+
+`today_state()` opens no file. It returns from two maintained lists or the
+literal `"not collected"`, and for those thirteen the literal contradicted the
+source it claimed to have read. This is the same class as the Q1 defect
+corrected the same day: an attribution that does not survive inspection.
+
+### What was corrected
+
+1. `read_declined_from_source()` parses `notMeasurableByShell(...)` out of the
+   Kotlin at generation time, storing id -> the product's own reason. **The
+   matrix now reads the source it says it reads.** It raises `FATAL` if the
+   file moves, and `FATAL` if fewer than ten rows parse, so it cannot quietly
+   revert to printing `not collected`.
+2. `today_state()` returns `In evidence path - emits NOT_AVAILABLE with value
+   null and the reason the product itself records: "..."`.
+3. `gap()` returns `Collector in place and emitting an honest NOT_AVAILABLE -
+   the value itself is still not obtained`, replacing `Implement collector`,
+   which told a reader to build what already exists.
+4. `tested_status()` for the nine dropped `product does not collect it`, which
+   contradicted the new TODAY text. The tier label stays `NOT IMPLEMENTED`,
+   because what is not implemented is the *measurement*.
+5. Method table, column key and module docstring now describe both mechanisms
+   and their differing strength, including that transcribed rows **can** drift
+   while source-read rows cannot.
+
+### Measured effect
+
+| Quantity | Before | After |
+|---|---:|---:|
+| no code in evidence path | 14 | **1 [PUR-006]** |
+| rows / implemented / owners / stages | 114 / 61 / unchanged | unchanged |
+| TESTED 16 - UNIT-TESTED 6 - NOT IMPLEMENTED 9 - NOT TESTED 29 - CHECKLIST 14 - bench 4 | - | unchanged |
+
+Fourteen rows change TODAY text: the thirteen application-owned ones plus
+`CELL-005`, which the provider also declines but which is technician-owned and
+therefore was never in the printed fourteen.
+
+Markdown integrity: all 114 parameter rows carry 11 cells. A naive check flags
+fourteen 3-cell rows, but those belong to the separate checklist-index table
+and are identical before and after this change (`128 rows, 14 short` on both
+sides), so this edit introduced no malformed row.
+
+### Not claimed
+
+- **No test covers `AdbExtendedEvidenceProvider`.** Emission of those thirteen
+  rows is established by static reading and by the generator's parse - not by a
+  unit test and not by a device run. The new `FATAL` guards the *matrix*, not
+  the *product*.
+- The reason strings are the product's own words. Sorting them into "the
+  workstation can stimulus this" against "this needs a fixture" is
+  interpretation, and is recorded here as interpretation, not as measurement.

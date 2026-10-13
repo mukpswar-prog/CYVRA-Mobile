@@ -3,8 +3,11 @@
 Generate the CYVRA Final Plan-vs-Actual Handshake Matrix (rows & columns).
 
 Sources are read directly from the Chief Engineer's two workbooks so that no
-row is transcribed by hand. Current-code state is asserted from source reading
-performed 12-Oct-2026 and is listed explicitly below (it is small and auditable).
+row is transcribed by hand. Current-code state comes from two mechanisms:
+rows that have a collector are transcribed from a source reading performed
+12-Oct-2026 (listed explicitly below; it is small and auditable), and rows the
+provider declines are read live from AdbExtendedEvidenceProvider.kt on every
+run, so the product's own reason text is what the matrix prints.
 
 Why this file is committed
 --------------------------
@@ -312,6 +315,46 @@ Q1_NOT_STATED = set("""ID-002 ID-006""".split())
 
 Q1_OBTAINABLE -= PROBE_NOT_MEASURED | Q1_NOT_STATED
 
+# ---------------------------------------------------------------------------
+# Rows the product already handles in the evidence path, by declining honestly
+# ---------------------------------------------------------------------------
+# These are NOT "no code". AdbExtendedEvidenceProvider.collect() emits a
+# DeviceParameter for each, keyed to its ratified workbook ID, with value null,
+# status NOT_AVAILABLE, source ADB, and a reason.
+#
+# The reasons are read from the Kotlin source at generation time instead of
+# being copied into this file. A transcription can drift away from what the
+# product actually says, and the matrix's Method table claims its TODAY column
+# comes from source - reading it makes that claim true rather than asserted.
+# If the file moves or the helper is renamed this fails loudly instead of
+# quietly reporting "not collected" again, which is the defect being fixed.
+EXTENDED_PROVIDER = os.path.join(
+    "apps", "host", "src", "main", "kotlin", "cyvra", "mobile", "host",
+    "evidence", "AdbExtendedEvidenceProvider.kt")
+
+_DECLINED_RE = re.compile(
+    r'notMeasurableByShell\(\s*"([A-Z]{2,4}-\d{3})"\s*,\s*"[^"]*"\s*,\s*'
+    r'"[^"]*"\s*,\s*"([^"]*)"', re.S)
+
+def read_declined_from_source():
+    if not os.path.isfile(EXTENDED_PROVIDER):
+        raise SystemExit(
+            "FATAL: %s not found. The matrix would silently revert to "
+            "'not collected' for rows that have code." % EXTENDED_PROVIDER)
+    with open(EXTENDED_PROVIDER, encoding="utf-8") as fh:
+        text = fh.read()
+    found = dict(_DECLINED_RE.findall(text))
+    if len(found) < 10:
+        raise SystemExit(
+            "FATAL: parsed %d notMeasurableByShell rows from %s; expected at "
+            "least 10. Refusing to emit a matrix that under-reports the "
+            "evidence path." % (len(found), EXTENDED_PROVIDER))
+    return found
+
+# id -> the product's own reason text, escaped for the markdown table cell.
+DECLINED_IN_EVIDENCE = {k: v.replace("|", "\\|")
+                        for k, v in read_declined_from_source().items()}
+
 PUR_PROVEN = {   # bench proof, 12-Oct-2026, documented
     "PUR-003": "PROVEN on bench - factory reset executed via installed artifact",
     "PUR-004": "PROVEN on bench - ro.boot.bootreason=reboot,factory_reset; boot pinned 11:41:24",
@@ -331,7 +374,7 @@ def tested_status(oid, owner):
     if oid in STAGE1:
         return "IMPLEMENTED (Stage 1) \u2014 compiles + unit-tested; **NOT validated on hardware**"
     if oid in PROBE_NOT_MEASURED:
-        return "NOT IMPLEMENTED \u2014 probe obtainability NOT measured for this parameter; product does not collect it"
+        return "NOT IMPLEMENTED \u2014 probe obtainability NOT measured for this parameter; the product emits NOT_AVAILABLE with a stated reason rather than a value"
     if oid in Q1_OBTAINABLE:
         return "NOT IMPLEMENTED \u2014 Q1 measured the probe obtainable; product does not collect it"
     if owner in ("AI", "APP+H"):
@@ -356,6 +399,10 @@ def today_state(oid):
         return "**Stage 1** " + STAGE1[oid]
     if oid in IMPLEMENTED_BASE:
         return IMPLEMENTED_BASE[oid]
+    if oid in DECLINED_IN_EVIDENCE:
+        return ("**In evidence path** \u2014 emits `NOT_AVAILABLE` with value "
+                "null and the reason the product itself records: \"%s\""
+                % DECLINED_IN_EVIDENCE[oid])
     return "not collected"
 
 def app_role(owner):
@@ -408,6 +455,9 @@ PUR_GAP = {
 def gap(oid, owner):
     if oid in PUR_GAP:
         return PUR_GAP[oid]
+    if oid in DECLINED_IN_EVIDENCE:
+        return ("Collector in place and emitting an honest `NOT_AVAILABLE` \u2014 "
+                "the value itself is still not obtained")
     if oid in STAGE1:
         base = "Collector in place \u2014 **must be validated against real hardware, then re-measured**"
         if owner == "APP+H":
@@ -494,10 +544,10 @@ w("| Step | Method | Reproducible? |")
 w("|---|---|---|")
 w("| The 114 parameters, domains, capability and evidence type | read directly from `CYVRA_Mobile_Diagnostic_vs_Physical_Verification_Matrix.xlsx` \u2192 `Capability Matrix` | yes \u2014 open the workbook |")
 w("| Owner (Application / AI / Human) | derived from the Chief Engineer's own `AI/Camera Automation` column in `Automation Impact Matrix` | yes \u2014 rules in \u00a72 |")
-w("| Today's code state | read from source at exact line references, 12-Oct-2026 | yes \u2014 open the files |")
+w("| Today's code state | transcribed from source on 12-Oct-2026 for rows that have a collector; **read live** from `AdbExtendedEvidenceProvider.kt` for every row the provider declines | yes \u2014 open the files |")
 w("| Tested / not tested | `docs/CYVRA_AGENTLESS_RESEARCH_Q1_2026-10-12.md` + `docs/CYVRA_FACTORY_RESET_PROOF_2026-10-12.md` | yes \u2014 both are committed |")
 w("")
-w("No row in this table was written from memory or estimation.")
+w("No row in this table was invented. Two mechanisms produce the *Today* column and they differ in strength: a row that has a collector carries a summary transcribed from source on 12-Oct-2026, which can drift if the code changes afterwards; a row the provider declines carries the product's own reason text, read from that source every time this matrix is generated, so it cannot drift. Where the two disagree, the source wins.")
 w("")
 w("---")
 w("")
@@ -528,7 +578,7 @@ w("---")
 w("")
 w("## 3. Handshake matrix \u2014 all 114 parameters")
 w("")
-w("**Column key.** *Today* = what the code does right now (measured from source).")
+w("**Column key.** *Today* = what the code does right now: a transcribed summary for rows with a collector, and the product's own reason text read live from source for rows it declines.")
 w("*Application / AI agent / Human* = the target split once the plan is executed.")
 w("*Gap* = what must still be included. *Tested?* = the honest evidence position.")
 w("")
