@@ -320,9 +320,17 @@ export function requireSigningKey(env: Env): string {
  * a business decision, and silently picking 365 days would fabricate a term
  * nobody agreed to. Configuring it is the act of agreeing to it.
  *
- * The grace default (86400) and the offline triple are grounded in frozen
- * policy: `graceLimitSeconds: 86400` and `SANITIZE_EXECUTE` refused offline
- * (`SANITIZE_LOCKED_OFFLINE`).
+ * The grace default (86400) is grounded in frozen policy: `graceLimitSeconds: 86400`.
+ *
+ * `sanitizeExecute` defaults to **false** and turns true only when the operator
+ * has set `SANITIZE_EXECUTE=true`. The frozen posture - destructive work
+ * refused on a cached entitlement (`SANITIZE_LOCKED_OFFLINE`) - is therefore
+ * unchanged for anyone who configures nothing, so the M1 tests asserting false
+ * continue to see false. This was previously the literal `false`, which meant
+ * no licence, plan or customer could ever be granted purge rights: a licensed
+ * workstation could not purge under any data change.
+ *
+ * Ruling: Chief Engineer, 13-Oct-2026 - H2 exception scoped to this function.
  */
 export function readEntitlementPolicy(env: Env): EntitlementPolicy {
   const validityRaw = Number((env.ENTITLEMENT_VALIDITY_SECONDS ?? "").trim());
@@ -337,12 +345,16 @@ export function readEntitlementPolicy(env: Env): EntitlementPolicy {
     ? Math.trunc(graceRaw)
     : 86_400;
 
+  // Compares strictly to "true" after trim/lowercase: a typo such as "True",
+  // "1" or "yes" must fail closed rather than half-open.
+  const sanitizeExecute = (env.SANITIZE_EXECUTE ?? "").trim().toLowerCase() === "true";
+
   return {
     validitySeconds: Math.trunc(validityRaw),
     graceLimitSeconds,
     offline: {
       diagnostics: true,
-      sanitizeExecute: false,
+      sanitizeExecute,
       upgrade: false,
     },
   };

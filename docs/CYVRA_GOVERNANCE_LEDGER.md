@@ -891,3 +891,110 @@ has been observed.**
 Assisted evidence available at the time of writing: `:core:test` and `:host:test` both
 BUILD SUCCESSFUL (3m 30s) with both fixes in the tree. That is assistant-run evidence on
 the bench machine, not Chief Engineer verification.
+
+---
+
+## Amendment - 13 Oct 2026 - Chief Engineer rulings: H2 exception, PHY-008, deferred work
+
+Date: 13-Oct-2026. Authority: Chief Engineer, in session.
+
+### Ruling CE-1 - H2 exception, scoped, option A
+
+**Finding.** `readEntitlementPolicy()` in `services/api/src/entitlementSigner.ts`
+built the offline permission triple with `sanitizeExecute: false` as a **literal**.
+`ENTITLEMENT_VALIDITY_SECONDS` and `ENTITLEMENT_GRACE_SECONDS`, the two settings
+on either side of it, are read from the environment; this one was not. It was not
+plan-driven, not customer-driven and not configurable.
+
+Consequence: `HostProtocolDispatcher.sanitizeExecuteResponse` refuses when
+`isLicensed && !offline.sanitizeExecute`. Since the server could only ever sign
+`false`, **a licensed workstation could never purge under any data change**.
+WP-5 was therefore not "waiting for an entitlement to be issued"; the entitlement
+could only ever be a refusal. This corrects the assistant's 12-Oct statement that
+WP-5 was blocked on "arranging the live entitlement".
+
+**Ruling:** H2 exception granted, **scoped to `readEntitlementPolicy()` in
+`entitlementSigner.ts`**, option A - the value becomes env-driven
+(`SANITIZE_EXECUTE`, compared strictly to `"true"`) with **the default left
+`false`**.
+
+Why this shape rather than a hard `true`: two M1 tests assert the frozen posture
+- `activation.test.ts:512` and `entitlementSigner.test.ts:221` ("destructive work
+stays off offline"). With the default still `false`, **both continue to pass**,
+so no gate is relaxed (H7) and the offline safety property is preserved.
+Configuring nothing therefore behaves exactly as before.
+
+A typo such as `True`, `1` or `yes` fails closed rather than half-open.
+
+**Scope recorded:** this is the only sanctioned M1 edit in the Integration Sprint
+to date. `apps/web` remains untouched.
+
+### Ruling CE-2 - PHY-008, option A
+
+The two ratified workbooks read differently because they answer different
+questions. The Capability Matrix says CYVRA Capability **No**, Evidence Type
+**Physical required**, Limitation **"Software SIM state is insufficient"**, Report
+Treatment **Physical section**. The Automation Impact Matrix says automation mode
+**"Conditional / assisted"**, recommended action **"capability-aware collector +
+guided exception workflow"** - a human performing the check with the application
+guiding them, not software answering it.
+
+The assistant's generator had mapped `Conditional / assisted` to
+"application-owned", which placed a check the workbook itself says software
+cannot perform into the software bucket, where it could never be closed. **That
+mapping was the defect, not the workbook.**
+
+**Ruling: option A.** PHY-008 becomes the **14th technician checklist item**. The
+application never claims it. The generator's checklist sync check is updated to
+14 with this ruling recorded as the reason. The rated parameter is tray integrity
+- fit, contact, retention - which software cannot observe.
+
+Option C (splitting PHY-008 into a human check plus a separate software SIM-state
+parameter) was considered and **not** taken, because it would change the ratified
+total from 114 to 115. The Chief Engineer has not authorised that change.
+
+### Ruling CE-3 - previously deferred work, all approved
+
+The Chief Engineer ruled: *"overrule all my previous rules to Deferred."* Recorded
+as approved, each with its trigger:
+
+| Item | Now | Trigger for execution |
+|---|---|---|
+| §80 check-description rewording | **APPROVED** | after hardware verification (original condition retained) |
+| IP register into git | **APPROVED** | assistant still to confirm the exact path and irreversibility before writing it |
+| Stage 6 procurement | **APPROVED** | physical ordering, external lead time |
+| A-15 staging quirk | **APPROVED** | opportunistic |
+| A2 acceptance-policy file | **APPROVED** | only if still wanted; superseded in practice by `verify-stage-gates.ps1` |
+
+Also approved: the 15 uncoded collectors (route a), the end-to-end bench scan
+(route b), WP-4 and the checklist UI (route c), PUR-006, Stage 5 drafting, and a
+purge run through the product path with before/after counts.
+
+**Not covered by this ruling:** standing holds H1-H8. H2 is a standing hold, not
+a deferred item, which is why CE-1 was put to the Chief Engineer explicitly
+rather than treated as implied.
+
+### Ruling CE-4 - agent-less attempt strategy (product requirement)
+
+Recorded as a build requirement: the product **tries agent-less five times**
+across differing Android models and versions, **falls back to agent-based on
+failure**, and **completes the operation either way** - the user never meets a
+dead end on scanning or purging. Every attempt and its outcome is written to the
+log.
+
+H8 note, stated because it must be: on a locked bootloader, `uid=2000(shell)`,
+no root and no Device Owner, the assistant knows of no Android mechanism that
+erases user data. The assistant's **belief**, labelled as belief and unproven, is
+that agent-less erase will return "cannot" on most devices. Global technology
+research has been commissioned to establish this with measurements rather than
+assumptions. A "cannot" result is a result, not a failure, and the fallback is
+what makes it a product.
+
+### Gates
+
+`:services/api` typecheck **exit 0**; `:services/api` tests **413 passed / 0
+failed / exit 0** - assistant-run after the CE-1 change. `activation.test.ts:512`
+and `entitlementSigner.test.ts:221` both still pass, which is the evidence that
+the frozen posture was preserved.
+
+Full suite: **PENDING** the Chief Engineer via `scripts/verify-stage-gates.ps1`.

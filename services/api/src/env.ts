@@ -21,4 +21,14 @@ export interface Env {
   ENTITLEMENT_VALIDITY_SECONDS?: string;
   /** Offline grace the Host enforces. Default 86400 (24h), per frozen policy. */
   ENTITLEMENT_GRACE_SECONDS?: string;
+  /**
+   * Whether destructive sanitization may execute under entitlements this server
+   * signs. Read only as the literal `"true"`; **absent, empty, or anything else
+   * leaves it false**, which is the frozen posture this replaces. Opening purge
+   * is therefore an explicit operator act and never a side effect of deploying.
+   *
+   * Ruling: Chief Engineer, 13-Oct-2026 - H2 exception scoped to
+   * `readEntitlementPolicy()` in `entitlementSigner.ts`, option A.
+   */
+  SANITIZE_EXECUTE?: string;
 }
