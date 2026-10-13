@@ -1,0 +1,12 @@
+CYVRA stage gate run 2026-10-13 11:06:41
+repo C:\Users\User\Documents\GitHub\CYVRA-Mobile
+
+Gate Status Check                               Note                                            
+---- ------ -----                               ----                                            
+G-E  PASS   M1 freeze (apps/web, services/api)  no changes                                      
+G-D  FAIL   verify-standing-holds (H1-H8)       inspects only $SprintCommits via git show       
+G-F  PASS   no BOM, strict UTF-8 decode         PowerShell 5 Set-Content writes a BOM - avoid it
+G-G  PASS   zero hits on banned absolute claims A-10 / H3                                       
+
+
+

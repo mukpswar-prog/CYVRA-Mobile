@@ -77,4 +77,10 @@ signing.properties
 
 # logs / os
 *.log
+# EXCEPT: gate-run logs kept as evidence. docs/CYVRA_GOVERNANCE_LEDGER.md cites
+# them by exact filename, and the gate runner writes them to Temp, so without
+# this they would vanish and leave the citation dead. Narrow on purpose: only
+# that one folder. Each file is scanned against the H3 denylist (4 needles)
+# before being committed; 13-Oct scan returned 0 hits on all 5 logs.
+!docs/evidence/*.log
 .DS_Store
