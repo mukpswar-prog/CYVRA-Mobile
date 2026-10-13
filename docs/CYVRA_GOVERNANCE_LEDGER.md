@@ -990,11 +990,80 @@ research has been commissioned to establish this with measurements rather than
 assumptions. A "cannot" result is a result, not a failure, and the fallback is
 what makes it a product.
 
+### Ruling B1 - how H2 is enforced (named sanctioned-exception list, option A)
+
+CE-1 sanctioned two files inside the frozen journey. The automated H2 check
+counts files touched, so it reported a breach every run and could not tell an
+approved edit from an unapproved one. The Chief Engineer was given three
+options and chose **A** on the assistant's recommendation:
+
+- **A - named sanctioned-exception list.** Chosen.
+- **B - revert CE-1.** Rejected: purge could never work on a licensed
+  workstation, because `SANITIZE_EXECUTE` would stay hard-coded `false`.
+- **C - leave the gate red forever.** Rejected: no work package could ever be
+  committed.
+
+**What the check now enforces.** H2's meaning is unchanged: *no unapproved edit
+to the customer journey.* What changed is that "approved" is now a thing the
+check can distinguish. It previously reported only "touch", so it could neither
+allow CE-1 nor explain it.
+
+The five conditions that keep this from being a weakening of the gate (H7):
+
+1. Every sanctioned file is **still printed on every run**, with its ruling ID
+   beside it. Nothing is hidden from this gate at any time.
+2. A ruling counts only if its ID literally appears in this ledger. An
+   unrecorded ruling is not a ruling, and the file breaches anyway.
+3. Entries must be exact file paths; a directory is rejected outright.
+4. Any journey file not named in the list still breaches, without exception.
+5. A sanctioned file the sprint no longer touches is reported **STALE**, so the
+   list cannot quietly accumulate dead entries.
+
+**Evidence the safeguard holds (13-Oct, negative test).** The assistant ran the
+harness with the ruling ID changed to `CE-999`, which does not exist in this
+ledger. Output: `SANCTION REJECTED (ruling CE-999 is not recorded in the
+governance ledger)` for both files, both files then listed as `VIOLATION`,
+`HOLD BREACHES: 1`, **exit 1**. The same run with `CE-1` reads
+`sanctioned 2, unapproved 0`, both files printed under `SANCTIONED [CE-1]`,
+**exit 0**.
+
+**Where it lives:** `scripts/verify-standing-holds.ps1`, `$SanctionedM1`, with
+the ruling text above the declaration. Adding an entry there is a governance
+act, not a code change.
+
 ### Gates
 
 `:services/api` typecheck **exit 0**; `:services/api` tests **413 passed / 0
 failed / exit 0** - assistant-run after the CE-1 change. `activation.test.ts:512`
 and `entitlementSigner.test.ts:221` both still pass, which is the evidence that
 the frozen posture was preserved.
+
+Stage gate runner, Chief Engineer's run **13-Oct 11:24:56** - **10 PASS /
+1 FAIL** (log written to `gate-run-20261013-112456.log`). G-B (unit tests)
+**PASS** on this run, confirming the earlier G-B failure was transient rather
+than a defect. The single failure was **G-D**, which is exactly what ruling B1
+addresses. Harness run standalone after B1: **0 breaches, exit 0**.
+
+**G-D could not pass at all - gate defect, fixed 13-Oct.** The runner tested
+the harness output with `-notmatch 'BREACH'`. PowerShell's `-match` is
+case-insensitive, so it also matched the harness's own success line
+`ALL HOLDS INTACT - 0 breaches`. G-D therefore failed on the word "breaches"
+inside a message reporting none, whatever the repository's state - which is
+why it still read red after B1 had made the holds clean. Corrected to match the
+`[BREACH]` tag printed once per failing finding. The exit code stays
+authoritative, the harness documenting "Exit code 0 means every hold is
+intact", and the double-check still trips both ways: verified clean run returns
+True, verified breached run returns False. This repairs a gate that could never
+report success and relaxes nothing (H7).
+
+**G-F never covered untracked files** - `git diff --name-only HEAD` omits them,
+so a brand-new document escaped the UTF-8 gate. Added
+`git ls-files --others --exclude-standard`.
+
+**Full gate run, 13-Oct 12:42:46 - 11 PASS / 0 FAIL: "ALL EXECUTED GATES
+GREEN."** Log `gate-run-20261013-124246.log`. G-B passed at 11:24 and again at
+12:42; the single 12:22 failure did not reproduce, and `apps/desktop` passes
+**71/71 in isolation**, so the failure is attributed to parallel-worker memory
+exhaustion on this 6.9 GB machine rather than to a defect in the suite.
 
 Full suite: **PENDING** the Chief Engineer via `scripts/verify-stage-gates.ps1`.

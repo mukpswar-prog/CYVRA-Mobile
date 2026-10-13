@@ -63,14 +63,124 @@ Write-Host '=============================================================='
 Write-Host ''
 Findings 2 'M1 customer journey frozen (apps/web, services/api)' $true 'scoping below'
 
+# ---------------------------------------------------------------------------
+# H2 SCOPE COMPLETENESS - a commit the gate cannot see is a silent hole
+#
+# The parameter note on $SprintCommits already warns that "a commit missing
+# from here is a commit the H2 journey check does not see". Nothing enforced
+# it, so the failure mode was a gate that quietly stopped looking instead of
+# one that said so. This makes it loud.
+#
+# Scoped to $SprintCommits[0]..HEAD, deliberately NOT $Baseline..HEAD: eight
+# approved WS-* commits from before the sprint also touched apps/web or
+# services/api, and sweeping those in would report this sprint as breaching
+# rules that other people's approved work satisfies - the precise outcome the
+# parameter notes warn about.
+#
+# Measured 13-Oct: 105 commits since the freeze, 9 of them touching M1, 8 of
+# those ancestors of the sprint start, 1 inside the sprint range (6b66d0f,
+# which is listed). The 5 in-range commits absent from the list touch no M1
+# path, so they are - correctly - not flagged here.
+# ---------------------------------------------------------------------------
+$sprintStart = $SprintCommits[0]
+$listFull = @($SprintCommits | ForEach-Object { git rev-parse $_ 2>$null } | Where-Object { $_ -match '^[0-9a-f]{7,40}$' })
+
+git merge-base --is-ancestor $sprintStart HEAD 2>$null
+$anchorOk = ($LASTEXITCODE -eq 0)
+
+$journeyInRange = @()
+$unscoped = @()
+if ($anchorOk) {
+    foreach ($c in @(git rev-list ("{0}..HEAD" -f $sprintStart) 2>$null)) {
+        $t = @(git show --name-only --format='' $c -- apps/web services/api 2>$null |
+                 Where-Object { $_ -match '\S' })
+        if ($t.Count -gt 0) {
+            $journeyInRange += $c
+            if ($c -notin $listFull) { $unscoped += $c }
+        }
+    }
+}
+
+$scopeOk = $anchorOk -and ($unscoped.Count -eq 0)
+$scopeDetail = if (-not $anchorOk) {
+    'sprint start {0} is not an ancestor of HEAD - scope is indeterminate, so this cannot be signed off' -f $sprintStart
+} else {
+    'commits since sprint start touching apps/web or services/api = {0}; named in $SprintCommits = {1}' -f `
+        $journeyInRange.Count, ($journeyInRange.Count - $unscoped.Count)
+}
+Findings 2 'Journey scope complete (no unlisted commit reaches M1)' $scopeOk $scopeDetail
+foreach ($c in $unscoped) {
+    Write-Host ('          VIOLATION: unlisted journey commit {0}  {1}' -f $c.Substring(0, 7), (git log -1 --format=%s $c))
+}
+
+# ---------------------------------------------------------------------------
+# SANCTIONED M1 EXCEPTIONS   ruling B1, Chief Engineer, 13-Oct-2026
+#
+# H2 has always meant "no UNAPPROVED edit to the customer journey". This list
+# is how an approved edit is told apart from an unapproved one. It removes
+# nothing from the check:
+#
+#   1. Every sanctioned file is still PRINTED on every run, under SANCTIONED,
+#      with its ruling ID beside it. Nothing is ever hidden from this gate.
+#   2. A ruling counts only if its ID literally appears in the governance
+#      ledger. An unrecorded ruling is NOT a ruling, and the file breaches.
+#   3. Entries must be EXACT file paths. A directory is rejected outright.
+#   4. Any journey file NOT named below still breaches. No exceptions.
+#   5. A sanctioned file no longer touched by the sprint is reported STALE,
+#      so this list cannot quietly accumulate dead entries.
+#
+# Adding an entry here is a governance act, not a code change.
+# ---------------------------------------------------------------------------
+$SanctionedM1 = @(
+    [pscustomobject]@{
+        Ruling = 'CE-1'
+        Files  = @('services/api/src/entitlementSigner.ts', 'services/api/src/env.ts')
+    }
+)
+
+$repoRoot   = Split-Path -Parent $PSScriptRoot
+$ledgerPath = Join-Path $repoRoot 'docs\CYVRA_GOVERNANCE_LEDGER.md'
+$ledgerText = if (Test-Path $ledgerPath) { Get-Content -LiteralPath $ledgerPath -Raw } else { '' }
+
+$allowed = @()
+foreach ($s in $SanctionedM1) {
+    foreach ($f in $s.Files) {
+        if ($f -match '[\\/]$') {
+            Write-Host ('          SANCTION REJECTED (directory, not an exact path): ' + $f) -ForegroundColor Red
+            continue
+        }
+        if ($ledgerText -notmatch [regex]::Escape($s.Ruling)) {
+            Write-Host ('          SANCTION REJECTED (ruling ' + $s.Ruling +
+                         ' is not recorded in the governance ledger): ' + $f) -ForegroundColor Red
+            continue
+        }
+        $allowed += $f
+    }
+}
+$allowed = @($allowed | Sort-Object -Unique)
+
 $journeyFiles = @()
 foreach ($c in $SprintCommits) {
     $journeyFiles += @(git show --name-only --format='' $c -- apps/web services/api 2>$null)
 }
 $journeyFiles = @($journeyFiles | Where-Object { $_ -match '\S' } | Sort-Object -Unique)
-Findings 2 'M1 customer journey frozen' ($journeyFiles.Count -eq 0) `
-    ('Integration Sprint commits touching apps/web or services/api = {0}' -f $journeyFiles.Count)
-$journeyFiles | ForEach-Object { Write-Host ('          VIOLATION: ' + $_) }
+
+$breaching  = @($journeyFiles | Where-Object { $_ -notin $allowed })
+$sanctioned = @($journeyFiles | Where-Object { $_ -in $allowed })
+$stale      = @($allowed | Where-Object { $_ -notin $journeyFiles })
+
+Findings 2 'M1 customer journey frozen' ($breaching.Count -eq 0) `
+    ('Integration Sprint commits touching apps/web or services/api = {0} (sanctioned {1}, unapproved {2})' -f `
+     $journeyFiles.Count, $sanctioned.Count, $breaching.Count)
+
+foreach ($f in $sanctioned) {
+    $rid = ($SanctionedM1 | Where-Object { $f -in $_.Files } | ForEach-Object { $_.Ruling }) -join ','
+    Write-Host ('          SANCTIONED [' + $rid + ']: ' + $f) -ForegroundColor Yellow
+}
+foreach ($f in $breaching) { Write-Host ('          VIOLATION: ' + $f) }
+foreach ($f in $stale) {
+    Write-Host ('          STALE SANCTION (no longer touched by the sprint; remove it): ' + $f) -ForegroundColor DarkYellow
+}
 
 if (-not $SkipDevice) {
     $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
