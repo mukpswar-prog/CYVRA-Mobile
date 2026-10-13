@@ -165,9 +165,19 @@ class AdbExtendedEvidenceProvider(
 
     private fun camera() = listOf(
         param("CAM-001", "CAMERA", "Camera enumeration", "dumpsys media.camera",
-            { out -> out.lines().firstOrNull { it.contains("Number of cameras", ignoreCase = true) }
-                ?.substringAfter(':')?.trim()?.ifEmpty { null } },
-            "dumpsys media.camera published no camera count"),
+            { out ->
+                val headings = out.lines().filter {
+                    it.contains("Number of", ignoreCase = true) &&
+                        it.contains("camera device", ignoreCase = true)
+                }
+                // Prefer the total-device heading; fall back to whichever variant this
+                // OEM publishes rather than declining when only one of them is present.
+                val heading = headings.firstOrNull {
+                    it.trim().startsWith("Number of camera devices", ignoreCase = true)
+                } ?: headings.firstOrNull()
+                heading?.substringAfter(':', "")?.trim()?.ifEmpty { null }
+            },
+            "dumpsys media.camera published no camera-device count"),
         notMeasurableByShell("CAM-002", "CAMERA", "Camera initialization",
             "initialisation requires an application to open the camera HAL; not observable passively"),
         notMeasurableByShell("CAM-003", "CAMERA", "Live preview/frame delivery",
@@ -207,9 +217,24 @@ class AdbExtendedEvidenceProvider(
     // ------------------------------------------------------------------ haptics
 
     private fun haptics() = listOf(
-        param("HAP-001", "HAPTICS", "Vibration command/response", "pm list features",
-            { out -> if (out.contains("android.hardware.vibrator")) "vibrator feature declared" else null },
-            "package manager did not declare the vibrator feature"),
+        // Re-sourced from `pm list features`: that list declares 103 features on the
+        // bench device and none of them is a vibrator feature, while `service list`
+        // does publish the binder. Presence of the service is what this reports.
+        param("HAP-001", "HAPTICS", "Vibration command/response", "service list",
+            { out ->
+                val registered = out.lines().any { line ->
+                    // `service list` prefixes every entry with its binder index, so the
+                    // service name only reaches the start of the line once that is gone.
+                    val name = line.trim().replaceFirst(Regex("""^\d+\s+"""), "")
+                    name.startsWith("vibrator:")
+                }
+                if (registered) {
+                    "vibrator service registered"
+                } else {
+                    null
+                }
+            },
+            "service list registered no vibrator service"),
     )
 
     // ------------------------------------------------------------------ radios
@@ -300,9 +325,15 @@ class AdbExtendedEvidenceProvider(
             "date did not publish a timestamp"),
         getPropParam("SYS-002", "SYSTEM", "Locale/language", "persist.sys.locale"),
         param("SYS-003", "SYSTEM", "Screen-on/power/display state", "dumpsys power",
-            { out -> out.lines().firstOrNull { it.trim().startsWith("mWakefulness=") }
-                ?.substringAfter('=')?.trim()?.ifEmpty { null } },
-            "dumpsys power published no wakefulness state"),
+            { out ->
+                val lines = out.lines()
+                // `mWakefulness=` is the AOSP spelling; this build publishes the state
+                // under `Display Power: state=` instead, so accept either.
+                val line = lines.firstOrNull { it.trim().startsWith("mWakefulness=") }
+                    ?: lines.firstOrNull { it.trim().startsWith("Display Power:") }
+                line?.substringAfter('=', "")?.trim()?.ifEmpty { null }
+            },
+            "dumpsys power published neither a wakefulness nor a display-power state"),
     )
 
     // ------------------------------------------------------------------ identity / security / applications
