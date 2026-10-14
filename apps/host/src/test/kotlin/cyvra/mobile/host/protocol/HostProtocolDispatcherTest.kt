@@ -6,15 +6,19 @@ import cyvra.mobile.host.license.FileBasedLicenseProvider
 import cyvra.mobile.host.license.LicenseFileReason
 import cyvra.mobile.host.license.LicenseFileResult
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.fail
 
 class HostProtocolDispatcherTest {
 
@@ -179,5 +183,89 @@ class HostProtocolDispatcherTest {
         // Read-only: a second read answers exactly what the first one did, and a
         // missing scan session is not a refusal reason for this command.
         assertEquals(first.payload, second.payload)
+    }
+
+    @Test
+    fun getChecklist_returnsAllFourteenRatifiedChecksWithoutNeedingAScan() {
+        val dispatcher = dispatcherFor(licensedResult())
+
+        val response = dispatcher.dispatch(request(HostCommand.GET_CHECKLIST, "req-check-001"))
+
+        assertEquals(HostResponseStatus.OK, response.status, response.error?.message ?: "")
+
+        assertEquals(14, (response.payload["expectedCount"] as? JsonPrimitive)?.intOrNull)
+        assertEquals("OPERATOR", (response.payload["source"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals(
+            "OPERATOR_ATTESTATION",
+            (response.payload["attestationKind"] as? JsonPrimitive)?.contentOrNull,
+            "the UI is told what kind of thing this is, so it cannot render it as a " +
+                "software observation",
+        )
+        assertNotNull(
+            (response.payload["claim"] as? JsonPrimitive)?.contentOrNull,
+            "the standing limit must travel with the checklist",
+        )
+
+        // Fourteen definitions, each carrying the fields the UI renders from. Rendering
+        // from this response rather than a second copy of the list is what stops the UI
+        // drifting from the workbook the generator reconciles against.
+        val checks = response.payload["checks"] as? JsonArray ?: fail("no checks array")
+        assertEquals(14, checks.size)
+        for (element in checks) {
+            val row = element as JsonObject
+            for (key in listOf("id", "domain", "item", "priority", "whyNotAutomatable")) {
+                assertNotNull(row[key], "every check must carry $key")
+            }
+        }
+
+        // Nothing recorded yet: every one of the fourteen is unanswered, not zero of them.
+        val progress = response.payload["progress"] as? JsonObject ?: fail("no progress")
+        assertEquals(0, (progress["answeredCount"] as? JsonPrimitive)?.intOrNull)
+        assertEquals(0, (progress["recordedCount"] as? JsonPrimitive)?.intOrNull)
+        assertEquals(false, (progress["complete"] as? JsonPrimitive)?.booleanOrNull)
+        assertEquals(14, (progress["unansweredIds"] as? JsonArray)?.size)
+    }
+
+    @Test
+    fun recordChecklist_refusesWithoutAScanSessionAndRecordsNothing() {
+        val dispatcher = dispatcherFor(licensedResult())
+
+        val payload = buildJsonObject {
+            put("operatorId", "TECH-17")
+            put(
+                "results",
+                JsonArray(
+                    listOf(
+                        buildJsonObject {
+                            put("id", "PHY-001")
+                            put("outcome", "PASS")
+                        },
+                    ),
+                ),
+            )
+        }
+
+        val response = dispatcher.dispatch(
+            HostRequest(
+                protocolVersion = HostProtocolV1.VERSION,
+                requestId = "req-check-002",
+                command = HostCommand.RECORD_CHECKLIST,
+                payload = payload,
+            ),
+        )
+
+        assertEquals(HostResponseStatus.ERROR, response.status)
+        assertEquals("NO_SCAN_SESSION", response.error?.code)
+
+        // The refusal must have side effects on nothing: a later read still shows an
+        // untouched checklist, so a rejected write can never leave a half-recorded
+        // attestation behind.
+        val after = dispatcher.dispatch(request(HostCommand.GET_CHECKLIST, "req-check-003"))
+        assertEquals(HostResponseStatus.OK, after.status, after.error?.message ?: "")
+
+        val progress = after.payload["progress"] as? JsonObject ?: fail("no progress")
+        assertEquals(0, (progress["answeredCount"] as? JsonPrimitive)?.intOrNull)
+        assertEquals(false, (progress["complete"] as? JsonPrimitive)?.booleanOrNull)
+        assertEquals(14, (progress["unansweredIds"] as? JsonArray)?.size)
     }
 }

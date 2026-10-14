@@ -49,6 +49,30 @@ enum class HostCommand {
      * already held.
      */
     FINALISE_REPORT,
+
+    /**
+     * Read-only catalogue of the technician checklist: the 14 physical and specialist
+     * checks that no collector in this product can establish.
+     *
+     * Answers what `TechnicianChecklistCatalog` holds, plus the progress of whatever has
+     * been recorded this session. It records no result and writes nothing to a device, so
+     * the UI can render the checklist before a scan exists.
+     *
+     * Additive to protocol 1 rather than a version bump: an older peer simply never
+     * sends these, and nothing already on the wire changes shape.
+     */
+    GET_CHECKLIST,
+
+    /**
+     * Records a technician's answers as an OPERATOR attestation against that checklist.
+     *
+     * Requires a completed scan, because an attestation must belong to a real session,
+     * and carries an author, because an attestation with no author is not evidence. The
+     * `source` is fixed to `OPERATOR` inside the model: a human opinion can never reach
+     * the report shaped like a software observation, which is the specific failure the
+     * four-plane attribution rule exists to prevent.
+     */
+    RECORD_CHECKLIST,
 }
 
 enum class HostResponseStatus {

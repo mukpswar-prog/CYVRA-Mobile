@@ -3,6 +3,10 @@ package cyvra.mobile.host.protocol
 import cyvra.mobile.core.AuthorizationRequirement
 import cyvra.mobile.core.PreSanitizationRecord
 import cyvra.mobile.core.SanitizationMethodType
+import cyvra.mobile.core.TechnicianCheckOutcome
+import cyvra.mobile.core.TechnicianCheckResult
+import cyvra.mobile.core.TechnicianChecklistCatalog
+import cyvra.mobile.core.TechnicianChecklistRecord
 import cyvra.mobile.host.engine.CapabilityMatrixLoader
 import cyvra.mobile.host.engine.ReportFinaliser
 import cyvra.mobile.host.engine.ReportGenerator
@@ -81,6 +85,18 @@ class HostProtocolDispatcher(
     private var operatorConfirmationPhrase: String? = null
     private var lifecycleResult: WorkstationSanitizationLifecycleResult? = null
 
+    /**
+     * The technician checklist recorded against the current session, if any.
+     *
+     * Held server-side for the same reason as every other field above: a later command
+     * can only succeed because an earlier one actually ran. It is cleared when a new
+     * RUN_SCAN succeeds and deliberately NOT from [resetSanitizationState], which also
+     * runs part-way through a sanitization - an attestation describes the device state
+     * the technician looked at, so it must outlive the lifecycle stage, not be swept
+     * away by it.
+     */
+    private var checklistRecord: TechnicianChecklistRecord? = null
+
     /** Licence state, resolved once so the reason a scan is refused never shifts mid-session. */
     private val licenseResult: LicenseFileResult by lazy { licenseResultProvider() }
 
@@ -112,6 +128,8 @@ class HostProtocolDispatcher(
             HostCommand.SANITIZE_VERIFY -> sanitizeVerifyResponse(request)
             HostCommand.GET_FINAL_REPORT -> finalReportResponse(request)
             HostCommand.FINALISE_REPORT -> finaliseReportResponse(request)
+            HostCommand.GET_CHECKLIST -> getChecklistResponse(request)
+            HostCommand.RECORD_CHECKLIST -> recordChecklistResponse(request)
         }
     }
 
@@ -502,6 +520,12 @@ class HostProtocolDispatcher(
 
         lastScan = result
         resetSanitizationState()
+        /*
+         * A new scan starts a new session, so attestations made against the previous
+         * device state must not carry over onto fresh evidence. Cleared here rather than
+         * inside resetSanitizationState, which also runs part-way through a lifecycle.
+         */
+        checklistRecord = null
 
         val section = result.report.applicationInventory
         return okResponse(
@@ -1192,6 +1216,166 @@ class HostProtocolDispatcher(
         lifecycleResult = null
         if (!keepStart) {
             lifecycleStart = null
+        }
+    }
+
+    /**
+     * GET_CHECKLIST — the ratified catalogue plus this session's progress.
+     *
+     * Deliberately available before a scan exists, so the UI renders all 14 checks from
+     * `TechnicianChecklistCatalog` itself rather than from a second copy of the list that
+     * could later drift away from the workbook the generator reconciles against.
+     *
+     * `claim` is the standing limit the UI is required to keep visible: these checks are
+     * performed by a person, and the product records what they found. It never presents
+     * them as its own observation.
+     */
+    private fun getChecklistResponse(request: HostRequest): HostResponse =
+        okResponse(
+            request,
+            buildJsonObject {
+                put("expectedCount", TechnicianChecklistCatalog.expectedCount)
+                put("source", TechnicianCheckResult.OPERATOR_SOURCE)
+                put("attestationKind", "OPERATOR_ATTESTATION")
+                put(
+                    "claim",
+                    "These checks are performed by a person. The product records what they " +
+                        "found and never presents it as a software observation.",
+                )
+                put(
+                    "checks",
+                    JsonArray(
+                        TechnicianChecklistCatalog.all.map { check ->
+                            buildJsonObject {
+                                put("id", check.id)
+                                put("domain", check.domain)
+                                put("item", check.item)
+                                put("priority", check.priority)
+                                put("whyNotAutomatable", check.whyNotAutomatable)
+                            }
+                        },
+                    ),
+                )
+                put("outcomes", stringArray(TechnicianCheckOutcome.entries.map { it.name }))
+                put("progress", checklistProgress(checklistRecord))
+            },
+        )
+
+    /**
+     * RECORD_CHECKLIST — a technician's answers, authored and bound to this session.
+     *
+     * Every refusal below is a refusal rather than a silent drop. An unknown id would let
+     * a client invent a check the workbook never ratified; an outcome outside the four
+     * would let it answer with something the report has no vocabulary for. Both are
+     * rejected with the reason, because a checklist that quietly loses rows is
+     * indistinguishable from one that was never worked.
+     */
+    private fun recordChecklistResponse(request: HostRequest): HostResponse {
+        val scan = lastScan ?: return noScanError(request, "RECORD_CHECKLIST")
+
+        val operatorId = request.stringPayload(KEY_OPERATOR_ID)
+            ?: scan.report.header.operatorId
+        /*
+         * One timestamp for the whole call, taken here rather than accepted from the
+         * client. An attestation time the client supplies is a time the client can
+         * backdate, and a backdated observation is a fabricated one. Whether an author is
+         * present at all is the recorder's call to make, not this handler's.
+         */
+        val recordedAt = java.time.Instant.now().toString()
+
+        val results = request.payload["results"] as? JsonArray
+            ?: return rejectedResponse(request, ChecklistRecorder.malformed)
+
+        /*
+         * Brand and model, never the serial: this identifier is written into a persisted
+         * record, and device serials are withheld from files by standing rule.
+         */
+        val identity = scan.report.deviceIdentity
+        val deviceIdentifier = listOfNotNull(identity.brand.value, identity.model.value)
+            .joinToString(" ")
+            .ifBlank { "unknown-device" }
+
+        /*
+         * The recorder owns every invariant - author present, ids ratified, outcomes in
+         * the vocabulary, completion decided - so this handler stays a thin translator
+         * between the wire and that object. Duplicating any of it here would create a
+         * second source of the same rule, and two sources of a rule is how they drift.
+         */
+        val submission = ChecklistRecorder.apply(
+            existing = checklistRecord,
+            results = results,
+            operatorId = operatorId,
+            sessionUuid = scan.report.header.sessionUuid,
+            deviceIdentifier = deviceIdentifier,
+            recordedAt = recordedAt,
+        )
+
+        val rejected = submission as? ChecklistSubmission.Rejected
+        if (rejected != null) {
+            return rejectedResponse(request, rejected)
+        }
+
+        val updated = (submission as ChecklistSubmission.Accepted).record
+        checklistRecord = updated
+
+        return okResponse(
+            request,
+            buildJsonObject {
+                put("checklistId", updated.checklistId)
+                put("sessionUuid", updated.sessionUuid)
+                put("deviceIdentifier", updated.deviceIdentifier)
+                put("source", TechnicianCheckResult.OPERATOR_SOURCE)
+                put("recordedAt", recordedAt)
+                put(
+                    "results",
+                    JsonArray(
+                        updated.results.map { result ->
+                            buildJsonObject {
+                                put("id", result.id)
+                                put("outcome", result.outcome.name)
+                                put("operatorId", result.operatorId)
+                                put("observedAt", result.observedAt)
+                                result.note?.let { put("note", it) }
+                            }
+                        },
+                    ),
+                )
+                put("progress", checklistProgress(updated))
+            },
+        )
+    }
+
+    /**
+     * Turns a [ChecklistSubmission.Rejected] into a wire error without restating its code
+     * or message. Both the transport-level check and the recorder funnel through here so
+     * an error code has exactly one spelling.
+     */
+    private fun rejectedResponse(
+        request: HostRequest,
+        rejection: ChecklistSubmission.Rejected,
+    ): HostResponse = errorResponse(
+        request = request,
+        code = rejection.code,
+        message = rejection.message,
+    )
+
+    /**
+     * Progress object shared by both commands.
+     *
+     * `unansweredIds` is what keeps incompleteness visible: a checklist opened but not
+     * finished must never read like one that was finished with everything passing. When
+     * nothing has been recorded yet, every id is unanswered rather than zero of them.
+     */
+    private fun checklistProgress(record: TechnicianChecklistRecord?): JsonObject {
+        val expected = TechnicianChecklistCatalog.ids
+        val unanswered = record?.unansweredIds(expected) ?: expected
+        return buildJsonObject {
+            put("hasSession", record != null)
+            put("expectedCount", expected.size)
+            put("answeredCount", record?.answeredCount ?: 0)
+            put("recordedCount", record?.recordedCount ?: 0)
+            put("complete", record?.isComplete(expected) ?: false)
+            put("unansweredIds", stringArray(unanswered))
         }
     }
 
