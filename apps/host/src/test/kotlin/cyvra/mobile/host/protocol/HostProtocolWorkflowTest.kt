@@ -836,10 +836,11 @@ class HostProtocolWorkflowTest {
         })
         assertEquals(HostResponseStatus.OK, confirm.status, confirm.error?.message ?: "")
 
-        // DECISION D-1 / OUTCOME B: this is the expected, correct result.
+        // No enrolled CYVRA sanitization agent on this target, so refusing to wipe
+        // is the expected, correct result rather than a failure of the product.
         val execute = session.send(HostCommand.SANITIZE_EXECUTE)
         assertEquals(HostResponseStatus.OK, execute.status, execute.error?.message ?: "")
-        assertEquals("BLOCKED_NOT_IMPLEMENTED", str(execute, "executionStatus"))
+        assertEquals("BLOCKED_NOT_ELIGIBLE", str(execute, "executionStatus"))
         assertEquals(false, bool(execute, "executionSuccess"))
         assertEquals("BLOCKED_NOT_EXECUTED", str(execute, "lifecycleOutcome"))
         assertEquals(false, bool(execute, "successClaimed"))
@@ -870,7 +871,7 @@ class HostProtocolWorkflowTest {
         // The certificate itself must never contain a success claim.
         val certificateJson = assertNotNull(str(finalReport, "certificateJson"))
         assertFalse(certificateJson.contains("SANITIZATION SUCCESS"))
-        assertTrue(certificateJson.contains("BLOCKED_NOT_IMPLEMENTED"))
+        assertTrue(certificateJson.contains("BLOCKED_NOT_ELIGIBLE"))
 
         session.printTranscript()
     }
@@ -934,11 +935,11 @@ class HostProtocolWorkflowTest {
         assertEquals(true, bool(confirm, "phraseAccepted"))
         assertEquals(operationId, str(confirm, "operationId"))
 
-        // --- 4. SANITIZE_EXECUTE: D-1 OUTCOME B, blocked yet answered OK -
+        // --- 4. SANITIZE_EXECUTE: blocked, yet answered OK -
         val execute = session.send(HostCommand.SANITIZE_EXECUTE)
         assertEquals(HostResponseStatus.OK, execute.status, execute.error?.message ?: "")
         assertNull(execute.error)
-        assertEquals("BLOCKED_NOT_IMPLEMENTED", str(execute, "executionStatus"))
+        assertEquals("BLOCKED_NOT_ELIGIBLE", str(execute, "executionStatus"))
         assertEquals(false, bool(execute, "executionSuccess"))
         assertEquals("BLOCKED_NOT_EXECUTED", str(execute, "lifecycleOutcome"))
         assertEquals("REQUIRES_EXTERNAL_VERIFICATION", str(execute, "verificationStatus"))
@@ -1062,7 +1063,7 @@ class HostProtocolWorkflowTest {
             "a blocked lifecycle must never be written as SANITIZATION SUCCESS (markdown)",
         )
         assertTrue(
-            storedJson.contains("BLOCKED_NOT_IMPLEMENTED"),
+            storedJson.contains("BLOCKED_NOT_ELIGIBLE"),
             "the certificate must record the blocked execution status",
         )
 

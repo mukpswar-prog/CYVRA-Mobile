@@ -37,10 +37,22 @@ class HostSecurityAuditEngine {
             "getprop",
             "dumpsys battery",
             "dumpsys package",
+            // Added 14-Oct for the PUR-004 pre-flight. Read-only, and narrower than
+            // `dumpsys` as a whole: it reports device-owner state, which is the one
+            // fact that must be established before a destructive trigger is issued.
+            "dumpsys device_policy",
             "cat /proc/meminfo",
             "df",
             "pm list packages",
             "cmd recovery wipe-data",
+            // Added 14-Oct for PUR-004. This is deliberately the full component
+            // address rather than the bare `am broadcast`, which would let any
+            // broadcast on the device be issued. Scoped to the CYVRA sanitization
+            // agent's own receiver, so the prefix admits exactly one destination.
+            // Shell metacharacters are rejected separately by
+            // validateAdbCommandSafety, so this cannot be extended into an
+            // injection by appending `;` or a pipe.
+            "am broadcast -n com.cyvra.sanitization/",
         )
     }
 

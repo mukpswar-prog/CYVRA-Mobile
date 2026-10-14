@@ -902,10 +902,15 @@ class HostProtocolDispatcher(
     /**
      * SANITIZE_EXECUTE completes the lifecycle behind the gate, target lock and phrase.
      *
-     * Execution runs the real provider path, which in this build answers
-     * `BLOCKED_NOT_IMPLEMENTED` (decision D-1, OUTCOME B). That is the correct result:
-     * the destructive trigger stays hardware-gated until validated on the physical
-     * device, and the response reports it as the honest outcome rather than an error.
+     * Execution runs the real provider path (PUR-004, agent-based route). It answers
+     * `TRIGGERED_AGENT_BASED_REBOOT_PENDING` when the CYVRA sanitization agent is
+     * installed and enrolled as device owner, and a blocked status when it is not.
+     * A blocked answer is a correct outcome rather than a failure: it means this
+     * device has no purge method available to this build, and the response says so
+     * instead of issuing a command that could not have worked.
+     *
+     * Delivery of the trigger is never erasure, and nothing here may be read as
+     * claiming any. See HostDestructiveWipeProvider and verification (PUR-005).
      */
     private fun sanitizeExecuteResponse(request: HostRequest): HostResponse {
         /*

@@ -1,0 +1,52 @@
+============================================================
+ CYVRA PUR-004 PRE-FLIGHT RUN
+ subject : agent-based destructive provider eligibility
+ date    : 2026-10-14
+ method  : HostDestructiveWipeProvider.preflight() executed against the
+           connected bench device. READ-ONLY: trigger() was NOT called.
+ runner  : temporary scratch test (untracked, deleted before commit)
+ status  : BUILD SUCCESSFUL, test run exit 0
+============================================================
+
+No serial, account, contact or device identifier appears in this file.
+
+[preflight] authorised devices = 1
+[preflight] eligibility = NOT_ELIGIBLE
+[preflight] reason      = Refused: the CYVRA sanitization agent is not
+    installed on this device, so no purge method is available. Purge on this
+    build is agent-based; it is not offered as an agent-less capability.
+[preflight] trigger() was NOT called - read-only run
+
+============================================================
+ WHAT THIS ESTABLISHES
+
+1. The pre-flight refuses correctly against a real device that has no enrolled
+   CYVRA sanitization agent. The refusal is reached BEFORE any destructive
+   command is issued, which is the ordering standing hold H1 requires.
+
+2. This independently corroborates the 14-Oct PUR-006 baseline run, which
+   counted 0 CYVRA packages among 333 installed packages
+   (docs/evidence/pur006-product-path-2026-10-14.log). The agent is absent
+   because the 12-Oct factory reset removed it, and it has not been
+   reinstalled since.
+
+3. The reason text names the route rather than hiding it. Standing hold H8
+   requires the weaker route to be described as weaker: purge on this build is
+   agent-based, and this device cannot be purged until the agent is installed
+   and enrolled as device owner.
+
+WHAT THIS DOES NOT ESTABLISH
+ - It does not establish that a purge would succeed on a device that IS
+   enrolled. No wipe was issued; issuing one would erase the bench device and
+   H1 permits that only as an explicitly commissioned sequence.
+ - It does not establish erasure of anything. Erasure is established only by
+   post-reset verification (PUR-005), never by the trigger path.
+
+CONSEQUENCE FOR THE NEXT STEP
+ Step 5 (purge through the product path with before/after counts) cannot run
+ on this device in its current state. It requires, first:
+   (a) installing the CYVRA sanitization agent APK, and
+   (b) enrolling it as device owner over adb.
+ Both are destructive-adjacent setup actions and need the Chief Engineer's
+ explicit commissioning.
+============================================================

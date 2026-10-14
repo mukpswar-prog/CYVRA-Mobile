@@ -81,21 +81,59 @@ class HostSanitizationProvider(
             )
         }
 
-        // OUTCOME B (integrated engineering build): real sanitization execution is
-        // explicitly BLOCKED/NOT_IMPLEMENTED. No validated, device-target-verified
-        // destructive provider exists for the supported targets yet, so no destructive
-        // command may be issued. The system therefore cannot generate a successful
-        // sanitization result: this path records honest block evidence instead of
-        // firing a generic or unverified wipe command. A future evidence-grade
-        // provider plugs in here behind the eligibility gate and target lock.
+        // PUR-004 destructive execution, agent-based route.
+        //
+        // The G5 law is preserved above: a dry run still never issues anything. What
+        // follows runs only when the operator has confirmed AND the caller has already
+        // passed the entitlement gate, the acknowledgement and the typed phrase.
+        //
+        // Eligibility is read from the device rather than assumed. Refusing here is a
+        // correct outcome, not a failure: a device without the enrolled agent has no
+        // purge method available to this build, and saying so plainly is the point.
+        val wipe = HostDestructiveWipeProvider(adbClient, serial)
+        val (eligibility, eligibilityReason) = wipe.preflight()
+        if (eligibility != WipeEligibility.ELIGIBLE) {
+            return SanitizationExecutionResult(
+                operationId = preRecord.operationId,
+                method = preRecord.selectedMethod,
+                isSuccess = false,
+                executionStatus = if (eligibility == WipeEligibility.INDETERMINATE) {
+                    "BLOCKED_ELIGIBILITY_NOT_ESTABLISHED"
+                } else {
+                    "BLOCKED_NOT_ELIGIBLE"
+                },
+                rawResponse = null,
+                error = eligibilityReason,
+            )
+        }
+
+        val outcome = wipe.trigger()
+        if (!outcome.delivered) {
+            return SanitizationExecutionResult(
+                operationId = preRecord.operationId,
+                method = preRecord.selectedMethod,
+                isSuccess = false,
+                executionStatus = "FAILED_TRIGGER_NOT_DELIVERED",
+                rawResponse = null,
+                error = outcome.reason,
+            )
+        }
+
+        // isSuccess here means the trigger was delivered to an enrolled agent. It does
+        // NOT mean data was erased, and this result must never be read as saying so:
+        // the receiver returns before wipeData completes, and the broadcast reports
+        // success even when the wipe does not fire. Completion is established only by
+        // post-reset verification (PUR-005).
         return SanitizationExecutionResult(
             operationId = preRecord.operationId,
             method = preRecord.selectedMethod,
-            isSuccess = false,
-            executionStatus = "BLOCKED_NOT_IMPLEMENTED",
-            rawResponse = null,
-            error = "Sanitization execution is blocked: no validated sanitization provider " +
-                "exists for this device target (engineering build; see eligibility gate).",
+            isSuccess = true,
+            executionStatus = "TRIGGERED_AGENT_BASED_REBOOT_PENDING",
+            rawResponse = "Wipe trigger delivered to the CYVRA sanitization agent acting as " +
+                "device owner. Delivery is not evidence of erasure: the device reboots " +
+                "asynchronously and this build establishes completion only through " +
+                "post-reset verification.",
+            error = null,
         )
     }
 }

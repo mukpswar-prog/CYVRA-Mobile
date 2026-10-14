@@ -612,10 +612,10 @@ class IntegratedEvidenceWorkflowTest {
             reconnectedTargetSerial = SERIAL,
         )
 
-        // Execution was explicitly BLOCKED — no destructive command exists in this build.
+        // Execution was explicitly BLOCKED — no enrolled CYVRA sanitization agent exists on this target, and purge on this build is agent-based.
         val execution = assertNotNull(completion.executionResult)
         assertFalse(execution.isSuccess)
-        assertEquals("BLOCKED_NOT_IMPLEMENTED", execution.executionStatus)
+        assertEquals("BLOCKED_NOT_ELIGIBLE", execution.executionStatus)
         assertEquals(SanitizationWorkflowStep.FAILED, assertNotNull(completion.session).currentStep)
 
         // Post-sanitization verification honestly reports external verification required.
@@ -639,7 +639,7 @@ class IntegratedEvidenceWorkflowTest {
         assertTrue(finalReport.preSanitizationRecord.sessionUuid.isNotEmpty())
 
         val json = assertNotNull(completion.finalReportJson)
-        assertTrue(json.contains("BLOCKED_NOT_IMPLEMENTED"))
+        assertTrue(json.contains("BLOCKED_NOT_ELIGIBLE"))
         assertTrue(json.contains("lifecycleOutcome"))
         assertFalse(json.contains("SANITIZATION SUCCESS"))
 

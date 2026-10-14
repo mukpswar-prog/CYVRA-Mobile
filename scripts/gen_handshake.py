@@ -190,8 +190,10 @@ IMPLEMENTED_BASE = {
                "preventsExecutionWithoutSatisfying2StepConfirmationBarrier",
     "PUR-003": "HostSanitizationWorkflowEngine.selectMethod() behind the barrier; "
                "exercised by executesPurgeAndVerifiesPostResetReconnection",
-    "PUR-004": "executePurge()/execute() - unit-tested for dry-run only; real purge "
-               "returns BLOCKED_NOT_IMPLEMENTED (no validated provider bound)",
+    "PUR-004": "HostDestructiveWipeProvider.preflight() + trigger() bound into "
+               "execute(): pre-flight reads agent presence and device-owner state, "
+               "then issues the 12-Oct wipe broadcast; refuses honestly when the "
+               "agent is absent, not enrolled, or unreadable",
     "PUR-005": "verifyPostReset(); returns PARTIALLY_VERIFIED or "
                "REQUIRES_EXTERNAL_VERIFICATION, never VERIFIED (WP-1b fix)",
     "PUR-006": "HostVerificationProvider.residualInventory() inside verifyPostReset(): "
@@ -442,7 +444,8 @@ def human_role(owner):
     }[owner]
 
 # PUR rows carry bespoke gap text because "None - in place" would be false for
-# PUR-004 (execution deliberately blocked) and for PUR-006 (package counts are in
+# PUR-004 (execution is bound, but purge remains agent-based and the agent-less
+# route is still unproven for erase) and for PUR-006 (package counts are in
 # place since 14-Oct, but account/contact/media counts still are not).
 PUR_GAP = {
     "PUR-001": "None \u2014 capability assessment in place; **not yet run through the "
@@ -451,9 +454,11 @@ PUR_GAP = {
                "product against hardware**",
     "PUR-003": "None \u2014 method selection in place; **not yet run through the product "
                "against hardware**",
-    "PUR-004": "Execution gated twice: `execute()` returns BLOCKED_NOT_IMPLEMENTED "
-               "(no validated sanitization provider bound) **and** the offline "
-               "entitlement must grant `sanitizeExecute` (WP-5)",
+    "PUR-004": "None for the agent-based route \u2014 execution is bound and gated "
+               "behind the offline entitlement, operator acknowledgement, typed "
+               "phrase and a device pre-flight. Purge remains agent-based: a device "
+               "without the enrolled CYVRA agent is refused rather than silently "
+               "failing, and the agent-less route is still unproven for erase",
     "PUR-005": "None \u2014 post-reset verification in place and deliberately declines to "
                "claim erasure; residual counts still require PUR-006",
     "PUR-006": "None for applications \u2014 residual package counts are taken inside "

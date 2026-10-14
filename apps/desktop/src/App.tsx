@@ -1027,7 +1027,18 @@ function App() {
   const executePayload = payloadOf(sanitize.execute);
 
   const executeStatus = readString(executePayload, "executionStatus");
-  const blocked = executeStatus === "BLOCKED_NOT_IMPLEMENTED";
+  // An execution that did not happen must be rendered as such. The set covers every
+  // status the host can answer when no wipe took place: the device has no enrolled
+  // agent, its eligibility could not be read at all, or the trigger did not reach it.
+  // TRIGGERED_AGENT_BASED_REBOOT_PENDING is deliberately NOT in this list: it means a
+  // wipe was requested, and whether it completed is established only later, by
+  // post-reset verification.
+  const BLOCKED_EXECUTION_STATUSES = [
+    "BLOCKED_NOT_ELIGIBLE",
+    "BLOCKED_ELIGIBILITY_NOT_ESTABLISHED",
+    "FAILED_TRIGGER_NOT_DELIVERED",
+  ];
+  const blocked = BLOCKED_EXECUTION_STATUSES.includes(executeStatus);
 
   const startOk = sanitize.start?.status === "OK";
   const authorizeOk = sanitize.authorize?.status === "OK";

@@ -189,8 +189,9 @@ pub async fn get_host_info(state: tauri::State<'_, HostState>) -> Result<HostInf
 /// and reads the single line it answers with on stdout.
 ///
 /// The response is returned **verbatim, including a `status: "ERROR"` envelope**.
-/// `LICENSE_REQUIRED`, `SANITIZE_PHRASE_MISMATCH` and the decision D-1
-/// `BLOCKED_NOT_IMPLEMENTED` outcome are protocol answers the UI must render
+/// `LICENSE_REQUIRED`, `SANITIZE_PHRASE_MISMATCH` and a blocked purge outcome
+/// (`BLOCKED_NOT_ELIGIBLE`, `BLOCKED_ELIGIBILITY_NOT_ESTABLISHED` or
+/// `FAILED_TRIGGER_NOT_DELIVERED`) are protocol answers the UI must render
 /// accurately, not exceptions. `Err` is reserved for the bridge itself failing,
 /// which is a genuinely different class of problem:
 ///
