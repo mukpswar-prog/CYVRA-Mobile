@@ -1,0 +1,332 @@
+CYVRA stage gate run 2026-10-14 21:17:27
+repo C:\Users\User\Documents\GitHub\CYVRA-Mobile
+
+======== G-D  verify-standing-holds (code checks)  [21:17:28] ========
+
+======== G-D  H1 bench-phone probe  [21:18:05] ========
+
+======== G-F  no BOM, strict UTF-8 decode  [21:18:36] ========
+
+======== G-G  zero hits on banned absolute claims  [21:18:37] ========
+
+======== G-A  pnpm -r typecheck  [21:18:38] ========
+
+
+======== G-A  desktop tsc -b  [21:19:02] ========
+
+
+======== G-B  pnpm -r test  [21:19:35] ========
+
+
+======== G-C  wrangler deploy --dry-run  [21:26:39] ========
+
+ Γ¢à∩╕Å wrangler 4.130.0
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Total Upload: 759.82 KiB / gzip: 156.14 KiB
+Your Worker has access to the following bindings:
+Binding                                                Resource                  
+env.HYPERDRIVE (db31fc8dafca49b29172da7046b97175)      Hyperdrive Config         
+env.APP_ORIGIN ("http://localhost:5173")               Environment Variable      
+env.API_ENV ("production")                             Environment Variable      
+
+--dry-run: exiting now.
+
+
+======== G-H  :core + :host compile  [21:27:03] ========
+cyvra-mobile-android: Java 21.0.8 (Codespaces is often 25; Gradle 9.1+ required)
+
+
+======== G-H  :host unit tests  [21:27:22] ========
+cyvra-mobile-android: Java 21.0.8 (Codespaces is often 25; Gradle 9.1+ required)
+
+
+======== G-H  :sanitization-agent assembleDebug + unit tests  [21:27:39] ========
+cyvra-mobile-android: Java 21.0.8 (Codespaces is often 25; Gradle 9.1+ required)
+
+
+======== G-I  cargo test  [21:28:01] ========
+cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 11.16s
+At C:\Users\User\Documents\GitHub\CYVRA-Mobile\scripts\verify-stage-gates.ps1:284 char:19
++             try { & cargo test 2>&1 | Out-String | Out-GateLog; $LAST ...
++                   ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Finished `t...et(s) in 11.16s:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+     Running unittests src\lib.rs (target\debug\deps\app_lib-1c701240ed309699.exe)
+
+running 240 tests
+test activation::api::tests::every_refusal_carries_a_stable_audit_code_that_is_not_the_display_word ... ok
+test activation::api::tests::the_operator_facing_vocabulary_is_exactly_six_strings ... ok
+test activation::client::tests::a_real_build_cannot_activate_anything_before_the_endpoint_is_wired ... ok
+test activation::client::tests::a_stored_token_cannot_be_revalidated_before_the_endpoint_is_wired ... ok
+test activation::client::tests::every_answer_is_already_one_of_the_six_operator_facing_strings ... ok
+test activation::client::tests::the_placeholder_carries_no_endpoint_of_its_own ... ok
+test activation::client::tests::the_placeholder_could_not_leak_a_success_it_did_not_have ... ok
+test activation::client::tests::the_placeholder_never_claims_the_service_is_reachable ... ok
+test activation::entitlement::tests::a_comparison_that_cannot_be_made_declines_to_choose_a_side ... ok
+test activation::entitlement::tests::a_new_server_signature_starts_the_journal_again ... ok
+test activation::entitlement::tests::an_empty_payload_is_refused_instead_of_written ... ok
+test activation::entitlement::tests::an_empty_signature_is_refused_instead_of_written ... ok
+test activation::entitlement::tests::an_unresolved_installation_root_is_reported_as_such_not_as_a_bad_signature ... ok
+test activation::entitlement::tests::a_re_export_under_the_same_signature_carries_the_journal_forward ... ok
+test activation::entitlement::tests::an_unresolved_root_cannot_be_settled ... ok
+test activation::entitlement::tests::no_staging_file_is_left_behind ... ok
+test activation::entitlement::tests::an_untouched_entitlement_carries_no_debits_key_at_all ... ok
+test activation::entitlement::tests::no_staging_file_survives_a_settlement ... ok
+test activation::entitlement::tests::overwriting_an_existing_export_replaces_it_whole ... ok
+test activation::entitlement::tests::settling_a_scan_records_it_beside_the_signed_payload ... ok
+test activation::entitlement::tests::settling_without_an_export_is_refused_rather_than_invented ... ok
+test activation::entitlement::tests::settling_the_same_certificate_twice_spends_once ... ok
+test activation::entitlement::tests::the_lease_in_force_is_readable_from_the_export_itself ... ok
+test activation::entitlement::tests::the_exported_document_carries_the_schema_and_the_signed_text_verbatim ... ok
+test activation::entitlement::tests::the_payload_survives_the_trip_byte_for_byte ... ok
+test activation::entitlement::tests::two_certificates_chain_from_each_other ... ok
+test activation::fingerprint::tests::a_withheld_smbios_uuid_never_reaches_the_digest ... ok
+test activation::fingerprint::tests::an_all_zero_smbios_uuid_is_reported_as_missing_not_as_an_identity ... ok
+test activation::fingerprint::tests::an_unreadable_component_is_an_error_not_a_partial_identity ... ok
+test activation::fingerprint::tests::any_single_component_change_changes_identity ... ok
+test activation::fingerprint::tests::case_and_whitespace_do_not_change_identity ... ok
+test activation::fingerprint::tests::the_digest_covers_exactly_three_named_fields ... ok
+test activation::fingerprint::tests::the_digest_is_lowercase_sha256_hex ... ok
+test activation::fingerprint::tests::the_same_components_always_produce_the_same_digest ... ok
+test activation::live_client::tests::a_code_that_is_not_ours_is_no_verdict_at_all ... ok
+test activation::live_client::tests::a_base_without_a_trailing_slash_still_appends_the_path ... ok
+test activation::live_client::tests::a_configured_endpoint_is_built_once_and_reused ... ok
+test activation::live_client::tests::a_conflict_is_already_bound_whatever_the_body_says ... ok
+test activation::live_client::tests::a_configured_environment_variable_makes_production_post_for_real ... ok
+test activation::live_client::tests::a_development_override_still_wins ... ok
+test activation::live_client::tests::a_conflict_with_no_body_is_still_already_bound ... ok
+test activation::live_client::tests::a_granted_activation_round_trips_exactly_what_the_server_sent ... ok
+test activation::live_client::tests::a_first_binding_is_never_retried ... ok
+test activation::live_client::tests::a_missing_grace_deadline_refuses_rather_than_granting_forever ... ok
+test activation::live_client::tests::a_mistyped_override_is_handed_through_rather_than_silently_becoming_production ... ok
+test activation::live_client::tests::a_redirect_is_refused_rather_than_replaying_the_licence_key ... ok
+test activation::live_client::tests::a_read_only_revalidation_is_retried_within_its_budget ... ok
+test activation::live_client::tests::a_revalidation_carries_the_stored_token_and_is_a_revalidation ... ok
+test activation::live_client::tests::an_answer_that_is_neither_shape_never_approves ... ok
+test activation::live_client::tests::a_timeout_is_a_network_error_not_a_panic ... ok
+test activation::live_client::tests::an_empty_binding_is_not_let_through_as_a_first_binding_by_accident ... ok
+test activation::live_client::tests::an_endpoint_that_cannot_be_built_never_reaches_an_operator ... ok
+test activation::live_client::tests::an_unconfigured_build_dials_the_shipped_default ... ok
+test activation::live_client::tests::an_arbitrary_code_is_never_a_seventh_verdict ... ok
+test activation::live_client::tests::an_unrecognised_code_is_reported_as_a_network_error_not_a_verdict ... ok
+test activation::live_client::tests::any_answer_collapses_into_the_six ... ok
+test activation::live_client::tests::conflict_is_always_already_bound ... ok
+test activation::live_client::tests::credentials_in_a_url_are_refused_not_stripped ... ok
+test activation::live_client::tests::each_of_the_six_codes_maps_back_to_itself ... ok
+test activation::live_client::tests::every_server_code_is_reported_as_that_verdict ... ok
+test activation::live_client::tests::no_configured_endpoint_means_no_live_client ... ok
+test activation::live_client::tests::an_unreachable_service_is_a_network_error ... ok
+test activation::live_client::tests::the_injected_clock_is_what_stops_the_retries ... ok
+test activation::live_client::tests::the_request_body_is_the_declared_json_shape ... ok
+test activation::live_client::tests::the_shipped_default_is_the_production_api_and_actually_builds ... ok
+test activation::state::tests::a_corrupt_store_is_a_local_fault_never_a_first_launch ... ok
+test activation::state::tests::a_first_binding_is_recorded_in_the_ledger_as_a_live_event ... ok
+test activation::state::tests::a_local_fault_never_borrows_one_of_the_operators_verdicts ... ok
+test activation::state::tests::a_missing_grace_deadline_is_a_refusal_not_an_open_window ... ok
+test activation::state::tests::a_refusal_never_clears_the_stored_activation ... ok
+test activation::state::tests::a_refusal_reaches_the_audit_trail_but_never_the_ledger ... ok
+test activation::state::tests::a_revalidation_that_comes_back_as_a_new_binding_is_refused_not_adopted ... ok
+test activation::state::tests::a_stored_token_revalidates_silently_and_enters_with_no_second_login ... ok
+test activation::state::tests::an_activation_cannot_be_committed_without_an_installation_root ... ok
+test activation::state::tests::an_already_bound_licence_refuses_and_leaves_nothing_for_the_host_to_pick_up ... ok
+test activation::state::tests::every_successful_revalidation_is_its_own_ledger_entry ... ok
+test activation::state::tests::every_verdict_is_expressed_correctly_on_all_three_surfaces ... ok
+test activation::live_client::tests::reachability_tells_a_live_service_from_a_dead_one ... ok
+test activation::state::tests::first_activation_binds_persists_exports_the_full_entitlement_and_audits_a_new_binding ... ok
+test activation::state::tests::grace_ends_on_the_servers_instant_not_one_second_later ... ok
+test activation::state::tests::offline_past_grace_is_a_refusal_and_hands_the_host_nothing_new ... ok
+test activation::state::tests::grace_running_out_is_recorded_on_every_refused_launch ... ok
+test activation::state::tests::offline_without_any_activation_reports_the_network_verdict ... ok
+test activation::state::tests::online_without_any_activation_is_the_screen_with_nothing_to_report ... ok
+test activation::state::tests::offline_within_grace_enters_and_swaps_in_the_restricted_lease ... ok
+test activation::state::tests::riding_the_grace_window_is_recorded_as_offline_state ... ok
+test activation::state::tests::the_audit_trail_appends_one_json_object_per_line ... ok
+test activation::state::tests::the_ledger_verdict_travels_back_instead_of_being_swallowed ... ok
+test activation::state::tests::the_two_binding_events_are_never_confused ... ok
+test activation::state::tests::timestamps_are_iso8601_utc ... ok
+test activation::state::tests::without_an_installation_root_there_is_no_decision_and_no_attempt ... ok
+test activation::state::tests::the_code_field_is_present_exactly_for_refusals_and_local_faults ... ok
+test activation::store::tests::a_store_survives_a_dpapi_round_trip ... ok
+test activation::store::tests::a_store_written_by_another_windows_user_cannot_be_read ... ok
+test activation::store::tests::a_tampered_store_fails_closed_and_is_never_treated_as_first_launch ... ok
+test activation::store::tests::an_absent_store_is_first_launch_not_an_error ... ok
+test activation::store::tests::an_empty_store_is_corrupt_rather_than_first_launch ... ok
+test activation::store::tests::an_unresolved_installation_root_is_refused_instead_of_using_the_working_directory ... ok
+test activation::store::tests::there_is_no_reset_or_delete_entry_point_in_this_module ... ok
+test commands::tests::different_wpd_devices_receive_distinct_session_ids ... ok
+test commands::tests::same_wpd_device_reuses_session_id_case_insensitively ... ok
+test commands::tests::session_id_does_not_expose_native_pnp_id ... ok
+test force_clean::tests::guard_attestation_json_shape_is_the_reference_shape ... ok
+test force_clean::tests::guard_attestation_provenance_names_this_implementation ... ok
+test force_clean::tests::guard_authenticator_parse_never_spans_lines ... ok
+test activation::store::tests::the_store_is_never_written_in_plaintext ... ok
+test force_clean::tests::guard_duplicate_package_collapses_to_one_removal ... ok
+test force_clean::tests::guard_overflowing_count_is_failure_not_a_fabricated_zero ... ok
+test force_clean::tests::guard_platform_probe_never_panics_on_a_multibyte_boundary ... ok
+test force_clean::tests::guard_carriage_return_only_is_not_a_line_separator ... ok
+test force_clean::tests::p01_reads_accounts_header_from_aosp_shaped_dump ... ok
+test force_clean::tests::p02_samsung_dump_without_header_yields_minus_one_never_a_false_zero ... ok
+test force_clean::tests::p03_empty_input_yields_minus_one_never_a_false_zero ... ok
+test force_clean::tests::p04_reads_the_real_header_even_when_history_table_present ... ok
+test force_clean::tests::guard_probe_word_boundary_rejects_longer_words ... ok
+test force_clean::tests::p05_handles_the_indentation_dumpsys_content_actually_uses ... ok
+test force_clean::tests::p06_zero_accounts_satisfies_the_precondition ... ok
+test force_clean::tests::p07_one_account_is_enough_to_block_enrolment ... ok
+test force_clean::tests::p08_ten_accounts_block_enrolment ... ok
+test force_clean::tests::p09_an_unreadable_dump_never_satisfies_the_precondition ... ok
+test force_clean::tests::p11_a_build_that_exposes_remove_account_is_picked_up_without_code_change ... ok
+test force_clean::tests::p10_android_11_has_no_remove_account_so_the_ladder_skips_it ... ok
+test force_clean::tests::p13_an_empty_usage_probe_cannot_claim_the_primitive_exists ... ok
+test force_clean::tests::p12_prose_mentioning_the_phrase_is_not_a_command_definition ... ok
+test force_clean::tests::p15_com_google_is_owned_by_gms ... ok
+test force_clean::tests::p14_maps_all_three_authenticator_types ... ok
+test force_clean::tests::p17_zoom_self_authenticates ... ok
+test force_clean::tests::p18_a_dump_with_no_authenticators_yields_an_empty_plan_not_an_error ... ok
+test force_clean::tests::p19_third_party_authenticators_come_first_alphabetical_within_tier ... ok
+test force_clean::tests::p20_platform_authenticators_come_last_alphabetical_within_tier ... ok
+test force_clean::tests::p21_no_platform_package_reached_until_every_third_party_is_attempted ... ok
+test force_clean::tests::p22_a_third_party_package_never_appears_after_a_platform_package ... ok
+test force_clean::tests::p16_com_whatsapp_is_owned_by_whatsapp ... ok
+test force_clean::tests::p23_exactly_the_two_platform_packages_are_flagged_as_platform ... ok
+test force_clean::tests::p24_the_ladder_always_has_three_rungs ... ok
+test force_clean::tests::p25_primitive_rung_is_disabled_when_the_build_lacks_the_command ... ok
+test force_clean::tests::p26_authenticator_rung_is_always_available ... ok
+test force_clean::tests::p27_primitive_rung_is_enabled_when_the_build_exposes_it ... ok
+test force_clean::tests::p28_the_local_part_never_survives_redaction ... ok
+test force_clean::tests::p29_the_domain_never_survives_redaction ... ok
+test force_clean::tests::p31_token_format_is_stable ... ok
+test force_clean::tests::p30_only_the_local_part_length_survives ... ok
+test force_clean::tests::p32_redaction_is_case_safe_and_identifier_free ... ok
+test force_clean::tests::p33_an_unknown_identifier_is_marked_not_blanked_into_a_clean_looking_result ... ok
+test force_clean::tests::p34_redacted_view_keeps_one_entry_per_account ... ok
+test force_clean::tests::p37_the_attestation_contains_no_at_character_at_all ... ok
+test force_clean::tests::p38_the_attestation_contains_no_imei_shaped_literal ... ok
+test force_clean::tests::p39_zero_final_accounts_marks_the_run_clean ... ok
+test force_clean::tests::p40_reports_how_many_were_removed ... ok
+test force_clean::tests::p41_records_explicitly_that_no_identifiers_were_stored ... ok
+test force_clean::tests::p42_records_explicitly_that_no_serial_was_stored ... ok
+test force_clean::tests::p43_a_nonzero_remainder_is_never_reported_as_clean ... ok
+test host_process::generic_bridge_end_to_end_tests::generic_bridge_round_trips_against_the_real_host ... ok
+test host_process::host_command_bridge_tests::all_sixteen_host_commands_pass_the_shape_check ... ok
+test host_process::host_command_bridge_tests::connected_devices_request_uses_the_standard_wire_format ... ok
+test host_process::host_command_bridge_tests::connected_devices_response_passes_the_envelope_check_unchanged ... ok
+test host_process::host_command_bridge_tests::each_call_mints_a_distinct_request_id ... ok
+test host_process::host_command_bridge_tests::envelope_check_accepts_a_correlated_refusal ... ok
+test host_process::host_command_bridge_tests::envelope_check_accepts_an_answer_that_echoes_the_request ... ok
+test host_process::host_command_bridge_tests::envelope_check_lets_invalid_request_through_so_the_refusal_is_visible ... ok
+test host_process::host_command_bridge_tests::envelope_check_rejects_an_answer_for_a_different_request ... ok
+test host_process::host_command_bridge_tests::envelope_check_rejects_a_protocol_or_host_version_breach ... ok
+test host_process::host_command_bridge_tests::envelope_check_still_catches_an_uncorrelated_non_invalid_request_error ... ok
+test host_process::host_command_bridge_tests::license_state_payload_survives_the_bridge_untouched ... ok
+test host_process::host_command_bridge_tests::license_state_request_ids_are_never_reused ... ok
+test host_process::host_command_bridge_tests::license_state_request_uses_the_standard_wire_format ... ok
+test host_process::host_command_bridge_tests::malformed_command_names_are_refused_before_reaching_the_host ... ok
+test host_process::host_command_bridge_tests::payload_fields_survive_the_bridge_untouched ... ok
+test host_process::host_command_bridge_tests::payload_must_be_a_json_object ... ok
+test host_process::host_command_bridge_tests::request_envelope_carries_every_field_the_host_requires ... ok
+test host_process::host_command_bridge_tests::request_serializes_to_exactly_one_json_line ... ok
+test host_process::host_support_log_tests::a_launch_creates_one_utc_named_log_under_the_logs_directory ... ok
+test host_process::host_support_log_tests::pruning_keeps_the_newest_ten_logs_and_nothing_else_is_touched ... ok
+test host_process::host_support_log_tests::two_launches_never_share_a_log_file ... ok
+test host_process::runtime_resolution_tests::bundled_java_runtime_wins_over_java_home ... ok
+test host_process::runtime_resolution_tests::candidate_roots_cover_the_installer_layout ... ok
+test host_process::runtime_resolution_tests::cyvra_home_is_one_stable_directory ... ok
+test host_process::runtime_resolution_tests::development_tree_fallback_finds_the_installed_distribution ... ok
+test host_process::runtime_resolution_tests::source_checkouts_resolve_the_host_distribution ... ok
+test host_process::runtime_resolution_tests::unbundled_runtime_never_yields_a_fake_java_path ... ok
+test host_process::tests::device_state_with_adb_disabled_reports_usb_detected ... ignored, requires the connected Samsung A10s with USB debugging disabled
+test host_process::tests::device_state_with_adb_enabled_reports_adb_ready ... ignored, requires the connected Samsung A10s with USB debugging enabled and authorized
+test ledger::tests::a_blank_home_refuses_to_write ... ok
+test ledger::tests::a_corrupt_ledger_is_refused_not_repaired ... ok
+test host_process::host_support_log_tests::stderr_lands_in_the_log_while_stdout_bytes_stay_unchanged ... ok
+test ledger::tests::a_foreign_schema_is_refused ... ok
+test ledger::tests::a_read_only_logs_directory_fails_without_touching_the_ledger ... ok
+test ledger::tests::a_non_unique_request_records_every_occurrence ... ok
+test ledger::tests::a_unique_request_is_recorded_once_however_often_it_is_replayed ... ok
+test ledger::tests::advancing_the_clock_moves_only_that_clock ... ok
+test ledger::tests::an_absent_ledger_reads_as_absent_rather_than_as_a_failure ... ok
+test ledger::tests::an_absent_ledger_reads_as_empty_not_as_an_error ... ok
+test ledger::tests::a_replayed_debit_is_always_exactly_one_spend ... ok
+test ledger::tests::deleting_a_line_breaks_the_chain_at_the_gap ... ok
+test ledger::tests::editing_a_line_breaks_the_chain_at_that_line ... ok
+test ledger::tests::entries_chain_from_genesis_in_order ... ok
+test ledger::tests::event_names_are_the_six_the_spec_lists ... ok
+test ledger::tests::every_entry_carries_the_frozen_schema_version ... ok
+test ledger::tests::grace_boundaries_are_decided_by_the_injected_clock ... ok
+test ledger::tests::ledger_lives_beside_the_audit_trail ... ok
+test ledger::tests::no_staging_file_survives_a_write ... ok
+test ledger::tests::read_raw_hands_over_the_file_exactly_as_it_was_written ... ok
+test ledger::tests::tampering_with_any_entry_is_detected ... ok
+test ledger::tests::the_hash_covers_every_field ... ok
+test ledger::tests::timestamps_follow_the_injected_clock_not_the_wall ... ok
+test ledger::tests::two_different_certificates_are_two_distinct_spends ... ok
+test usb::enumerate::tests::setupapi_snapshot_is_internally_coherent ... ok
+test usb::enumerate::tests::successful_snapshot_has_unique_paths ... ok
+test usb::enumerate::tests::usb_instance_id_filter_is_case_insensitive ... ok
+test usb::model::tests::unknown_observation_contains_no_devices ... ok
+test usb::notification::tests::repeated_topology_signals_coalesce ... ok
+test usb::notification::tests::shutdown_without_native_handle_is_idempotent ... ok
+test usb::notification::tests::topology_signal_can_be_consumed ... ok
+test usb::notification::tests::topology_signal_starts_clear ... ok
+test usb::observer::tests::coalescer_waits_for_window ... ok
+test usb::observer::tests::due_signal_is_consumed_once ... ok
+test usb::observer::tests::repeated_signal_extends_deadline ... ok
+test usb::reconcile::tests::missing_previous_path_is_removed ... ok
+test usb::reconcile::tests::newly_present_path_is_arrived ... ok
+test usb::reconcile::tests::path_comparison_is_case_insensitive ... ok
+test usb::reconcile::tests::recovery_from_unknown_establishes_baseline_without_event ... ok
+test usb::reconcile::tests::unchanged_snapshot_emits_no_event ... ok
+test usb::reconcile::tests::unknown_snapshot_never_creates_false_removal ... ok
+test usb::runtime::tests::registration_error_is_descriptive ... ok
+test usb::runtime::tests::shutdown_without_worker_is_idempotent ... ok
+test wpd::discovery::tests::classifier_accepts_s_ok ... ok
+test wpd::discovery::tests::classifier_failed_hresult_has_stable_error_code ... ok
+test wpd::discovery::tests::classifier_retries_s_false_before_final_attempt ... ok
+test wpd::discovery::tests::classifier_stops_on_third_s_false ... ok
+test wpd::discovery::tests::connected_a10s_is_visible_through_wpd ... ignored, requires the connected CYVRA Samsung Galaxy A10s acceptance handset
+test wpd::discovery::tests::enumeration_is_sorted_and_unique ... ok
+test wpd::discovery::tests::portable_device_manager_enumerates_without_error ... ok
+test wpd::discovery::tests::wpd_error_without_detail_preserves_stable_code ... ok
+test wpd::scanner::tests::digest_changes_with_different_objects ... ok
+test wpd::scanner::tests::digest_is_deterministic ... ok
+test wpd::scanner::tests::hardware_scan_a10s_produces_valid_result ... ignored, requires connected Samsung A10s via WPD/MTP
+test wpd::scanner::tests::scan_context_respects_depth_bound ... ok
+test wpd::scanner::tests::scan_context_respects_error_bound ... ok
+test wpd::scanner::tests::scan_context_respects_object_bound ... ok
+test ledger::tests::any_sequence_of_appends_still_verifies ... ok
+
+test result: ok. 236 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 36.55s
+
+     Running unittests src\main.rs (target\debug\deps\cyvra_mobile_desktop-b1796668fa447a10.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests app_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+
+Gate Status Check                                          Note                                                        
+---- ------ -----                                          ----                                                        
+G-E  PASS   M1 freeze (apps/web, services/api)             no changes                                                  
+G-D  PASS   verify-standing-holds (code checks)            inspects only $SprintCommits via git show; the bench-phon...
+G-D  PASS   H1 bench-phone probe                           read-only ADB observation; FAIL here means no phone was a...
+G-F  PASS   no BOM, strict UTF-8 decode                    PowerShell 5 Set-Content writes a BOM - avoid it            
+G-G  PASS   zero hits on banned absolute claims            A-10 / H3                                                   
+G-A  PASS   pnpm -r typecheck                              skips apps/desktop, which declares no typecheck task        
+G-A  PASS   desktop tsc -b                                 apps/desktop typecheck; added 14-Oct because nothing cove...
+G-B  PASS   pnpm -r test                                   Run with --maxWorkers=1: parallel vitest workers exhaust ...
+G-C  PASS   wrangler deploy --dry-run                      must be run from services/api, not apps/web                 
+G-H  PASS   :core + :host compile                                                                                      
+G-H  PASS   :host unit tests                                                                                           
+G-H  PASS   :sanitization-agent assembleDebug + unit tests proof-of-concept module; see its README                     
+G-I  PASS   cargo test                                                                                                 
+
+
+
