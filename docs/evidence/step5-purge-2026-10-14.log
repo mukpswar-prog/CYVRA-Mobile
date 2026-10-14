@@ -92,8 +92,16 @@ reappears in `adb devices`, no Tier A after-reading exists and the correct
 verdict remains PURGE_INDETERMINATE - an inconclusive run, not a purge that
 failed.
 
-Note for every future purge: the wipe removes the agent, so the next purge
-requires installing and enrolling the agent again first.
+CORRECTED per Chief Engineer, 14-Oct. The note that was here was written as a product
+characteristic, and it is wrong as one. What is measured and stays true: wipeData removes
+the agent and the device-owner binding. What was wrong: presenting re-enrolment as a
+per-purge requirement of the product. In the final application, wiping is the LAST
+process - after it comes the human verification process as planned, then the AI process
+for report generation and grading. There is therefore no next purge inside that workflow
+to prepare for. Re-provisioning belongs to onboarding of a new engagement, not to the
+purge step. It appeared here only because our bench loop purges the same handset
+repeatedly. The correction is recorded rather than deleted, because the correction is
+part of the record.
 
 ------------------------------------------------------------
  6. AFTER-READING  (operator completed setup, then this was taken)
@@ -152,4 +160,57 @@ STILL NOT ESTABLISHED BY THIS RUN:
   - agent-less purging. Nothing here is evidence for it. Section 5 of the
     contract forbids citing any of this to that route.
   - any device other than this one bench handset.
+
+------------------------------------------------------------
+ 8. STANDING OPERATIONAL RULE - CONNECTION LOSS IS WORK DONE (CE, 14-Oct)
+------------------------------------------------------------
+When the handset restarts and the connection drops, that is treated as WORK DONE. It is
+the expected end of the machine phase, because wiping is the last process the machine
+performs. What follows, in order, is the human verification process as planned, then the
+AI process for report generation and grading.
+
+This does NOT change section 7. Connection loss is a workflow hand-off signal: it ends
+the machine phase and starts the human phase. It is not an attestation, not a verdict,
+and never by itself entitles the product to say a purge was verified. The distinction is
+kept deliberately - if "we lost the connection" were allowed to read as "the purge is
+verified", the product would be claiming from silence, which is the exact thing this
+contract exists to prevent.
+
+It also maps onto the tier split rather than competing with it: Tier A is what the
+machine read before the connection dropped, Tier B is what the human verifies after.
+Machine plus human is PURGE_ATTESTED_HYBRID, which is therefore the natural end state
+of the real workflow rather than an extra ask.
+
+------------------------------------------------------------
+ 9. AGENT-LESS WIPE - LIVE ATTEMPT, THREE VECTORS (CE 14-Oct: "test it once")
+------------------------------------------------------------
+Issued from uid=2000(shell), device present and answering throughout:
+
+  1. am broadcast -a android.intent.action.MASTER_CLEAR -f 0x01000000
+  2. am broadcast -a android.intent.action.FACTORY_RESET
+  3. am broadcast -a android.intent.action.MASTER_CLEAR
+     -n android/com.android.server.MasterClearReceiver
+
+All three returned `Broadcast completed: result=0`.
+
+RESULT: the device did NOT reset. Uptime climbed continuously through the run
+(4286 s, no reboot), total packages still 333, CYVRA packages still 0,
+bootreason still `reboot,factory_reset` from the step-5 wipe. Nothing changed.
+
+`result=0` is Android's DEFAULT result code (Activity.RESULT_CANCELED), so it is
+not evidence of success. It records only that no receiver returned a result. The
+real evidence is the control reading: no reboot occurred.
+
+CAUSE, LABELLED AS A READING NOT A PROOF: `android.permission.MASTER_CLEAR` is
+protectionLevel `signature|privileged`, and `dumpsys package com.android.shell`
+shows the shell identity holding `INSTALL_PACKAGES` but NOT `MASTER_CLEAR`. That
+is consistent with the refusal. What was actually measured is the outcome - three
+agent-less wipe vectors issued, zero resets - not the internal reason Android
+declined each one.
+
+SCOPE, STATED NARROWLY: this is one device, one OEM, three vectors, one attempt
+each. It is a measured negative for agent-less wipe on this handset. It is NOT a
+general proof that agent-less erase is impossible everywhere. Agent-less SCAN
+remains demonstrated separately - 26 parameters over ADB with nothing installed -
+so the two must never be reported as one capability.
 ============================================================

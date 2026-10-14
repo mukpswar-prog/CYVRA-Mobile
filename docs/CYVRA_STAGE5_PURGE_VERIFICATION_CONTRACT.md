@@ -138,6 +138,18 @@ human step — completing setup and re-enabling USB debugging at the handset. Un
 happens the correct verdict is `PURGE_INDETERMINATE`, and a run left there must be
 reported as inconclusive rather than as a purge that did not work.
 
+**Connection loss at the restart is WORK DONE for the machine phase** — Chief Engineer,
+14-Oct. Wiping is the last process the machine performs; the human verification process
+follows, then AI report generation and grading. This is a workflow hand-off signal and
+nothing more: it ends the machine phase and starts the human phase. **It is not an
+attestation and not a verdict**, and it never by itself entitles the product to say a
+purge was verified. Were "we lost the connection" permitted to read as "the purge is
+verified", the product would be claiming from silence — the precise thing this contract
+exists to prevent. Read alongside the tier split, the two fit rather than compete: Tier A
+is what the machine read before the drop, Tier B is what the human verifies after, and
+machine plus human is `PURGE_ATTESTED_HYBRID` — the natural end state of the real
+workflow, not an extra ask.
+
 ---
 
 ## 5. What this contract deliberately does not establish
