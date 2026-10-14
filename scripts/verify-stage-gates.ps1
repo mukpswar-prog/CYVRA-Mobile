@@ -137,7 +137,10 @@ Write-Host ""
 Write-Host "[G-D] Standing holds harness" -ForegroundColor Yellow
 $holdScript = Join-Path $repo 'scripts\verify-standing-holds.ps1'
 if (Test-Path $holdScript) {
-    Invoke-Step 'G-D' 'verify-standing-holds (H1-H8)' 'inspects only $SprintCommits via git show' {
+    # CHIEF ENGINEER RULING, 14-Oct: the phone check must run inside the normal
+    # test, not only when run by hand. This first row is the repository-only half
+    # - H1's own code path plus H2-H8.
+    Invoke-Step 'G-D' 'verify-standing-holds (code checks)' 'inspects only $SprintCommits via git show; the bench-phone probe runs in the row below' {
         $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $holdScript -SkipDevice 2>&1 | Out-String
         # The exit code is the harness's own documented contract (.NOTES: "Exit
         # code 0 means every hold is intact"), so it is the authoritative signal.
@@ -150,8 +153,17 @@ if (Test-Path $holdScript) {
         # and relaxes nothing: a real breach trips both halves.
         if ($LASTEXITCODE -eq 0 -and $out -notmatch '\[BREACH\]') { $true } else { Write-Host $out; $false }
     }
+
+    # CHIEF ENGINEER RULING, 14-Oct: this row did not exist before. The gate passed
+    # -SkipDevice, so H1's device half never executed while its label claimed H1-H8.
+    # The probe now runs on every gate and is visible here. It FAILS when no phone
+    # is attached - a check that could not run is not a pass.
+    Invoke-Step 'G-D' 'H1 bench-phone probe' 'read-only ADB observation; FAIL here means no phone was attached, not a hold breach' {
+        $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $holdScript -DeviceOnly 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0 -and $out -notmatch '\[BREACH\]') { $true } else { Write-Host $out; $false }
+    }
 } else {
-    Add-Result 'G-D' 'verify-standing-holds (H1-H8)' 'FAIL' 'script missing'
+    Add-Result 'G-D' 'verify-standing-holds (code checks)' 'FAIL' 'script missing'
 }
 Write-Host ""
 
@@ -197,9 +209,22 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 if (-not $SkipWeb) {
     Write-Host "[G-A] Typecheck" -ForegroundColor Yellow
-    Invoke-Step 'G-A' 'pnpm -r typecheck' 'apps/desktop has no typecheck task; run tsc -b separately' {
+    # `pnpm -r typecheck` walks the workspace and runs the script only where a package
+    # declares one. apps/desktop does not declare it, so this step alone has never
+    # typechecked the desktop application - the note used to say "run tsc -b separately"
+    # while nothing in this script did. That is how a `string | null` reaching
+    # `string[].includes()` in App.tsx survived behind eleven green gates on 14-Oct.
+    # The desktop is now checked below. Same gate, no check removed.
+    Invoke-Step 'G-A' 'pnpm -r typecheck' 'skips apps/desktop, which declares no typecheck task' {
         & $pnpm -r --silent typecheck 2>&1 | Out-String | Out-GateLog
         $LASTEXITCODE -eq 0
+    }
+    Invoke-Step 'G-A' 'desktop tsc -b' 'apps/desktop typecheck; added 14-Oct because nothing covered it before' {
+        Push-Location (Join-Path $repo 'apps\desktop')
+        try {
+            & $pnpm exec tsc -b 2>&1 | Out-String | Out-GateLog
+            $LASTEXITCODE -eq 0
+        } finally { Pop-Location }
     }
 
     Write-Host "[G-B] Unit tests" -ForegroundColor Yellow

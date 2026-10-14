@@ -40,7 +40,21 @@ param(
         'd419743', '6b66d0f'
     ),
     # Skip the ADB probe when no bench phone should be attached.
-    [switch]$SkipDevice
+    [switch]$SkipDevice,
+    <#
+        Run ONLY the H1 device probe and stop.
+
+        CHIEF ENGINEER RULING, 14-Oct: the phone check must run inside the normal
+        test, not only when run by hand. The gate used to pass -SkipDevice, so
+        H1's label said "H1-H8" while the device half never executed at all -
+        which is exactly how a commissioned purge could read as a breach for days
+        without anyone noticing the probe had not been asked.
+
+        Exits 0 only when a device was ACTUALLY OBSERVED and probed. Exits 2 when
+        nothing was attached, because a check that did not run is not a pass, and
+        reporting it as one is the same overclaim this switch exists to prevent.
+    #>
+    [switch]$DeviceOnly
 )
 
 $ErrorActionPreference = 'Continue'
@@ -182,7 +196,7 @@ foreach ($f in $stale) {
     Write-Host ('          STALE SANCTION (no longer touched by the sprint; remove it): ' + $f) -ForegroundColor DarkYellow
 }
 
-if (-not $SkipDevice) {
+if ($DeviceOnly -or (-not $SkipDevice)) {
     $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
     $env:ADB_VENDOR_KEYS = 'C:\Android\.android\adbkey'
     $connected = 0; $uptime = ''; $agent = 0; $hasOwner = $false
@@ -197,12 +211,79 @@ if (-not $SkipDevice) {
     }
     $secs = 0
     [double]::TryParse($uptime, [ref]$secs) | Out-Null
-    # A factory reset would drop uptime to a small number, purge the agent, and
-    # clear device ownership. All three surviving is physical evidence of H1.
-    $intact = ($connected -gt 0) -and ($secs -gt 3600) -and ($agent -ge 1) -and $hasOwner
     $mins = [Math]::Round($secs / 60, 1)
-    Findings 1 'No destructive device operation' $intact `
-        ('devices={0}; uptime={1} min; agent={2}; device-owner={3}' -f $connected, $mins, $agent, $hasOwner)
+    $reading = ('devices={0}; uptime={1} min; agent={2}; device-owner={3}' -f $connected, $mins, $agent, $hasOwner)
+
+    <#
+     * CHIEF ENGINEER RULING, 14-Oct.
+     *
+     * This probe used to collapse to two readings: intact, or breach. "Intact"
+     * required the agent to still be installed and the device owner still set.
+     * Before any purge existed that was a fair proxy for "nothing destructive has
+     * happened" - a factory reset would have removed both.
+     *
+     * It is no longer a fair proxy, and the reason is specific: the Chief
+     * Engineer's COMMISSIONED purge removes exactly those two things. So the
+     * probe began reporting a breach for an operation that was authorised, and
+     * kept reporting it forever, because nothing short of re-enrolling an agent
+     * could move the reading back.
+     *
+     * The fault is not that the proxy changed. It is that the probe could only
+     * say "breach", which is a conclusion it has never been able to establish:
+     * it observes device state, and whether a purge was commissioned is not a
+     * device state. It was claiming a verdict it did not hold.
+     *
+     * So it now returns three readings and names the action for each. It reports
+     * what it observed and what must happen next, and it does not claim the one
+     * thing it cannot know.
+     #>
+    if ($connected -le 0) {
+        # Nothing to probe. Silence here would read as "no problem found".
+        Write-Host '  [WARN] H1  device probe: no device connected - nothing was observed'
+        Write-Host '          ACTION: connect the bench device and re-run before relying on H1'
+    }
+    elseif ($secs -le 3600) {
+        # Uptime under an hour is the signature of a recent reset - which is what
+        # a factory reset produces, commissioned or not. Agent and owner are
+        # expected to be absent here, so their absence says nothing.
+        Write-Host '  [WARN] H1  device probe: ACTION REQUIRED - device reset within the last hour'
+        Write-Host ('          observed: ' + $reading)
+        Write-Host '          ACTION: confirm this reset was a commissioned operation, then re-enrol'
+        Write-Host '                  the agent before any further scan is relied upon'
+    }
+    elseif ($agent -ge 1 -and $hasOwner) {
+        # Both present, so no destructive operation has cleared this device since
+        # it booted. This is the one reading that positively supports H1.
+        Findings 1 'No destructive device operation' $true $reading
+    }
+    else {
+        # The device has been running for over an hour and the agent and owner are
+        # gone. That is consistent with a purge that already ran. It is ALSO
+        # consistent with a breach. This probe cannot tell the two apart, so it
+        # declines to choose - and says what settles it.
+        Write-Host '  [WARN] H1  device probe: ACTION REQUIRED - agent and device owner absent on a'
+        Write-Host '                          device that has been up for over an hour'
+        Write-Host ('          observed: ' + $reading)
+        Write-Host '          consistent with: a purge that has already run (commissioned or not)'
+        Write-Host '          NOT established by this probe: whether that purge was commissioned'
+        Write-Host '          ACTION: verify the commission record for this device, then re-enrol'
+        Write-Host '                  the agent so the next run observes a settled device'
+    }
+
+    if ($DeviceOnly) {
+        Write-Host ''
+        if ($connected -le 0) {
+            # Nothing attached. Exiting non-zero is the point of this switch: a
+            # phone check that could not run must never be filed as a pass, or
+            # the gate would report "H1 verified" on a machine with no phone
+            # plugged in - which is how the device half went unnoticed before.
+            Write-Host 'H1 DEVICE PROBE  : FAIL - no device was observed, so nothing was checked'
+            exit 2
+        }
+        Write-Host ('H1 DEVICE PROBE  : a device was observed and probed (devices={0})' -f $connected)
+        Write-Host '                  the reading above is what the probe saw; it is not a verdict'
+        exit 0
+    }
 }
 else {
     Write-Host '  [SKIP] H1  device probe skipped by -SkipDevice'

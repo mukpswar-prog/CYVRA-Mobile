@@ -122,7 +122,7 @@ const EMPTY_SANITIZE: Record<SanitizeStage, HostEnvelope | null> = {
   execute: null,
 };
 
-type StepKey = "connect" | "scan" | "inventory" | "sanitize" | "export";
+type StepKey = "connect" | "scan" | "inventory" | "sanitize" | "checklist" | "export";
 
 /**
  * One entry per stage of the operator wizard.
@@ -190,8 +190,21 @@ const STEPS: StepMeta[] = [
     next: "The last step reports the workstation's decision. On this build the purge is deliberately blocked, and the screen says so.",
   },
   {
-    key: "export",
+    key: "checklist",
     index: 5,
+    label: "Verify",
+    heading: "Technician verification",
+    primary: "Record checklist",
+    purpose:
+      "Record what a person checked on the phone, which no software scan can see for itself.",
+    now:
+      "Read each check in turn and choose the outcome that matches what you found. The one P0 check is listed above the P1 checks because it needs specialist equipment.",
+    next:
+      "Once every check has an outcome you can record them. They are stored as a person's findings, never as a software observation.",
+  },
+  {
+    key: "export",
+    index: 6,
     label: "Download",
     heading: "Download the verified report",
     primary: "Download reports",
@@ -236,6 +249,7 @@ const STAGE_COMMANDS: Record<StepKey, string[]> = {
     "SANITIZE_CONFIRM",
     "SANITIZE_EXECUTE",
   ],
+  checklist: ["GET_CHECKLIST", "RECORD_CHECKLIST"],
   export: ["EXPORT_REPORT"],
 };
 
@@ -254,6 +268,8 @@ const BRIDGE_FAILURE_STAGE: Record<string, StepKey> = {
   SANITIZE_AUTHORIZE: "sanitize",
   SANITIZE_CONFIRM: "sanitize",
   SANITIZE_EXECUTE: "sanitize",
+  GET_CHECKLIST: "checklist",
+  RECORD_CHECKLIST: "checklist",
   EXPORT_REPORT: "export",
 };
 
@@ -304,6 +320,43 @@ function readList(source: Record<string, unknown> | null, key: string): string[]
   }
 
   return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+/**
+ * Reads an array of JSON objects, e.g. the Host's `checks` catalogue.
+ *
+ * Returns nothing at all rather than a partial list: a malformed entry would drop a
+ * check, and a checklist that silently loses rows is indistinguishable from one that
+ * was never issued. Whatever is not an object is discarded whole.
+ */
+function readObjectList(
+  source: Record<string, unknown> | null,
+  key: string,
+): Record<string, unknown>[] {
+  const value = source?.[key];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (entry): entry is Record<string, unknown> =>
+      typeof entry === "object" && entry !== null && !Array.isArray(entry),
+  );
+}
+
+/** Reads a nested JSON object, e.g. the Host's `progress` block. */
+function readObject(
+  source: Record<string, unknown> | null,
+  key: string,
+): Record<string, unknown> | null {
+  const value = source?.[key];
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
 }
 
 /**
@@ -567,6 +620,16 @@ function App() {
 
   const [scan, setScan] = useState<HostEnvelope | null>(null);
   const [inventory, setInventory] = useState<HostEnvelope | null>(null);
+  /** GET_CHECKLIST: the 14 ratified checks as the Host serves them. */
+  const [checklist, setChecklist] = useState<HostEnvelope | null>(null);
+  /** RECORD_CHECKLIST: the Host's answer once a technician's findings were recorded. */
+  const [checklistRecorded, setChecklistRecorded] = useState<HostEnvelope | null>(null);
+  /**
+   * The technician's in-progress choices, keyed by check id and held on this
+   * screen only. Nothing here reaches the Host until Record is pressed, and an
+   * unanswered check is simply absent rather than defaulted to a pass.
+   */
+  const [checklistAnswers, setChecklistAnswers] = useState<Record<string, string>>({});
   const [sanitize, setSanitize] = useState<Record<SanitizeStage, HostEnvelope | null>>(
     EMPTY_SANITIZE,
   );
@@ -983,6 +1046,45 @@ function App() {
   };
 
   /**
+   * GET_CHECKLIST. Works before a scan exists, so this is the one stage that
+   * never locks; the catalogue is the Host's to serve and this screen only
+   * displays it.
+   */
+  const loadChecklist = async () => {
+    const envelope = await send("GET_CHECKLIST", {});
+    setChecklist(envelope);
+  };
+
+  /**
+   * RECORD_CHECKLIST. Sends the technician's choices as they were made.
+   *
+   * An unanswered check is omitted rather than defaulted: the Host owns the
+   * rule that every check must be answered, and a refusal for a missing one is
+   * shown as-is. This screen never fills a gap with a pass, because a checklist
+   * that looks complete when nobody finished it is the one failure the protocol
+   * was built to prevent.
+   */
+  const recordChecklist = async () => {
+    const payload = payloadOf(checklist);
+    const results = readObjectList(payload, "checks")
+      .map((check) => {
+        const id = readString(check, "id");
+        const outcome = id === null ? undefined : checklistAnswers[id];
+        return id === null || outcome === undefined ? null : { id, outcome };
+      })
+      .filter((row): row is { id: string; outcome: string } => row !== null);
+
+    const envelope = await send("RECORD_CHECKLIST", { results });
+    setChecklistRecorded(envelope);
+
+    // The Host's own progress block is the source of truth after a recording,
+    // so re-read the catalogue too: it carries the same progress for display.
+    if (envelope?.status === "OK") {
+      setChecklist(await send("GET_CHECKLIST", {}));
+    }
+  };
+
+  /**
    * Runs the ratified V3 §7 finalisation chain - normalise, operator authorisation,
    * seal, final controlled report - entirely on the Host.
    *
@@ -1042,7 +1144,13 @@ function App() {
     // unsettled, never as done and never as failed.
     "TRIGGER_OUTCOME_INDETERMINATE",
   ];
-  const blocked = BLOCKED_EXECUTION_STATUSES.includes(executeStatus);
+  // `readString` returns null when the field is absent, and an absent status is not a
+  // blocked outcome - it is no outcome at all. The guard makes that explicit instead of
+  // leaning on the implicit null → false coercion, which is what kept this line a type
+  // error while every gate reported green: desktop has no `typecheck` task, so `pnpm -r
+  // typecheck` skipped it entirely.
+  const blocked =
+    executeStatus !== null && BLOCKED_EXECUTION_STATUSES.includes(executeStatus);
 
   const startOk = sanitize.start?.status === "OK";
   const authorizeOk = sanitize.authorize?.status === "OK";
@@ -1070,6 +1178,10 @@ function App() {
     scan: hostConnected ? null : "The Host is not connected yet.",
     inventory: scanOk ? null : "Complete a scan first.",
     sanitize: scanOk ? null : "Complete a scan first.",
+    // Never locked: GET_CHECKLIST answers before a scan exists, so the catalogue
+    // can be read at any point. Recording is what needs a scan, and the Record
+    // button carries that gate rather than the whole step being closed.
+    checklist: null,
     export: scanOk ? null : "Complete a scan first.",
   };
 
@@ -1083,6 +1195,9 @@ function App() {
     scan,
     inventory,
     sanitize: sanitize.execute ?? sanitize.confirm ?? sanitize.authorize ?? sanitize.start,
+    // The recorded answer is the furthest point this stage reaches: loading the
+    // catalogue is preparation, not the stage's own result.
+    checklist: checklistRecorded ?? checklist,
     export: exported,
   };
 
@@ -1119,6 +1234,30 @@ function App() {
   const sanitizeStarted =
     startOk || authorizeOk || confirmOk || sanitize.execute !== null;
   const sanitizeTerminal = sanitize.execute !== null;
+
+  /*
+   * Technician checklist. The catalogue is read from GET_CHECKLIST; progress
+   * and completion are read from the Host's own `progress` block on the
+   * recorded answer. This screen never computes completion itself - if the
+   * Host reports fourteen of fourteen, that is what is shown, and if it does
+   * not, the count shown is the one the Host gave.
+   */
+  const checklistCatalogue = readObjectList(payloadOf(checklist), "checks");
+  const checklistProgress = readObject(payloadOf(checklistRecorded), "progress");
+  const checklistOutcomes = readList(payloadOf(checklist), "outcomes");
+  const checklistClaim = readString(payloadOf(checklist), "claim");
+  const checklistAttestationKind = readString(payloadOf(checklist), "attestationKind");
+  const checklistAnswered = readCount(checklistProgress, "answeredCount") ?? 0;
+  const checklistExpected = readCount(checklistProgress, "expectedCount") ?? 0;
+  const checklistComplete = readBoolean(checklistProgress, "complete") === true;
+
+  /** Every check has a choice; the Record button needs this and a completed scan. */
+  const checklistAllAnswered =
+    checklistCatalogue.length > 0 &&
+    checklistCatalogue.every((check) => {
+      const id = readString(check, "id");
+      return id !== null && checklistAnswers[id] !== undefined;
+    });
 
   const nodeStates: Record<StepKey, NodeState> = {
     connect:
@@ -1160,6 +1299,19 @@ function App() {
               : stepLock.sanitize !== null
                 ? "NOT STARTED"
                 : "READY",
+    // The catalogue loading is not the stage's own result, so this stage does
+    // not use stageAnsweredOk - that would paint it complete the moment the
+    // list was read. It completes only when the Host reports every check
+    // answered.
+    checklist: stageInFlight("checklist")
+      ? "IN PROGRESS"
+      : bridgeFailedStage === "checklist" || stageRefused("checklist")
+        ? "FAILED"
+        : checklistComplete
+          ? "COMPLETED"
+          : checklistAnswered > 0
+            ? "IN PROGRESS"
+            : "READY",
     export: stageInFlight("export")
       ? "IN PROGRESS"
       : bridgeFailedStage === "export" || stageRefused("export")
@@ -2153,7 +2305,104 @@ function App() {
               </>
             )}
 
-            {/* ---- Step 5 ------------------------------------------------ */}
+            {/* ---- Step 5: technician verification -------------------- */}
+            {activeStep === "checklist" && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy !== null}
+                  aria-label={busy === "GET_CHECKLIST" ? "Loading..." : "Load checklist"}
+                  onClick={() => void loadChecklist()}
+                >
+                  {busy === "GET_CHECKLIST" ? "Loading..." : "Load checklist"}
+                </button>
+
+                <Outcome envelope={checklist} />
+
+                {checklistAttestationKind && (
+                  <Notice tone="action" label={checklistAttestationKind}>
+                    {checklistClaim}
+                  </Notice>
+                )}
+
+                {checklistCatalogue.length > 0 && (
+                  <>
+                    <div className="kv-grid">
+                      <div className="kv">
+                        <span className="card-label">Answered</span>
+                        <strong>
+                          {checklistAnswered} of {checklistExpected}
+                        </strong>
+                      </div>
+                      <div className="kv">
+                        <span className="card-label">Status</span>
+                        <strong>{checklistComplete ? "Complete" : "Incomplete"}</strong>
+                      </div>
+                    </div>
+
+                    {checklistCatalogue.map((check) => {
+                      const id = readString(check, "id") ?? "";
+                      const outcome = checklistAnswers[id];
+                      return (
+                        <div className="check-row" key={id}>
+                          <div className="check-main">
+                            <span className="card-label">
+                              {readString(check, "priority")} &middot;{" "}
+                              {readString(check, "domain")}
+                            </span>
+                            <strong className="device-text">{readString(check, "item")}</strong>
+                            {readString(check, "whyNotAutomatable") && (
+                              <small>{readString(check, "whyNotAutomatable")}</small>
+                            )}
+                          </div>
+                          <select
+                            className="check-select"
+                            aria-label={`Outcome for ${id}`}
+                            value={outcome ?? ""}
+                            disabled={busy !== null}
+                            onChange={(event) =>
+                              setChecklistAnswers((current) => ({
+                                ...current,
+                                [id]: event.target.value,
+                              }))
+                            }
+                          >
+                            <option value="">Not chosen</option>
+                            {checklistOutcomes.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={!scanOk || !checklistAllAnswered || busy !== null}
+                      title={
+                        !scanOk
+                          ? "Complete a scan first."
+                          : !checklistAllAnswered
+                            ? "Every check needs an outcome before this can be recorded."
+                            : undefined
+                      }
+                      aria-label={busy === "RECORD_CHECKLIST" ? "Recording..." : "Record checklist"}
+                      onClick={() => void recordChecklist()}
+                    >
+                      {busy === "RECORD_CHECKLIST" ? "Recording..." : activeMeta.primary}
+                    </button>
+
+                    <Outcome envelope={checklistRecorded} />
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ---- Step 6 ------------------------------------------------ */}
             {activeStep === "export" && (
               <>
                 <button
