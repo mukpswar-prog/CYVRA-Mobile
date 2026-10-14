@@ -63,9 +63,32 @@ class HostDestructiveWipeProviderTest {
         val outcome = HostDestructiveWipeProvider(AdbClient(File("/mock/adb"), runner), "s")
             .trigger()
 
-        assertTrue(outcome.delivered)
+        assertEquals(WipeTriggerOutcome.DELIVERED, outcome.outcome)
         assertTrue(issued.contains("am broadcast -n com.cyvra.sanitization/"), issued)
         assertTrue(issued.contains("-a com.cyvra.sanitization.WIPE"), issued)
+    }
+
+    @Test
+    fun `a connection that dies as the wipe starts is INDETERMINATE, never a failure`() {
+        // This is the real 14-Oct case. The wipe tears the connection down, so the
+        // trigger returns non-zero while the device is already gone from ADB.
+        // Reporting that as "not issued" would have recorded the outcome backwards.
+        val runner = ProcessRunner { command, _ ->
+            val cmd = command.joinToString(" ")
+            when {
+                cmd.contains("pm list packages") ->
+                    DefaultProcessExecutionResult(0, agentPresent, "")
+                cmd.contains("am broadcast") ->
+                    DefaultProcessExecutionResult(224, "", "")
+                else -> DefaultProcessExecutionResult(0, "", "")
+            }
+        }
+        val outcome = HostDestructiveWipeProvider(AdbClient(File("/mock/adb"), runner), "s")
+            .trigger()
+
+        assertEquals(WipeTriggerOutcome.INDETERMINATE, outcome.outcome)
+        assertTrue(outcome.reason!!.contains("could not be established"), outcome.reason!!)
+        assertTrue(outcome.reason!!.contains("post-reboot reading"), outcome.reason!!)
     }
 
     @Test
@@ -143,12 +166,14 @@ class HostDestructiveWipeProviderTest {
     }
 
     @Test
-    fun `a trigger that does not reach the device is reported as undelivered`() {
-        val runner = ProcessRunner { _, _ -> DefaultProcessExecutionResult(1, "", "no such device") }
+    fun `a device that cannot be addressed at all is NOT_ISSUED`() {
+        // The device never answers the pre-check, so nothing was sent to it. This is
+        // distinct from INDETERMINATE: here we KNOW no trigger went out.
+        val runner = ProcessRunner { _, _ -> DefaultProcessExecutionResult(1, "", "device offline") }
         val outcome = HostDestructiveWipeProvider(AdbClient(File("/mock/adb"), runner), "s").trigger()
 
-        assertFalse(outcome.delivered)
+        assertEquals(WipeTriggerOutcome.NOT_ISSUED, outcome.outcome)
         assertNotNull(outcome.reason)
-        assertTrue(outcome.reason!!.contains("could not be issued"), outcome.reason!!)
+        assertTrue(outcome.reason!!.contains("was not issued"), outcome.reason!!)
     }
 }

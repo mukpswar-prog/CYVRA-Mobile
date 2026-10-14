@@ -108,15 +108,31 @@ class HostSanitizationProvider(
         }
 
         val outcome = wipe.trigger()
-        if (!outcome.delivered) {
-            return SanitizationExecutionResult(
-                operationId = preRecord.operationId,
-                method = preRecord.selectedMethod,
-                isSuccess = false,
-                executionStatus = "FAILED_TRIGGER_NOT_DELIVERED",
-                rawResponse = null,
-                error = outcome.reason,
-            )
+        when (outcome.outcome) {
+            WipeTriggerOutcome.NOT_ISSUED -> {
+                return SanitizationExecutionResult(
+                    operationId = preRecord.operationId,
+                    method = preRecord.selectedMethod,
+                    isSuccess = false,
+                    executionStatus = "FAILED_TRIGGER_NOT_ISSUED",
+                    rawResponse = null,
+                    error = outcome.reason,
+                )
+            }
+            WipeTriggerOutcome.INDETERMINATE -> {
+                // Deliberately NOT a success. The command went out, but the product did
+                // not establish what it did, and claiming either outcome from silence
+                // would be the exact error this codebase forbids.
+                return SanitizationExecutionResult(
+                    operationId = preRecord.operationId,
+                    method = preRecord.selectedMethod,
+                    isSuccess = false,
+                    executionStatus = "TRIGGER_OUTCOME_INDETERMINATE",
+                    rawResponse = null,
+                    error = outcome.reason,
+                )
+            }
+            WipeTriggerOutcome.DELIVERED -> Unit
         }
 
         // isSuccess here means the trigger was delivered to an enrolled agent. It does

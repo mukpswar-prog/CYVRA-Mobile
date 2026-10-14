@@ -1,0 +1,96 @@
+============================================================
+ CYVRA STEP 5 - PURGE THROUGH THE PRODUCT PATH
+ date    : 2026-10-14, approx 15:05-15:17 local
+ subject : commissioned purge of the bench device
+ method  : HostDestructiveWipeProvider.preflight() then trigger(),
+           the same components HostSanitizationProvider.execute() drives.
+ status  : trigger issued; AFTER-reading NOT obtained (see section 3)
+============================================================
+
+Commissioned by the Chief Engineer, 14-Oct, together with the Stage 5
+ratification: "approved start -Step 5 process".
+
+Counts only. No serial, account, contact or device identifier appears here.
+
+------------------------------------------------------------
+ 1. PREREQUISITES ESTABLISHED FIRST
+------------------------------------------------------------
+The bench device had no CYVRA agent (0 of 333 packages), so it could not be
+purged at all. Before any destructive step:
+
+  - sanitization-agent-debug.apk installed  (needed `adb install -r -t`,
+    because a debug build is flagged testOnly)
+  - dpm set-device-owner .../SanitizationAdmin   -> Success
+  - product pre-flight re-run                    -> ELIGIBLE
+
+The entitlement flag SANITIZE_EXECUTE could NOT be set. wrangler is not
+authenticated in this environment and no Cloudflare token exists here, so
+that action remains with the Chief Engineer. Consequence recorded below in
+section 4.
+
+------------------------------------------------------------
+ 2. BEFORE STATE (product path, Tier A)
+------------------------------------------------------------
+  A1 total packages      = 334     (333 at the 14-Oct baseline, +1 = agent)
+  A2 third-party         = 5       (4 at baseline, +1 = agent)
+  A3 CYVRA packages      = 1       (the agent)
+  A4 CYVRA owner refs    = 3
+  A5 ro.boot.bootreason  = reboot,userrequested
+
+  preflight               = ELIGIBLE
+  reason                  = The CYVRA sanitization agent is installed and
+                            is the device owner.
+
+------------------------------------------------------------
+ 3. THE TRIGGER, AND A DEFECT IT EXPOSED IN OUR OWN CODE
+------------------------------------------------------------
+  trigger outcome as first recorded  = "not delivered", exit 224
+  device state immediately after     = absent from `adb devices`
+  device state for the next 10 min   = absent, never returned
+
+The first reading was WRONG, and the contract is what caught it. Issuing
+wipeData tears the ADB connection down as the wipe starts, so a non-zero
+exit code is exactly what a wipe starting looks like. The provider graded
+the trigger on its exit code and therefore recorded the run's most important
+outcome backwards - as a failure, when the evidence says it fired.
+
+Fixed the same day:
+  - WipeOutcome is now tri-state: DELIVERED / NOT_ISSUED / INDETERMINATE
+  - reachability is established BEFORE the trigger, so "absent to begin
+    with" can no longer be confused with "absent because it is wiping"
+  - INDETERMINATE maps to TRIGGER_OUTCOME_INDETERMINATE with
+    isSuccess = false: the product claims neither outcome it cannot
+    establish
+  - regression test pins the exit-224 shape: a connection that dies as the
+    wipe starts is INDETERMINATE, never a failure
+
+------------------------------------------------------------
+ 4. WHAT IS AND IS NOT ESTABLISHED
+------------------------------------------------------------
+ESTABLISHED:
+  - the product's pre-flight correctly identified an enrolled device
+  - the wipe command was issued against a real enrolled device
+  - the device left ADB at the moment of the trigger
+
+NOT ESTABLISHED:
+  - that the wipe completed. The AFTER-reading was never taken, because a
+    factory reset disables USB debugging and leaves the device in the setup
+    wizard. Under the ratified contract the verdict is therefore
+    PURGE_INDETERMINATE.
+  - that the purge ran through the full SANITIZE_EXECUTE protocol chain. It
+    did not: that path is gated on the entitlement flag, which is still off.
+    What ran was the destructive provider execute() itself calls.
+  - Tier B (contacts, media, accounts) was not taken. Those sources sit
+    outside the supported command set by deliberate design.
+
+------------------------------------------------------------
+ 5. WHAT THE OPERATOR MUST DO BEFORE THE AFTER-READING
+------------------------------------------------------------
+Complete setup on the handset and re-enable USB debugging. Until the device
+reappears in `adb devices`, no Tier A after-reading exists and the correct
+verdict remains PURGE_INDETERMINATE - an inconclusive run, not a purge that
+failed.
+
+Note for every future purge: the wipe removes the agent, so the next purge
+requires installing and enrolling the agent again first.
+============================================================

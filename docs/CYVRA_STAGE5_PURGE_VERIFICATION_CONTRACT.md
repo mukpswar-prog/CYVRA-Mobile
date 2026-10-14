@@ -99,9 +99,44 @@ Four verdicts. Binary PASS/FAIL is forbidden, as it is everywhere else in this p
 `PURGE_INDETERMINATE` must never be reported as `PURGE_NOT_ATTESTED`, nor vice versa. A
 device that was not read is not a device that failed.
 
-The trigger step (`TRIGGERED_AGENT_BASED_REBOOT_PENDING`) is **not** a verdict under this
-contract. It is a statement that a request was delivered, and it stands entirely outside
-these five.
+The trigger step is **not** a verdict under this contract. It is a statement that a
+request was made, and it stands entirely outside these five.
+
+### 4.1 The trigger outcome is tri-state, not a success flag
+
+Amended 2026-10-14, hours after ratification, because the first execution of this
+contract found the defect this section now records. Recording the amendment is the
+point: a contract that quietly rewrites itself after a bad run is worth nothing.
+
+Issuing `wipeData` tears the ADB connection down as the wipe starts. The trigger
+therefore cannot be graded by its exit code:
+
+| Trigger outcome | Meaning |
+|---|---|
+| `DELIVERED` | The broadcast was accepted by the device. Still not erasure. |
+| `NOT_ISSUED` | The device could not be addressed at all; nothing was sent. |
+| `INDETERMINATE` | The command was issued and the device stopped answering. |
+
+`INDETERMINATE` must never be reported as a failure, and must never be reported as a
+success. It is settled only by the post-reboot reading.
+
+**Observed on 14-Oct:** the trigger returned **exit 224** with the device already
+absent from `adb devices`. Under the original single boolean this was recorded as
+"could not be issued" — that is, the run's most important outcome was recorded
+backwards. The provider now reports it as `INDETERMINATE`, and there is a regression
+test pinning that exact shape.
+
+### 4.2 Precondition for the after-reading: the operator must be at the device
+
+A factory reset disables USB debugging and leaves the device in the setup wizard.
+Observed 14-Oct: the device was absent from `adb devices` for at least ten minutes
+after the trigger and did not return on its own.
+
+Consequence, stated before the next run rather than discovered during it: **no Tier A
+after-reading can be taken automatically.** Every verdict in §4 therefore waits on a
+human step — completing setup and re-enabling USB debugging at the handset. Until that
+happens the correct verdict is `PURGE_INDETERMINATE`, and a run left there must be
+reported as inconclusive rather than as a purge that did not work.
 
 ---
 
@@ -148,6 +183,9 @@ one bench handset. No measurement exists.
 Ratifying this contract makes the four verdicts in §4 the only forms in which this
 product may report a purge outcome. It does not by itself authorise running a purge.
 
-- [ ] Ratified — Chief Engineer, date: ___________
+- [x] **Ratified — Chief Engineer, 2026-10-14.** Word given in session: *"Approved
+  Three actions … Ratify the contract … And approved start -Step 5 process."*
+  Ratification and the separate commissioning to run a purge were given together;
+  they are recorded separately here because they are different grants.
 - [ ] Ratified with amendments noted here: _______________________________
 - [ ] Not ratified — reason: ____________________________________________

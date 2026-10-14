@@ -22,10 +22,32 @@ enum class WipeEligibility {
 }
 
 /**
- * The outcome of issuing the wipe trigger. Delivery only; see [trigger].
+ * The outcome of issuing the wipe trigger.
+ *
+ * Tri-state, because this is the one place in the product where a wrong guess is
+ * expensive in both directions. Issuing `wipeData` tears the ADB connection down, so
+ * a non-zero exit does NOT mean the command failed: on 14-Oct the trigger returned
+ * exit 224 with the device already gone from ADB, which is what a wipe starting looks
+ * like. Reporting that as "not delivered" would have recorded the most important
+ * outcome of the run backwards.
  */
+enum class WipeTriggerOutcome {
+    /** The broadcast was accepted by the device. Still not erasure. */
+    DELIVERED,
+
+    /** The command could not be issued at all, and the device is still reachable. */
+    NOT_ISSUED,
+
+    /**
+     * The command was issued and its effect cannot be established from here. This is
+     * the honest answer when the connection drops: the only way to settle it is the
+     * post-reboot reading (PUR-005 / Stage 5), never a second guess here.
+     */
+    INDETERMINATE,
+}
+
 data class WipeOutcome(
-    val delivered: Boolean,
+    val outcome: WipeTriggerOutcome,
     val reason: String?,
 )
 
@@ -113,15 +135,35 @@ class HostDestructiveWipeProvider(
      * is wiping, and it certainly does not mean data is gone. See the class note.
      */
     fun trigger(): WipeOutcome {
-        val result = adbClient.runShell(serial, WIPE_COMMAND)
-        if (!result.isSuccess) {
+        // Established BEFORE the trigger, because afterwards the device may be gone and
+        // "absent to begin with" would then be indistinguishable from "absent because
+        // it is wiping".
+        val reachableBefore = adbClient.runShell(serial, CMD_AGENT_PRESENT)
+        if (!reachableBefore.isSuccess) {
             return WipeOutcome(
-                delivered = false,
-                reason = "The wipe trigger could not be issued: " +
-                    (result.stderr.trim().ifBlank { "exit ${result.exitCode}" }).take(160),
+                WipeTriggerOutcome.NOT_ISSUED,
+                "The wipe trigger was not issued: the device did not answer a package " +
+                    "listing, so there was nothing to address.",
             )
         }
-        return WipeOutcome(delivered = true, reason = null)
+
+        val result = adbClient.runShell(serial, WIPE_COMMAND)
+        if (result.isSuccess) {
+            return WipeOutcome(WipeTriggerOutcome.DELIVERED, null)
+        }
+
+        // A wipe tears the connection down as it starts, so a non-zero exit here is
+        // genuinely ambiguous. On 14-Oct this returned exit 224 with the device already
+        // absent from ADB, which is what a wipe starting looks like. Reporting that as
+        // a failure would have recorded the run's most important outcome backwards,
+        // so it is reported as what it is: unsettled until the post-reboot reading.
+        return WipeOutcome(
+            WipeTriggerOutcome.INDETERMINATE,
+            "The wipe command was issued and its outcome could not be established from " +
+                "the workstation: the device stopped answering (exit ${result.exitCode}). " +
+                "That is consistent with the wipe starting. It is settled only by the " +
+                "post-reboot reading, never by a second guess here.",
+        )
     }
 
     /** `null` when the listing did not answer. */

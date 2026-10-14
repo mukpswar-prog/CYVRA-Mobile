@@ -1036,7 +1036,11 @@ function App() {
   const BLOCKED_EXECUTION_STATUSES = [
     "BLOCKED_NOT_ELIGIBLE",
     "BLOCKED_ELIGIBILITY_NOT_ESTABLISHED",
-    "FAILED_TRIGGER_NOT_DELIVERED",
+    "FAILED_TRIGGER_NOT_ISSUED",
+    // Not a success and not a failure: the command went out and the device stopped
+    // answering, which is what a wipe does as it starts. It must be shown as
+    // unsettled, never as done and never as failed.
+    "TRIGGER_OUTCOME_INDETERMINATE",
   ];
   const blocked = BLOCKED_EXECUTION_STATUSES.includes(executeStatus);
 
