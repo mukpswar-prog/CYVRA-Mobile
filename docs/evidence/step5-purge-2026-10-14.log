@@ -72,11 +72,12 @@ ESTABLISHED:
   - the wipe command was issued against a real enrolled device
   - the device left ADB at the moment of the trigger
 
-NOT ESTABLISHED:
-  - that the wipe completed. The AFTER-reading was never taken, because a
-    factory reset disables USB debugging and leaves the device in the setup
-    wizard. Under the ratified contract the verdict is therefore
-    PURGE_INDETERMINATE.
+NOT ESTABLISHED (at trigger time; see section 6, which supersedes this):
+  - that the wipe completed. The AFTER-reading had not yet been taken,
+    because a factory reset disables USB debugging and leaves the device in
+    the setup wizard. Under the ratified contract the verdict was therefore
+    PURGE_INDETERMINATE - correctly so, for the period it describes. It was
+    never reported as a failure, and it is not one.
   - that the purge ran through the full SANITIZE_EXECUTE protocol chain. It
     did not: that path is gated on the entitlement flag, which is still off.
     What ran was the destructive provider execute() itself calls.
@@ -93,4 +94,62 @@ failed.
 
 Note for every future purge: the wipe removes the agent, so the next purge
 requires installing and enrolling the agent again first.
+
+------------------------------------------------------------
+ 6. AFTER-READING  (operator completed setup, then this was taken)
+------------------------------------------------------------
+The operator completed setup at the handset and re-enabled USB debugging.
+Readings taken 15:41-15:49, Tier A only, A1/A2 through the SAME product
+path as the BEFORE reading (AdbApplicationInventoryProvider), so the two
+counts are like-for-like. Enumeration completeness = COMPLETE.
+
+  A1 total packages     334  ->  333   lower, fall non-zero     MET
+  A2 third-party          5  ->    4   lower                    MET
+  A3 CYVRA packages       1  ->    0   exactly 0                MET
+  A4 CYVRA owner refs     3  ->    0   no reference             MET
+  A5 bootreason   reboot,userrequested
+                   -> reboot,factory_reset   contains factory_reset  MET
+
+Boot instant pinned independently: host clock 15:49:29, uptime 2577.8 s
+=> boot at 2026-10-14 15:06:32. The trigger was issued at approx 15:05, so
+the device rebooted about 92 seconds after the command went out.
+
+WHY THE BOOT INSTANT WAS MEASURED. `reboot,factory_reset` names the KIND of
+boot, not who asked for it. By itself it would not attribute this reset to
+our trigger - the operator had just been at the phone. Attribution rests on
+the conjunction: the device left ADB the instant the trigger was issued, it
+came back booted at 15:06:32, it had the agent as device owner with 3 owner
+references before, and it has 0 CYVRA packages with 0 owner references now.
+Any one of those alone would be weak. Together they are the measurement.
+
+A1 AND A2 ARE NOT USER-DATA EVIDENCE, BY CONTRACT. The fall of exactly 1 in
+A1 is the agent itself being removed - a package count, not a data removal.
+Section 5 of the contract already says A1/A2 carry no weight alone and that
+the conjunction with A5 is what carries the weight. Read that way here too.
+
+------------------------------------------------------------
+ 7. VERDICT
+------------------------------------------------------------
+  PURGE_ATTESTED_MACHINE
+
+Graded against section 4 of the ratified contract: every Tier A criterion
+met, Tier B not taken. Not PURGE_ATTESTED_HYBRID, because Tier B was not
+attested, and not upgraded to it by inference.
+
+The section 4.1 trigger outcome, which read INDETERMINATE at the time, is
+now settled by exactly the mechanism the contract names: the post-reboot
+reading. The wipe did fire.
+
+STILL NOT ESTABLISHED BY THIS RUN:
+  - the full SANITIZE_EXECUTE protocol chain. It was not exercised: that
+    path is gated on the entitlement flag, which is still off. What ran was
+    the destructive provider execute() itself calls. The flag remains with
+    the Chief Engineer.
+  - Tier B (contacts, media, accounts). Not taken, by design. The operator
+    was at the handset and can attest them directly, which would move the
+    verdict to PURGE_ATTESTED_HYBRID; absent that attestation it stays at
+    MACHINE.
+  - agent-less purging. Nothing here is evidence for it. Section 5 of the
+    contract forbids citing any of this to that route.
+  - any device other than this one bench handset.
 ============================================================
