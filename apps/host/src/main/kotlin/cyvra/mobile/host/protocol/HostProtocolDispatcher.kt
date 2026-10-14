@@ -1041,6 +1041,21 @@ class HostProtocolDispatcher(
                     verification.userDataInaccessible?.let { JsonPrimitive(it) } ?: JsonNull,
                 )
                 put("setupWizardDetected", verification.setupWizardDetected)
+                // PUR-006 residual inventory. null means NOT MEASURED and must not be
+                // coerced to 0: zero packages would be a claim about the device, while
+                // an unestablished count is only a claim about our knowledge.
+                put(
+                    "residualTotalPackages",
+                    verification.residualTotalPackages?.let { JsonPrimitive(it) } ?: JsonNull,
+                )
+                put(
+                    "residualThirdPartyPackages",
+                    verification.residualThirdPartyPackages?.let { JsonPrimitive(it) } ?: JsonNull,
+                )
+                put(
+                    "residualCyvraPackages",
+                    verification.residualCyvraPackages?.let { JsonPrimitive(it) } ?: JsonNull,
+                )
                 put("assuranceLevel", verification.assuranceLevel)
                 put("limitations", stringArray(verification.limitations))
                 put("successClaimed", result.successClaimed)

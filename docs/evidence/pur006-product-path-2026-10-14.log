@@ -1,0 +1,74 @@
+============================================================
+ CYVRA PUR-006 PRODUCT-PATH RUN
+ subject : residual application inventory through supported paths
+ date    : 2026-10-14
+ method  : HostVerificationProvider.verifyPostReset() executed against the
+           connected bench device, with post-reboot evidence collected by
+           AdbGenericEvidenceProvider.collectAll() -- i.e. real device
+           evidence, not a synthetic fixture.
+ runner  : temporary scratch test (untracked, deleted before commit)
+ status  : BUILD SUCCESSFUL, test run exit 0
+============================================================
+
+Counts only. Package names are read to compute counts and are never printed,
+never logged and never written to disk. No serial, account, contact or
+device identifier appears in this file.
+
+[purge] device rows total        = 1
+[purge] authorised (state device) = 1
+[purge] inventory elapsed seconds = 129.524
+[purge] inventory completeness     = COMPLETE
+[purge] inventory records          = 333
+[purge] --- PUR-006 via HostVerificationProvider.verifyPostReset ---
+[purge] evidence collected          = true
+[purge] screen lock field status    = AVAILABLE
+[purge] screen lock present (null = not established) = false
+[purge] elapsed seconds             = 30.109
+[purge] --- PUR-006 RESULT ---
+[purge] residual total packages     = 333
+[purge] residual third-party        = 4
+[purge] residual cyvra packages     = 0
+[purge] verification status         = PARTIALLY_VERIFIED
+[purge] postResetStateDetected      = true
+[purge] setupWizardDetected         = true
+[purge] userDataInaccessible (null = not established) = null
+[purge] --- limitations the product itself records ---
+[purge]   * Verification performed via post-reset ADB reconnection (section 35)
+[purge]   * Screen-lock absence is consistent with a post-reset OOBE state but does
+    not establish erasure: a device whose owner never set a lock presents
+    identically, so this check cannot distinguish the two.
+[purge]   * Residual application inventory measured after reset (PUR-006): total,
+    third-party and CYVRA package counts taken via supported paths only.
+    Account, contact and media counts were NOT taken, because those require
+    commands outside the supported set, so user-account removal and
+    user-data erasure remain unmeasured by this check.
+[purge]   * Flash wear-leveling prevents direct physical NAND cell verification
+    without chip desoldering (PUR-007)
+[purge] --- notes ---
+[purge]   Post-reset reconnection observed with no screen lock present, consistent
+    with OOBE. Erasure and account removal were not established by this check.
+    Residual inventory (PUR-006): total=333, third-party=4, cyvra-packages=0.
+[purge] done
+
+============================================================
+ CROSS-CHECK
+
+ Two independent product paths ran in the same session and agree exactly:
+
+   AdbApplicationInventoryProvider.collect()   total 333 | third-party 4 | CYVRA 0
+   HostVerificationProvider.verifyPostReset()  total 333 | third-party 4 | CYVRA 0
+
+ The inventory figure (333 total, 4 third-party, 0 CYVRA) also matches the
+ 12-Oct-2026 factory-reset proof, which recorded 363 -> 333 total and
+ 40 -> 4 third-party. Source: docs/CYVRA_FACTORY_RESET_PROOF_2026-10-12.md
+ section 3.1. The device therefore remains in its post-reset state and has
+ not been re-populated since 12-Oct.
+
+ WHAT THIS RUN DOES NOT ESTABLISH
+ - It does not establish erasure. The screen-lock limitation above is
+   unchanged and the product still reports PARTIALLY_VERIFIED, never VERIFIED.
+ - It does not measure accounts, contacts or media. Those sources sit
+   outside HostSecurityAuditEngine.ALLOWED_ADB_PREFIXES and are disclosed
+   as not measured rather than implied by the three counts above.
+ - userDataInaccessible stayed null (NOT ESTABLISHED) by design.
+============================================================

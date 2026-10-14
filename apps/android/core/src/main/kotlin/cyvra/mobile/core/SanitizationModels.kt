@@ -108,6 +108,22 @@ data class VerificationResult(
      */
     val assuranceLevel: String, // e.g. "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED"
     val notes: String? = null,
+    /**
+     * PUR-006 residual application inventory, counted through supported paths only.
+     *
+     * `null` means NOT MEASURED and is the honest default: all three are claims about
+     * the device, so a count may only be published when the enumeration actually
+     * succeeded and yielded parsable records. An empty parse is reported as `null`
+     * rather than as `0`, because "zero packages installed" is a claim about the
+     * device that an unreadable listing does not support.
+     *
+     * These cover applications only. Account, contact and media counts require
+     * commands outside the supported set, so they remain unmeasured and are stated
+     * as a limitation by the caller rather than implied by these fields.
+     */
+    val residualTotalPackages: Int? = null,
+    val residualThirdPartyPackages: Int? = null,
+    val residualCyvraPackages: Int? = null,
 )
 
 /**

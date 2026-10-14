@@ -179,8 +179,10 @@ IMPLEMENTED_BASE = {
     # workbook IDs, which is why they were counted as having no code in the
     # evidence path. Read from source 13-Oct-2026; each states what the code
     # actually does, including where it declines to act.
-    # PUR-006 is DELIBERATELY ABSENT: verifyPostReset discloses it in
-    # `limitations` as NOT measured by this product, so it is not claimed.
+    # PUR-006 was DELIBERATELY ABSENT until 14-Oct-2026, when verifyPostReset
+    # began taking the residual application inventory itself through supported
+    # paths. Account, contact and media counts still sit outside the supported
+    # command set and remain disclosed in `limitations` as not measured.
     "PUR-001": "HostSanitizationProvider.assessCapability(DeviceCapabilityAssessment) "
                "-> SanitizationMethodType; exercised by the workflow tests",
     "PUR-002": "2-step authorization barrier (requestAuthorization + "
@@ -192,6 +194,10 @@ IMPLEMENTED_BASE = {
                "returns BLOCKED_NOT_IMPLEMENTED (no validated provider bound)",
     "PUR-005": "verifyPostReset(); returns PARTIALLY_VERIFIED or "
                "REQUIRES_EXTERNAL_VERIFICATION, never VERIFIED (WP-1b fix)",
+    "PUR-006": "HostVerificationProvider.residualInventory() inside verifyPostReset(): "
+               "`pm list packages` and `pm list packages -3` counted into "
+               "residualTotal/ThirdParty/CyvraPackages on VerificationResult, each null "
+               "when not established; account/contact/media counts still declined",
 }
 # --- Tier B: added by Stage 1, 12-Oct-2026 --------------------------------
 # Code exists, compiles, and is unit-tested. NONE of these has yet been run
@@ -355,11 +361,14 @@ def read_declined_from_source():
 DECLINED_IN_EVIDENCE = {k: v.replace("|", "\\|")
                         for k, v in read_declined_from_source().items()}
 
-PUR_PROVEN = {   # bench proof, 12-Oct-2026, documented
+PUR_PROVEN = {   # bench proof. 12-Oct-2026 measurement plus, for PUR-006, the
+                 # 14-Oct product-path re-run logged in docs/evidence/
     "PUR-003": "PROVEN on bench - factory reset executed via installed artifact",
     "PUR-004": "PROVEN on bench - ro.boot.bootreason=reboot,factory_reset; boot pinned 11:41:24",
     "PUR-005": "PROVEN on bench - packages 363->333, contacts 294->1, media 288->20, accounts 1->0, DO refs 4->0",
-    "PUR-006": "PROVEN on bench - third-party 40->4 (the 4 reinstalled AFTER reset by provisioning)",
+    "PUR-006": "PROVEN on bench - 12-Oct third-party 40->4; 14-Oct product path "
+               "re-measured 333 total / 4 third-party / 0 CYVRA "
+               "(docs/evidence/pur006-product-path-2026-10-14.log)",
 }
 
 def tested_status(oid, owner):
@@ -433,7 +442,8 @@ def human_role(owner):
     }[owner]
 
 # PUR rows carry bespoke gap text because "None - in place" would be false for
-# PUR-004 (execution deliberately blocked) and for PUR-006 (not implemented).
+# PUR-004 (execution deliberately blocked) and for PUR-006 (package counts are in
+# place since 14-Oct, but account/contact/media counts still are not).
 PUR_GAP = {
     "PUR-001": "None \u2014 capability assessment in place; **not yet run through the "
                "product against hardware**",
@@ -446,10 +456,10 @@ PUR_GAP = {
                "entitlement must grant `sanitizeExecute` (WP-5)",
     "PUR-005": "None \u2014 post-reset verification in place and deliberately declines to "
                "claim erasure; residual counts still require PUR-006",
-    "PUR-006": "**Not implemented.** `verifyPostReset` discloses in `limitations` that no "
-               "account, contact or media count is taken after reset. Known path: re-run "
-               "`AdbApplicationInventoryProvider.collect()` post-reset against a "
-               "pre-purge baseline",
+    "PUR-006": "None for applications \u2014 residual package counts are taken inside "
+               "`verifyPostReset()` and reported on `VerificationResult`. Account, "
+               "contact and media counts remain outside the supported command set and "
+               "are still disclosed as not measured",
 }
 
 def gap(oid, owner):

@@ -164,7 +164,7 @@ own words, not mine:
 | PUR-003 | Sanitization | Supported purge/reset method | HostSanitizationWorkflowEngine.selectMethod() behind the barrier; exercised by executesPurgeAndVerifiesPostResetReconnection | Collects where OEM/version permits; else reports NOT_AVAILABLE | – | Guided exception when the OEM blocks it | None — method selection in place; **not yet run through the product against hardware** | TESTED on bench (hardware) — re-executable proof exists | Stage 1 (conditional) |
 | PUR-004 | Sanitization | Purge execution/reboot completion | executePurge()/execute() - unit-tested for dry-run only; real purge returns BLOCKED_NOT_IMPLEMENTED (no validated provider bound) | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | Execution gated twice: `execute()` returns BLOCKED_NOT_IMPLEMENTED (no validated sanitization provider bound) **and** the offline entitlement must grant `sanitizeExecute` (WP-5) | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
 | PUR-005 | Sanitization | Post-purge state | verifyPostReset(); returns PARTIALLY_VERIFIED or REQUIRES_EXTERNAL_VERIFICATION, never VERIFIED (WP-1b fix) | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | None — post-reset verification in place and deliberately declines to claim erasure; residual counts still require PUR-006 | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
-| PUR-006 | Sanitization | Residual user-data evidence through supported paths | not collected | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | **Not implemented.** `verifyPostReset` discloses in `limitations` that no account, contact or media count is taken after reset. Known path: re-run `AdbApplicationInventoryProvider.collect()` post-reset against a pre-purge baseline | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
+| PUR-006 | Sanitization | Residual user-data evidence through supported paths | HostVerificationProvider.residualInventory() inside verifyPostReset(): `pm list packages` and `pm list packages -3` counted into residualTotal/ThirdParty/CyvraPackages on VerificationResult, each null when not established; account/contact/media counts still declined | Collects, attributes to ANDROID_ADB, reports state honestly | – | None | None for applications — residual package counts are taken inside `verifyPostReset()` and reported on `VerificationResult`. Account, contact and media counts remain outside the supported command set and are still disclosed as not measured | TESTED on bench (hardware) — re-executable proof exists | Stage 1 |
 | PUR-007 | Sanitization | Physical NAND cell-level verification | not collected | Records the technician's result; never converts it to software evidence | – | Performs the physical or specialist check | Checklist delivered in product — awaiting technician execution; recorded as an OPERATOR attestation, never as software evidence | CHECKLIST IN PRODUCT — technician attestation recorded; **no execution recorded yet** | Stage 6 (protocol) |
 
 ---
@@ -196,13 +196,13 @@ own words, not mine:
 
 ### 4.3 What the numbers mean, in plain terms
 
-> **The product now holds code to collect 61 of 114 parameters (54%), up from 25.**
+> **The product now holds code to collect 62 of 114 parameters (54%), up from 26.**
 >
-> **Read that number carefully — it is not a validation claim.** The 61 split three ways:
+> **Read that number carefully — it is not a validation claim.** The 62 split three ways:
 >
 > | Tier | Count | What it means |
 > |---|---|---|
-> | Code present **before** Stage 1 | 25 | product path exists and is unit-tested |
+> | Code present **before** Stage 1 | 26 | product path exists and is unit-tested |
 > | Added **by Stage 1** | 36 | compiles and unit-tested; **zero hardware validation so far** |
 > | Of those, commands independently proven on hardware by Q1 | 50 | the *command* works on the device class; our *product path* has not been run on a device |
 > | **End-to-end product scan validated on hardware** | **0** | **no full scan has yet been run through the product against a real device** |
@@ -263,14 +263,14 @@ fabricated constants, which is why no test could find the defect.
 | Identity | 9 | 9 | 0 | complete |
 | Mechanical | 15 | 0 | 15 | **entirely absent** |
 | Performance | 5 | 2 | 3 | partial |
-| Sanitization | 7 | 5 | 2 | partial |
+| Sanitization | 7 | 6 | 1 | partial |
 | Security | 5 | 5 | 0 | complete |
 | Sensors | 6 | 6 | 0 | complete |
 | Storage | 4 | 2 | 2 | partial |
 | System | 3 | 3 | 0 | complete |
 | Touch | 2 | 0 | 2 | **entirely absent** |
 | Wi-Fi | 4 | 2 | 2 | partial |
-| **TOTAL** | **114** | **61** | **53** | |
+| **TOTAL** | **114** | **62** | **52** | |
 
 ---
 
@@ -294,11 +294,11 @@ Only a measurement that survives independent re-execution counts.
 
 | Area | Honest position |
 |---|---|
-| **All 61 collected parameters, as a product path** | **none has been run end-to-end through the .exe against a real device.** Compilation and unit tests are not product support |
+| **All 62 collected parameters, as a product path** | **none has been run end-to-end through the .exe against a real device.** Compilation and unit tests are not product support |
 | The 36 Stage 1 additions specifically | compiled and unit-tested; **zero hardware validation**; several of their commands were not in Q1's probe set at all |
 | Device-owner detection via `dumpsys device_policy` | **not yet measured since the reset** — labelled unproven until measured, not assumed |
 | Battery temperature conversion | recorded in **device-native units**; the divisor has never been compared against a reference thermometer |
-| The remaining 53 parameters | no product collection exists |
+| The remaining 52 parameters | no product collection exists |
 | Purge verification | `governed §29` contract remains **unratified**; the bench proof is not a verification contract |
 | Physical verification PV-001..PV-017 | protocol exists in the workbook only; no station, no fixtures |
 | CYVRA AI-Enabled Grading | not built; depends on Stage 6 station and models |
@@ -371,8 +371,8 @@ product as a checklist the .exe presents and records.
 
 **May NOT be claimed today:**
 
-- That the .exe covers the 114-parameter plan. It has code for 61.
-- That those 61 are verified. **Zero** have been validated as a product path on hardware.
+- That the .exe covers the 114-parameter plan. It has code for 62.
+- That those 62 are verified. **Zero** have been validated as a product path on hardware.
 - That the 36 Stage 1 additions work at all on a real device. That is the next measurement.
 - That removing the fabrications proves their replacements correct. Removal and
   verification are separate acts; only the second one counts.
@@ -382,7 +382,7 @@ product as a checklist the .exe presents and records.
 
 ---
 
-*Generated 2026-10-13 by scripts/gen_handshake.py from the two Chief Engineer workbooks
+*Generated 2026-10-14 by scripts/gen_handshake.py from the two Chief Engineer workbooks
 *plus source reading of the code named in each row. Re-run that script against the*
 *workbooks to reproduce every figure above. It exits non-zero if the product's*
 *technician checklist and the workbook disagree, so a drifting count cannot publish.*

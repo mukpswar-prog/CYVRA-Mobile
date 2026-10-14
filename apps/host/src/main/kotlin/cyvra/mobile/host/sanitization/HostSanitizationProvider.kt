@@ -148,6 +148,42 @@ class HostVerificationProvider(
             SanitizationVerificationStatus.REQUIRES_EXTERNAL_VERIFICATION
         }
 
+        // PUR-006: the residual application inventory, taken through supported paths.
+        // This is what the limitation below used to disclose as never having happened.
+        val residual = residualInventory()
+
+        val residualLimitation = if (residual.failureReason == null) {
+            "Residual application inventory measured after reset (PUR-006): total, " +
+                "third-party and CYVRA package counts taken via supported paths only. " +
+                "Account, contact and media counts were NOT taken, because those require " +
+                "commands outside the supported set, so user-account removal and " +
+                "user-data erasure remain unmeasured by this check."
+        } else {
+            "Residual application inventory (PUR-006) was NOT measured: " +
+                residual.failureReason + ". User-account removal and user-data erasure " +
+                "therefore remain unmeasured by this check."
+        }
+
+        val baseNotes = if (!lockEstablished) {
+            "Post-reset reconnection observed, but screen-lock state was not readable; " +
+                "verification cannot proceed from this evidence."
+        } else if (consistentWithOobe) {
+            "Post-reset reconnection observed with no screen lock present, consistent " +
+                "with OOBE. Erasure and account removal were not established by this check."
+        } else {
+            "Post-reset reconnection observed with a screen lock still present, which " +
+                "is NOT consistent with a factory-reset OOBE state."
+        }
+
+        // Counts are appended only when they were actually established.
+        val notes = if (residual.failureReason == null) {
+            baseNotes + " Residual inventory (PUR-006): total=" + residual.totalPackages +
+                ", third-party=" + residual.thirdPartyPackages +
+                ", cyvra-packages=" + residual.cyvraPackages + "."
+        } else {
+            baseNotes
+        }
+
         return VerificationResult(
             operationId = operationId,
             sessionUuid = sessionUuid,
@@ -163,23 +199,83 @@ class HostVerificationProvider(
                 "Screen-lock absence is consistent with a post-reset OOBE state but does " +
                     "not establish erasure: a device whose owner never set a lock presents " +
                     "identically, so this check cannot distinguish the two.",
-                "User-account removal and user-data erasure were NOT measured - no account, " +
-                    "contact or media count was taken after the reset. These require a " +
-                    "residual-data scan (PUR-006).",
+                residualLimitation,
                 "Flash wear-leveling prevents direct physical NAND cell verification without " +
                     "chip desoldering (PUR-007)",
             ),
             assuranceLevel = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
-            notes = if (!lockEstablished) {
-                "Post-reset reconnection observed, but screen-lock state was not readable; " +
-                    "verification cannot proceed from this evidence."
-            } else if (consistentWithOobe) {
-                "Post-reset reconnection observed with no screen lock present, consistent " +
-                    "with OOBE. Erasure and account removal were not established by this check."
-            } else {
-                "Post-reset reconnection observed with a screen lock still present, which " +
-                    "is NOT consistent with a factory-reset OOBE state."
-            },
+            notes = notes,
+            residualTotalPackages = residual.totalPackages,
+            residualThirdPartyPackages = residual.thirdPartyPackages,
+            residualCyvraPackages = residual.cyvraPackages,
         )
+    }
+
+    private data class ResidualInventory(
+        val totalPackages: Int?,
+        val thirdPartyPackages: Int?,
+        val cyvraPackages: Int?,
+        val failureReason: String?,
+    )
+
+    /**
+     * PUR-006 residual application inventory.
+     *
+     * Both commands sit inside `HostSecurityAuditEngine.ALLOWED_ADB_PREFIXES`, so the
+     * scan adds no capability beyond the ones the product already holds.
+     *
+     * Every `null` means NOT MEASURED. An enumeration that succeeds but yields no
+     * parsable record is reported as not measured rather than as zero, because zero
+     * packages would be a claim about the device while an unreadable listing is only a
+     * claim about our read.
+     */
+    private fun residualInventory(): ResidualInventory {
+        val all = adbClient.runShell(serial, CMD_LIST_ALL_PACKAGES)
+        if (!all.isSuccess) {
+            return ResidualInventory(
+                null, null, null,
+                "package enumeration failed: " +
+                    (all.stderr.trim().ifBlank { "exit ${all.exitCode}" }).take(160),
+            )
+        }
+        val total = countPackageLines(all.stdout)
+        if (total == 0) {
+            return ResidualInventory(
+                null, null, null,
+                "package enumeration returned no parsable records",
+            )
+        }
+
+        val thirdParty = adbClient.runShell(serial, CMD_LIST_THIRD_PARTY)
+        if (!thirdParty.isSuccess) {
+            return ResidualInventory(
+                null, null, null,
+                "third-party package enumeration failed: " +
+                    (thirdParty.stderr.trim().ifBlank { "exit ${thirdParty.exitCode}" }).take(160),
+            )
+        }
+
+        return ResidualInventory(
+            totalPackages = total,
+            thirdPartyPackages = countPackageLines(thirdParty.stdout),
+            // Counted only. The names are never retained, printed or reported.
+            cyvraPackages = countCyvraPackages(all.stdout),
+            failureReason = null,
+        )
+    }
+
+    private fun countPackageLines(stdout: String): Int =
+        stdout.lines().count { it.trim().startsWith(PACKAGE_LINE_PREFIX) }
+
+    private fun countCyvraPackages(stdout: String): Int =
+        stdout.lines().count {
+            it.trim().startsWith(PACKAGE_LINE_PREFIX) && it.contains(CYVRA_TOKEN, ignoreCase = true)
+        }
+
+    private companion object {
+        const val CMD_LIST_ALL_PACKAGES = "pm list packages"
+        const val CMD_LIST_THIRD_PARTY = "pm list packages -3"
+        const val PACKAGE_LINE_PREFIX = "package:"
+        const val CYVRA_TOKEN = "cyvra"
     }
 }
