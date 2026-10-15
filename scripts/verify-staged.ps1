@@ -1,229 +1,159 @@
 <#
 .SYNOPSIS
-    Four-stage staged verification - a DEVELOPMENT aid, not a gate.
+    Four-part staged verification - the standard working method, per the Chief
+    Engineer's ruling of 15-Oct-2026.
 
 .DESCRIPTION
-    WHY THIS EXISTS
-    `verify-stage-gates.ps1` runs every check in one process tree. That is correct for a
-    release gate, but it is the worst possible shape for day-to-day work:
+    THE RULING THIS IMPLEMENTS
 
-      * a syntax error surfaces minutes late, after the expensive suites have already run;
-      * Gradle, vitest and cargo hold their working sets at the same time, which is what
-        exhausts memory. G-B has failed at 2.21 GB free and passed at 2.14 GB - there is
-        no safe threshold, only peak concurrent load.
+      "Staged verification is the standard working method: the activity runs as
+       four parts - rules and types, JavaScript tests, Android, Rust - with the
+       three memory-heavy suites each isolated in their own part. The Gradle
+       daemon is stopped when Android work ends, so no process survives into the
+       next part. All 13 checks run; none is skipped, relaxed, or reordered into
+       concurrency. The one-shot gate remains the release authority."
 
-    Splitting the work into four stages fixes both. Each stage runs alone, so memory is
-    released between them, and a compile error stops the run at stage 1 instead of after
-    a full test cycle.
+    WHAT THIS SCRIPT IS
+
+    An orchestrator and nothing else. It calls `verify-stage-gates.ps1` four
+    times, once per part, and reports free memory around each one. It contains
+    no check of its own.
+
+    WHY IT CONTAINS NO CHECK OF ITS OWN
+
+    The first version of this script (14-Oct) re-implemented eight of the
+    thirteen checks itself. That was a defect, not a convenience:
+
+      * it ran `cargo test --lib` where the gate runs `cargo test`;
+      * it ran `:core:test :host:test` where the gate runs different targets;
+      * it skipped the M1 freeze, the UTF-8 scan and the absolute-claim scan
+        entirely, and said so in its own header;
+      * its stage numbers disagreed with the ruling above.
+
+    Two definitions of one check will drift, and when they do the copy that
+    drifted is the one that gets run. So there is now exactly ONE definition of
+    each check, in `verify-stage-gates.ps1`, and this script asks for it by
+    part number. A staged run and a full pass execute the same code.
+
+    COVERAGE - stated so this script can never overstate itself
+
+      runs here : all thirteen gate checks, in four parts -
+                    part 1  G-E, G-D (both rows), G-F, G-G, G-A, G-C   = 8 rows
+                    part 2  G-B, alone                                  = 1 row
+                    part 3  G-H (three rows), then daemon released      = 3 rows
+                    part 4  G-I, alone                                  = 1 row
+                                                                      -------
+                                                                       13 rows
+
+      Nothing is omitted. Running all four parts runs every check a full pass
+      runs, and running them separately is what keeps Gradle, vitest and cargo
+      from competing for a 6.89 GB machine.
 
     WHAT THIS IS NOT
-    This script does NOT replace `verify-stage-gates.ps1`. The official gate remains the
-    authority and must still be run - green here is not "gates green". Every commit in
-    this repository carries the official gate's log, and that does not change.
 
-    COVERAGE, STATED EXACTLY SO THIS SCRIPT NEVER OVERSTATES ITSELF:
-      runs here   : desktop tsc -b, pnpm -r typecheck, :core/:host compile and tests,
-                    :sanitization-agent assembleDebug and tests, pnpm -r test,
-                    cargo test, wrangler deploy --dry-run, verify-standing-holds.
-      does NOT    : M1 freeze check (G-E), no-BOM/strict-UTF-8 (G-F), banned absolute
-                    claim grep (G-G). Those three live only inside the official gate, so
-                    running this script INSTEAD of that one means those three have not
-                    run at all.
-    Nothing here is skipped or weakened; the checks it runs are the same ones the gate
-    runs, in an order that costs less peak memory.
+    This is NOT the gate. `verify-stage-gates.ps1` with no `-Stage` argument is
+    the one-shot full pass and remains the release authority; every commit
+    carries that run's log. Green here means the checks passed, not that the
+    release gate has been run.
 
-    Stages:
-      1  COMPILE AND TYPES   syntax errors die here, in about a minute
-      2  ANDROID TESTS       :core + :host + sanitization-agent
-      3  JAVASCRIPT TESTS    pnpm -r test, alone, with the machine otherwise idle
-      4  RUST, WORKER, HOLDS cargo + wrangler dry-run + standing holds
+    A FLOOR UNDER MEMORY, NOT A THRESHOLD
 
-    A failing stage prints the tail of the command that failed. A tool that hides why it
-    failed is not a diagnostic tool.
+    There is no safe free-memory number. G-B has failed at 2.21 GB free and
+    passed at 2.14 GB. What matters is peak concurrent load, which is why the
+    three suites that load the machine each get a part to themselves.
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-staged.ps1
+
+.EXAMPLE
+    # fast iteration: halt at the first failing part
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-staged.ps1 -StopOnFirstFailure $true
 #>
 [CmdletBinding()]
 param(
-    # Stop after the first failing stage (default). Set $false to run all four.
-    [bool]$StopOnFirstFailure = $true,
-
-    # The official gate runs verify-standing-holds.ps1 with -SkipDevice, so G-D has never
-    # exercised the H1 DEVICE probe. Default here matches the gate exactly; pass this flag
-    # to run the probe as well.
+    # Halt at the first failing part instead of running the remaining ones.
     #
-    # KNOWN STATE, so nobody rediscovers it: the H1 device probe reads
-    #     $intact = connected -and uptime>3600s -and agent>=1 -and deviceOwner
-    # as physical evidence that no destructive operation has occurred. The Chief Engineer's
-    # COMMISSIONED purge on 14-Oct removed the agent and the device owner, so that indicator
-    # is now false and will stay false until an agent is enrolled again. It reports a breach
-    # for an operation that was authorised - an over-report, not a weakened hold. What has
-    # actually gone unchecked is the gate's own device probe, which never runs at all.
-    [switch]$IncludeDeviceProbe
+    # Default $false: the ruling says all thirteen checks run, and a run that
+    # stops at part 1 has told you nothing about parts 2 to 4. Halting early is
+    # a convenience for iteration, and when it is used the output says plainly
+    # that the remaining checks have NOT run - a stopped run is never reported
+    # as green.
+    [bool]$StopOnFirstFailure = $false,
+
+    # Run a single part and exit. 1..4. Omit to run all four in order.
+    [ValidateSet(0,1,2,3,4)]
+    [int]$Stage = 0
 )
 
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
 
+$gateScript = Join-Path $repo 'scripts\verify-stage-gates.ps1'
+
 function Get-FreeGb {
     try { return [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 2) }
     catch { return -1 }
 }
 
-# Runs a native command, returns its exit code, and prints the last $Tail lines of its
-# output only when it failed. On success it prints nothing, so a green run stays quiet.
-function Invoke-Step {
-    param(
-        [string]$Label,
-        [scriptblock]$Command,
-        [int]$Tail = 40
-    )
+$parts = @(
+    @{ Index = 1; Name = 'RULES AND TYPES'    ; Rows = 8; Holds = 'G-E, G-D code checks, G-D phone probe, G-F, G-G, G-A, G-C' }
+    @{ Index = 2; Name = 'JAVASCRIPT TESTS'   ; Rows = 1; Holds = 'G-B, alone - the check that has failed under memory pressure' }
+    @{ Index = 3; Name = 'ANDROID'            ; Rows = 3; Holds = 'G-H three rows, then the Gradle daemon is released' }
+    @{ Index = 4; Name = 'RUST'               ; Rows = 1; Holds = 'G-I, alone' }
+)
 
-    $text = (& $Command 2>&1 | Out-String -Width 220)
-    $code = $LASTEXITCODE
-    if ($code -ne 0) {
-        Write-Host ''
-        Write-Host ("   !! FAILED: {0}  (exit {1})" -f $Label, $code) -ForegroundColor Red
-        $lines = $text -split "`r?`n"
-        $start = [Math]::Max(0, $lines.Count - $Tail)
-        for ($i = $start; $i -lt $lines.Count; $i++) {
-            Write-Host ('   | ' + $lines[$i])
-        }
-        Write-Host ''
-    }
-    return $code
-}
+Write-Output 'CYVRA staged verification - four parts, one at a time, low peak memory.'
+Write-Output 'Standard working method per the Chief Engineer ruling of 15-Oct-2026.'
+Write-Output 'This is NOT the gate: the one-shot pass of verify-stage-gates.ps1 is.'
+Write-Output ('free memory at start: {0} GB' -f (Get-FreeGb))
 
-function Invoke-Stage {
-    param(
-        [string]$Index,
-        [string]$Name,
-        [scriptblock]$Body
-    )
+if ($Stage -gt 0) { $parts = @($parts | Where-Object { $_.Index -eq $Stage }) }
 
+$failed = @()
+foreach ($part in $parts) {
     $before = Get-FreeGb
     Write-Output ''
-    Write-Output ("==== STAGE {0} : {1} ====" -f $Index, $Name)
+    Write-Output ("==== PART {0} of 4 : {1} ====" -f $part.Index, $part.Name)
+    Write-Output ("      checks: " + $part.Holds)
     Write-Output ("      free memory before: {0} GB" -f $before)
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $code = [int](& $Body)
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $gateScript -Stage $part.Index
+    $code = $LASTEXITCODE
     $sw.Stop()
 
     if ($null -eq $code) { $code = 0 }
     $after = Get-FreeGb
 
     Write-Output ("      free memory after : {0} GB   ({1}s)" -f $after, [math]::Round($sw.Elapsed.TotalSeconds, 1))
-    Write-Output ("      STAGE {0} -> {1}" -f $Index, $(if ($code -eq 0) { 'PASS' } else { 'FAIL (exit ' + $code + ')' }))
+    Write-Output ("      PART {0} -> {1}" -f $part.Index, $(if ($code -eq 0) { 'PASS' } else { 'FAIL (exit ' + $code + ')' }))
 
-    return $code
-}
-
-$stages = @(
-    @{
-        Index = 1
-        Name  = 'COMPILE AND TYPES'
-        Body  = {
-            # Default matches verify-stage-gates.ps1, which passes -SkipDevice.
-            $holdArgs = @()
-            if (-not $IncludeDeviceProbe) { $holdArgs += '-SkipDevice' }
-
-            $code = Invoke-Step 'verify-standing-holds.ps1' {
-                & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'scripts\verify-standing-holds.ps1') @holdArgs
-            }
-            if ($code -ne 0) { return $code }
-
-            $code = Invoke-Step 'desktop tsc -b' {
-                Push-Location (Join-Path $repo 'apps\desktop')
-                try { & "$env:APPDATA\npm\pnpm.cmd" exec tsc -b } finally { Pop-Location }
-            }
-            if ($code -ne 0) { return $code }
-
-            $code = Invoke-Step 'pnpm -r typecheck' {
-                Push-Location $repo
-                try { & "$env:APPDATA\npm\pnpm.cmd" -r --silent typecheck } finally { Pop-Location }
-            }
-            if ($code -ne 0) { return $code }
-
-            # Compile only. No tests yet - that is the point of stage 1: a syntax error
-            # costs about a minute here instead of a full test cycle later.
-            $code = Invoke-Step 'gradle :core/:host compile' {
-                Push-Location (Join-Path $repo 'apps\android')
-                try { & .\gradlew.bat :core:compileKotlin :host:compileKotlin :host:compileTestKotlin --console=plain } finally { Pop-Location }
-            }
-            return $code
-        }
-    },
-    @{
-        Index = 2
-        Name  = 'ANDROID TESTS'
-        Body  = {
-            $code = Invoke-Step 'gradle :core/:host/:agent tests + agent assembleDebug' {
-                Push-Location (Join-Path $repo 'apps\android')
-                try { & .\gradlew.bat :core:test :host:test :sanitization-agent:assembleDebug :sanitization-agent:test --console=plain } finally { Pop-Location }
-            }
-            return $code
-        }
-    },
-    @{
-        Index = 3
-        Name  = 'JAVASCRIPT TESTS'
-        Body  = {
-            # Deliberately alone. This is the stage that has flaked under memory
-            # pressure, so nothing else may hold a working set while it runs.
-            $code = Invoke-Step 'pnpm -r test' {
-                Push-Location $repo
-                try { & "$env:APPDATA\npm\pnpm.cmd" -r --silent test -- --maxWorkers=1 } finally { Pop-Location }
-            }
-            return $code
-        }
-    },
-    @{
-        Index = 4
-        Name  = 'RUST, WORKER, HOLDS'
-        Body  = {
-            $code = Invoke-Step 'cargo test --lib' {
-                Push-Location $repo
-                try { & cargo test --lib } finally { Pop-Location }
-            }
-            if ($code -ne 0) { return $code }
-
-            $code = Invoke-Step 'wrangler deploy --dry-run' {
-                Push-Location (Join-Path $repo 'services\api')
-                try { & "$env:APPDATA\npm\pnpm.cmd" exec wrangler deploy --dry-run } finally { Pop-Location }
-            }
-            return $code
-        }
-    }
-)
-
-Write-Output 'CYVRA staged verification - four stages, one at a time, low peak memory.'
-Write-Output 'This is a development aid. The official gate still runs before every commit.'
-Write-Output ('free memory at start: {0} GB' -f (Get-FreeGb))
-
-$failed = @()
-foreach ($stage in $stages) {
-    $code = Invoke-Stage -Index $stage.Index -Name $stage.Name -Body $stage.Body
     if ($code -ne 0) {
-        $failed += $stage.Index
+        $failed += $part.Index
         if ($StopOnFirstFailure) {
             Write-Output ''
-            Write-Output ("STOPPED AT STAGE {0} ({1})." -f $stage.Index, $stage.Name)
-            Write-Output 'Fix that stage before spending time on the ones behind it.'
-            Write-Output 'Nothing has been skipped or weakened - the later stages simply have'
-            Write-Output 'not run yet, and the official gate has not run at all.'
+            Write-Output ("HALTED AT PART {0} ({1})." -f $part.Index, $part.Name)
+            Write-Output 'The remaining parts have NOT run. This is not green, and it is not'
+            Write-Output 'the gate - run verify-stage-gates.ps1 with no argument for a full pass.'
             exit 1
         }
     }
 }
 
 Write-Output ''
+$ranRows = 0
+foreach ($p in $parts) { $ranRows += $p.Rows }
+Write-Output ("checks executed: {0} of 13" -f $ranRows)
+
 if ($failed.Count -eq 0) {
-    Write-Output 'ALL FOUR STAGES GREEN.'
-    Write-Output 'Now run verify-stage-gates.ps1 - that is the gate, not this script.'
+    if ($parts.Count -eq 4) {
+        Write-Output 'ALL FOUR PARTS GREEN - all thirteen checks ran and passed.'
+    }
+    Write-Output ''
+    Write-Output 'Before a commit, run the one-shot gate:'
+    Write-Output '  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-stage-gates.ps1'
     exit 0
 }
-Write-Output ('FAILED STAGES: ' + ($failed -join ', '))
+Write-Output ('FAILED PARTS: ' + ($failed -join ', '))
 exit 1

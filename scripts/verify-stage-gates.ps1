@@ -20,8 +20,48 @@
 param(
     [switch]$SkipWeb,      # no JS/TS touched
     [switch]$SkipAndroid,  # no Kotlin touched
-    [switch]$SkipRust      # no Rust touched
+    [switch]$SkipRust,     # no Rust touched
+
+    # ==========================================================================
+    # CHIEF ENGINEER RULING, 15-Oct-2026 - STAGED VERIFICATION
+    # ==========================================================================
+    #
+    #   "Staged verification is the standard working method: the activity runs as
+    #    four parts - rules and types, JavaScript tests, Android, Rust - with the
+    #    three memory-heavy suites each isolated in their own part. The Gradle
+    #    daemon is stopped when Android work ends, so no process survives into the
+    #    next part. All 13 checks run; none is skipped, relaxed, or reordered into
+    #    concurrency. The one-shot gate remains the release authority."
+    #
+    # 0 (DEFAULT) runs every check in one pass. That is the release authority and
+    # this parameter does not alter it - no check moves, none changes command, and
+    # the output rows are in the same order as before this parameter existed.
+    #
+    # 1..4 runs ONE part of those same checks, so a 6.89 GB machine is never
+    # running Gradle, vitest and cargo against each other:
+    #
+    #   1  rules and types    G-E, G-D (both rows), G-F, G-G, G-A, G-C   = 8 rows
+    #   2  javascript tests   G-B, alone                                  = 1 row
+    #   3  android            G-H (three rows), then the Gradle daemon is stopped
+    #   4  rust               G-I, alone                                  = 1 row
+    #                         ------------------------------------------
+    #                                            total across 1..4 = 13 rows
+    #
+    # WHY THE PARTS CAN BE TRUSTED AT ALL: each part invokes the SAME command
+    # with the SAME pass criterion it uses in a full pass. There is one
+    # definition of each check, in this file, and it is not copied anywhere. A
+    # staged run and a full run therefore cannot disagree about a check - they
+    # are the same code taking a different route through it.
+    #
+    # WHAT THIS NEVER DOES: it selects WHICH checks run, never HOW they are
+    # judged. No check is relaxed, no exit code is reinterpreted, and running a
+    # single part is not "gates green" - a full pass is (H7).
+    [ValidateSet(0,1,2,3,4)]
+    [int]$Stage = 0
 )
+
+# $Stage = 0 means "every stage", which is the release path.
+function In-Stage([int]$n) { return ($script:Stage -eq 0 -or $script:Stage -eq $n) }
 
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -110,6 +150,11 @@ Write-Host "============================================================" -Foreg
 Write-Host " CYVRA STAGE GATE RUNNER" -ForegroundColor White
 Write-Host " repo : $repo" -ForegroundColor DarkGray
 Write-Host " time : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
+if ($Stage -eq 0) {
+    Write-Host " stage: ALL - full pass, the release authority" -ForegroundColor DarkGray
+} else {
+    Write-Host " stage: part $Stage of 4 (staged run - this is NOT the release authority)" -ForegroundColor DarkYellow
+}
 if ($script:gateLog) {
     Write-Host " log  : $script:gateLog" -ForegroundColor DarkGray
 } else {
@@ -121,6 +166,7 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 # G-E  M1 FREEZE  (the gate that must never move)
 # ---------------------------------------------------------------------------
+if (In-Stage 1) {
 Write-Host "[G-E] M1 freeze: apps/web + services/api must be untouched" -ForegroundColor Yellow
 $staged = git diff --name-only HEAD -- apps/web services/api
 $untracked = git ls-files --others --exclude-standard -- apps/web services/api
@@ -130,10 +176,12 @@ if ($staged -or $untracked) {
     Add-Result 'G-E' 'M1 freeze (apps/web, services/api)' 'PASS' 'no changes'
 }
 Write-Host ""
+}
 
 # ---------------------------------------------------------------------------
 # G-D  STANDING HOLDS
 # ---------------------------------------------------------------------------
+if (In-Stage 1) {
 Write-Host "[G-D] Standing holds harness" -ForegroundColor Yellow
 $holdScript = Join-Path $repo 'scripts\verify-standing-holds.ps1'
 if (Test-Path $holdScript) {
@@ -166,10 +214,12 @@ if (Test-Path $holdScript) {
     Add-Result 'G-D' 'verify-standing-holds (code checks)' 'FAIL' 'script missing'
 }
 Write-Host ""
+}
 
 # ---------------------------------------------------------------------------
 # G-F  UTF-8 CLEANLINESS
 # ---------------------------------------------------------------------------
+if (In-Stage 1) {
 Write-Host "[G-F] UTF-8 cleanliness of changed files" -ForegroundColor Yellow
 Invoke-Step 'G-F' 'no BOM, strict UTF-8 decode' 'PowerShell 5 Set-Content writes a BOM - avoid it' {
     # git diff does not list untracked files, so a brand-new document - such as
@@ -203,11 +253,12 @@ Invoke-Step 'G-G' 'zero hits on banned absolute claims' 'A-10 / H3' {
     if ($hits) { Write-Host $hits; $false } else { $true }
 }
 Write-Host ""
+}
 
 # ---------------------------------------------------------------------------
-# G-A / G-B / G-C  WEB / TESTS / WORKER API
+# G-A  TYPECHECK   -- part 1 of 4 (rules and types)
 # ---------------------------------------------------------------------------
-if (-not $SkipWeb) {
+if ((-not $SkipWeb) -and (In-Stage 1)) {
     Write-Host "[G-A] Typecheck" -ForegroundColor Yellow
     # `pnpm -r typecheck` walks the workspace and runs the script only where a package
     # declares one. apps/desktop does not declare it, so this step alone has never
@@ -227,13 +278,38 @@ if (-not $SkipWeb) {
         } finally { Pop-Location }
     }
 
+    Write-Host ""
+}
+
+# ---------------------------------------------------------------------------
+# G-B  UNIT TESTS  -- part 2 of 4 (javascript tests, alone)
+# ---------------------------------------------------------------------------
+if ((-not $SkipWeb) -and (In-Stage 2)) {
     Write-Host "[G-B] Unit tests" -ForegroundColor Yellow
+    # This is the only check in part 2, and that is deliberate. vitest starts a
+    # worker per core; on 15-Oct a Gradle daemon left idle overnight held 493 MB
+    # and vitest could not start its last worker, so 24 of 71 desktop tests never
+    # ran and the gate failed with zero tests failing. Running it alone, with the
+    # suites above finished and their memory released, removes that contention.
     Invoke-Step 'G-B' 'pnpm -r test' 'Run with --maxWorkers=1: parallel vitest workers exhaust RAM on this machine. Same tests, serialised scheduling. This is NOT a weakened gate.' {
         & $pnpm -r --silent test -- --maxWorkers=1 2>&1 | Out-String | Out-GateLog
         $LASTEXITCODE -eq 0
     }
+    Write-Host ""
+}
 
+# ---------------------------------------------------------------------------
+# G-C  WORKER API DRY-RUN  -- also part 1 of 4 (rules and types)
+# ---------------------------------------------------------------------------
+if ((-not $SkipWeb) -and (In-Stage 1)) {
     Write-Host "[G-C] Worker API dry-run" -ForegroundColor Yellow
+    # This belongs to part 1 because it is a static check of the worker bundle,
+    # not a suite: it holds no working set and adds no contention.
+    #
+    # It sits AFTER G-B here only so a full pass prints its rows in the order
+    # this script printed them before staging existed. Staging is not permitted
+    # to reorder the release authority's output, and the blocks below are split
+    # three ways purely to preserve that.
     Invoke-Step 'G-C' 'wrangler deploy --dry-run' 'must be run from services/api, not apps/web' {
         Push-Location (Join-Path $repo 'services\api')
         try {
@@ -245,9 +321,9 @@ if (-not $SkipWeb) {
 }
 
 # ---------------------------------------------------------------------------
-# G-H  ANDROID
+# G-H  ANDROID  -- part 3 of 4 (android)
 # ---------------------------------------------------------------------------
-if (-not $SkipAndroid) {
+if ((-not $SkipAndroid) -and (In-Stage 3)) {
     Write-Host "[G-H] Android" -ForegroundColor Yellow
     $gradle = Join-Path $repo 'apps\android\gradlew.bat'
     if (Test-Path $gradle) {
@@ -270,12 +346,38 @@ if (-not $SkipAndroid) {
         Add-Result 'G-H' 'Android build' 'FAIL' 'gradlew.bat missing'
     }
     Write-Host ""
+
+    # ==========================================================================
+    # CHIEF ENGINEER RULING, 15-Oct-2026 - the daemon is released here.
+    # ==========================================================================
+    # Gradle keeps a JVM alive after its last task so the next build is faster.
+    # That idle JVM still owns its heap, and nothing else on this machine gets it
+    # back. On 15-Oct a daemon left running since the previous evening held 493 MB
+    # for roughly twelve hours; the next morning vitest could not start its final
+    # worker, 24 of 71 desktop tests never ran, and the gate reported FAIL with
+    # zero tests failing. The check had not broken. The machine had run out of
+    # room.
+    #
+    # Stopping the daemon here is housekeeping, not a check, so it cannot pass or
+    # fail anything: a failure to stop is recorded in the log and nothing else.
+    # The cost is a few seconds of daemon start-up on the next Android build. The
+    # benefit is that no JVM from this run is still holding memory when the next
+    # part - or tomorrow's run - begins.
+    Write-Host "[G-H] releasing the Gradle daemon" -ForegroundColor Yellow
+    if (Test-Path $gradle) {
+        try {
+            & $gradle --stop 2>&1 | Out-String | Out-GateLog
+        } catch {
+            Write-Host ("    daemon stop did not complete: " + $_.Exception.Message) -ForegroundColor DarkGray
+        }
+    }
+    Write-Host ""
 }
 
 # ---------------------------------------------------------------------------
-# G-I  RUST
+# G-I  RUST  -- part 4 of 4 (rust, alone)
 # ---------------------------------------------------------------------------
-if (-not $SkipRust) {
+if ((-not $SkipRust) -and (In-Stage 4)) {
     Write-Host "[G-I] Rust" -ForegroundColor Yellow
     $tauri = Join-Path $repo 'apps\desktop\src-tauri'
     if (Test-Path $tauri) {

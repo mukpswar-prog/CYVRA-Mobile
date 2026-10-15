@@ -1259,3 +1259,124 @@ sides), so this edit introduced no malformed row.
 - The reason strings are the product's own words. Sorting them into "the
   workstation can stimulus this" against "this needs a fixture" is
   interpretation, and is recorded here as interpretation, not as measurement.
+
+---
+
+## Amendment - 15 Oct 2026 - STAGED VERIFICATION adopted as the standard working method
+
+### Ruling - Chief Engineer, 15-Oct-2026
+
+> "Staged verification is the standard working method: the activity runs as
+> four parts - rules and types, JavaScript tests, Android, Rust - with the
+> three memory-heavy suites each isolated in their own part. The Gradle
+> daemon is stopped when Android work ends, so no process survives into the
+> next part. All 13 checks run; none is skipped, relaxed, or reordered into
+> concurrency. The one-shot gate remains the release authority."
+
+Approved verbatim by the Chief Engineer on 15-Oct-2026, with the instruction
+to implement it before returning to the build.
+
+### Why - the cause, measured rather than assumed
+
+The gate run of 15-Oct 10:17 failed with **12 PASS / 1 FAIL** and **zero
+tests failing**: `Failed to start threads worker ... ActivationScreen.test.tsx
+/ Timeout waiting for worker to respond`, with `Test Files 4 passed (4)` out
+of the five files that exist. Forty-seven of seventy-one desktop tests did
+run and every one of them passed; one file never started.
+
+Measured on the machine at the time:
+
+| Quantity | Reading | Source |
+|---|---|---|
+| total RAM | 6.89 GB | `Win32_OperatingSystem` |
+| free RAM at the failure | 2.18 GB | same |
+| idle Gradle daemon found | 493 MB | `Get-Process java`, working set |
+| age of that daemon | about 12 h | process start time; left from the 14-Oct 21:17 run |
+
+That daemon was stopped - housekeeping, no gate change - and the same checks
+were re-run: **13 PASS / 0 FAIL**, log `gate-run-20261015-104306.log`.
+
+**The finding that shaped the ruling:** the failure occurred *inside* the
+one-shot gate, which already executes its checks one after another.
+Separating the activity into four parts on its own would not have prevented
+it. What poisoned the run was a process left behind by the *previous* run.
+The ruling therefore has two halves - the four-part split, and the daemon
+release - and it is the second half that addresses the measured cause.
+
+### What was built
+
+`scripts/verify-stage-gates.ps1` gained a `-Stage` parameter:
+
+| Part | Contents | Rows |
+|---|---|---:|
+| 1 | G-E M1 freeze, G-D code checks, G-D bench-phone probe, G-F UTF-8, G-G absolute claims, G-A typecheck, G-A desktop tsc, G-C wrangler dry-run | 8 |
+| 2 | G-B `pnpm -r test`, alone | 1 |
+| 3 | G-H three rows, then `gradlew --stop` | 3 |
+| 4 | G-I `cargo test`, alone | 1 |
+| | **total** | **13** |
+
+`-Stage` selects which checks run. It never changes how any check is judged:
+the same command, the same exit-code test, the same result. The default - no
+`-Stage` argument - is the one-shot release authority and is unchanged.
+
+The daemon release sits at the end of part 3. It is housekeeping, not a
+check: it can neither pass nor fail anything, and a failure to stop is written
+to the gate log and to nothing else.
+
+`scripts/verify-staged.ps1` was rewritten as an orchestrator that calls the
+gate four times by part number. It now contains no check of its own.
+
+### Why that file was rewritten rather than adjusted
+
+The previous version re-implemented eight of the thirteen checks and had
+drifted from the gate on several of them: `cargo test --lib` where the gate
+runs `cargo test`, different Gradle targets, and it did not run the M1
+freeze, the UTF-8 scan or the absolute-claim scan at all - which its own
+header did disclose. It also described the H1 device probe in terms of a
+binary `$intact` test that was reworked on 14-Oct, and stated that the gate
+runs `-SkipDevice` and therefore never exercises the device probe, which has
+been false since `646596d`.
+
+Two definitions of one check will drift, and the copy that drifts is the one
+that ends up being run. There is now exactly one definition of each check,
+in the gate.
+
+### Measured evidence
+
+| Run | Result | Exit | Time |
+|---|---|---:|---:|
+| part 1 | 8 rows, all PASS | 0 | 169.5 s |
+| part 2 | 1 row, PASS | 0 | 486.1 s |
+| part 3 | 3 rows, PASS, daemon released | 0 | 93.8 s |
+| part 4 | 1 row, PASS (cargo 236 passed, 0 failed) | 0 | 59.1 s |
+| **four parts through the orchestrator** | **13 of 13, ALL FOUR PARTS GREEN** | **0** | **893.9 s** |
+| **full pass, no `-Stage`** | **13 rows, all PASS, original row order** | **0** | **932.1 s** |
+
+Live `java` processes measured after every one of those runs: **0**.
+
+Row order in the full pass was preserved on purpose. The part 1 block was
+split three ways so that G-C - which belongs to part 1 - still prints after
+G-B, which belongs to part 2, exactly as it did before staging existed.
+
+### What this does not claim (H8)
+
+- A single green part is **not** "gates green". Only the full pass is.
+- The split does not create memory headroom; it removes *concurrency*. Free
+  memory read 2.78 GB at the start of the four-part run and 2.75 GB at the
+  end. The benefit is that the three loaded suites never overlap, not that
+  the machine has more memory than it has.
+- There is no safe free-memory threshold, and any document offering one
+  would be offering a belief. G-B has failed at 2.21 GB free and passed at
+  2.14 GB.
+- The 15-Oct stall of the bench-phone probe was a separate defect, fixed in
+  the same session by giving every adb call a 30-second timeout and per-call
+  timing. That fix is recorded in the probe's own source, not here.
+
+### Gates
+
+`pnpm -r typecheck`, desktop `tsc -b`, `pnpm -r test -- --maxWorkers=1`
+(5 files / 71 tests), `wrangler deploy --dry-run`, `:core` and `:host`
+compile, `:host` tests, `:sanitization-agent` assembleDebug and tests,
+`cargo test` (236 passed, 0 failed), standing-holds code checks, bench-phone
+probe - **13 PASS / 0 FAIL** as a full pass, and the same thirteen green when
+run as four parts.
