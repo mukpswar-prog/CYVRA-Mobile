@@ -196,19 +196,137 @@ foreach ($f in $stale) {
     Write-Host ('          STALE SANCTION (no longer touched by the sprint; remove it): ' + $f) -ForegroundColor DarkYellow
 }
 
+<#
+ * WHY EVERY ADB CALL BELOW CARRIES A TIMEOUT.
+ *
+ * CHIEF ENGINEER RULING, 15-Oct: the bench-phone probe must complain quickly
+ * rather than fall silent.
+ *
+ * On 15-Oct at 09:07 the probe hung for 44 MINUTES with no output at all. The
+ * handset had been unplugged overnight and replugged that morning; adb blocked
+ * on the USB link, and because not one of these calls had a timeout, the whole
+ * gate stalled behind it and was killed at the 45-minute ceiling. ADB waits
+ * forever for a shell command, so any caller that waits on adb waits forever
+ * too. That is the defect, and this is the fix.
+ *
+ * It also costs the Chief Engineer the thing they asked for: the test was
+ * meant to "complain" when the phone is unplugged, and instead it stopped
+ * talking. A ten-second named failure is what was wanted.
+ *
+ * Each call's duration is now recorded, so a future stall names WHICH command
+ * stopped. That evidence did not exist on 15-Oct, which is why the exact
+ * command that blocked could not be established afterwards - only narrowed to
+ * "one of the three shell calls".
+#>
+function Invoke-AdbWithTimeout {
+    param(
+        [string]$AdbPath,
+        [string]$AdbArguments,
+        [int]$TimeoutMs
+    )
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $AdbPath
+    $psi.Arguments = $AdbArguments
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    try {
+        [void]$proc.Start()
+    } catch {
+        return @{ State = 'error'; Ms = 0; Text = ''; Detail = $_.Exception.Message }
+    }
+
+    # Read both streams asynchronously BEFORE waiting. A synchronous ReadToEnd
+    # here would itself block forever on a stalled process and defeat the point.
+    $outTask = $proc.StandardOutput.ReadToEndAsync()
+    $errTask = $proc.StandardError.ReadToEndAsync()
+
+    if (-not $proc.WaitForExit($TimeoutMs)) {
+        # Did not finish in time. Killing the CLIENT releases the caller; it does
+        # not repair the link. This state must never be read as a pass, because
+        # nothing at all was observed.
+        try { $proc.Kill() } catch { }
+        try { [void]$proc.WaitForExit(3000) } catch { }
+        $sw.Stop()
+        return @{ State = 'timeout'; Ms = $sw.ElapsedMilliseconds; Text = ''; Detail = '' }
+    }
+
+    [void]$proc.WaitForExit()
+    $sw.Stop()
+    $text = $outTask.Result
+    if ($null -eq $text) { $text = '' }
+    return @{ State = 'ok'; Ms = $sw.ElapsedMilliseconds; Text = $text; Detail = $errTask.Result }
+}
+
 if ($DeviceOnly -or (-not $SkipDevice)) {
     $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
     $env:ADB_VENDOR_KEYS = 'C:\Android\.android\adbkey'
+    # 30,000 ms. Measured on the healthy link, 15-Oct: the slowest call is
+    # 17.3s (first shell call, connection set-up) and the rest are ~2.2s. So
+    # 30s is about double the worst healthy observation - a normal run never
+    # trips it, and a stalled link is reported in 30s instead of never.
+    $AdbTimeoutMs = 30000
+
     $connected = 0; $uptime = ''; $agent = 0; $hasOwner = $false
+    $adbTimedOut = $false
+    $adbTimeoutStep = ''
+    $adbTiming = @()
+
     if (Test-Path $adb) {
-        $connected = @(& $adb devices 2>&1 | Where-Object { $_ -match "`tdevice$" }).Count
-        if ($connected -gt 0) {
-            $uptime = ((& $adb shell cat /proc/uptime 2>$null | Select-Object -First 1) -replace '\s+.*$', '')
-            $agent = @(& $adb shell pm list packages 2>$null | Select-String -Pattern 'cyvra.sanitization').Count
-            $hasOwner = [bool](& $adb shell dumpsys device_policy 2>$null |
-                Select-String -Pattern 'Device Owner' | Select-Object -First 1)
+        $run = Invoke-AdbWithTimeout -AdbPath $adb -AdbArguments 'devices' -TimeoutMs $AdbTimeoutMs
+        $adbTiming += ('devices={0}ms/{1}' -f $run.Ms, $run.State)
+        if ($run.State -eq 'timeout') {
+            $adbTimedOut = $true
+            $adbTimeoutStep = 'adb devices'
+        }
+        elseif ($run.State -eq 'ok') {
+            $lines = @($run.Text -split "`r?`n")
+            $connected = @($lines | Where-Object { $_ -match "`tdevice$" }).Count
+
+            if ($connected -gt 0) {
+                $run = Invoke-AdbWithTimeout -AdbPath $adb -AdbArguments 'shell cat /proc/uptime' -TimeoutMs $AdbTimeoutMs
+                $adbTiming += ('uptime={0}ms/{1}' -f $run.Ms, $run.State)
+                if ($run.State -eq 'timeout') {
+                    $adbTimedOut = $true
+                    $adbTimeoutStep = 'adb shell cat /proc/uptime'
+                } else {
+                    $firstLine = @($run.Text -split "`r?`n" | Select-Object -First 1)
+                    if ($firstLine.Count -gt 0) { $uptime = ($firstLine[0] -replace '\s+.*$', '') }
+                }
+
+                if (-not $adbTimedOut) {
+                    $run = Invoke-AdbWithTimeout -AdbPath $adb -AdbArguments 'shell pm list packages' -TimeoutMs $AdbTimeoutMs
+                    $adbTiming += ('packages={0}ms/{1}' -f $run.Ms, $run.State)
+                    if ($run.State -eq 'timeout') {
+                        $adbTimedOut = $true
+                        $adbTimeoutStep = 'adb shell pm list packages'
+                    } else {
+                        $agent = @($run.Text -split "`r?`n" | Where-Object { $_ -match 'cyvra\.sanitization' }).Count
+                    }
+                }
+
+                if (-not $adbTimedOut) {
+                    $run = Invoke-AdbWithTimeout -AdbPath $adb -AdbArguments 'shell dumpsys device_policy' -TimeoutMs $AdbTimeoutMs
+                    $adbTiming += ('device_policy={0}ms/{1}' -f $run.Ms, $run.State)
+                    if ($run.State -eq 'timeout') {
+                        $adbTimedOut = $true
+                        $adbTimeoutStep = 'adb shell dumpsys device_policy'
+                    } else {
+                        $ownerLines = @($run.Text -split "`r?`n" | Where-Object { $_ -match 'Device Owner' })
+                        $hasOwner = ($ownerLines.Count -gt 0)
+                    }
+                }
+            }
         }
     }
+    $timingText = ($adbTiming -join '; ')
+    if (-not $timingText) { $timingText = 'no call was issued' }
     $secs = 0
     [double]::TryParse($uptime, [ref]$secs) | Out-Null
     $mins = [Math]::Round($secs / 60, 1)
@@ -237,7 +355,19 @@ if ($DeviceOnly -or (-not $SkipDevice)) {
      * what it observed and what must happen next, and it does not claim the one
      * thing it cannot know.
      #>
-    if ($connected -le 0) {
+    if ($adbTimedOut) {
+        # The handset stopped answering. This is NEITHER "no device" NOR "intact":
+        # nothing was observed, so nothing can be claimed in either direction.
+        # Reporting a reading we did not obtain is exactly the overclaim this
+        # probe was reworked on 14-Oct to stop making.
+        Write-Host '  [WARN] H1  device probe: THE HANDSET DID NOT ANSWER - probe timed out'
+        Write-Host ('          stalled at : ' + $adbTimeoutStep + ' (limit ' + $AdbTimeoutMs + ' ms)')
+        Write-Host ('          timing     : ' + $timingText)
+        Write-Host ('          observed   : ' + $reading)
+        Write-Host '          NOT established: anything - no reading was obtained'
+        Write-Host '          ACTION: check the cable and the USB-debugging prompt, then re-run'
+    }
+    elseif ($connected -le 0) {
         # Nothing to probe. Silence here would read as "no problem found".
         Write-Host '  [WARN] H1  device probe: no device connected - nothing was observed'
         Write-Host '          ACTION: connect the bench device and re-run before relying on H1'
@@ -272,6 +402,15 @@ if ($DeviceOnly -or (-not $SkipDevice)) {
 
     if ($DeviceOnly) {
         Write-Host ''
+        Write-Host ('          per-call timing: ' + $timingText)
+        if ($adbTimedOut) {
+            # A stalled handset is a failure of the CHECK, not of the hold. It is
+            # reported as failure because a probe that could not obtain a reading
+            # has verified nothing - and a verification that verified nothing must
+            # never be filed as green.
+            Write-Host 'H1 DEVICE PROBE  : FAIL - the handset stopped answering; nothing was checked'
+            exit 2
+        }
         if ($connected -le 0) {
             # Nothing attached. Exiting non-zero is the point of this switch: a
             # phone check that could not run must never be filed as a pass, or
