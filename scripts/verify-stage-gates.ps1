@@ -199,7 +199,16 @@ if (Test-Path $holdScript) {
         # impossible to pass whatever the repository's state was. Correcting the
         # pattern restores the intended double-check (exit 0 AND no [BREACH])
         # and relaxes nothing: a real breach trips both halves.
-        if ($LASTEXITCODE -eq 0 -and $out -notmatch '\[BREACH\]') { $true } else { Write-Host $out; $false }
+        #
+        # LOGGING, 15-Oct: the output used to be written ONLY on failure, so a
+        # green run logged an empty section. The holds harness prints which
+        # holds it examined and that none breached - that is the evidence the
+        # log exists to carry, and discarding it on success meant the committed
+        # log could not show the check had run at all. The pass test above is
+        # untouched: same exit code, same [BREACH] pattern.
+        $ok = ($LASTEXITCODE -eq 0 -and $out -notmatch '\[BREACH\]')
+        Out-GateLog $out
+        $ok
     }
 
     # CHIEF ENGINEER RULING, 14-Oct: this row did not exist before. The gate passed
@@ -208,7 +217,15 @@ if (Test-Path $holdScript) {
     # is attached - a check that could not run is not a pass.
     Invoke-Step 'G-D' 'H1 bench-phone probe' 'read-only ADB observation; FAIL here means no phone was attached, not a hold breach' {
         $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $holdScript -DeviceOnly 2>&1 | Out-String
-        if ($LASTEXITCODE -eq 0 -and $out -notmatch '\[BREACH\]') { $true } else { Write-Host $out; $false }
+        # LOGGING, 15-Oct: same defect as the row above - written only on
+        # failure, so on a green run the probe's READING reached neither the
+        # console nor the log. That reading (devices, uptime, agent,
+        # device-owner, per-call timing) is the whole point of running a
+        # phone check, and a log without it records a verdict with no
+        # observation behind it. Pass test unchanged.
+        $ok = ($LASTEXITCODE -eq 0 -and $out -notmatch '\[BREACH\]')
+        Out-GateLog $out
+        $ok
     }
 } else {
     Add-Result 'G-D' 'verify-standing-holds (code checks)' 'FAIL' 'script missing'
@@ -239,7 +256,21 @@ Invoke-Step 'G-F' 'no BOM, strict UTF-8 decode' 'PowerShell 5 Set-Content writes
         }
         try { $null = $strict.GetString($bytes) } catch { $bad += "$f (invalid UTF-8)" }
     }
-    if ($bad.Count) { Write-Host ("    bad: " + ($bad -join ', ')); $false } else { $true }
+    # LOGGING, 15-Oct: the outcome was written only when a file was bad, so a
+    # clean scan logged an empty section. From the log alone a reader could not
+    # distinguish "checked and clean" from "never ran" - and those two must not
+    # look alike in an evidence file. The number of files scanned and the
+    # result are now recorded either way. Pass test unchanged: a bad file
+    # still fails, a clean scan still passes.
+    if ($bad.Count) {
+        $summary = ("    scanned {0} changed file(s) - BAD: {1}" -f $files.Count, ($bad -join ', '))
+        Out-GateLog $summary
+        $false
+    } else {
+        $summary = ("    scanned {0} changed file(s) - no BOM, every file decoded under strict UTF-8" -f $files.Count)
+        Out-GateLog $summary
+        $true
+    }
 }
 Write-Host ""
 
@@ -250,7 +281,19 @@ Write-Host "[G-G] Absolute-claim scan (no code may claim a capability it lacks)"
 Invoke-Step 'G-G' 'zero hits on banned absolute claims' 'A-10 / H3' {
     $patterns = '100% (secure|unrecoverable|guaranteed|complete)|military[- ]grade|forensically (proven|certified)'
     $hits = git grep -n -I -E $patternS -- apps packages services 2>$null
-    if ($hits) { Write-Host $hits; $false } else { $true }
+    # LOGGING, 15-Oct: only hits were ever written, so a clean scan logged an
+    # empty section. "The scan ran and found zero" is a materially different
+    # statement from "the scan did not run", and an evidence file must not make
+    # them look identical. The pattern searched and the result are now recorded
+    # either way. Pass test unchanged: any hit still fails the gate.
+    if ($hits) {
+        Out-GateLog "    searched apps/packages/services for the banned absolute claims - HITS:"
+        Out-GateLog ($hits -join "`r`n")
+        $false
+    } else {
+        Out-GateLog "    searched apps/packages/services for the banned absolute claims - zero hits"
+        $true
+    }
 }
 Write-Host ""
 }
@@ -267,14 +310,35 @@ if ((-not $SkipWeb) -and (In-Stage 1)) {
     # `string[].includes()` in App.tsx survived behind eleven green gates on 14-Oct.
     # The desktop is now checked below. Same gate, no check removed.
     Invoke-Step 'G-A' 'pnpm -r typecheck' 'skips apps/desktop, which declares no typecheck task' {
-        & $pnpm -r --silent typecheck 2>&1 | Out-String | Out-GateLog
+        # `--silent` REMOVED on 15-Oct. Measured on this machine:
+        #     pnpm -r --silent typecheck   -> 0 characters
+        #     pnpm -r typecheck            -> 266 characters, 8 lines
+        # `--silent` suppresses the output of the LIFECYCLE SCRIPT itself, not
+        # just pnpm's own headers. (It does pass through `pnpm exec` children -
+        # measured separately with a marker - which is why this was not obvious
+        # on first inspection.) The log had therefore been recording an empty
+        # section for a check that really did run.
+        # Removing it changes only what is LOGGED: same command executed, same
+        # exit code, same pass test.
+        & $pnpm -r typecheck 2>&1 | Out-String | Out-GateLog
         $LASTEXITCODE -eq 0
     }
     Invoke-Step 'G-A' 'desktop tsc -b' 'apps/desktop typecheck; added 14-Oct because nothing covered it before' {
         Push-Location (Join-Path $repo 'apps\desktop')
         try {
-            & $pnpm exec tsc -b 2>&1 | Out-String | Out-GateLog
-            $LASTEXITCODE -eq 0
+            # LOGGING, 15-Oct: `tsc -b` emits NOTHING when it succeeds, so a
+            # green run logged an empty section. The failure path has always
+            # been captured - it is the success path that said nothing, and
+            # success is the common case. A positive statement of what happened
+            # is now recorded so the log shows the check ran and what it found.
+            $out = & $pnpm exec tsc -b 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            if ($code -eq 0) {
+                Out-GateLog '    tsc -b: apps/desktop compiled with no type errors'
+            } else {
+                Out-GateLog $out
+            }
+            $code -eq 0
         } finally { Pop-Location }
     }
 
@@ -292,7 +356,19 @@ if ((-not $SkipWeb) -and (In-Stage 2)) {
     # ran and the gate failed with zero tests failing. Running it alone, with the
     # suites above finished and their memory released, removes that contention.
     Invoke-Step 'G-B' 'pnpm -r test' 'Run with --maxWorkers=1: parallel vitest workers exhaust RAM on this machine. Same tests, serialised scheduling. This is NOT a weakened gate.' {
-        & $pnpm -r --silent test -- --maxWorkers=1 2>&1 | Out-String | Out-GateLog
+        # `--silent` REMOVED on 15-Oct. Measured with the exact command:
+        #     pnpm -r --silent test -- --maxWorkers=1   -> exit 0, 0 characters, 0 lines
+        # and, separately, that `--silent` does NOT suppress `pnpm exec`
+        # children (a marker printed straight through) - so the suppression
+        # applies to the LIFECYCLE SCRIPT, which is what `test` is here.
+        #
+        # The effect on the evidence file was serious: eight minutes of test
+        # execution produced an empty section. The log could state G-B PASS and
+        # show not one test, not one file count, no evidence that anything ran.
+        # Removing `--silent` changes only what is LOGGED - the tests executed,
+        # their count, and the exit code that decides the result are all
+        # exactly as before. The `--maxWorkers=1` scheduling note above stands.
+        & $pnpm -r test -- --maxWorkers=1 2>&1 | Out-String | Out-GateLog
         $LASTEXITCODE -eq 0
     }
     Write-Host ""
