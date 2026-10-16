@@ -29,7 +29,12 @@
     // TODO: must move to "https://cyvoriq.co.in" once the customer web Pages
     // project goes live; until then the CORS allow-list is keyed on localhost.
     "APP_ORIGIN": "http://localhost:5173",
-    "API_ENV": "production"
+    "API_ENV": "production",
+    // CE-5 (Chief Engineer, 16-Oct-2026): Option B. Durable across deploys,
+    // because a dashboard variable is lost on the next deploy and the
+    // acceptance run's stage 3 needs this ON. wrangler.jsonc is sanctioned
+    // as M1 release configuration in scripts/verify-standing-holds.ps1.
+    "SANITIZE_EXECUTE": "true"
   },
   // New product hostname only. Never api.cyvra.co.in or mobile.cyvra.co.in.
   "routes": [

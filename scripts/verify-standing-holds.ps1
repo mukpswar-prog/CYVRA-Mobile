@@ -99,6 +99,21 @@ Findings 2 'M1 customer journey frozen (apps/web, services/api)' $true 'scoping 
 $sprintStart = $SprintCommits[0]
 $listFull = @($SprintCommits | ForEach-Object { git rev-parse $_ 2>$null } | Where-Object { $_ -match '^[0-9a-f]{7,40}$' })
 
+# ---------------------------------------------------------------------------
+# CHIEF ENGINEER RULING CE-5, 16-Oct-2026 - RELEASE METADATA EXEMPTION
+#
+# apps/web/public/build-manifest.json is classified as Release Metadata and is
+# exempt from the M1 Customer Journey freeze. WS-I rewrites that file on every
+# publish; 15bc902 and eb6afed each touched this ONE path and nothing else
+# under apps/web or services/api, which is why they were the whole breach.
+#
+# This removes a PATH, not a check. A commit that touches the manifest AND any
+# other journey file still enters $journeyInRange and still has to be listed,
+# because the filter runs before the count, not instead of it. The exemption
+# is printed on every run so the gate shows what it is not looking at.
+# ---------------------------------------------------------------------------
+$H2ReleaseMetadata = @('apps/web/public/build-manifest.json')
+
 git merge-base --is-ancestor $sprintStart HEAD 2>$null
 $anchorOk = ($LASTEXITCODE -eq 0)
 
@@ -107,7 +122,8 @@ $unscoped = @()
 if ($anchorOk) {
     foreach ($c in @(git rev-list ("{0}..HEAD" -f $sprintStart) 2>$null)) {
         $t = @(git show --name-only --format='' $c -- apps/web services/api 2>$null |
-                 Where-Object { $_ -match '\S' })
+                 Where-Object { $_ -match '\S' } |
+                 Where-Object { $_ -notin $H2ReleaseMetadata })
         if ($t.Count -gt 0) {
             $journeyInRange += $c
             if ($c -notin $listFull) { $unscoped += $c }
@@ -123,6 +139,7 @@ $scopeDetail = if (-not $anchorOk) {
         $journeyInRange.Count, ($journeyInRange.Count - $unscoped.Count)
 }
 Findings 2 'Journey scope complete (no unlisted commit reaches M1)' $scopeOk $scopeDetail
+Write-Host ('          release-metadata exemption (CE-5): ' + ($H2ReleaseMetadata -join ', '))
 foreach ($c in $unscoped) {
     Write-Host ('          VIOLATION: unlisted journey commit {0}  {1}' -f $c.Substring(0, 7), (git log -1 --format=%s $c))
 }
@@ -149,6 +166,10 @@ $SanctionedM1 = @(
     [pscustomobject]@{
         Ruling = 'CE-1'
         Files  = @('services/api/src/entitlementSigner.ts', 'services/api/src/env.ts')
+    }
+    [pscustomobject]@{
+        Ruling = 'CE-5'
+        Files  = @('services/api/wrangler.jsonc')
     }
 )
 

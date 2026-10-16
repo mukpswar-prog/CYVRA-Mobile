@@ -1434,3 +1434,55 @@ no BOM, strict UTF-8. None of the four denylisted values was present in that fil
 not among the items ruled above. The gate stands at **11 PASS / 2 FAIL** and both
 failing rows are this one cause; no gate logic, flag, grep or `$SprintCommits` entry
 has been altered (H7).
+
+---
+
+## Amendment - CE-5, Chief Engineer, 16 Oct 2026 (afternoon)
+
+The five rulings below close the item left open immediately above. They were issued
+together, before a break, and are recorded here because
+`scripts/verify-standing-holds.ps1` accepts a sanctioned file only when its ruling ID
+appears literally in this ledger.
+
+| # | Ruling | Recorded as |
+|---|---|---|
+| 1 | `apps/web/public/build-manifest.json` is classified as **Release Metadata** and exempt from the M1 Customer Journey freeze. *"Update the gate parameters accordingly and run the gate to 13/0."* | CE-5 |
+| 2 | **Option B approved**: add `SANITIZE_EXECUTE=true` to `services/api/wrangler.jsonc`, and add the file to the sanctioned M1 list so the setting survives deploys | CE-5 |
+| 3 | Excluded documents: **"Read first"** - summarise both in plain English, then await the final decision on push vs keep-local | CE-5 |
+| 4 | Gate window: *"The phone is plugged in, authorized, and the machine is free of heavy jobs. Go."* | CE-5 |
+| 5 | Phase 1: proceed once the gate is 13/0, with **Deploy mobile API preview immediately after the publish** | CE-5 |
+
+### What changed in the gate, and what did not
+
+The exemption removes **one path, not a check**. The filter runs before the count, so a
+commit that touches `build-manifest.json` **and** any other journey file still enters
+`$journeyInRange` and still has to be listed in `$SprintCommits`. The exemption is
+printed on every run as `release-metadata exemption (CE-5)` - the gate states what it
+is not looking at rather than staying quiet about it.
+
+**H7 is untouched.** No `continue-on-error`, no relaxed grep, no skip flag, no
+`$SprintCommits` entry added. `services/api/wrangler.jsonc` is sanctioned through the
+documented procedure the gate itself enforces - exact path, ruling ID present in this
+ledger - and it prints as `SANCTIONED [CE-5]` on every run.
+
+### Why the exemption was sufficient on its own
+
+`15bc902` and `eb6afed` each touched **exactly one** M1 file: the manifest. Verified
+with `git show --name-only --format='' <sha> -- apps/web services/api` before the
+edit was made, so the ruling was applied to measured facts rather than to a guess.
+
+### The two-deploy trap (P6), restated as part of ruling 5
+
+`.github/workflows/release-windows-installer.yml:51-57` documents it:
+`services/api/src/entitlement.ts` imports the manifest at **build time**, so the Pages
+site picks the new file up on the push to main, but **the API Worker keeps serving the
+manifest it bundled until it is rebuilt.** The deploy that follows a publish is
+therefore mandatory, not advisory - dispatch #16 on 15-Oct ran 1h18m *before* the
+publish and the dashboard read the previous release as a result.
+
+### Status of the two previously failing rows
+
+Both rows were the same cause: the two publish commits above. With ruling 1 applied
+they leave the scope check on measurement, not by being added to the list. The gate has
+to be re-run to report the new standing; **nothing here claims 13/0 before it is
+measured.**
