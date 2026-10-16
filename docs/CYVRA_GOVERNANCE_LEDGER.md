@@ -1380,3 +1380,57 @@ compile, `:host` tests, `:sanitization-agent` assembleDebug and tests,
 `cargo test` (236 passed, 0 failed), standing-holds code checks, bench-phone
 probe - **13 PASS / 0 FAIL** as a full pass, and the same thirteen green when
 run as four parts.
+
+---
+
+## Amendment - 16 Oct 2026 - Chief Engineer rulings: version, activation, download, email scope, evidence redaction
+
+Recorded from the Chief Engineer's message of 16-Oct. Append-forward: this entry
+supersedes nothing and rewrites nothing. Items are numbered as the Chief Engineer
+numbered them.
+
+| # | Question put | Ruling |
+|---|---|---|
+| 1 | Which version | **`1.1.0`.** The rebuild is what makes it real |
+| 2 | Activation rectification | **Option C - the real product fix, P6 task 6.2.** Keep the install per-machine so `pnputil` keeps its elevation; make `<cyvra.home>` writable |
+| 3 | Installer download host | **Always private, accept signed-in-only.** The repository stays private |
+| 5 | Scope of the no-email rule | **Account identities only.** The rule reaches real, personal and bench account identifiers - not test fixtures on the product's own domain |
+| 6 | Evidence log holding fixture addresses | **Redaction approved** - "edit an evidence log approved" |
+| 7 | What ACTIVATE showed | **No text at all, completely blank, and it did not move to the next screen** |
+
+### What ruling 7 settles - with the code that settles it
+
+`state.rs:251-268`: `activate()` asks the server **first**. `ActivationOutcome::Refused`
+takes `Launch::Refused`, and `render()` (`commands.rs:73-74`) gives that branch
+`Some(failure.as_str())` - **a verdict on screen**. `Launch::LocalFault` maps to
+`("localFault", false, None)` (`commands.rs:72`), and `ActivationDecision::declined()`
+is likewise `message: None` (`commands.rs:56`), both rendering through
+`ActivationGate` as `message={null}`.
+
+A completely blank screen therefore **rules out any server verdict** - it was
+eliminated by reading the branch, not by assuming the server's state. What remains is
+the local-fault path, of which two candidates render identically:
+
+- `ENTITLEMENT_EXPORT_FAILED` - `state.rs:389`, `commit()` calls `entitlement::export(home, ...)`
+  first, and `home` resolves to a folder this user cannot write (measured, `0x80131501`).
+  **Leading candidate, backed by measured disk evidence.**
+- `FINGERPRINT_UNAVAILABLE` - `commands.rs:165`, raised when `activation_request()`
+  cannot be formed. **Cannot be excluded from the screen alone.**
+
+Both are addressed by Option C. No claim is made that one has been proven over the
+other; the screen cannot separate them and has not been said to.
+
+### Executed under ruling 6, same day
+
+`docs/evidence/gate-run-20261016-111425.log` - three distinct fixture addresses,
+8 occurrences, replaced with the literal token `[FIXTURE-EMAIL]`. Characters
+89117 -> 89104, a delta of exactly -13. All 13 gate rows unchanged (11 PASS, 2 FAIL),
+no BOM, strict UTF-8. None of the four denylisted values was present in that file.
+
+### Still open after this amendment
+
+**The H2 scope ruling** - extend `$SprintCommits`, or scope
+`apps/web/public/build-manifest.json` out of journey scope as release metadata. It was
+not among the items ruled above. The gate stands at **11 PASS / 2 FAIL** and both
+failing rows are this one cause; no gate logic, flag, grep or `$SprintCommits` entry
+has been altered (H7).
