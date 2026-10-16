@@ -1,0 +1,394 @@
+================================================================================
+CYVRA MOBILE - OTP REGISTRATION FLOW IMPLEMENTATION GUIDELINE
+================================================================================
+Document Version: 1.0
+Date: September 28, 2026
+Project: CYVRA-Mobile (https://github.com/mukpswar-prog/CYVRA-Mobile)
+Target Audience: Backend Engineers, Frontend Engineers, DevOps
+
+================================================================================
+1. OVERVIEW
+================================================================================
+This document provides the definitive, step-by-step engineering guideline for 
+implementing the Email OTP (One-Time Password) registration flow for the CYVRA 
+Mobile platform. 
+
+The implementation leverages the existing, production-grade architecture:
+- API Layer: Cloudflare Worker using Hono framework (services/api)
+- Database: Neon DB (Serverless PostgreSQL) accessed via Cloudflare Hyperdrive
+- ORM: Drizzle ORM for type-safe, parameterized queries (database/)
+- Email Relay: Resend (or Brevo as an alternative) for transactional emails
+- Frontend: React/Vite web application (apps/web)
+
+================================================================================
+2. DATABASE SCHEMA (Drizzle ORM)
+================================================================================
+Ensure the following schema is defined in your Drizzle schema file 
+(e.g., database/src/schema.ts). This table is designed to prevent replay attacks 
+and handle concurrent OTP requests gracefully via upsert logic.
+
+File: database/src/schema.ts
+--------------------------------------------------------------------------------
+import { pgTable, varchar, timestamp, boolean, index } from "drizzle-orm/pg-core";
+
+export const emailOtpChallenges = pgTable(
+  "email_otp_challenges",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    
+    email: varchar("email", { length: 255 }).notNull(),
+    
+    otpCode: varchar("otp_code", { length: 6 }).notNull(),
+    
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    
+    isUsed: boolean("is_used").default(false).notNull(),
+    
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    // Index for fast lookups during verification
+    emailIdx: index("email_otp_challenges_email_idx").on(table.email),
+  })
+);
+--------------------------------------------------------------------------------
+
+ACTION REQUIRED: After adding this schema, run the following commands to apply 
+it to your Neon DB via Hyperdrive:
+  $ pnpm db:generate
+  $ pnpm db:migrate
+
+================================================================================
+3. API IMPLEMENTATION (Hono Routes)
+================================================================================
+Create or update the authentication routes in your Cloudflare Worker API. 
+This handles both the generation/sending and the verification of the OTP.
+
+File: services/api/src/routes/auth.ts
+--------------------------------------------------------------------------------
+import { Hono } from "hono";
+import { eq, and, gte } from "drizzle-orm";
+import { emailOtpChallenges } from "../../../database/src/schema"; // Adjust path
+import { Resend } from "resend"; // Or use native fetch for Brevo
+
+const app = new Hono();
+
+// ----------------------------------------------------------------------------
+// 1. REQUEST OTP
+// ----------------------------------------------------------------------------
+app.post("/auth/request", async (c) => {
+  try {
+    const { email } = await c.req.json();
+    if (!email || !email.includes("@")) {
+      return c.json({ error: "Invalid email address" }, 400);
+    }
+
+    const db = c.get("db"); // Injected via your existing DB middleware
+    // SECURITY (redaction note, 16-Oct): this used to read
+    //   Math.floor(100000 + Math.random() * 900000)
+    // Math.random() is NOT a CSPRNG. It is seeded from state an attacker can
+    // model, so recovering the seed recovers every OTP that seed produced, and
+    // an OTP is a bearer credential. Use the platform CSPRNG instead;
+    // crypto.getRandomValues is available in every runtime this Worker targets.
+    //
+    // Rejection sampling, not a bare `d % 10`: 256 is not a multiple of 10, so
+    // taking the modulus directly makes digits 0-5 marginally likelier than
+    // 6-9. Discarding byte values 250..255 leaves 250 values = exactly 25 full
+    // sets of 10, which maps uniformly.
+    const digits = new Uint8Array(6);
+    crypto.getRandomValues(digits);
+    for (let i = 0; i < digits.length; i++) {
+      while (digits[i] >= 250) crypto.getRandomValues(digits.subarray(i, i + 1));
+      digits[i] %= 10;
+    }
+    // This CAN produce a leading zero ("012345"). That is still six digits, and
+    // it is uniform over all 10^6 codes; the old Math.random() form excluded
+    // leading zeros, which skewed the distribution. The frontend already
+    // accepts it - it checks otp.length === 6 and strips non-digits.
+    const otp = Array.from(digits).join("");
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Upsert: Insert new OTP, or update existing one for this email
+    await db.insert(emailOtpChallenges)
+      .values({ email, otpCode: otp, expiresAt, isUsed: false })
+      .onConflictDoUpdate({
+        target: emailOtpChallenges.email,
+        set: { otpCode: otp, expiresAt, isUsed: false, createdAt: new Date() },
+      });
+
+    // Send Email (Only in production. Preview returns devCode for testing)
+    if (c.env.API_ENV === "production") {
+      const resend = new Resend(c.env.RESEND_API_KEY); // Or BREVO_API_KEY
+      await resend.emails.send({
+        from: "CYVORIQ Solutions <noreply@cyvoriq.co.in>",
+        to: [email],
+        subject: "Your CYVRA Registration OTP",
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #1E3A8A;">Welcome to CYVRA Device Life Cycle Management</h2>
+            <p>Your One-Time Password (OTP) for registration is:</p>
+            <h1 style="color: #1E3A8A; letter-spacing: 5px; font-size: 32px;">${otp}</h1>
+            <p>This code is valid for 5 minutes. Do not share this with anyone.</p>
+          </div>
+        `,
+      });
+    }
+
+    return c.json({ 
+      success: true, 
+      message: "OTP sent successfully",
+      // SECURITY: Only return devCode in preview/local environments
+      devCode: c.env.API_ENV !== "production" ? otp : undefined 
+    });
+
+  } catch (error) {
+    console.error("OTP Request Error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+// ----------------------------------------------------------------------------
+// 2. VERIFY OTP
+// ----------------------------------------------------------------------------
+app.post("/auth/verify", async (c) => {
+  try {
+    const { email, otp } = await c.req.json();
+    const db = c.get("db");
+
+    // Find a valid, unused OTP that matches the email and hasn't expired
+    const [challenge] = await db.select()
+      .from(emailOtpChallenges)
+      .where(
+        and(
+          eq(emailOtpChallenges.email, email),
+          eq(emailOtpChallenges.otpCode, otp),
+          eq(emailOtpChallenges.isUsed, false),
+          gte(emailOtpChallenges.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+
+    if (!challenge) {
+      return c.json({ success: false, message: "Invalid or expired OTP" }, 400);
+    }
+
+    // SECURITY: Mark as used immediately to prevent replay attacks
+    await db.update(emailOtpChallenges)
+      .set({ isUsed: true })
+      .where(eq(emailOtpChallenges.id, challenge.id));
+
+    // TODO: Proceed with actual user registration logic here 
+    // (e.g., insert into 'users' table, create session, etc.)
+
+    return c.json({ success: true, message: "OTP verified successfully" });
+
+  } catch (error) {
+    console.error("OTP Verify Error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+export default app;
+--------------------------------------------------------------------------------
+
+================================================================================
+4. ENVIRONMENT CONFIGURATION (Cloudflare Dashboard)
+================================================================================
+Navigate to your Cloudflare Worker settings:
+Dashboard: Cloudflare -> Workers & Pages -> cyvra-mobile-api
+REDACTION NOTE (16-Oct): the account-scoped dashboard URL and the Cloudflare
+account ID that used to be on this line have been removed. A document carries no
+operational need for them: the reader who reaches this step already has account
+access and can find the Worker by name. (For the record, the account ID is still
+present in the repository's deploy workflows as CLOUDFLARE_ACCOUNT_ID, where the
+deploy step genuinely requires it. It is not a secret, and it is not treated as
+one - but it does not belong in prose.)
+
+Ensure the following Environment Variables are set for the 'production' environment:
+
+1. API_ENV
+   Value: production
+   (Set to 'preview' or 'development' in local/preview environments)
+
+2. RESEND_API_KEY (or BREVO_API_KEY)
+   Value: <Your actual API key from Resend/Brevo dashboard>
+   (Ensure the sending domain 'cyvoriq.co.in' is verified and has SPF/DKIM records)
+
+3. HYPERDRIVE (or your specific binding name)
+   Ensure your wrangler.toml correctly binds the Hyperdrive ID to the Neon DB:
+   [[hyperdrive]]
+   binding = "HYPERDRIVE"
+   id = "db31fc8dafca49b29172da7046b97175" # Replace with your actual live Hyperdrive ID
+
+================================================================================
+5. FRONTEND INTEGRATION (React / Vite)
+================================================================================
+Implement the following component in your web application (apps/web) to handle 
+the two-step registration flow.
+
+File: apps/web/src/components/Registration.tsx
+--------------------------------------------------------------------------------
+import { useState } from "react";
+
+export default function Registration() {
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState(1);
+  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSendOtp = async () => {
+    if (!email) return;
+    setIsLoading(true);
+    setMessage("Sending OTP...");
+    
+    try {
+      const res = await fetch("/api/auth/request", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setStep(2);
+        setMessage("");
+        if (data.devCode) {
+          console.warn("PREVIEW MODE: OTP is", data.devCode);
+          setMessage(`Preview Mode: Your OTP is ${data.devCode}`);
+        }
+      } else {
+        setMessage(data.error || "Failed to send OTP");
+      }
+    } catch (err) {
+      setMessage("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otp.length !== 6) return;
+    setIsLoading(true);
+    setMessage("Verifying...");
+    
+    try {
+      const res = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMessage("Success! Redirecting to dashboard...");
+        // window.location.href = "/dashboard";
+      } else {
+        setMessage(data.message || "Invalid OTP");
+      }
+    } catch (err) {
+      setMessage("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-md mx-auto bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold text-[#1E3A8A] mb-4">CYVRA Registration</h2>
+      
+      {step === 1 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+          <input 
+            type="email" 
+            value={email} 
+            onChange={(e) => setEmail(e.target.value)} 
+            placeholder="user@company.com" 
+            className="w-full p-2 border border-gray-300 rounded mb-4 focus:ring-2 focus:ring-[#1E3A8A]"
+          />
+          <button 
+            onClick={handleSendOtp} 
+            disabled={isLoading}
+            className="w-full bg-[#1E3A8A] text-white p-2 rounded hover:bg-[#172554] disabled:opacity-50"
+          >
+            {isLoading ? "Sending..." : "Send OTP"}
+          </button>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div>
+          <p className="mb-2 text-sm text-gray-600">Enter the 6-digit code sent to <strong>{email}</strong></p>
+          <input 
+            type="text" 
+            value={otp} 
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} 
+            placeholder="123456" 
+            className="w-full p-2 border border-gray-300 rounded mb-4 text-center text-xl tracking-widest focus:ring-2 focus:ring-[#1E3A8A]"
+          />
+          <button 
+            onClick={handleVerifyOtp} 
+            disabled={isLoading || otp.length !== 6}
+            className="w-full bg-[#1E3A8A] text-white p-2 rounded hover:bg-[#172554] disabled:opacity-50"
+          >
+            {isLoading ? "Verifying..." : "Verify & Register"}
+          </button>
+          <button 
+            onClick={() => { setStep(1); setOtp(""); setMessage(""); }}
+            className="w-full mt-2 text-sm text-[#1E3A8A] hover:underline"
+          >
+            Change Email Address
+          </button>
+        </div>
+      )}
+
+      {message && (
+        <p className={`mt-4 text-center text-sm ${message.includes("Success") || message.includes("Preview") ? "text-green-600" : "text-red-600"}`}>
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+--------------------------------------------------------------------------------
+
+================================================================================
+6. SECURITY & COMPLIANCE RULES (MANDATORY)
+================================================================================
+1. NO RAW CREDENTIALS IN BROWSER: The frontend must NEVER receive the database 
+   connection string or the email API key. All database and email operations 
+   must occur exclusively within the Cloudflare Worker.
+2. REPLAY ATTACK PREVENTION: The `isUsed` flag in the database MUST be set to 
+   `true` immediately upon successful verification. An OTP can only be verified 
+   exactly once.
+3. TIME-BOXED VALIDITY: OTPs strictly expire after 5 minutes (300 seconds). 
+   The database query enforces this via `gte(emailOtpChallenges.expiresAt, new Date())`.
+4. PREVIEW MODE ISOLATION: The `devCode` is ONLY returned when `API_ENV !== "production"`. 
+   Under no circumstances should a production environment return the generated 
+   OTP in the API response body.
+5. RATE LIMITING: Implement Cloudflare Worker rate limiting (e.g., max 3 OTP 
+   requests per email per hour) to prevent email relay abuse and spam.
+6. LOGGING: Never log the actual `otpCode` value in production Cloudflare 
+   Worker logs (e.g., avoid `console.log("OTP is", otp)` in production).
+
+================================================================================
+7. DEPLOYMENT & TESTING CHECKLIST
+================================================================================
+[ ] 1. Drizzle schema `email_otp_challenges` is added to `database/src/schema.ts`.
+[ ] 2. `pnpm db:generate` and `pnpm db:migrate` executed successfully.
+[ ] 3. Hono routes (`/auth/request`, `/auth/verify`) added to `services/api`.
+[ ] 4. `RESEND_API_KEY` (or Brevo) and `API_ENV` variables set in Cloudflare Worker.
+[ ] 5. Hyperdrive binding verified in `wrangler.toml` and Worker settings.
+[ ] 6. Frontend component integrated into `apps/web` registration flow.
+[ ] 7. Local testing passed: `pnpm dev:api` and `pnpm dev:web` (verify `devCode` appears).
+[ ] 8. Production testing passed: Deployed to Cloudflare, `API_ENV=production`, 
+     actual email received at `cyvoriq.co.in` domain, successful verification.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

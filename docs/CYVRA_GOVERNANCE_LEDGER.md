@@ -1486,3 +1486,83 @@ Both rows were the same cause: the two publish commits above. With ruling 1 appl
 they leave the scope check on measurement, not by being added to the list. The gate has
 to be re-run to report the new standing; **nothing here claims 13/0 before it is
 measured.**
+
+---
+
+## 16-Oct-2026 (second set) - document handling and the git author identity (CE-5, rulings 6-8)
+
+Five rulings arrived together earlier in the day (the H2 Release Metadata exemption,
+Option B, the excluded documents, the gate window, and Phase 1 sequencing) and are
+recorded above. Three further rulings arrived with the same message and are recorded
+here.
+
+| # | Ruling | Recorded as |
+|---|---|---|
+| 6 | `docs/admin-cyvoriq-upgrade-plan.txt`: **keep local, do not push**. *"It contains PII (CEO email) and forbids its own publication."* | CE-5 |
+| 7 | `docs/OTP_IMPLEMENTATION_GUIDELINE.txt`: **redact and push** - remove the Cloudflare dashboard URL/account ID, replace `Math.random()` with a crypto-secure RNG, fix the stray JSX token | CE-5 |
+| 8 | Git author identity: **leave as is**. *"Rewriting git history to fix a metadata denylist match is too destructive. Note it as an accepted exception to H3 for historical commits."* | CE-5 |
+
+### Ruling 6 - why "keep local" is the right resting state
+
+The upgrade plan is a 31 KB plan document, not code. It carries an account identity in
+five places and its own sections 0.1 and 12 forbid committing it. It was already outside
+the index via `.git/info/exclude`, so nothing from it has ever reached GitHub. The ruling
+converts a pending decision into a settled one; no code change was required.
+
+### Ruling 7 - what was redacted, and what was deliberately left alone
+
+Three changes, all in `docs/OTP_IMPLEMENTATION_GUIDELINE.txt`:
+
+1. **Cloudflare dashboard URL and account ID** replaced by a name-based pointer
+   (Cloudflare -> Workers & Pages -> cyvra-mobile-api). A reader arriving at that step
+   already has account access and can find the Worker by name, so the account ID carried
+   no operational need in prose.
+2. **`Math.random()` replaced with `crypto.getRandomValues`**, using rejection sampling -
+   byte values 250-255 are discarded, leaving 250 values = exactly 25 full sets of ten,
+   so the six digits are uniform. A bare `d % 10` would have made 0-5 marginally likelier
+   than 6-9, because 256 is not a multiple of 10. The replacement is comment-documented
+   rather than silent, and the comment quotes the removed line.
+3. **A stray `2026` inside a `<button>`** removed. It was rendering as literal button
+   text: "Change Email Address 2026".
+
+Verified after editing: no BOM, strict UTF-8 decode clean, zero denylist hits in both
+needle and decoded form, case-insensitive. The three surviving `Math.random` strings all
+sit inside the comment block that quotes what was removed; the executable line reads
+`const otp = Array.from(digits).join("")`.
+
+**What this redaction deliberately did not do:** it did not remove
+`CLOUDFLARE_ACCOUNT_ID` from the deploy workflows. That value is a required environment
+variable for the deploy step, is present in three committed workflow files, and is not a
+secret. Removing it would break the deploy while protecting nothing. The ruling removed
+it from prose, which is where it had no job.
+
+### Ruling 8 - the accepted H3 exception, stated in full
+
+Measured before recording: every commit carries author
+`mukpswar-prog <mukpswar@gmail.com>`. That address matches H3 denylist entry
+`TXVrcHN3YXJAZ21haWwuY29t`, which decodes to 18 characters and is an exact match
+differing only in capitalisation.
+
+**Why the gate could not see it.** H3 scans file content. Author identity lives in commit
+metadata, which is in the object database and not in any tree, so no file-content scan
+can reach it. This is a blind spot of the method, not a lapse in the check.
+
+**Why it was not corrected.** Fixing it requires rewriting the author of every commit and
+force-pushing. That changes every downstream commit SHA, invalidates the `$SprintCommits`
+list which names SHAs literally, and invalidates every tag pointing at a rewritten commit.
+The cost of the remedy is far larger than the cost of the exception.
+
+**The exception, as ruled and as recorded:** the author address is accepted for historical
+commits and is not a breach. It is recorded here rather than left implicit, which is the
+standard this repository applies to every other hold. The denylist needle stays in the
+gate script and continues to scan file content, where it belongs. Nothing in the gate
+script was edited to produce this outcome.
+
+### Observation recorded for completeness
+
+Measured alongside the address above, the history contains three distinct author
+identities: `mukpswar@gmail.com`, `github-actions[bot]`, and
+`cursoragent@cursor.com`. Only the first matches a denylist entry. The second is the
+release workflow's own bot, configured in `.github/workflows/release-windows-installer.yml`.
+The third is a previous tooling identity; it is noted here as a fact of the record and
+was not raised as a finding.
