@@ -1,0 +1,49 @@
+CYVRA stage gate run 2026-10-16 09:59:18
+repo C:\Users\User\Documents\GitHub\CYVRA-Mobile
+
+======== G-D  verify-standing-holds (code checks)  [09:59:18] ========
+==============================================================
+CYVRA STANDING HOLDS - verified against the repository
+  baseline  : 73d3f3a
+  sprint    : e175945 45687d7 bdbb32c 2866db0 3d62589 ec1d441 bbfc08a 12c817a af9bd02 fba759d 02963dc 74c6d5f 92c11de 11c143c d0d64fb 7d479fe b7fdaf8 83fb710 777743d 849f03f 37aebc0 83f7553 42b29eb 64ae486 d419743 6b66d0f
+==============================================================
+
+  [OK  ] H2  M1 customer journey frozen (apps/web, services/api)
+          scoping below
+  [BREACH] H2  Journey scope complete (no unlisted commit reaches M1)
+          commits since sprint start touching apps/web or services/api = 2; named in $SprintCommits = 1
+          VIOLATION: unlisted journey commit 15bc902  release: publish 0.1.0 installer manifest (WS-I)
+  [OK  ] H2  M1 customer journey frozen
+          Integration Sprint commits touching apps/web or services/api = 2 (sanctioned 2, unapproved 0)
+          SANCTIONED [CE-1]: services/api/src/entitlementSigner.ts
+          SANCTIONED [CE-1]: services/api/src/env.ts
+  [SKIP] H1  device probe skipped by -SkipDevice
+
+  [OK  ] H3  No code claims a capability it does not have
+          schemaVersion still 0011-DRAFT=True; docstring still declines to claim=True; no sealed assertion=True
+
+  [OK  ] H4  No private key generated, no APK signed
+          tracked keystore files=0; signingConfig/storePassword declarations=0
+  [OK  ] H4  Staged agent APK is unsigned
+          658096 bytes; v1 entries=0; v2 signing block=False
+
+  [OK  ] H5  No driver binaries committed
+          tracked .sys/.cat/.pnf=0; tracked .resources/drivers=0
+
+  [OK  ] H6  Sanitization gated on live entitlement
+          offline lock present=True; forced/bypass assignments=0
+
+  [OK  ] H7  No release gate weakened
+          continue-on-error / ignore-failures / allow-failure occurrences in workflows=0
+
+  [OK  ] H7  No adb.exe committed
+          tracked adb.exe=0
+  [OK  ] H3  No real bench-device identifier committed
+          denylist matches=0
+
+==============================================================
+HOLD BREACHES: 1
+==============================================================
+
+
+======== G-D  H1 bench-phone probe  [09:59:37] ========
