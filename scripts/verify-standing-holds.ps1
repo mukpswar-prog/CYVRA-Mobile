@@ -37,7 +37,8 @@ param(
         '92c11de', '11c143c', 'd0d64fb', '7d479fe', 'b7fdaf8',
         '83fb710', '777743d', '849f03f', '37aebc0',
         '83f7553', '42b29eb', '64ae486',
-        'd419743', '6b66d0f'
+        'd419743', '6b66d0f',
+        '0331873'
     ),
     # Skip the ADB probe when no bench phone should be attached.
     [switch]$SkipDevice,
