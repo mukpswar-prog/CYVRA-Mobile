@@ -1,0 +1,1083 @@
+CYVRA stage gate run 2026-10-16 15:39:19
+repo C:\Users\User\Documents\GitHub\CYVRA-Mobile
+
+======== G-D  verify-standing-holds (code checks)  [15:39:20] ========
+==============================================================
+CYVRA STANDING HOLDS - verified against the repository
+  baseline  : 73d3f3a
+  sprint    : e175945 45687d7 bdbb32c 2866db0 3d62589 ec1d441 bbfc08a 12c817a af9bd02 fba759d 02963dc 74c6d5f 92c11de 11c143c d0d64fb 7d479fe b7fdaf8 83fb710 777743d 849f03f 37aebc0 83f7553 42b29eb 64ae486 d419743 6b66d0f 0331873
+==============================================================
+
+  [OK  ] H2  M1 customer journey frozen (apps/web, services/api)
+          scoping below
+  [OK  ] H2  Journey scope complete (no unlisted commit reaches M1)
+          commits since sprint start touching apps/web or services/api = 2; named in $SprintCommits = 2
+          release-metadata exemption (CE-5): apps/web/public/build-manifest.json
+  [OK  ] H2  M1 customer journey frozen
+          Integration Sprint commits touching apps/web or services/api = 3 (sanctioned 3, unapproved 0)
+          SANCTIONED [CE-1]: services/api/src/entitlementSigner.ts
+          SANCTIONED [CE-1]: services/api/src/env.ts
+          SANCTIONED [CE-5]: services/api/wrangler.jsonc
+  [SKIP] H1  device probe skipped by -SkipDevice
+
+  [OK  ] H3  No code claims a capability it does not have
+          schemaVersion still 0011-DRAFT=True; docstring still declines to claim=True; no sealed assertion=True
+
+  [OK  ] H4  No private key generated, no APK signed
+          tracked keystore files=0; signingConfig/storePassword declarations=0
+  [OK  ] H4  Staged agent APK is unsigned
+          658096 bytes; v1 entries=0; v2 signing block=False
+
+  [OK  ] H5  No driver binaries committed
+          tracked .sys/.cat/.pnf=0; tracked .resources/drivers=0
+
+  [OK  ] H6  Sanitization gated on live entitlement
+          offline lock present=True; forced/bypass assignments=0
+
+  [OK  ] H7  No release gate weakened
+          continue-on-error / ignore-failures / allow-failure occurrences in workflows=0
+
+  [OK  ] H7  No adb.exe committed
+          tracked adb.exe=0
+  [OK  ] H3  No real bench-device identifier committed
+          denylist matches=0
+
+==============================================================
+ALL HOLDS INTACT - 0 breaches
+==============================================================
+
+
+======== G-D  H1 bench-phone probe  [15:39:55] ========
+==============================================================
+CYVRA STANDING HOLDS - verified against the repository
+  baseline  : 73d3f3a
+  sprint    : e175945 45687d7 bdbb32c 2866db0 3d62589 ec1d441 bbfc08a 12c817a af9bd02 fba759d 02963dc 74c6d5f 92c11de 11c143c d0d64fb 7d479fe b7fdaf8 83fb710 777743d 849f03f 37aebc0 83f7553 42b29eb 64ae486 d419743 6b66d0f 0331873
+==============================================================
+
+  [OK  ] H2  M1 customer journey frozen (apps/web, services/api)
+          scoping below
+  [OK  ] H2  Journey scope complete (no unlisted commit reaches M1)
+          commits since sprint start touching apps/web or services/api = 2; named in $SprintCommits = 2
+          release-metadata exemption (CE-5): apps/web/public/build-manifest.json
+  [OK  ] H2  M1 customer journey frozen
+          Integration Sprint commits touching apps/web or services/api = 3 (sanctioned 3, unapproved 0)
+          SANCTIONED [CE-1]: services/api/src/entitlementSigner.ts
+          SANCTIONED [CE-1]: services/api/src/env.ts
+          SANCTIONED [CE-5]: services/api/wrangler.jsonc
+  [WARN] H1  device probe: ACTION REQUIRED - agent and device owner absent on a
+                          device that has been up for over an hour
+          observed: devices=1; uptime=2914 min; agent=0; device-owner=False
+          consistent with: a purge that has already run (commissioned or not)
+          NOT established by this probe: whether that purge was commissioned
+          ACTION: verify the commission record for this device, then re-enrol
+                  the agent so the next run observes a settled device
+
+          per-call timing: devices=478ms/ok; uptime=340ms/ok; packages=381ms/ok; device_policy=302ms/ok
+H1 DEVICE PROBE  : a device was observed and probed (devices=1)
+                  the reading above is what the probe saw; it is not a verdict
+
+
+======== G-F  no BOM, strict UTF-8 decode  [15:40:31] ========
+    scanned 0 changed file(s) - no BOM, every file decoded under strict UTF-8
+
+======== G-G  zero hits on banned absolute claims  [15:40:32] ========
+    searched apps/packages/services for the banned absolute claims - zero hits
+
+======== G-A  pnpm -r typecheck  [15:40:33] ========
+apps/web typecheck$ tsc --noEmit
+database typecheck$ tsc --noEmit
+database typecheck: Done
+packages/evidence typecheck$ tsc --noEmit
+packages/evidence typecheck: Done
+services/api typecheck$ tsc --noEmit
+apps/web typecheck: Done
+services/api typecheck: Done
+
+
+======== G-A  desktop tsc -b  [15:41:01] ========
+    tsc -b: apps/desktop compiled with no type errors
+
+======== G-B  pnpm -r test  [15:41:36] ========
+Scope: 5 of 6 workspace projects
+apps/desktop test$ vitest run "--" "--maxWorkers=1"
+apps/web test$ vitest run "--" "--maxWorkers=1"
+apps/web test: 
+apps/web test:  RUN  v5.0.2 C:/Users/User/Documents/GitHub/CYVRA-Mobile/apps/web
+apps/web test: 
+apps/desktop test: 
+apps/desktop test:  RUN  v5.0.2 C:/Users/User/Documents/GitHub/CYVRA-Mobile/apps/desktop
+apps/desktop test: 
+apps/web test: Not implemented: navigation to another Document
+apps/desktop test: 
+apps/desktop test:  Test Files  5 passed (5)
+apps/desktop test:       Tests  71 passed (71)
+apps/desktop test:    Start at  15:41:52
+apps/desktop test:    Duration  120.33s (environment 68%, setup 16%, tests 13%, transform 2%, import 1%)
+apps/desktop test: 
+apps/desktop test:     Isolate  5 workers spawned ┬╖ ~16.87s startup each (spawn + environment, per file)
+apps/desktop test:              at least ~67.47s faster with isolate: false ΓÇö reuses workers across files instead of one per file
+apps/desktop test: 
+apps/desktop test: Done
+packages/evidence test$ tsx --test test/*.test.ts "--" "--maxWorkers=1"
+packages/evidence test: Γû╢ G4 vocabulary
+packages/evidence test:   Γ£ö treats PERMISSION_DENIED as a non-failure (4.614ms)
+packages/evidence test:   Γ£ö refuses to coerce non-failures into FAIL (1.6085ms)
+packages/evidence test: Γ£ö G4 vocabulary (12.0527ms)
+packages/evidence test: Γû╢ G4 digest
+packages/evidence test:   Γ£ö canonicalizes key order so pretty JSON is not hashed (249.6352ms)
+packages/evidence test:   Γ£ö does not replace collectedAt when hashing a record (16.4124ms)
+packages/evidence test: Γ£ö G4 digest (269.5139ms)
+packages/evidence test: Γû╢ G4 capability contract
+packages/evidence test:   Γ£ö has no model-name branches (2.4508ms)
+packages/evidence test:   Γ£ö covers every catalog test with a unique TEST_ID (1.7291ms)
+packages/evidence test:   Γ£ö marks missing camera as NOT_SUPPORTED, not FAIL (16.6923ms)
+packages/evidence test:   Γ£ö marks denied camera permission as PERMISSION_DENIED, not FAIL (1.5368ms)
+packages/evidence test:   Γ£ö shows Ready to test, never PASS, before a runnable test runs (2.3593ms)
+packages/evidence test:   Γ£ö does not treat a tablet without SIM as a defect (7.4933ms)
+packages/evidence test:   Γ£ö blocks IMEI, battery SOH, and Knox PASS on S1 (2.9072ms)
+packages/evidence test: Γ£ö G4 capability contract (39.9497ms)
+packages/evidence test: Γû╢ G4 evidence records
+packages/evidence test:   Γ£ö validates a honest S1 record and rejects a missing testId (1.959ms)
+packages/evidence test:   Γ£ö preserves raw conflict records and prefers S3 for summary only (1.7257ms)
+packages/evidence test: Γ£ö G4 evidence records (6.4177ms)
+packages/evidence test: Γû╢ G4 JSON Schema files
+packages/evidence test:   Γ£ö ships the five v1 schemas with stable $id values (29.6306ms)
+packages/evidence test:   Γ£ö exports s1-catalog.v1.json with the same TEST_IDs as the TypeScript catalog (10.6208ms)
+packages/evidence test: Γ£ö G4 JSON Schema files (41.236ms)
+packages/evidence test: Γû╢ G5 evidence parse
+packages/evidence test:   Γ£ö parses an honest S1 IMEI NOT_AVAILABLE record (28.0127ms)
+packages/evidence test:   Γ£ö rejects a non-UUID evidenceId without throwing (2.7435ms)
+packages/evidence test:   Γ£ö parses a batch and optional profile together (4.7667ms)
+packages/evidence test:   Γ£ö still parses a dishonest IMEI PASS (honesty is a later gate) (0.8508ms)
+packages/evidence test: Γ£ö G5 evidence parse (45.2948ms)
+packages/evidence test: Γû╢ G6 Report 1 coverage
+packages/evidence test:   Γ£ö is PARTIAL when catalog tests are missing (4.6267ms)
+packages/evidence test:   Γ£ö is LIMITED when every catalog test is present but some are withheld (6.329ms)
+packages/evidence test:   Γ£ö is COMPLETE only when every catalog test is PASS or FAIL (2.0068ms)
+packages/evidence test: Γ£ö G6 Report 1 coverage (30.5274ms)
+packages/evidence test: Γû╢ G6 freeze shape
+packages/evidence test:   Γ£ö builds summary entries without inventing a grade (2.4856ms)
+packages/evidence test:   Γ£ö formats CYVRA-R1-YEAR-UNIQUE and keeps official title / non-goals (1.9275ms)
+packages/evidence test:   Γ£ö keeps user name + objective name and coverage captions (2.0432ms)
+packages/evidence test:   Γ£ö sets frozenAt on assemble (1.9432ms)
+packages/evidence test: Γ£ö G6 freeze shape (12.1643ms)
+packages/evidence test: Γä╣ tests 26
+packages/evidence test: Γä╣ suites 8
+packages/evidence test: Γä╣ pass 26
+packages/evidence test: Γä╣ fail 0
+packages/evidence test: Γä╣ cancelled 0
+packages/evidence test: Γä╣ skipped 0
+packages/evidence test: Γä╣ todo 0
+packages/evidence test: Γä╣ duration_ms 7242.6056
+packages/evidence test: Done
+services/api test$ tsx --test test/*.test.ts "--" "--maxWorkers=1"
+services/api test: Γ£ö a valid activation returns a signature Kotlin would accept (529.0544ms)
+services/api test: Γ£ö an already-bound fingerprint is refused with 409 ALREADY_BOUND (67.8388ms)
+services/api test: Γ£ö the same machine reactivating succeeds rather than being told it is 'another computer' (70.7431ms)
+services/api test: Γ£ö an unknown key and someone else's key are byte-identical refusals (74.4755ms)
+services/api test: Γ£ö a revoked licence is 403 LICENCE_NOT_ACTIVE, not 404 (12.9875ms)
+services/api test: Γ£ö a licence that was never issued is 403 LICENCE_NOT_ACTIVE (7.2756ms)
+services/api test: Γ£ö a licence past its validity window is 410 LICENCE_EXPIRED (12.1266ms)
+services/api test: Γ£ö an unrecognised key returns no verdict, never an invented one (27.1445ms)
+services/api test: Γ£ö missing signing configuration fails closed with 503 and no verdict (5.6996ms)
+services/api test: Γ£ö losing the claim race is 409, not a signature for a binding we do not hold (18.5884ms)
+services/api test: Γ£ö exactly six codes, spelled exactly as FailureKind::code() spells them (1.1316ms)
+services/api test: Γ£ö every refusal the route can send carries one of the six codes (99.0069ms)
+services/api test: Γ£ö the offline lease is time-boxed to activation, not to the issue date (93.8857ms)
+services/api test: Γ£ö SANITIZE_EXECUTE stays refused in both snapshots (38.4184ms)
+services/api test: Γ£ö the licence key is normalised as the operator typed it (72.8583ms)
+services/api test: Γ£ö a claim is never written when configuration is missing (3.2052ms)
+services/api test: Γ£ö a returning workstation is revalidated and handed a signature Kotlin accepts (631.7413ms)
+services/api test: Γ£ö grace and the lease are anchored at this moment, which is the window being extended (17.8655ms)
+services/api test: Γ£ö the licence's own validity window does NOT slide forward (39.8267ms)
+services/api test: Γ£ö the device token survives a revalidation - it is echoed, never rotated (39.3052ms)
+services/api test: Γ£ö a token the server has never issued is 404 INVALID_LICENCE (19.7902ms)
+services/api test: Γ£ö a valid token presented by a different machine is 409 ALREADY_BOUND (57.6991ms)
+services/api test: Γ£ö a binding that changes during the request fails closed with 409 (8.9419ms)
+services/api test: Γ£ö REVOKED is refused with LICENCE_NOT_ACTIVE and the word revoked (17.2834ms)
+services/api test: Γ£ö SUSPENDED and EXPIRED are refused, but ISSUED and ACTIVE are let in (64.2809ms)
+services/api test: Γ£ö an ACTIVE serial produces an entitlement that says ACTIVE, never UNKNOWN (63.1548ms)
+services/api test: Γ£ö a licence past its policy window is 410 LICENCE_EXPIRED (19.6813ms)
+services/api test: Γ£ö a validity_ends_at stamp in the past refuses even though the policy window is open (47.5233ms)
+services/api test: Γ£ö a validity_ends_at stamp still in the future does not refuse (43.007ms)
+services/api test: Γ£ö a missing signing key is 503 before anything is read (11.2479ms)
+services/api test: Γ£ö a body missing either field is 400 with no code (48.0734ms)
+services/api test: Γ£ö a non-JSON body is 400 and never reaches storage (13.7298ms)
+services/api test: Γ£ö maskSerialKey hides the 13 characters that make a key unique (14.2255ms)
+services/api test: Γ£ö maskSerialKey fails safe on anything it does not recognise (14.0623ms)
+services/api test: Γ£ö the list projection drops BOTH aliases of the full key (527.3502ms)
+services/api test: Γ£ö the list projection still carries what the queue needs to render (90.1989ms)
+services/api test: Γ£ö two keys of the same slab stay distinguishable by fingerprint (18.7692ms)
+services/api test: Γ£ö the report projection drops BOTH aliases of the full key (14.1815ms)
+services/api test: Γ£ö the report keeps rows distinguishable once the key is masked (44.7091ms)
+services/api test: Γ£ö every CSV column resolves against a projected row, and carries no key (16.4297ms)
+services/api test: Γû╢ Path 6B - one atomic issue (┬º21 / ┬º7.2 / ┬º83 / RULE 7)
+services/api test:   Γ£ö provisions and issues from READY_TO_GENERATE with no separate Generate Key step (543.7147ms)
+services/api test:   Γ£ö treats KEY_GENERATED as internal - written, then passed through, never left standing (38.6868ms)
+services/api test:   Γ£ö writes one audit row whose previous state is the one the operator saw (46.025ms)
+services/api test:   Γ£ö keeps a credential minted by the legacy route instead of allocating a second (19.765ms)
+services/api test: Γ£ö Path 6B - one atomic issue (┬º21 / ┬º7.2 / ┬º83 / RULE 7) (675.3899ms)
+services/api test: Γû╢ ┬º42 - two administrators, one wins
+services/api test:   Γ£ö tells the second the record was already processed, and lets them write nothing (102.0546ms)
+services/api test:   Γ£ö never sends the loser an email either (102.0392ms)
+services/api test: Γ£ö ┬º42 - two administrators, one wins (206.3643ms)
+services/api test: Γû╢ ┬º43 - a retry after the connection dropped returns the existing result
+services/api test:   Γ£ö hands back the identical envelope and performs no work at all (47.6104ms)
+services/api test: Γ£ö ┬º43 - a retry after the connection dropped returns the existing result (49.8207ms)
+services/api test: Γû╢ ┬º20 - the backend validates the green button's conditions itself
+services/api test:   Γ£ö refuses an unpaid record no matter what the frontend showed (18.8184ms)
+services/api test:   Γ£ö 404s an unknown serial and 409s a revoked one, with no writes either way (19.4896ms)
+services/api test: Γ£ö ┬º20 - the backend validates the green button's conditions itself (41.2828ms)
+services/api test: Γû╢ one insertion path
+services/api test:   Γ£ö names exactly one file in src/ that touches auditEvents (36.8375ms)
+services/api test:   Γ£ö reaches audit_events through writeAudit, and never a raw insert elsewhere (5.6595ms)
+services/api test:   Γ£ö inserts into the handle it is given, and opens no transaction of its own (2.3146ms)
+services/api test:   Γ£ö records NULL for a state the change did not have, rather than inventing one (1.2421ms)
+services/api test:   Γ£ö always carries a role, because the column refuses to be empty (1.0798ms)
+services/api test: Γ£ö one insertion path (53.9965ms)
+services/api test: Γû╢ route coverage
+services/api test:   Γ£ö classified every registered state-changing route (this ran at import) (2.4341ms)
+services/api test:   Γ£ö maps every write route to a real audit_action_enum value (3.0223ms)
+services/api test:   Γ£ö registers every key it declares (1.4824ms)
+services/api test:   Γ£ö declares exactly the three auth exemptions, each a session lifecycle route (1.6679ms)
+services/api test:   Γ£ö marks only the CSV report as conditional (2.0883ms)
+services/api test:   Γ£ö throws at load for a state-changing route nobody classified (2.7964ms)
+services/api test:   Γ£ö ignores reads, which are correctly not audited (1.5799ms)
+services/api test:   Γ£ö throws when a registry key names a route that no longer exists (1.2374ms)
+services/api test:   Γ£ö throws when an auth exemption goes stale for the same reason (1.1854ms)
+services/api test:   Γ£ö refuses to produce an action for a route it has not seen (1.0352ms)
+services/api test:   Γ£ö gives each mapped route the action its handler writes (0.6633ms)
+services/api test:   Γ£ö uses the nil UUID only for aggregate events, never for a licence (0.7141ms)
+services/api test: Γ£ö route coverage (23.6887ms)
+services/api test: Γû╢ the audit row sits inside the mutation's transaction
+services/api test:   Γ£ö confirms payment: two ┬º49 edges, one row, money written first (280.5071ms)
+services/api test:   Γ£ö revoke: records ┬º37's reason, the true previous state, and nothing on replay (31.9014ms)
+services/api test:   Γ£ö refuses revoke without a ┬º37 reason, and writes nothing while refusing (30.1873ms)
+services/api test:   Γ£ö does not audit a refusal: a forbidden transition leaves no trail (10.1139ms)
+services/api test: Γ£ö the audit row sits inside the mutation's transaction (367.6852ms)
+services/api test: Γû╢ the captured frame
+services/api test:   Γ£ö takes the IP from CF-Connecting-IP and ignores X-Forwarded-For (22.976ms)
+services/api test:   Γ£ö leaves the IP NULL when the platform sets none, rather than guessing (13.7789ms)
+services/api test: Γ£ö the captured frame (38.3763ms)
+apps/web test: 
+apps/web test:  Test Files  15 passed (15)
+apps/web test:       Tests  305 passed (305)
+apps/web test:    Start at  15:41:52
+apps/web test:    Duration  196.71s (environment 58%, tests 19%, setup 18%, transform 4%, import 1%)
+apps/web test: 
+apps/web test:     Isolate  15 workers spawned ┬╖ ~15.65s startup each (spawn + environment, per file)
+apps/web test:              at least ~101.70s faster with isolate: false ΓÇö reuses workers across files instead of one per file
+apps/web test: 
+apps/web test: Done
+services/api test: Γû╢ parseAuditQuery - refusal
+services/api test:   Γ£ö refuses an unknown action and names both the token and the vocabulary (7.216ms)
+services/api test:   Γ£ö refuses a pageSize it cannot serve rather than clamping it (1.7948ms)
+services/api test:   Γ£ö refuses a range that ends before it begins (1.1535ms)
+services/api test:   Γ£ö refuses an unparseable boundary rather than ignoring it (1.5418ms)
+services/api test:   Γ£ö refuses an entityId that is not a UUID (1.4754ms)
+services/api test:   Γ£ö refuses a page that is not a positive whole number (1.0762ms)
+services/api test: Γ£ö parseAuditQuery - refusal (25.1024ms)
+services/api test: Γû╢ parseAuditQuery - acceptance
+services/api test:   Γ£ö answers page 1 of 25 with no filters at all (3.5584ms)
+services/api test:   Γ£ö canonicalises action tokens case-insensitively (2.8628ms)
+services/api test:   Γ£ö reads a bare date as a whole UTC day, so a boundary does not move (1.4895ms)
+services/api test:   Γ£ö honours an explicit timestamp instead (1.5537ms)
+services/api test: Γ£ö parseAuditQuery - acceptance (11.6612ms)
+services/api test: Γû╢ auditFiltersFor - the echo
+services/api test:   Γ£ö reports what was asked for, and nothing when nothing was (1.7536ms)
+services/api test:   Γ£ö omits an empty action list rather than reporting a filter that matched everything (0.9685ms)
+services/api test: Γ£ö auditFiltersFor - the echo (3.5027ms)
+services/api test: Γû╢ readAuditEvents - ┬º41 LIMITED
+services/api test:   Γ£ö restricts an operator's rows to their own staff id (7.0722ms)
+services/api test:   Γ£ö leaves an unlimited caller unscoped (0.8831ms)
+services/api test:   Γ£ö narrows a requested actor rather than replacing the restriction (2.153ms)
+services/api test:   Γ£ö answers an empty page - not every row - when the seat has no staff id (1.3501ms)
+services/api test:   Γ£ö refuses an actor address that names nobody, instead of returning nothing (0.8881ms)
+services/api test: Γ£ö readAuditEvents - ┬º41 LIMITED (13.5461ms)
+services/api test: Γû╢ readAuditEvents - the filter reaching the predicate
+services/api test:   Γ£ö turns ?entityId into an entity predicate, for the drawer's timeline (1.6298ms)
+services/api test:   Γ£ö turns a date range into two createdAt bounds (2.9257ms)
+services/api test:   Γ£ö turns selected actions into one OR-ed set, not one predicate per action (1.9939ms)
+services/api test: Γ£ö readAuditEvents - the filter reaching the predicate (7.3602ms)
+services/api test: Γû╢ GET /admin/audit - access
+services/api test:   Γ£ö refuses an unauthenticated caller (110.9727ms)
+services/api test:   Γ£ö lets an AUDITOR read the whole trail and says so (141.4298ms)
+services/api test:   Γ£ö scopes an OPERATOR to themselves, and reports the scope so the page can explain it (10.4498ms)
+services/api test:   Γ£ö gives a Super Admin the whole trail (9.5029ms)
+services/api test:   Γ£ö lets a LICENCE_ADMIN through the gate (9.1249ms)
+services/api test: Γ£ö GET /admin/audit - access (283.7464ms)
+services/api test: Γû╢ GET /admin/audit - refusals
+services/api test:   Γ£ö 400s an unknown action instead of returning every event (34.6517ms)
+services/api test:   Γ£ö 400s pageSize=1000 rather than clamping it (12.7519ms)
+services/api test:   Γ£ö 400s a range that ends before it begins (10.7381ms)
+services/api test:   Γ£ö 400s an entityId that is not a UUID (16.4087ms)
+services/api test: Γ£ö GET /admin/audit - refusals (78.2645ms)
+services/api test: Γû╢ GET /admin/audit - the pager
+services/api test:   Γ£ö carries every metadata key even when the trail is empty (14.3199ms)
+services/api test:   Γ£ö echoes a filter that was applied, so the reader knows what they are looking at (8.816ms)
+services/api test: Γ£ö GET /admin/audit - the pager (24.2789ms)
+services/api test: Γû╢ GET /admin/audit - the actor, since the table has no email column
+services/api test:   Γ£ö names the actor from the join, and leaves an unidentified one null (11.6413ms)
+services/api test:   Γ£ö returns the state snapshots that make a timeline readable (8.1861ms)
+services/api test: Γ£ö GET /admin/audit - the actor, since the table has no email column (20.9409ms)
+services/api test: Γû╢ WORKSTREAM A - the licence-creation bridge
+services/api test:   Γ£ö creates exactly one PAYMENT_PENDING row for a verified user (106.3456ms)
+services/api test:   Γ£ö replays write nothing at all (9.2519ms)
+services/api test:   Γ£ö writes the audit row on the mutation's transaction, after the mutation (6.7451ms)
+services/api test:   Γ£ö names SYSTEM as the actor, with no staff row behind it (8.1847ms)
+services/api test:   Γ£ö accepts the standard plans a new record may be born on, and refuses the rest (3.1892ms)
+services/api test:   Γ£ö defaults rather than refuses when the form offered no plan (1.4632ms)
+services/api test:   Γ£ö surfaces in the admin registry and its Payment pending filter, with no admin-side change (60.84ms)
+services/api test: Γ£ö WORKSTREAM A - the licence-creation bridge (203.4504ms)
+services/api test: Γû╢ E3 - structural
+services/api test:   Γ£ö no file in src/ reads the X-Admin-Email header (39.231ms)
+services/api test:   Γ£ö keeps the header on the CORS allow-list so the frontend keeps sending it (2.2496ms)
+services/api test:   Γ£ö resolves identity only through the session and the admin token (1.9651ms)
+services/api test: Γ£ö E3 - structural (57.0288ms)
+services/api test: Γû╢ E3 - identity reported by /me
+services/api test:   Γ£ö reports the session's address while the header claims somebody else (147.0835ms)
+services/api test:   Γ£ö cannot promote the caller: a licence admin is still refused staff:manage (14.7375ms)
+services/api test:   Γ£ö leaves the admin token's identity at null even when the header names the owner (10.8393ms)
+services/api test: Γ£ö E3 - identity reported by /me (177.922ms)
+services/api test: Γû╢ E3 - a successful audited write names the session, not the header
+services/api test:   Γ£ö succeeds, so the assertions below are about a real write (22.6083ms)
+services/api test:   Γ£ö writes generated_by = the session address, and never the spoofed one (11.1591ms)
+services/api test:   Γ£ö writes audit_events.actor_id from the staff row, with the row's own role (11.7803ms)
+services/api test:   Γ£ö leaves the spoofed address out of every value written, anywhere (10.3951ms)
+services/api test:   Γ£ö puts the audit row inside the same transaction as the mutation (9.5231ms)
+services/api test: Γ£ö E3 - a successful audited write names the session, not the header (68.5538ms)
+services/api test: Γû╢ ops mail
+services/api test:   Γ£ö parses Resend testing-mode and nested errors (4.2797ms)
+services/api test:   Γ£ö explains testing mode and unverified domain without leaking a code (1.9615ms)
+services/api test: [otp] Resend send failed: This API key is restricted to only send emails from cyvra.co.in The Worker sending key is probably still locked to Erase domain cyvra.co.in. Create a new sending key for cyvoriq.co.in and put it only on Worker cyvra-mobile-api. Do not rotate Erase keys.
+services/api test: [otp][preview] unverified domain or send error ΓÇö returning code in JSON
+services/api test: [otp][preview] no RESEND_API_KEY set ΓÇö not sending. email=ceo@cyvoriq.com challenge=11111111-1111-4111-8111-111111111111
+services/api test:   Γ£ö explains a restricted-key 403 and still returns a preview code (117.4668ms)
+services/api test:   Γ£ö returns an on-screen code when the Worker has no Resend key (4.1813ms)
+services/api test:   Γ£ö sends HTML+text and does not return the code when Resend accepts (9.4565ms)
+services/api test: [otp] Resend send failed: Rate limit exceeded
+services/api test: [otp] Resend send failed: Rate limit exceeded
+services/api test: [otp][preview] unverified domain or send error ΓÇö returning code in JSON
+services/api test:   Γ£ö retries once on 429 then returns a preview code (6.9964ms)
+services/api test: Γ£ö ops mail (150.9373ms)
+services/api test: [me/entitlement] licence bridge failed: database unreachable
+services/api test: [me/entitlement] entitlement read failed: ledger read failed
+services/api test: [me/entitlement] session lookup failed: sessions table unreachable
+services/api test: Γ£ö no session is 401, and storage is never consulted to reach that answer (99.1833ms)
+services/api test: Γ£ö an unrecognised session token is 401, over the cookie the dashboard actually sends (5.0852ms)
+services/api test: Γ£ö an expired-or-bogus token resolves through the same path as a good one (3.5489ms)
+services/api test: Γ£ö the entitlement read is scoped to the session's own email (4.8048ms)
+services/api test: Γ£ö a second customer's session asks for its own email, never the first's (3.3297ms)
+services/api test: Γ£ö a customer with no company name reports null, never an invented one (3.448ms)
+services/api test: Γ£ö another customer's serial is 404, never 403 - even if the repository is mis-scoped (3.6205ms)
+services/api test: Γ£ö a customer with no serial gets 404, not a preview licence (2.3214ms)
+services/api test: Γ£ö a signed-in customer with no row gets it created on this dashboard load (5.897ms)
+services/api test: Γ£ö the bridge is never consulted when the customer already has a row (5.6218ms)
+services/api test: Γ£ö a bridge failure is 503, never a 404 claiming no licence exists (7.1165ms)
+services/api test: Γ£ö the success payload carries exactly the documented top-level shape (4.0519ms)
+services/api test: Γ£ö no key material appears anywhere in the payload (4.6761ms)
+services/api test: Γ£ö every licence state produces a sentence that is not the operator enum (21.0726ms)
+services/api test: Γ£ö an absent payment row reads as unknown, never as PENDING (4.0577ms)
+services/api test: Γ£ö a null validity window reads as unknown, never as an epoch or a zero (1.7019ms)
+services/api test: Γ£ö a populated validity window is reported as the column states it (3.0178ms)
+services/api test: Γ£ö activation is a timestamp and a binding state, never a count (6.7214ms)
+services/api test: Γ£ö an unactivated licence reports null activation, not a zero (1.5947ms)
+services/api test: Γ£ö the scan segment is the R-1 gated state and can hold no number (3.0036ms)
+services/api test: Γ£ö a plan code may only ever describe its own slab (17.0217ms)
+services/api test: Γ£ö a failed entitlement read is 503 carrying nothing but the error (9.5767ms)
+services/api test: Γ£ö a failed session lookup is 503 rather than a confident 401 (2.2305ms)
+services/api test: Γ£ö the committed manifest is read when none is injected, and states a valid state (1.5115ms)
+services/api test: Γ£ö a manifest claiming publication without a digest is refused as a whole (2.7042ms)
+services/api test: Γ£ö a malformed digest never surfaces as a published checksum (7.4302ms)
+services/api test: Γ£ö a complete manifest is passed through with a normalised digest (3.2332ms)
+services/api test: Γ£ö normalizeBuild fails safe on anything that is not an object (0.5062ms)
+services/api test: Γ£ö the signed envelope carries exactly the four contract fields (54.1317ms)
+services/api test: Γ£ö the Kotlin verifier accepts our signature (9.7418ms)
+services/api test: Γ£ö the signature is standard Base64, never base64url (7.9241ms)
+services/api test: Γ£ö payload survives the JSON round trip byte for byte (7.8914ms)
+services/api test: Γ£ö payload satisfies every field the Kotlin parser makes mandatory (6.0272ms)
+services/api test: Γ£ö signing is deterministic: the same row yields the same signature (6.8219ms)
+services/api test: Γ£ö an altered payload fails verification (13.028ms)
+services/api test: Γ£ö a signature from a different key is refused (8.09ms)
+services/api test: Γ£ö a wrong schema is refused before the signature is even read (6.0025ms)
+services/api test: Γ£ö an absent key fails closed instead of emitting junk (4.7663ms)
+services/api test: Γ£ö a malformed key fails closed instead of throwing something opaque (4.3362ms)
+services/api test: Γ£ö a validity window that has already elapsed is refused, not backdated (0.9389ms)
+services/api test: Γ£ö an unmapped serial status degrades to UNKNOWN, never to ACTIVE (0.8316ms)
+services/api test: Γ£ö scans remaining never goes negative and never exceeds the entitlement (0.8995ms)
+services/api test: Γ£ö licence ids follow the existing license.ts convention (0.6847ms)
+services/api test: Γû╢ first issue
+services/api test:   Γ£ö commits the transition, the audit row and the email bookkeeping as one story (513.6952ms)
+services/api test:   Γ£ö records previous_state = KEY_GENERATED and new_state = ISSUED (77.8536ms)
+services/api test:   Γ£ö produces a signature that actually verifies against the keypair (37.1655ms)
+services/api test: Γ£ö first issue (636.1758ms)
+services/api test: Γû╢ repeated issue is idempotent (┬º48)
+services/api test:   Γ£ö returns 200 with the same envelope, and writes nothing at all (74.5741ms)
+services/api test:   Γ£ö never sends a second email - the replay returns before PHASE 3 (61.8451ms)
+services/api test:   Γ£ö stops replaying once the licence has moved past ISSUED (60.4992ms)
+services/api test: Γ£ö repeated issue is idempotent (┬º48) (202.5221ms)
+services/api test: Γû╢ refusals before any write (┬º47)
+services/api test:   Γ£ö refuses a record that never reached KEY_GENERATED (89.371ms)
+services/api test:   Γ£ö refuses a revoked licence with a plain sentence, not a state-machine dump (83.8326ms)
+services/api test:   Γ£ö 404s a serial that does not exist, before opening a transaction (29.0058ms)
+services/api test:   Γ£ö fails fast with 503 when signing is not configured, leaving the row untouched (38.6111ms)
+services/api test: Γ£ö refusals before any write (┬º47) (255.9768ms)
+services/api test: Γû╢ GET /reports/licences - ┬º57 report security
+services/api test:   Γ£ö carries the registry's current filters into the export AND into the audit row (918.8263ms)
+services/api test:   Γ£ö does not log the JSON projection of the same endpoint (57.0876ms)
+services/api test:   Γ£ö names ┬º57's controlled filename, dated on the IST calendar (27.1556ms)
+services/api test:   Γ£ö refuses a filter value it does not recognise instead of exporting everything (20.3124ms)
+services/api test: Γ£ö GET /reports/licences - ┬º57 report security (1046.1023ms)
+services/api test: Γû╢ licence key policy
+services/api test:   Γ£ö encodes slab and kind so they can be read from the key (15.2509ms)
+services/api test:   Γ£ö supports bulk 1-25 and single 1-1 / 1-3 / 1-7 (3.4103ms)
+services/api test:   Γ£ö encodes and decodes a 10-device key - RULE 4's fifth standard plan (19.3074ms)
+services/api test:   Γ£ö round-trips every slab the canonical list declares (13.6582ms)
+services/api test:   Γ£ö rejects bulk 1-device keys (2.0542ms)
+services/api test:   Γ£ö rejects unknown slabs and lowercase hex in parse via normalize (0.6859ms)
+services/api test:   Γ£ö generateLicenceKey always parses (9.2564ms)
+services/api test: Γ£ö licence key policy (81.2517ms)
+services/api test: Γ£ö no session is 401, and storage is never consulted to reach that answer (201.5987ms)
+services/api test: Γ£ö an unrecognised session token is 401, over the cookie the dashboard actually sends (16.3259ms)
+services/api test: Γ£ö a body that fails validation is 400 with the field's own message, and writes nothing (14.9227ms)
+services/api test: Γ£ö a slab outside the five issuable plans is refused with the list, not silently coerced (33.3081ms)
+services/api test: Γ£ö a non-JSON body is 400 rather than a 500 (3.7409ms)
+services/api test: Γ£ö the session email overwrites a body that names another customer (96.3991ms)
+services/api test: Γ£ö another customer's row is 404, never 403 - even if the repository is mis-scoped (4.4124ms)
+services/api test: Γ£ö a customer with no row yet is created through the bridge, then stamped (23.051ms)
+services/api test: Γ£ö a bridge that declines to create a row is 503, never a request against nothing (5.6744ms)
+services/api test: Γ£ö a submission answers SUBMITTED with an ISO stamp that matches what was stored (18.5019ms)
+services/api test: Γ£ö the audit frame names SYSTEM with the customer's address, never a staff actor (13.0654ms)
+services/api test: Γ£ö the chosen slab is recorded in the audit payload, never as row capacity (4.8782ms)
+services/api test: Γ£ö payment and status fields in the body are never readable, let alone writable (7.2751ms)
+services/api test: [licence-requests] submit failed: write path unreachable
+services/api test: Γ£ö a failed write is 503 with no success payload (16.1537ms)
+services/api test: Γ£ö a second request inside the window is 429 with Retry-After and the original stamp (11.625ms)
+services/api test: Γ£ö a request once the window has passed is accepted (7.5651ms)
+services/api test: Γ£ö withinMinInterval: never-requested is always allowed, and the boundary is exclusive (8.7612ms)
+services/api test: Γ£ö the documented route key matches the path the handler serves (0.7101ms)
+services/api test: Γû╢ isAllowedOrigin
+services/api test:   Γ£ö allows the cyvoriq product family (3.9269ms)
+services/api test:   Γ£ö allows planned Pages previews (3.2883ms)
+services/api test:   Γ£ö keeps the mobile preview and Erase admin until Phase 5 (0.6807ms)
+services/api test:   Γ£ö never allows Erase www or the Windows API origin (0.8026ms)
+services/api test:   Γ£ö rejects http and unknown hosts (1.4598ms)
+services/api test:   Γ£ö honours APP_ORIGIN and extra allowlist (0.8629ms)
+services/api test: Γ£ö isAllowedOrigin (27.9378ms)
+services/api test: Γû╢ payment_method_enum
+services/api test:   Γ£ö holds exactly the seven methods the confirm dialog offers (8.0541ms)
+services/api test: Γ£ö payment_method_enum (46.3558ms)
+services/api test: Γû╢ POST /serials/:id/confirm-payment - the payment method gate
+services/api test:   Γ£ö is 400 without a method, naming the set, and writes nothing (350.9332ms)
+services/api test:   Γ£ö is 400 for a method outside the enum, and echoes back what it saw (69.2304ms)
+services/api test:   Γ£ö accepts a known method, writing it to payments AND to the audit row (42.5469ms)
+services/api test:   Γ£ö still replays a completed confirmation instead of re-asking for the method (40.8663ms)
+services/api test:   Γ£ö replays even when the retry omits the method it never needed to re-prove (21.2077ms)
+services/api test: Γ£ö POST /serials/:id/confirm-payment - the payment method gate (535.7907ms)
+services/api test: Γû╢ ┬º41 permission matrix
+services/api test:   Γ£ö has exactly one permission per ┬º41 row, and one row per permission (11.7973ms)
+services/api test:   Γ£ö lists every role the database can hold, so nothing is unnameable (0.8175ms)
+services/api test:   Γ£ö grants SYSTEM nothing - it is an audit actor, not an account (1.0696ms)
+services/api test:   Γ£ö answers all 60 cells the way ┬º41 does (1.65ms)
+services/api test:   Γ£ö grants SUPER_ADMIN all fifteen - the row ┬º41 marks in full (0.8558ms)
+services/api test:   Γ£ö grants LICENCE_ADMIN twelve, losing only the three admin rows (0.6502ms)
+services/api test:   Γ£ö grants OPERATOR six, and none of them is a financial or issuance act (3.0398ms)
+services/api test:   Γ£ö grants AUDITOR exactly the three reads - no write at all (1.243ms)
+services/api test:   Γ£ö THE RULING: OPERATOR cannot confirm payment, issue, or key (1.5249ms)
+services/api test:   Γ£ö keeps ┬º41's LIMITED audit cell declared, on operators alone (1.0441ms)
+services/api test:   Γ£ö restricts the service credential to reads, with no write among them (0.7789ms)
+services/api test: Γ£ö ┬º41 permission matrix (39.5712ms)
+services/api test: Γû╢ gate construction fails loudly on a typo
+services/api test:   Γ£ö rejects an unknown permission before any request is made (4.2379ms)
+services/api test:   Γ£ö rejects an unknown or empty role set (1.2934ms)
+services/api test: Γ£ö gate construction fails loudly on a typo (13.2521ms)
+services/api test: Γû╢ route gates - the matrix is actually consulted
+services/api test:   Γ£ö refuses an unauthenticated caller with 401, not 403 (202.6988ms)
+services/api test:   Γ£ö OPERATOR is refused on issue, payment confirmation and revoke (570.4496ms)
+services/api test:   Γ£ö AUDITOR is refused on every write, naming the role it really holds (145.3628ms)
+services/api test:   Γ£ö allows AUDITOR the reads it does hold (30.3817ms)
+services/api test:   Γ£ö names the role from the row, so a licence admin can still be told no by staff:manage (17.2796ms)
+services/api test:   Γ£ö treats a revoked operator as unauthenticated, even holding a live token (34.9515ms)
+services/api test:   Γ£ö treats an expired session as unauthenticated (14.6639ms)
+services/api test: Γ£ö route gates - the matrix is actually consulted (1018.5319ms)
+services/api test: Γû╢ the admin token is read-only
+services/api test:   Γ£ö reaches reads, and reports no person behind the credential (17.2063ms)
+services/api test:   Γ£ö is refused every state change, including ones a SUPER_ADMIN may perform (43.207ms)
+services/api test:   Γ£ö cannot assume a role through requireRole (6.6437ms)
+services/api test:   Γ£ö is rejected outright when the bearer does not match (14.4168ms)
+services/api test:   Γ£ö answers 503 rather than 401 when the token is not configured at all (14.2394ms)
+services/api test: Γ£ö the admin token is read-only (97.3328ms)
+services/api test: Γû╢ Green Key Rule - 403 when the payment is not PAID
+services/api test:   Γ£ö refuses generate-key while payments.status = PENDING (34.8165ms)
+services/api test:   Γ£ö refuses generate-key while payments.status = PARTIALLY_PAID (16.2478ms)
+services/api test:   Γ£ö refuses generate-key while payments.status = REFUNDED (27.877ms)
+services/api test:   Γ£ö refuses generate-key while payments.status = CANCELLED (6.789ms)
+services/api test:   Γ£ö refuses generate-key when the licence has no payments row at all (54.8476ms)
+services/api test: Γ£ö Green Key Rule - 403 when the payment is not PAID (158.5904ms)
+services/api test: Γû╢ GET /serials - search, filters and pagination
+services/api test:   Γ£ö carries the count on every response, so a page cannot look complete (343.7797ms)
+services/api test:   Γ£ö refuses pageSize=1000 instead of serving 100 rows (20.8188ms)
+services/api test:   Γ£ö refuses the retired limit and offset parameters (16.0704ms)
+services/api test:   Γ£ö echoes the filters it actually applied (29.9075ms)
+services/api test:   Γ£ö names an unknown filter value rather than returning an empty page (16.9306ms)
+services/api test:   Γ£ö asks for the page size it was given, and starts at that page's offset (17.9392ms)
+services/api test:   Γ£ö is refused outright with no session (13.1189ms)
+services/api test: Γ£ö GET /serials - search, filters and pagination (466.1729ms)
+services/api test: Γû╢ PATCH /serials/:serialId - edit
+services/api test:   Γ£ö changes only the customer fields it was given, and records what moved (83.7573ms)
+services/api test:   Γ£ö is refused by a role that does not hold serial:update, with nothing written (17.6661ms)
+services/api test:   Γ£ö is frozen from ISSUED onwards (29.5864ms)
+services/api test:   Γ£ö refuses a plan field as a bad request, not as a conflict (19.3052ms)
+services/api test:   Γ£ö refuses a name even when it carries the value that is already there (14.9205ms)
+services/api test:   Γ£ö validates the merged record, not just the fields that were sent (15.5469ms)
+services/api test:   Γ£ö rejects a path parameter that is not a uuid (16.211ms)
+services/api test: Γ£ö PATCH /serials/:serialId - edit (200.2624ms)
+services/api test: Γû╢ POST /serials/:serialId/resend - re-distribute, never regenerate
+services/api test:   Γ£ö sends the key it already has and leaves it byte-identical (29.519ms)
+services/api test:   Γ£ö is refused by OPERATOR, who may not distribute a credential (17.8397ms)
+services/api test:   Γ£ö refuses a key that has never been distributed, sending it to /issue instead (12.9569ms)
+services/api test:   Γ£ö refuses a revoked licence rather than re-sending a dead credential (8.4716ms)
+services/api test:   Γ£ö refuses a record with no key at all (16.341ms)
+services/api test: Γ£ö POST /serials/:serialId/resend - re-distribute, never regenerate (87.084ms)
+services/api test: Γû╢ POST /serials/:serialId/rebind/request
+services/api test:   Γ£ö moves BOUND to REBIND_REQUEST and records it (47.9177ms)
+services/api test:   Γ£ö answers a second request with a replay instead of writing twice (38.2502ms)
+services/api test:   Γ£ö refuses AUDITOR, which holds neither half of the rebind (16.3872ms)
+services/api test:   Γ£ö refuses a licence that has never been bound, with 409 and no write (7.3209ms)
+services/api test:   Γ£ö treats a LOCKED binding as its own problem, not as 'no binding' (14.7052ms)
+services/api test: Γ£ö POST /serials/:serialId/rebind/request (130.2262ms)
+services/api test: Γû╢ POST /serials/:serialId/rebind/approve
+services/api test:   Γ£ö invalidates the old host without erasing when it was first claimed (51.3536ms)
+services/api test:   Γ£ö is refused by OPERATOR, who may only ask for a rebind (14.3852ms)
+services/api test:   Γ£ö refuses to approve anything that is not a pending request (30.8829ms)
+services/api test: Γ£ö POST /serials/:serialId/rebind/approve (97.7452ms)
+services/api test: Γû╢ GET /serials/:serialId/activation - view without leaking
+services/api test:   Γ£ö answers a reader with shapes, not with the matcher itself (19.5645ms)
+services/api test:   Γ£ö writes nothing: a look is not an event the append-only trail can hold (14.9594ms)
+services/api test:   Γ£ö is still gated: no session, no activation detail (11.6524ms)
+services/api test: Γ£ö GET /serials/:serialId/activation - view without leaking (48.4219ms)
+services/api test: Γû╢ GET /serials/:serialId/export - a copy leaves, so it is audited
+services/api test:   Γ£ö writes EXPORT_GENERATED with actor, format, row count, filters and time (22.3284ms)
+services/api test:   Γ£ö refuses a path that is not a uuid (15.5944ms)
+services/api test:   Γ£ö is refused with no session, so an export cannot happen anonymously (15.3417ms)
+services/api test: Γ£ö GET /serials/:serialId/export - a copy leaves, so it is audited (54.0562ms)
+services/api test: Γû╢ POST /serials/:serialId/generate-key - the Green Key Rule and its one waiver
+services/api test:   Γ£ö still refuses a Super Admin who does not ask for the waiver (98.1118ms)
+services/api test:   Γ£ö grants a Super Admin the waiver, with a reason, and leaves the money alone (52.6818ms)
+services/api test:   Γ£ö answers a retry with the key that already exists, so a double-click cannot mint two (43.351ms)
+services/api test:   Γ£ö requires a reason with the waiver (14.3452ms)
+services/api test:   Γ£ö refuses the waiver to everyone beneath Super Admin (18.6717ms)
+services/api test:   Γ£ö does not let a role without key:generate reach the waiver check at all (17.5464ms)
+services/api test:   Γ£ö answers a non-Super Admin who sends the flag without a waiver reason first (12.5224ms)
+services/api test: Γ£ö POST /serials/:serialId/generate-key - the Green Key Rule and its one waiver (260.3559ms)
+services/api test: Γû╢ parseSerialQuery - defaults
+services/api test:   Γ£ö answers page 1 of 25 for an empty query, with no filters at all (7.5422ms)
+services/api test:   Γ£ö accepts exactly the three named page sizes, and no others (9.1938ms)
+services/api test:   Γ£ö refuses pageSize=1000 rather than quietly serving 100 (2.0098ms)
+services/api test:   Γ£ö refuses a pageSize that is not one of the three instead of falling back (1.4279ms)
+services/api test:   Γ£ö refuses the retired "limit" and "offset" parameters (1.4629ms)
+services/api test:   Γ£ö refuses a page that is not a positive whole number (5.4733ms)
+services/api test:   Γ£ö accepts a 200-character search and refuses a 201-character one (4.094ms)
+services/api test: Γ£ö parseSerialQuery - defaults (44.9412ms)
+services/api test: Γû╢ parseSerialQuery - filters are validated, never dropped
+services/api test:   Γ£ö reads a comma-delimited status list, case-insensitively (1.6899ms)
+services/api test:   Γ£ö merges repeated parameters and de-duplicates them (1.7111ms)
+services/api test:   Γ£ö names the offending token and the allowed set on a typo (1.2798ms)
+services/api test:   Γ£ö skips empty segments a UI naturally emits (2.8906ms)
+services/api test:   Γ£ö validates every filter against its own enum (1.3376ms)
+services/api test:   Γ£ö keeps a search term verbatim apart from trimming (0.7972ms)
+services/api test: Γ£ö parseSerialQuery - filters are validated, never dropped (18.749ms)
+services/api test: Γû╢ escapeLike - Postgres pattern syntax is neutralised
+services/api test:   Γ£ö escapes %, _ and \ (1.3357ms)
+services/api test:   Γ£ö escapes the backslash first, so nothing is escaped twice (0.4163ms)
+services/api test:   Γ£ö leaves an ordinary name alone (0.2526ms)
+services/api test: Γ£ö escapeLike - Postgres pattern syntax is neutralised (2.6762ms)
+services/api test: Γû╢ paginationFor - the answer always carries the count
+services/api test:   Γ£ö reports hasMore while rows remain beyond this response (0.9124ms)
+services/api test:   Γ£ö reports the last page as final rather than inviting another fetch (0.4312ms)
+services/api test:   Γ£ö answers 0 pages and no next page when nothing matches (3.8199ms)
+services/api test:   Γ£ö carries every field on every response, including the zero ones (0.5827ms)
+services/api test:   Γ£ö derives the offset from page and size rather than storing it (0.3901ms)
+services/api test:   Γ£ö never reports hasMore when returned already accounts for every row (0.5954ms)
+services/api test: Γ£ö paginationFor - the answer always carries the count (12.4864ms)
+services/api test: Γû╢ filtersFor - echoes what was actually asked
+services/api test:   Γ£ö is an empty object when no filter was applied (0.8918ms)
+services/api test:   Γ£ö omits filters that were never part of the question (0.7826ms)
+services/api test:   Γ£ö includes every filter that was applied (0.7335ms)
+services/api test: Γ£ö filtersFor - echoes what was actually asked (3.0877ms)
+services/api test: Γû╢ the generated predicate, as Postgres sees it
+services/api test:   Γ£ö OR-s the five search columns across one escaped pattern (13.5805ms)
+services/api test:   Γ£ö casts the uuid column to text, since uuid ILIKE does not exist (17.1278ms)
+services/api test:   Γ£ö passes LIKE metacharacters through escaped, not as wildcards (10.5903ms)
+services/api test:   Γ£ö adds an exact primary-key branch when the term is a whole uuid (12.4308ms)
+services/api test:   Γ£ö compiles every filter to an IN over its own column (1.4876ms)
+services/api test:   Γ£ö uses a correlated EXISTS for payment, never a join (1.0859ms)
+services/api test:   Γ£ö AND-s the search term with the filters rather than OR-ing them (2.1262ms)
+services/api test:   Γ£ö produces no predicate at all when nothing was asked (0.9488ms)
+services/api test:   Γ£ö builds one condition list the row query and the count query can share (5.2507ms)
+services/api test: Γ£ö the generated predicate, as Postgres sees it (80.9372ms)
+services/api test: Γû╢ parseSerialQuery - validityEndsWithinDays
+services/api test:   Γ£ö accepts a whole number of days and echoes nothing else (10.6275ms)
+services/api test:   Γ£ö is null when absent, so the parameter never narrows by default (0.9396ms)
+services/api test:   Γ£ö refuses anything that is not a whole number of days (7.163ms)
+services/api test:   Γ£ö refuses a window wider than the horizon the index can serve (0.9894ms)
+services/api test: Γ£ö parseSerialQuery - validityEndsWithinDays (27.7103ms)
+services/api test: Γû╢ parseSerialQuery - delivery
+services/api test:   Γ£ö accepts the two documented states, singly or together (2.1081ms)
+services/api test:   Γ£ö refuses an unknown token rather than dropping it (0.9739ms)
+services/api test: Γ£ö parseSerialQuery - delivery (3.9915ms)
+services/api test: Γû╢ serialQueryConditions - the clock
+services/api test:   Γ£ö throws loudly when a window is asked for without a clock (8.1623ms)
+services/api test:   Γ£ö adds nothing at all when the filter is absent, even with a clock (7.5713ms)
+services/api test: Γ£ö serialQueryConditions - the clock (16.9491ms)
+services/api test: Γû╢ the expiry window, as Postgres sees it
+services/api test:   Γ£ö is two bounds, so an already-expired licence cannot enter the KPI (12.0862ms)
+services/api test:   Γ£ö resolves the horizon from the injected clock, not from the wall clock (3.9701ms)
+services/api test: Γ£ö the expiry window, as Postgres sees it (17.3259ms)
+services/api test: Γû╢ delivery, as Postgres sees it
+services/api test:   Γ£ö FAILED selects rows whose email_error is present (7.0035ms)
+services/api test:   Γ£ö SENT means emailed AND not errored (1.1061ms)
+services/api test:   Γ£ö SENT,FAILED does not become a contradiction that matches nothing (1.0527ms)
+services/api test:   Γ£ö does not add a delivery predicate when the filter is absent (1.0839ms)
+services/api test: Γ£ö delivery, as Postgres sees it (12.8935ms)
+services/api test: Γû╢ filtersFor - the echo
+services/api test:   Γ£ö reports each new filter only when it was actually asked for (0.7927ms)
+services/api test:   Γ£ö omits them entirely rather than sending null, which reads as a filter that failed (0.4517ms)
+services/api test: Γ£ö filtersFor - the echo (1.7087ms)
+services/api test: Γû╢ GET /serials - the three columns the registry could not render
+services/api test:   Γ£ö carries payment status, activation and the validity window (130.4608ms)
+services/api test:   Γ£ö answers null for a licence with no payment record - never PENDING (14.8629ms)
+services/api test:   Γ£ö shows PAID in the list and the SAME PAID in the drawer (13.9313ms)
+services/api test:   Γ£ö still never carries either alias of the licence key, new fields and all (9.6516ms)
+services/api test: Γ£ö GET /serials - the three columns the registry could not render (175.9661ms)
+services/api test: Γû╢ the projection's default parameter
+services/api test:   Γ£ö defaults to null, so a one-argument caller reads 'no record', not 'undefined' (5.8758ms)
+services/api test: Γ£ö the projection's default parameter (6.8274ms)
+services/api test: Γû╢ Issued By vs Created By - design freeze ┬º6 / ┬º56
+services/api test:   Γ£ö withholds Issued By on an unissued row, even one still holding its creator (6.5842ms)
+services/api test: Γ£ö Issued By vs Created By - design freeze ┬º6 / ┬º56 (7.9469ms)
+services/api test: Γû╢ the CSV export
+services/api test:   Γ£ö emits ┬º56's recommended columns, in ┬º56's own order (8.4392ms)
+services/api test:   Γ£ö fills every one of the seven columns the register was missing (5.9732ms)
+services/api test:   Γ£ö keeps the columns ┬º56 does not name, instead of silently dropping them (3.7816ms)
+services/api test:   Γ£ö keeps an unresolvable column from appearing as a header-only drift (4.0296ms)
+services/api test: Γ£ö the CSV export (24.0597ms)
+services/api test: Γû╢ isFirstPartyApiHost
+services/api test:   Γ£ö treats cyvoriq API hosts as first-party (3.1617ms)
+services/api test:   Γ£ö keeps leftover cyvra hosts first-party during preview (0.5432ms)
+services/api test:   Γ£ö treats workers.dev as cross-site (0.4821ms)
+services/api test:   Γ£ö treats local wrangler as first-party (0.6241ms)
+services/api test: Γ£ö isFirstPartyApiHost (9.5312ms)
+services/api test: Γû╢ ops staff policy
+services/api test:   Γ£ö locks super admin and the @cyvoriq.com gate (2.9205ms)
+services/api test:   Γ£ö allows single-user 1-device and rejects bulk 1-device (1.7843ms)
+services/api test: Γ£ö ops staff policy (9.795ms)
+services/api test: [otp][preview] no RESEND_API_KEY set ΓÇö not sending. email=alice@cyvoriq.com challenge=188aa11d-9298-4697-a5e6-c3cddb4dca4b
+services/api test: Γû╢ POST /staff - invitation, not activation
+services/api test:   Γ£ö creates the row at INVITED, chooses the role, and audits the invitation (285.7612ms)
+services/api test: [otp][preview] no RESEND_API_KEY set ΓÇö not sending. email=alice@cyvoriq.com challenge=b62b52f6-e091-4228-86bd-4c800b881124
+services/api test:   Γ£ö defaults the role to OPERATOR rather than to whatever the browser sent (27.7091ms)
+services/api test:   Γ£ö rejects a role outside staff_role_enum, naming the four legal values (21.0827ms)
+services/api test:   Γ£ö refuses a non-@cyvoriq.com address and the super admin's own address (28.8753ms)
+services/api test:   Γ£ö refuses every role that does not hold staff:manage, writing nothing (46.303ms)
+services/api test:   Γ£ö replays an already-ACTIVE nomination instead of writing it twice (36.502ms)
+services/api test:   Γ£ö refuses SUSPENDED and REVOKED rather than laundering them into an invite (29.6589ms)
+services/api test:   Γ£ö refuses an EMAIL_VERIFIED row, whose next step is approval (19.4995ms)
+services/api test: [otp][preview] no RESEND_API_KEY set ΓÇö not sending. email=alice@cyvoriq.com challenge=90fa1750-b748-498b-bf3e-7978a25af702
+services/api test:   Γ£ö issues a fresh code for an outstanding invitation, changing no status (24.2569ms)
+services/api test:   Γ£ö refuses to change the role of an invitation that is already out (18.8169ms)
+services/api test: Γ£ö POST /staff - invitation, not activation (557.6297ms)
+services/api test: [otp][preview] no RESEND_API_KEY set ΓÇö not sending. email=alice@cyvoriq.com challenge=56421337-8460-4176-8fe4-ee32b3d8cac9
+services/api test: [otp][preview] no RESEND_API_KEY set ΓÇö not sending. email=alice@cyvoriq.com challenge=94ca1f47-c27f-4deb-937b-b4c295aa00a0
+services/api test: Γû╢ the whole chain: invite, verify, approve
+services/api test:   Γ£ö walks one address from INVITED to ACTIVE with a row at every step (52.5762ms)
+services/api test: Γ£ö the whole chain: invite, verify, approve (53.304ms)
+services/api test: [otp][preview] no RESEND_API_KEY set ΓÇö not sending. email=alice@cyvoriq.com challenge=a40924ad-9a67-4e3d-ac06-c44029d528d5
+services/api test: Γû╢ POST /auth/request - the OTP gate asks the lifecycle, not the matrix
+services/api test:   Γ£ö lets an INVITED address request the code that proves it owns the address (29.3473ms)
+services/api test:   Γ£ö tells a suspended account it is suspended, not that nobody invited it (3.8955ms)
+services/api test:   Γ£ö tells a revoked account it is revoked, permanently (12.7983ms)
+services/api test:   Γ£ö refuses an address nobody nominated, and one outside @cyvoriq.com (14.4702ms)
+services/api test: Γ£ö POST /auth/request - the OTP gate asks the lifecycle, not the matrix (61.6083ms)
+services/api test: Γû╢ POST /auth/verify - promotion, session, and what each refuses
+services/api test:   Γ£ö gives an ACTIVE operator a session without writing a business event (37.4813ms)
+services/api test:   Γ£ö refuses a suspended address before any challenge is consumed (37.7959ms)
+services/api test:   Γ£ö counts a wrong code and refuses it, writing no session (30.1387ms)
+services/api test:   Γ£ö refuses a code that has already been used (21.8773ms)
+services/api test:   Γ£ö rejects a malformed payload before touching the database (3.1369ms)
+services/api test: Γ£ö POST /auth/verify - promotion, session, and what each refuses (137.3402ms)
+services/api test: Γû╢ POST /staff/:staffId/approve
+services/api test:   Γ£ö is refused from INVITED: verification is a gate, not a formality (64.6646ms)
+services/api test:   Γ£ö reactivates a suspended account, since suspension is the temporary state (20.0187ms)
+services/api test:   Γ£ö answers a second approval with a replay and no second row (16.3998ms)
+services/api test:   Γ£ö keeps revocation permanent (14.4536ms)
+services/api test:   Γ£ö refuses a role without staff:manage, writing nothing (17.5913ms)
+services/api test:   Γ£ö rejects a staffId that is not a uuid (12.3731ms)
+services/api test: Γ£ö POST /staff/:staffId/approve (147.4535ms)
+services/api test: Γû╢ POST /staff/:staffId/suspend
+services/api test:   Γ£ö suspends an ACTIVE account with a reason in the trail (19.666ms)
+services/api test:   Γ£ö is 400 without a reason - the question the roster will be asked (30.601ms)
+services/api test:   Γ£ö answers a second suspension with a replay and no second row (15.1238ms)
+services/api test:   Γ£ö refuses to suspend a revoked account (20.7259ms)
+services/api test:   Γ£ö refuses a role without staff:manage, writing nothing (12.1085ms)
+services/api test: Γ£ö POST /staff/:staffId/suspend (101.1669ms)
+services/api test: Γû╢ POST /staff/:staffId/revoke
+services/api test:   Γ£ö revokes with a reason, which is now required (17.4666ms)
+services/api test:   Γ£ö is 400 without a reason: a permanent act with no stated cause (14.9384ms)
+services/api test:   Γ£ö answers a repeat with the original row rather than a second revocation (12.8071ms)
+services/api test:   Γ£ö refuses a role without staff:manage, writing nothing (5.2171ms)
+services/api test: Γ£ö POST /staff/:staffId/revoke (51.9975ms)
+services/api test: Γû╢ ┬º49 licence state machine - the map itself
+services/api test:   Γ£ö holds exactly the 10 states of licence_status_enum (13.0235ms)
+services/api test:   Γ£ö declares exactly the 13 ┬º49 edges - no missing edge, no invented one (1.0475ms)
+services/api test:   Γ£ö never mentions CANCELLED (decision A2: it lives on payments only) (0.8603ms)
+services/api test:   Γ£ö flags exactly the two system-only edges, both unreachable from admin (0.9052ms)
+services/api test:   Γ£ö gives every state except the two terminal ones an outgoing edge (9.2947ms)
+services/api test:   Γ£ö looks up a single edge, and returns undefined for anything absent (1.0649ms)
+services/api test: Γ£ö ┬º49 licence state machine - the map itself (32.0436ms)
+services/api test: Γû╢ ┬º49 exhaustive 10x10 transition matrix
+services/api test:   Γ£ö answers all 100 cells as an administrator (11.0682ms)
+services/api test:   Γ£ö answers all 100 cells as the system, unlocking only the 2 system edges (2.7704ms)
+services/api test:   Γ£ö refuses every one of the 10 self-loops, whatever the context (2.5969ms)
+services/api test: Γ£ö ┬º49 exhaustive 10x10 transition matrix (20.3119ms)
+services/api test: Γû╢ ┬º49 preconditions
+services/api test:   Γ£ö applies the Green Key Rule: KEY_GENERATED needs PAID, else 403 (9.8676ms)
+services/api test:   Γ£ö treats a missing payment row as not-PAID, not as permission granted (0.6923ms)
+services/api test:   Γ£ö requires PAID for the whole payment stretch (A3) (0.9929ms)
+services/api test:   Γ£ö cannot be bought: a PAID payment never makes a forbidden edge legal (0.7198ms)
+services/api test:   Γ£ö requires a key for KEY_GENERATED -> ISSUED, and refuses loudly without one (0.7249ms)
+services/api test:   Γ£ö requires a ┬º37 reason for suspend and revoke, and only those (2.0211ms)
+services/api test:   Γ£ö keeps SUSPENDED -> ACTIVE legal, so a stop can be lifted (0.5309ms)
+services/api test: Γ£ö ┬º49 preconditions (17.253ms)
+services/api test: Γû╢ refusal status codes
+services/api test:   Γ£ö maps each failure kind to the status the contract specifies (1.1594ms)
+services/api test:   Γ£ö produces an operator-facing sentence for every failure kind (1.5126ms)
+services/api test:   Γ£ö names the reachable states when an edge simply does not exist (1.1264ms)
+services/api test: Γ£ö refusal status codes (4.6011ms)
+services/api test: Γä╣ tests 413
+services/api test: Γä╣ suites 72
+services/api test: Γä╣ pass 413
+services/api test: Γä╣ fail 0
+services/api test: Γä╣ cancelled 0
+services/api test: Γä╣ skipped 0
+services/api test: Γä╣ todo 0
+services/api test: Γä╣ duration_ms 170315.6505
+services/api test: Done
+
+
+======== G-C  wrangler deploy --dry-run  [15:46:58] ========
+
+ Γ¢à∩╕Å wrangler 4.130.0
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Total Upload: 759.83 KiB / gzip: 156.14 KiB
+Your Worker has access to the following bindings:
+Binding                                                      Resource                  
+env.HYPERDRIVE (db31fc8dafca49b29172da7046b97175)            Hyperdrive Config         
+env.APP_ORIGIN ("http://localhost:5173")                     Environment Variable      
+env.API_ENV ("production")                                   Environment Variable      
+env.SANITIZE_EXECUTE ("true")                                Environment Variable      
+
+--dry-run: exiting now.
+
+
+======== G-H  :core + :host compile  [15:47:29] ========
+cyvra-mobile-android: Java 21.0.8 (Codespaces is often 25; Gradle 9.1+ required)
+
+
+======== G-H  :host unit tests  [15:49:52] ========
+cyvra-mobile-android: Java 21.0.8 (Codespaces is often 25; Gradle 9.1+ required)
+
+
+======== G-H  :sanitization-agent assembleDebug + unit tests  [15:50:29] ========
+cyvra-mobile-android: Java 21.0.8 (Codespaces is often 25; Gradle 9.1+ required)
+
+Stopping Daemon(s)
+1 Daemon stopped
+
+
+======== G-I  cargo test  [15:51:21] ========
+cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 23.52s
+At C:\Users\User\Documents\GitHub\CYVRA-Mobile\scripts\verify-stage-gates.ps1:462 char:19
++             try { & cargo test 2>&1 | Out-String | Out-GateLog; $LAST ...
++                   ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Finished `t...et(s) in 23.52s:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+     Running unittests src\lib.rs (target\debug\deps\app_lib-1c701240ed309699.exe)
+
+running 240 tests
+test activation::api::tests::every_refusal_carries_a_stable_audit_code_that_is_not_the_display_word ... ok
+test activation::api::tests::the_operator_facing_vocabulary_is_exactly_six_strings ... ok
+test activation::client::tests::a_real_build_cannot_activate_anything_before_the_endpoint_is_wired ... ok
+test activation::client::tests::a_stored_token_cannot_be_revalidated_before_the_endpoint_is_wired ... ok
+test activation::client::tests::every_answer_is_already_one_of_the_six_operator_facing_strings ... ok
+test activation::client::tests::the_placeholder_could_not_leak_a_success_it_did_not_have ... ok
+test activation::client::tests::the_placeholder_carries_no_endpoint_of_its_own ... ok
+test activation::client::tests::the_placeholder_never_claims_the_service_is_reachable ... ok
+test activation::entitlement::tests::a_comparison_that_cannot_be_made_declines_to_choose_a_side ... ok
+test activation::entitlement::tests::a_re_export_under_the_same_signature_carries_the_journal_forward ... ok
+test activation::entitlement::tests::a_new_server_signature_starts_the_journal_again ... ok
+test activation::entitlement::tests::an_empty_payload_is_refused_instead_of_written ... ok
+test activation::entitlement::tests::an_empty_signature_is_refused_instead_of_written ... ok
+test activation::entitlement::tests::an_unresolved_installation_root_is_reported_as_such_not_as_a_bad_signature ... ok
+test activation::entitlement::tests::an_unresolved_root_cannot_be_settled ... ok
+test activation::entitlement::tests::an_untouched_entitlement_carries_no_debits_key_at_all ... ok
+test activation::entitlement::tests::no_staging_file_is_left_behind ... ok
+test activation::entitlement::tests::no_staging_file_survives_a_settlement ... ok
+test activation::entitlement::tests::overwriting_an_existing_export_replaces_it_whole ... ok
+test activation::entitlement::tests::settling_the_same_certificate_twice_spends_once ... ok
+test activation::entitlement::tests::settling_a_scan_records_it_beside_the_signed_payload ... ok
+test activation::entitlement::tests::settling_without_an_export_is_refused_rather_than_invented ... ok
+test activation::entitlement::tests::the_exported_document_carries_the_schema_and_the_signed_text_verbatim ... ok
+test activation::entitlement::tests::the_payload_survives_the_trip_byte_for_byte ... ok
+test activation::entitlement::tests::the_lease_in_force_is_readable_from_the_export_itself ... ok
+test activation::entitlement::tests::two_certificates_chain_from_each_other ... ok
+test activation::fingerprint::tests::a_withheld_smbios_uuid_never_reaches_the_digest ... ok
+test activation::fingerprint::tests::an_all_zero_smbios_uuid_is_reported_as_missing_not_as_an_identity ... ok
+test activation::fingerprint::tests::an_unreadable_component_is_an_error_not_a_partial_identity ... ok
+test activation::fingerprint::tests::any_single_component_change_changes_identity ... ok
+test activation::fingerprint::tests::case_and_whitespace_do_not_change_identity ... ok
+test activation::fingerprint::tests::the_digest_covers_exactly_three_named_fields ... ok
+test activation::fingerprint::tests::the_digest_is_lowercase_sha256_hex ... ok
+test activation::fingerprint::tests::the_same_components_always_produce_the_same_digest ... ok
+test activation::live_client::tests::a_code_that_is_not_ours_is_no_verdict_at_all ... ok
+test activation::live_client::tests::a_base_without_a_trailing_slash_still_appends_the_path ... ok
+test activation::live_client::tests::a_configured_endpoint_is_built_once_and_reused ... ok
+test activation::live_client::tests::a_conflict_is_already_bound_whatever_the_body_says ... ok
+test activation::live_client::tests::a_conflict_with_no_body_is_still_already_bound ... ok
+test activation::live_client::tests::a_configured_environment_variable_makes_production_post_for_real ... ok
+test activation::live_client::tests::a_development_override_still_wins ... ok
+test activation::live_client::tests::a_granted_activation_round_trips_exactly_what_the_server_sent ... ok
+test activation::live_client::tests::a_first_binding_is_never_retried ... ok
+test activation::live_client::tests::a_missing_grace_deadline_refuses_rather_than_granting_forever ... ok
+test activation::live_client::tests::a_mistyped_override_is_handed_through_rather_than_silently_becoming_production ... ok
+test activation::live_client::tests::a_redirect_is_refused_rather_than_replaying_the_licence_key ... ok
+test activation::live_client::tests::a_read_only_revalidation_is_retried_within_its_budget ... ok
+test activation::live_client::tests::a_revalidation_carries_the_stored_token_and_is_a_revalidation ... ok
+test activation::live_client::tests::an_answer_that_is_neither_shape_never_approves ... ok
+test activation::live_client::tests::a_timeout_is_a_network_error_not_a_panic ... ok
+test activation::live_client::tests::an_empty_binding_is_not_let_through_as_a_first_binding_by_accident ... ok
+test activation::live_client::tests::an_endpoint_that_cannot_be_built_never_reaches_an_operator ... ok
+test activation::live_client::tests::an_unconfigured_build_dials_the_shipped_default ... ok
+test activation::live_client::tests::an_arbitrary_code_is_never_a_seventh_verdict ... ok
+test activation::live_client::tests::an_unrecognised_code_is_reported_as_a_network_error_not_a_verdict ... ok
+test activation::live_client::tests::any_answer_collapses_into_the_six ... ok
+test activation::live_client::tests::conflict_is_always_already_bound ... ok
+test activation::live_client::tests::credentials_in_a_url_are_refused_not_stripped ... ok
+test activation::live_client::tests::each_of_the_six_codes_maps_back_to_itself ... ok
+test activation::live_client::tests::every_server_code_is_reported_as_that_verdict ... ok
+test activation::live_client::tests::no_configured_endpoint_means_no_live_client ... ok
+test activation::live_client::tests::an_unreachable_service_is_a_network_error ... ok
+test activation::live_client::tests::the_injected_clock_is_what_stops_the_retries ... ok
+test activation::live_client::tests::the_request_body_is_the_declared_json_shape ... ok
+test activation::live_client::tests::the_shipped_default_is_the_production_api_and_actually_builds ... ok
+test activation::state::tests::a_corrupt_store_is_a_local_fault_never_a_first_launch ... ok
+test activation::state::tests::a_first_binding_is_recorded_in_the_ledger_as_a_live_event ... ok
+test activation::state::tests::a_local_fault_never_borrows_one_of_the_operators_verdicts ... ok
+test activation::state::tests::a_missing_grace_deadline_is_a_refusal_not_an_open_window ... ok
+test activation::state::tests::a_refusal_never_clears_the_stored_activation ... ok
+test activation::state::tests::a_refusal_reaches_the_audit_trail_but_never_the_ledger ... ok
+test activation::state::tests::a_revalidation_that_comes_back_as_a_new_binding_is_refused_not_adopted ... ok
+test activation::state::tests::a_stored_token_revalidates_silently_and_enters_with_no_second_login ... ok
+test activation::state::tests::an_activation_cannot_be_committed_without_an_installation_root ... ok
+test activation::state::tests::an_already_bound_licence_refuses_and_leaves_nothing_for_the_host_to_pick_up ... ok
+test activation::live_client::tests::reachability_tells_a_live_service_from_a_dead_one ... ok
+test activation::state::tests::every_verdict_is_expressed_correctly_on_all_three_surfaces ... ok
+test activation::state::tests::every_successful_revalidation_is_its_own_ledger_entry ... ok
+test activation::state::tests::first_activation_binds_persists_exports_the_full_entitlement_and_audits_a_new_binding ... ok
+test activation::state::tests::grace_ends_on_the_servers_instant_not_one_second_later ... ok
+test activation::state::tests::grace_running_out_is_recorded_on_every_refused_launch ... ok
+test activation::state::tests::offline_past_grace_is_a_refusal_and_hands_the_host_nothing_new ... ok
+test activation::state::tests::offline_without_any_activation_reports_the_network_verdict ... ok
+test activation::state::tests::online_without_any_activation_is_the_screen_with_nothing_to_report ... ok
+test activation::state::tests::offline_within_grace_enters_and_swaps_in_the_restricted_lease ... ok
+test activation::state::tests::the_audit_trail_appends_one_json_object_per_line ... ok
+test activation::state::tests::riding_the_grace_window_is_recorded_as_offline_state ... ok
+test activation::state::tests::the_ledger_verdict_travels_back_instead_of_being_swallowed ... ok
+test activation::state::tests::the_two_binding_events_are_never_confused ... ok
+test activation::state::tests::timestamps_are_iso8601_utc ... ok
+test activation::state::tests::without_an_installation_root_there_is_no_decision_and_no_attempt ... ok
+test activation::state::tests::the_code_field_is_present_exactly_for_refusals_and_local_faults ... ok
+test activation::store::tests::a_store_survives_a_dpapi_round_trip ... ok
+test activation::store::tests::a_store_written_by_another_windows_user_cannot_be_read ... ok
+test activation::store::tests::a_tampered_store_fails_closed_and_is_never_treated_as_first_launch ... ok
+test activation::store::tests::an_absent_store_is_first_launch_not_an_error ... ok
+test activation::store::tests::an_unresolved_installation_root_is_refused_instead_of_using_the_working_directory ... ok
+test activation::store::tests::an_empty_store_is_corrupt_rather_than_first_launch ... ok
+test activation::store::tests::the_store_is_never_written_in_plaintext ... ok
+test activation::store::tests::there_is_no_reset_or_delete_entry_point_in_this_module ... ok
+test commands::tests::different_wpd_devices_receive_distinct_session_ids ... ok
+test commands::tests::same_wpd_device_reuses_session_id_case_insensitively ... ok
+test commands::tests::session_id_does_not_expose_native_pnp_id ... ok
+test force_clean::tests::guard_attestation_json_shape_is_the_reference_shape ... ok
+test force_clean::tests::guard_attestation_provenance_names_this_implementation ... ok
+test force_clean::tests::guard_authenticator_parse_never_spans_lines ... ok
+test force_clean::tests::guard_carriage_return_only_is_not_a_line_separator ... ok
+test force_clean::tests::guard_duplicate_package_collapses_to_one_removal ... ok
+test force_clean::tests::guard_overflowing_count_is_failure_not_a_fabricated_zero ... ok
+test force_clean::tests::guard_platform_probe_never_panics_on_a_multibyte_boundary ... ok
+test force_clean::tests::p01_reads_accounts_header_from_aosp_shaped_dump ... ok
+test force_clean::tests::guard_probe_word_boundary_rejects_longer_words ... ok
+test force_clean::tests::p02_samsung_dump_without_header_yields_minus_one_never_a_false_zero ... ok
+test force_clean::tests::p03_empty_input_yields_minus_one_never_a_false_zero ... ok
+test force_clean::tests::p04_reads_the_real_header_even_when_history_table_present ... ok
+test force_clean::tests::p05_handles_the_indentation_dumpsys_content_actually_uses ... ok
+test force_clean::tests::p06_zero_accounts_satisfies_the_precondition ... ok
+test force_clean::tests::p07_one_account_is_enough_to_block_enrolment ... ok
+test force_clean::tests::p08_ten_accounts_block_enrolment ... ok
+test force_clean::tests::p09_an_unreadable_dump_never_satisfies_the_precondition ... ok
+test force_clean::tests::p10_android_11_has_no_remove_account_so_the_ladder_skips_it ... ok
+test force_clean::tests::p11_a_build_that_exposes_remove_account_is_picked_up_without_code_change ... ok
+test force_clean::tests::p12_prose_mentioning_the_phrase_is_not_a_command_definition ... ok
+test force_clean::tests::p13_an_empty_usage_probe_cannot_claim_the_primitive_exists ... ok
+test force_clean::tests::p15_com_google_is_owned_by_gms ... ok
+test force_clean::tests::p14_maps_all_three_authenticator_types ... ok
+test force_clean::tests::p17_zoom_self_authenticates ... ok
+test force_clean::tests::p18_a_dump_with_no_authenticators_yields_an_empty_plan_not_an_error ... ok
+test force_clean::tests::p16_com_whatsapp_is_owned_by_whatsapp ... ok
+test force_clean::tests::p19_third_party_authenticators_come_first_alphabetical_within_tier ... ok
+test force_clean::tests::p20_platform_authenticators_come_last_alphabetical_within_tier ... ok
+test force_clean::tests::p21_no_platform_package_reached_until_every_third_party_is_attempted ... ok
+test force_clean::tests::p22_a_third_party_package_never_appears_after_a_platform_package ... ok
+test force_clean::tests::p23_exactly_the_two_platform_packages_are_flagged_as_platform ... ok
+test force_clean::tests::p24_the_ladder_always_has_three_rungs ... ok
+test force_clean::tests::p25_primitive_rung_is_disabled_when_the_build_lacks_the_command ... ok
+test force_clean::tests::p26_authenticator_rung_is_always_available ... ok
+test force_clean::tests::p27_primitive_rung_is_enabled_when_the_build_exposes_it ... ok
+test force_clean::tests::p29_the_domain_never_survives_redaction ... ok
+test force_clean::tests::p28_the_local_part_never_survives_redaction ... ok
+test force_clean::tests::p31_token_format_is_stable ... ok
+test force_clean::tests::p30_only_the_local_part_length_survives ... ok
+test force_clean::tests::p32_redaction_is_case_safe_and_identifier_free ... ok
+test force_clean::tests::p33_an_unknown_identifier_is_marked_not_blanked_into_a_clean_looking_result ... ok
+test force_clean::tests::p34_redacted_view_keeps_one_entry_per_account ... ok
+test force_clean::tests::p37_the_attestation_contains_no_at_character_at_all ... ok
+test force_clean::tests::p38_the_attestation_contains_no_imei_shaped_literal ... ok
+test force_clean::tests::p39_zero_final_accounts_marks_the_run_clean ... ok
+test force_clean::tests::p40_reports_how_many_were_removed ... ok
+test force_clean::tests::p41_records_explicitly_that_no_identifiers_were_stored ... ok
+test force_clean::tests::p42_records_explicitly_that_no_serial_was_stored ... ok
+test force_clean::tests::p43_a_nonzero_remainder_is_never_reported_as_clean ... ok
+test host_process::host_command_bridge_tests::all_sixteen_host_commands_pass_the_shape_check ... ok
+test host_process::host_command_bridge_tests::connected_devices_request_uses_the_standard_wire_format ... ok
+test host_process::host_command_bridge_tests::connected_devices_response_passes_the_envelope_check_unchanged ... ok
+test host_process::host_command_bridge_tests::each_call_mints_a_distinct_request_id ... ok
+test host_process::host_command_bridge_tests::envelope_check_accepts_a_correlated_refusal ... ok
+test host_process::host_command_bridge_tests::envelope_check_accepts_an_answer_that_echoes_the_request ... ok
+test host_process::host_command_bridge_tests::envelope_check_lets_invalid_request_through_so_the_refusal_is_visible ... ok
+test host_process::host_command_bridge_tests::envelope_check_rejects_a_protocol_or_host_version_breach ... ok
+test host_process::host_command_bridge_tests::envelope_check_rejects_an_answer_for_a_different_request ... ok
+test host_process::host_command_bridge_tests::envelope_check_still_catches_an_uncorrelated_non_invalid_request_error ... ok
+test host_process::host_command_bridge_tests::license_state_payload_survives_the_bridge_untouched ... ok
+test host_process::host_command_bridge_tests::license_state_request_ids_are_never_reused ... ok
+test host_process::host_command_bridge_tests::license_state_request_uses_the_standard_wire_format ... ok
+test host_process::host_command_bridge_tests::malformed_command_names_are_refused_before_reaching_the_host ... ok
+test host_process::host_command_bridge_tests::payload_fields_survive_the_bridge_untouched ... ok
+test host_process::host_command_bridge_tests::payload_must_be_a_json_object ... ok
+test host_process::host_command_bridge_tests::request_envelope_carries_every_field_the_host_requires ... ok
+test host_process::host_command_bridge_tests::request_serializes_to_exactly_one_json_line ... ok
+test host_process::host_support_log_tests::a_launch_creates_one_utc_named_log_under_the_logs_directory ... ok
+test host_process::host_support_log_tests::pruning_keeps_the_newest_ten_logs_and_nothing_else_is_touched ... ok
+test host_process::host_support_log_tests::stderr_lands_in_the_log_while_stdout_bytes_stay_unchanged ... ok
+test host_process::host_support_log_tests::two_launches_never_share_a_log_file ... ok
+test host_process::runtime_resolution_tests::bundled_java_runtime_wins_over_java_home ... ok
+test host_process::runtime_resolution_tests::candidate_roots_cover_the_installer_layout ... ok
+test host_process::runtime_resolution_tests::cyvra_home_is_one_stable_directory ... ok
+test host_process::runtime_resolution_tests::development_tree_fallback_finds_the_installed_distribution ... ok
+test host_process::runtime_resolution_tests::source_checkouts_resolve_the_host_distribution ... ok
+test host_process::runtime_resolution_tests::unbundled_runtime_never_yields_a_fake_java_path ... ok
+test host_process::tests::device_state_with_adb_disabled_reports_usb_detected ... ignored, requires the connected Samsung A10s with USB debugging disabled
+test host_process::tests::device_state_with_adb_enabled_reports_adb_ready ... ignored, requires the connected Samsung A10s with USB debugging enabled and authorized
+test ledger::tests::a_blank_home_refuses_to_write ... ok
+test ledger::tests::a_corrupt_ledger_is_refused_not_repaired ... ok
+test ledger::tests::a_foreign_schema_is_refused ... ok
+test ledger::tests::a_non_unique_request_records_every_occurrence ... ok
+test ledger::tests::a_read_only_logs_directory_fails_without_touching_the_ledger ... ok
+test host_process::generic_bridge_end_to_end_tests::generic_bridge_round_trips_against_the_real_host ... ok
+test ledger::tests::a_unique_request_is_recorded_once_however_often_it_is_replayed ... ok
+test ledger::tests::advancing_the_clock_moves_only_that_clock ... ok
+test ledger::tests::an_absent_ledger_reads_as_absent_rather_than_as_a_failure ... ok
+test ledger::tests::an_absent_ledger_reads_as_empty_not_as_an_error ... ok
+test ledger::tests::a_replayed_debit_is_always_exactly_one_spend ... ok
+test ledger::tests::deleting_a_line_breaks_the_chain_at_the_gap ... ok
+test ledger::tests::editing_a_line_breaks_the_chain_at_that_line ... ok
+test ledger::tests::entries_chain_from_genesis_in_order ... ok
+test ledger::tests::event_names_are_the_six_the_spec_lists ... ok
+test ledger::tests::every_entry_carries_the_frozen_schema_version ... ok
+test ledger::tests::grace_boundaries_are_decided_by_the_injected_clock ... ok
+test ledger::tests::ledger_lives_beside_the_audit_trail ... ok
+test ledger::tests::no_staging_file_survives_a_write ... ok
+test ledger::tests::read_raw_hands_over_the_file_exactly_as_it_was_written ... ok
+test ledger::tests::tampering_with_any_entry_is_detected ... ok
+test ledger::tests::the_hash_covers_every_field ... ok
+test ledger::tests::timestamps_follow_the_injected_clock_not_the_wall ... ok
+test ledger::tests::two_different_certificates_are_two_distinct_spends ... ok
+test usb::enumerate::tests::setupapi_snapshot_is_internally_coherent ... ok
+test usb::enumerate::tests::successful_snapshot_has_unique_paths ... ok
+test usb::enumerate::tests::usb_instance_id_filter_is_case_insensitive ... ok
+test usb::model::tests::unknown_observation_contains_no_devices ... ok
+test usb::notification::tests::repeated_topology_signals_coalesce ... ok
+test usb::notification::tests::shutdown_without_native_handle_is_idempotent ... ok
+test usb::notification::tests::topology_signal_can_be_consumed ... ok
+test usb::notification::tests::topology_signal_starts_clear ... ok
+test usb::observer::tests::coalescer_waits_for_window ... ok
+test usb::observer::tests::due_signal_is_consumed_once ... ok
+test usb::observer::tests::repeated_signal_extends_deadline ... ok
+test usb::reconcile::tests::missing_previous_path_is_removed ... ok
+test usb::reconcile::tests::newly_present_path_is_arrived ... ok
+test usb::reconcile::tests::path_comparison_is_case_insensitive ... ok
+test usb::reconcile::tests::recovery_from_unknown_establishes_baseline_without_event ... ok
+test usb::reconcile::tests::unchanged_snapshot_emits_no_event ... ok
+test usb::reconcile::tests::unknown_snapshot_never_creates_false_removal ... ok
+test usb::runtime::tests::registration_error_is_descriptive ... ok
+test usb::runtime::tests::shutdown_without_worker_is_idempotent ... ok
+test wpd::discovery::tests::classifier_accepts_s_ok ... ok
+test wpd::discovery::tests::classifier_failed_hresult_has_stable_error_code ... ok
+test wpd::discovery::tests::classifier_retries_s_false_before_final_attempt ... ok
+test wpd::discovery::tests::classifier_stops_on_third_s_false ... ok
+test wpd::discovery::tests::connected_a10s_is_visible_through_wpd ... ignored, requires the connected CYVRA Samsung Galaxy A10s acceptance handset
+test wpd::discovery::tests::enumeration_is_sorted_and_unique ... ok
+test wpd::discovery::tests::portable_device_manager_enumerates_without_error ... ok
+test wpd::discovery::tests::wpd_error_without_detail_preserves_stable_code ... ok
+test wpd::scanner::tests::digest_changes_with_different_objects ... ok
+test wpd::scanner::tests::digest_is_deterministic ... ok
+test wpd::scanner::tests::hardware_scan_a10s_produces_valid_result ... ignored, requires connected Samsung A10s via WPD/MTP
+test wpd::scanner::tests::scan_context_respects_depth_bound ... ok
+test wpd::scanner::tests::scan_context_respects_error_bound ... ok
+test wpd::scanner::tests::scan_context_respects_object_bound ... ok
+test ledger::tests::any_sequence_of_appends_still_verifies ... ok
+
+test result: ok. 236 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 46.30s
+
+     Running unittests src\main.rs (target\debug\deps\cyvra_mobile_desktop-b1796668fa447a10.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests app_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+
+Gate Status Check                                          Note                                                        
+---- ------ -----                                          ----                                                        
+G-E  PASS   M1 freeze (apps/web, services/api)             no changes                                                  
+G-D  PASS   verify-standing-holds (code checks)            inspects only $SprintCommits via git show; the bench-phon...
+G-D  PASS   H1 bench-phone probe                           read-only ADB observation; FAIL here means no phone was a...
+G-F  PASS   no BOM, strict UTF-8 decode                    PowerShell 5 Set-Content writes a BOM - avoid it            
+G-G  PASS   zero hits on banned absolute claims            A-10 / H3                                                   
+G-A  PASS   pnpm -r typecheck                              skips apps/desktop, which declares no typecheck task        
+G-A  PASS   desktop tsc -b                                 apps/desktop typecheck; added 14-Oct because nothing cove...
+G-B  PASS   pnpm -r test                                   Run with --maxWorkers=1: parallel vitest workers exhaust ...
+G-C  PASS   wrangler deploy --dry-run                      must be run from services/api, not apps/web                 
+G-H  PASS   :core + :host compile                                                                                      
+G-H  PASS   :host unit tests                                                                                           
+G-H  PASS   :sanitization-agent assembleDebug + unit tests proof-of-concept module; see its README                     
+G-I  PASS   cargo test                                                                                                 
+
+
+
