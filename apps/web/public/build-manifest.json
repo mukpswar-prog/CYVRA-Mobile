@@ -2,8 +2,8 @@
   "_readme": "Published installer manifest. Single source of truth for the version and SHA-256 the customer dashboard shows. Rewritten IN PLACE by the release job in the same commit that uploads the assets, so a manifest can never describe a build that was not released. Served at /build-manifest.json and read by GET /v1/me/entitlement. Until a release exists this file states `unavailable`; it never invents a version or a digest.",
   "state": "published",
   "version": "1.1.0",
-  "sha256": "01921cdf270ad163fb126bdcf130dc6f9a8666e8bd7cdd6a07e63b06b321d6eb",
-  "sizeBytes": 555388386,
-  "url": "https://github.com/mukpswar-prog/CYVRA-Mobile/releases/download/v1.1.0-eng-fd36d4c/cyvra-mobile-windows-release.zip",
-  "releasedAt": "2026-10-16T04:34:02.158Z"
+  "sha256": "a63f0a6e5957ba231ce34c000d751ef48ebda4722a9e5a13df7f5da6fc661a63",
+  "sizeBytes": 278890234,
+  "url": "https://github.com/mukpswar-prog/CYVRA-Mobile/releases/download/v1.1.0-eng-586f701/cyvra-mobile-windows-release.zip",
+  "releasedAt": "2026-10-18T11:57:58.246Z"
 }
