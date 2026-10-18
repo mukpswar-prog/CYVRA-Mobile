@@ -295,6 +295,5 @@ jobs:
           name: cyvra-mobile-windows-unsigned-engineering-artifact
           path: |
             apps/desktop/src-tauri/target/release/cyvra-mobile-desktop.exe
-            apps/desktop/src-tauri/target/release/bundle/msi/*.msi
             apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error

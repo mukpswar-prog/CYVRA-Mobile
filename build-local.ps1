@@ -14,7 +14,7 @@
       2. stage the Kotlin payload via scripts/stage-windows-installer-resources.ps1
          -> :host:installDist JARs, a jlink Java runtime, Android platform-tools
       3. run `tauri build` in apps/desktop, which typechecks + bundles the P5
-         React UI (beforeBuildCommand) and packages the NSIS and MSI installers
+         React UI (beforeBuildCommand) and packages the NSIS installer
       4. verify the installed layout by running the built executable with
          --selftest; the run must print SELFTEST_OK and readyToScan=true
       5. print the path and size of the executable and of every installer
