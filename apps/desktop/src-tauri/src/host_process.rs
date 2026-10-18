@@ -533,13 +533,23 @@ impl HostProcessManager {
         /*
          * The Host never derives its own resource locations from the process
          * working directory (which differs between `tauri dev`, an installed
-         * run and a support run from a shortcut). The installer root is passed
-         * explicitly so bundled ADB and any future resources resolve the same
+         * run and a support run from a shortcut). Both roots are passed
+         * explicitly so bundled ADB and the writable state resolve the same
          * way everywhere.
+         *
+         * They are deliberately different directories. `cyvra.install` finds
+         * the binaries in `Program Files`; `cyvra.home` receives state in
+         * `%ProgramData%`, because `Program Files` is read-only for the
+         * operator running the app and an unwritable licence is what made
+         * ACTIVATE do nothing (Option C, P6 task 6.2).
          */
         command
             .arg(format!(
                 "-Dcyvra.home={}",
+                runtime.state_root.display()
+            ))
+            .arg(format!(
+                "-Dcyvra.install={}",
                 runtime.resource_root.display()
             ))
             .arg("-classpath")
@@ -585,7 +595,7 @@ impl HostProcessManager {
          * pipe, and a log of it would be a second copy of the protocol on disk.
          */
         if let Some(stderr) = child.stderr.take() {
-            let log_dir = runtime.resource_root.join(HOST_LOG_DIR);
+            let log_dir = runtime.state_root.join(HOST_LOG_DIR);
             // `_drain` starts with an underscore and is dropped right here: the
             // thread detaches and ends on its own when the Host's stderr closes.
             let _drain = tee_host_stderr(stderr, &log_dir);
@@ -769,13 +779,42 @@ where
 /// Points at the directory that contains `host/lib` and `runtime/`.
 const HOME_ENV: &str = "CYVRA_HOME";
 
+/// Environment override for the writable state root, for a development tree or
+/// a workstation whose `%ProgramData%` has been hardened by policy.
+const STATE_HOME_ENV: &str = "CYVRA_STATE_HOME";
+
+/// Windows' machine-wide data root: named for the machine rather than for an
+/// account, and writable without elevation, which is what activation needs.
+const PROGRAM_DATA_ENV: &str = "ProgramData";
+
+/// Name of the machine-wide state directory below `%ProgramData%`.
+const STATE_HOME_DIR: &str = "CYVRA Mobile";
+
 /// Relative location of the Java runtime shipped inside the installer.
 const RUNTIME_DIR: &str = "runtime";
 
 /// Everything needed to spawn `HostMain`.
 pub struct HostRuntime {
-    /// Installation root, handed to the JVM as `-Dcyvra.home=`.
+    /*
+     * Two roots, on purpose.
+     *
+     * They were one directory until Option C (P6 task 6.2). Under `perMachine`
+     * that directory is in `Program Files`, so the activation store and every
+     * export tried to write where the signed-in operator cannot, the export
+     * failed, and the screen reported nothing at all. Splitting them keeps the
+     * installer elevated - `pnputil` needs that to stage USB drivers - while
+     * giving state somewhere it can actually be written.
+     */
+
+    /// Read-only installation root: bundled `platform-tools`, JRE and Host
+    /// JARs. Handed to the JVM as `-Dcyvra.install=`.
     pub resource_root: PathBuf,
+
+    /// Writable state root: `entitlement.json`, `license.json`, `logs/`,
+    /// `reports/` and `certificates/`. Handed to the JVM as `-Dcyvra.home=`
+    /// and always equal to [`cyvra_home`].
+    pub state_root: PathBuf,
+
     pub java_path: PathBuf,
     pub classpath: String,
 }
@@ -854,35 +893,68 @@ fn locate_host() -> Result<(PathBuf, PathBuf), String> {
     ))
 }
 
-/// The `<cyvra.home>` the Host is launched with.
+/// The writable `<cyvra.home>` the Host is launched with.
 ///
 /// The activation store, the exported `entitlement.json` and the Host's own
 /// `-Dcyvra.home=` have to be one directory or the wrapper would be writing a
-/// licence where nobody reads it, so this asks the resolver the launcher uses
-/// first. The fallback exists only for a development tree where the Host has
-/// not been built: it picks the first candidate that actually exists, which is
-/// the root `locate_host` would return once `:host:installDist` has been run,
-/// so the two never disagree in a running product.
+/// licence where nobody reads it, so all three come from this one resolution.
 ///
-/// Fails rather than guessing a temporary directory: an installation root that
-/// cannot be named is a local fault at the activation layer, not a reason to
-/// keep a licence somewhere the Host will not look.
+/// It is deliberately *not* the installation root. Under `installMode:
+/// perMachine` the product sits in `Program Files`, which the operator running
+/// it cannot write to, and a licence that cannot be written behaves exactly
+/// like no licence at all: the export fails, the failure surfaces as a local
+/// fault carrying no message, and the activation screen never moves. Option C
+/// (P6 task 6.2) keeps `perMachine` - `pnputil` needs that elevation to stage
+/// USB drivers - and gives state its own machine-wide root below
+/// `%ProgramData%` instead of loosening the install.
+///
+/// The directory is created here rather than assumed to exist: a development
+/// tree has never run the installer, and an install whose hooks were skipped
+/// must not fail activation over a folder that is merely missing. Creation is
+/// not a writability guarantee - that is the installer's ACL to grant - but it
+/// does mean a later fault can be written to `logs/ledger.jsonl` instead of
+/// vanishing into the directory that was too restricted to receive it.
+///
+/// Fails rather than guessing a temporary directory: a state root that cannot
+/// be named is a local fault at the activation layer, not a reason to keep a
+/// licence somewhere the Host will not look.
 pub fn cyvra_home() -> Result<PathBuf, String> {
-    if let Ok((root, _)) = locate_host() {
-        return Ok(root);
+    if let Ok(overridden) = env::var(STATE_HOME_ENV) {
+        let trimmed = overridden.trim();
+        if !trimmed.is_empty() {
+            let root = PathBuf::from(trimmed);
+            create_state_dir(&root)?;
+            return Ok(root);
+        }
     }
 
-    installation_roots()
-        .into_iter()
-        .find(|root| root.is_dir())
-        .ok_or_else(|| {
+    let base = env::var(PROGRAM_DATA_ENV)
+        .map(PathBuf::from)
+        .map_err(|_| {
             format!(
-                "CYVRA_HOME_UNRESOLVED: no installation root exists below {} \
-                 and {} does not point at one.",
-                exe_dir().display(),
-                HOME_ENV
+                "CYVRA_HOME_UNRESOLVED: {} is unset and {} does not name a root.",
+                PROGRAM_DATA_ENV, STATE_HOME_ENV
             )
-        })
+        })?;
+
+    let root = base.join(STATE_HOME_DIR);
+    create_state_dir(&root)?;
+    Ok(root)
+}
+
+/// Creates the state root when it is missing, naming the failure plainly.
+fn create_state_dir(root: &Path) -> Result<(), String> {
+    if root.is_dir() {
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(root).map_err(|error| {
+        format!(
+            "CYVRA_HOME_UNWRITABLE: {} could not be created: {}",
+            root.display(),
+            error
+        )
+    })
 }
 
 /// Resolves the Java launcher: bundled runtime, then `JAVA_HOME`, then `PATH`.
@@ -954,6 +1026,7 @@ fn resolve_host_runtime() -> Result<HostRuntime, String> {
 
     Ok(HostRuntime {
         resource_root,
+        state_root: cyvra_home()?,
         java_path,
         classpath,
     })
@@ -1001,7 +1074,7 @@ pub fn run_selftest() -> Result<String, String> {
         info.host_version,
         jar_count,
         runtime.java_path.display(),
-        runtime.resource_root.display(),
+        runtime.state_root.display(),
         ready,
         adb,
     );

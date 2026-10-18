@@ -1,6 +1,6 @@
 package cyvra.mobile.host.report
 
-import cyvra.mobile.host.transport.AdbBinaryLocator
+import cyvra.mobile.host.config.HostSystemProperties
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
@@ -37,7 +37,7 @@ data class WrittenArtifacts(
  * carries - so the manifest describes the stored bytes rather than an in-memory stand-in.
  *
  * Resolution is fail-closed, not fatal: a missing
- * [AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY] raises [ReportWriteException], which the
+ * [HostSystemProperties.STATE_HOME_PROPERTY] raises [ReportWriteException], which the
  * dispatcher turns into a `REPORT_WRITE_FAILED` error line. The Host keeps serving.
  *
  * Report generation itself is untouched here. This class only receives strings that have
@@ -46,7 +46,7 @@ data class WrittenArtifacts(
 class HostReportStore(
     private val reportEngine: HostReportEngine = HostReportEngine(),
     private val homeProvider: () -> String? = {
-        System.getProperty(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY)
+        System.getProperty(HostSystemProperties.STATE_HOME_PROPERTY)
     },
 ) {
 
@@ -91,7 +91,7 @@ class HostReportStore(
     ): WrittenArtifacts {
         val home = homeProvider()?.takeIf { it.isNotBlank() }
             ?: throw ReportWriteException(
-                "System property '${AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY}' is not set, " +
+                "System property '${HostSystemProperties.STATE_HOME_PROPERTY}' is not set, " +
                     "so the report directory cannot be resolved.",
             )
 

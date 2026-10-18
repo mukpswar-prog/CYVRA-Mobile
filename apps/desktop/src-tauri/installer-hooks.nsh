@@ -84,4 +84,52 @@
 
     cyvra_pnputil_done:
 
+    /*
+     * Per-machine writable state root (Option C, P6 task 6.2).
+     *
+     * Activation writes entitlement.json, license.json, logs/, reports/ and
+     * certificates/ into <ProgramData>\CYVRA Mobile - never into $INSTDIR.
+     * Under perMachine $INSTDIR is Program Files, which is read-only for the
+     * operator running the app, and that was the defect: the export failed,
+     * the failure rendered as a local fault carrying no message, and ACTIVATE
+     * simply did not move to the next screen.
+     *
+     * installMode stays perMachine so the pnputil staging above keeps the
+     * elevation it needs. Only this data directory's ACL changes.
+     *
+     * The grant is (OI)(CI)M on the state directory alone and is deliberately
+     * not applied to $INSTDIR: bundled adb.exe, the JRE and the Host JARs stay
+     * read-only for every non-elevated account, because an evidence product
+     * must not resolve its tooling from a directory any local user can rewrite.
+     *
+     * Non-fatal, like every other step in this hook. If the grant fails the
+     * install still completes, and the workstation - which creates this
+     * directory itself on first run - still works for the account that
+     * created it. The exit code is printed so a failure cannot be mistaken
+     * for a granted ACL when the log is read later.
+     */
+    DetailPrint "CYVRA: state root ACL starting"
+    ReadEnvStr $0 ProgramData
+    StrCmp $0 "" cyvra_state_no_programdata
+
+        StrCpy $1 "$0\CYVRA Mobile"
+        CreateDirectory "$1"
+        DetailPrint "CYVRA: state root $1"
+        nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$1" /grant "*S-1-5-32-545:(OI)(CI)M" /T /C'
+        Pop $2
+        DetailPrint "CYVRA: state root icacls exit code $2"
+        GoTo cyvra_state_done
+
+    cyvra_state_no_programdata:
+        /*
+         * Not expected on Windows 10 or 11. Recorded rather than assumed,
+         * for the same reason pnputil's absence is: a silent skip in the
+         * install log is indistinguishable from a granted ACL.
+         */
+        DetailPrint "CYVRA: ProgramData not set; the workstation creates the state root on first run"
+
+    cyvra_state_done:
+
+    DetailPrint "CYVRA: state root ACL finished"
+
 !macroend

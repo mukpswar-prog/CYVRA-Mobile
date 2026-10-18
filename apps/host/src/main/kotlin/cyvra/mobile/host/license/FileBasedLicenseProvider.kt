@@ -2,7 +2,7 @@ package cyvra.mobile.host.license
 
 import cyvra.mobile.core.CustomerLicenseRecord
 import cyvra.mobile.core.LicenseEntitlementStatus
-import cyvra.mobile.host.transport.AdbBinaryLocator
+import cyvra.mobile.host.config.HostSystemProperties
 import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -80,9 +80,11 @@ data class LicenseFileResult(
 /**
  * Production licence source for the workstation installation (P2).
  *
- * Reads `<cyvra.home>/license.json`, where `cyvra.home` is the installation root the
- * workstation already passes to the JVM as `-Dcyvra.home=` (the same constant ADB
- * resolution uses, so the two can never drift apart).
+ * Reads `<cyvra.home>/license.json`, where `cyvra.home` is the writable per-machine
+ * state root the workstation already passes to the JVM as `-Dcyvra.home=`. ADB resolves
+ * from a separate, read-only root (`-Dcyvra.install=`), so a licence file can never be
+ * mistaken for part of the installation tree - or written into one the operator cannot
+ * reach.
  *
  * Fail-closed by construction: [load] never throws and always returns a record, so a
  * missing, unreadable or corrupt file degrades to a denied entitlement instead of
@@ -93,7 +95,7 @@ data class LicenseFileResult(
  */
 class FileBasedLicenseProvider(
     private val homeProvider: () -> String? = {
-        System.getProperty(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY)
+        System.getProperty(HostSystemProperties.STATE_HOME_PROPERTY)
     },
 ) : LicenseProvider {
 

@@ -1,5 +1,6 @@
 package cyvra.mobile.host.transport
 
+import cyvra.mobile.host.config.HostSystemProperties
 import java.io.File
 
 /**
@@ -9,7 +10,9 @@ import java.io.File
 class AdbBinaryLocator(
     private val explicitCustomPath: File? = null,
     private val environmentProvider: (String) -> String? = System::getenv,
-    private val installationRootProvider: () -> String? = { System.getProperty(INSTALLATION_ROOT_PROPERTY) },
+    private val installationRootProvider: () -> String? = {
+        System.getProperty(HostSystemProperties.INSTALLATION_ROOT_PROPERTY)
+    },
 ) {
     fun locate(): File? {
         if (explicitCustomPath != null && explicitCustomPath.exists() && explicitCustomPath.canExecute()) {
@@ -17,7 +20,7 @@ class AdbBinaryLocator(
         }
 
         // Bundled platform-tools shipped inside the installer. The workstation passes
-        // the installation root explicitly (-Dcyvra.home=), so resolution never
+        // the installation root explicitly (-Dcyvra.install=), so resolution never
         // depends on the process working directory - which differs between
         // `tauri dev`, an installed run launched from a Start Menu shortcut, and a
         // support shell. Checked before every host-local guess (P1).
@@ -69,9 +72,4 @@ class AdbBinaryLocator(
 
     private fun isWindows(): Boolean =
         System.getProperty("os.name")?.lowercase()?.contains("win") == true
-
-    companion object {
-        /** System property carrying the installation root passed by the workstation. */
-        const val INSTALLATION_ROOT_PROPERTY: String = "cyvra.home"
-    }
 }

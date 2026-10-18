@@ -2,7 +2,7 @@ package cyvra.mobile.host.license
 
 import cyvra.mobile.core.CustomerLicenseRecord
 import cyvra.mobile.core.LicenseEntitlementStatus
-import cyvra.mobile.host.transport.AdbBinaryLocator
+import cyvra.mobile.host.config.HostSystemProperties
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.security.KeyFactory
@@ -50,7 +50,7 @@ import kotlinx.serialization.json.longOrNull
  */
 class SignedEntitlementProvider(
     private val homeProvider: () -> String? = {
-        System.getProperty(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY)
+        System.getProperty(HostSystemProperties.STATE_HOME_PROPERTY)
     },
     /**
      * The bundled server public key. Injectable so a test can sign fixtures with

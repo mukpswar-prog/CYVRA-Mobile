@@ -9,7 +9,7 @@ import kotlin.test.assertNull
 /**
  * Resolution-order guarantees for the *installed* layout (P1).
  *
- * The workstation hands the installation root to the JVM as `-Dcyvra.home=`, so
+ * The workstation hands the installation root to the JVM as `-Dcyvra.install=`, so
  * the bundled `platform-tools/adb.exe` must win over every host-local guess,
  * and must degrade to the Android SDK instead of failing when it is absent.
  */

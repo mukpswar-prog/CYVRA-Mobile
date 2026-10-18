@@ -8,6 +8,7 @@ import cyvra.mobile.core.ApplicationInventoryEvidence
 import cyvra.mobile.core.ApplicationInventoryRecord
 import cyvra.mobile.core.CustomerLicenseRecord
 import cyvra.mobile.core.LicenseEntitlementStatus
+import cyvra.mobile.host.config.HostSystemProperties
 import cyvra.mobile.host.evidence.AdbApplicationInventoryProvider
 import cyvra.mobile.host.license.FileBasedLicenseProvider
 import cyvra.mobile.host.license.LicenseFileReason
@@ -636,7 +637,7 @@ class HostProtocolWorkflowTest {
         assertError(export, HostProtocolDispatcher.REPORT_WRITE_FAILED)
         val message = assertNotNull(export.error?.message)
         assertTrue(
-            message.contains(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY),
+            message.contains(HostSystemProperties.STATE_HOME_PROPERTY),
             "the refusal must name the missing property, got: $message",
         )
 
@@ -676,7 +677,7 @@ class HostProtocolWorkflowTest {
             missingHome.writeReport("CYVRA-R1-2026-ABCDEF", "{}", "# report")
         }
         assertTrue(
-            missing.message.orEmpty().contains(AdbBinaryLocator.INSTALLATION_ROOT_PROPERTY),
+            missing.message.orEmpty().contains(HostSystemProperties.STATE_HOME_PROPERTY),
             "refusal must name the missing property, got: ${missing.message}",
         )
     }
