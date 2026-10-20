@@ -1,0 +1,516 @@
+================================================================================
+CYVRA MOBILE - CONSOLIDATED AUDIT RECORD
+Phase A + Gate 2: observations, findings, corrections, decisions, blockers
+================================================================================
+Prepared for : Chief Engineer (CE) / Principal Systems Architect
+Date        : 20 October 2026
+Repository  : C:\Users\User\Documents\GitHub\CYVRA-Mobile
+Baseline    : main 8f7e05337070280c048b761f5e59d3a51abe8162 (working tree clean)
+Mode        : Read-only source audit. No application code, tests, configuration,
+              or original audit records were modified to produce this document.
+              This document is the only artifact created, committed, and pushed.
+
+CLASSIFICATION LABELS USED THROUGHOUT
+  SOURCE-VERIFIED              = re-read from current source/disk this session
+  REPORTED                     = stated by a prior audit/tool; not re-verified here
+  REQUIRES CE DECISION         = awaits Chief Engineer ruling
+  REQUIRES PHYSICAL VERIFICATION = cannot be established from source; bench run needed
+  REQUIRES EXTERNAL/REMOTE VERIFICATION = needs network/remote-state check
+  BLOCKED                      = prohibited until prerequisites are cleared
+
+--------------------------------------------------------------------------------
+1. PURPOSE, SCOPE, BASELINE, AND AUDIT CHRONOLOGY
+--------------------------------------------------------------------------------
+1.1  Purpose: verify, through read-only inspection, whether CYVRA MOBILE's
+     identity, report-retrieval, command-targeting, and lifecycle-state design
+     satisfies the master engineering command before any implementation is
+     authorized. This document consolidates every accessible audit artifact.
+
+1.2  Baseline (SOURCE-VERIFIED this session):
+     main = origin/main = 8f7e05337070280c048b761f5e59d3a51abe8162, tree clean.
+     HostProtocolDispatcher.kt = 1459 lines, mtime 14-10-2026 17:04 (unchanged
+     for the whole audit; all cited line numbers cross-checked against it).
+
+1.3  Chronology:
+     - 18-10-2026: hands-on session produced the Defect Register (A1-A11, B1-B3).
+     - 19-10-2026: Phase A audit/closeout work; NSIS installer untouched.
+     - 20-10-2026 (morning): Forensic Audit and Port 1 Isolation Audit prepared.
+     - 20-10-2026 (day): Gate 2 targeted verification (Continuations 1-4F) and
+       the Final Closeout Package produced this consolidated record.
+     - 20-10-2026 17:07 +0530: an EXTERNAL push (not by this audit session)
+       moved refs/remotes/origin/main from fa3420a to 8f7e053 (reflog-verified).
+       No Git mutation was ever performed by the audit before this document.
+
+1.4  Source materials consulted (existence verified this session):
+     FOUND     39957 b  Desktop\CYVRA-PhaseA-Audit-2026-10-20.txt
+     FOUND     23013 b  Desktop\CYVRA-Forensic-Audit-2026-10-20.txt
+     FOUND     46642 b  Desktop\CYVRA-Port1-Isolation-Audit-2026-10-20.txt
+     FOUND     29405 b  Desktop\CYVRA-Four-Port-Baseline-Test-2026-10-20.txt
+     FOUND     18848 b  Desktop\Defect Register.txt
+     FOUND     20221 b  docs\DEFECT_REGISTER_2026-10-18.md  (separate artifact)
+     FOUND     28855 b  Desktop\CYVRA_MOBILE_MASTER_ENGINEERING_CONTEXT.txt
+     MISSING             Desktop\CYVRA-PhaseA-Closeout-Alignment-2026-10-20.txt
+       -> Not found on Desktop or anywhere in the repository tree this session.
+          It was produced earlier in the audit session but is not accessible
+          now; its contents are NOT reconstructed from memory. Statements that
+          depended on it rest instead on the re-verified source reads cited
+          below.                                                [DISCLOSURE]
+     The authoritative master engineering command used for alignment is the
+     text supplied directly in the audit conversation by the CE. The Desktop
+     copy of the master context file exists (28855 b) and is REPORTED-equivalent
+     but was not diffed line-by-line.
+
+1.5  Evidence discipline: every line reference below was re-verified this
+     session from the current tree. Tool results that arrived broken/aborted or
+     that were internally inconsistent were excluded, and affected claims were
+     re-read cleanly before citation (correction history in section 4).
+
+--------------------------------------------------------------------------------
+2. EXECUTIVE STATUS
+--------------------------------------------------------------------------------
+2.1  Gate 2 source-verification phase: COMPLETE (SOURCE-VERIFIED).
+2.2  Gate 2 closure and implementation authorization: NOT READY.
+     Complete  : defect identification D-1..D-4, retrieval-path classification,
+                 command-targeting matrix, identity-contract verification,
+                 governance inventory, decision package U-1..U-3, physical
+                 operator checklist, Git preservation analysis.
+     Blocked   : fixes, tests execution, physical 4-port baseline (0/4),
+                 Phase A record corrections, design ratification.
+2.3  Distinction: this audit PROVES what the source does today. It does not
+     authorize changing anything, and it proves nothing about physical
+     multi-device behavior, which has never been measured (0/4 ports).
+
+--------------------------------------------------------------------------------
+3. COMPLETE DEFECT AND OBSERVATION REGISTER
+--------------------------------------------------------------------------------
+D-1  IDENTITY CONFLATION (sessionUuid passed as deviceLifecycleId)
+     Status   : CONFIRMED (SOURCE-VERIFIED) / fix BLOCKED on U-1
+     Evidence : WorkstationSessionOrchestrator.kt:210
+                  .triggerEvidenceCollection(sessionUuid, sessionUuid)
+                - Interface: apps/android/.../AndroidComponentModels.kt:83
+                  triggerEvidenceCollection(sessionUuid, deviceLifecycleId)
+                  declares two SEMANTICALLY DISTINCT identities.
+                - Bridge: evidence/HostAndroidComponentBridge.kt L53-55; doc L49
+                  "Broadcasts the trigger intent with session UUID and
+                   deviceLifecycleId".
+                - The orchestrator contains zero deviceLifecycleId references;
+                  no host-side lifecycle registry exists anywhere in
+                  apps/host/src/main (repo-wide search).
+     Impact   : Evidence payloads record a session identity where the contract
+                requires a longer-lived device-lifecycle identity; correlation
+                across sessions for the same physical device is not possible
+                from the component payload as designed.
+     Tests    : HostAndroidComponentBridgeTest.kt L64 ("sess-1","life-1") and
+                L97 ("sess-202","life-101") pass DISTINCT values but assert
+                only bridge behavior; no orchestrator-level binding test
+                exists (tree-wide test search: no other caller). NO TEST WOULD
+                FAIL on the (sessionUuid, sessionUuid) defect.
+     Next     : CE ratifies U-1, then registry-backed implementation + a
+                red-first orchestrator binding test.
+
+D-2  UNSCOPED REPORT RETRIEVAL (no request-to-state ownership binding)
+     Status   : CONFIRMED at source level - classified
+                UNSCOPED RETRIEVAL PATH CONFIRMED for all three handlers.
+                NOT classified as physical cross-device exposure (see 5.4).
+     Evidence : protocol/HostProtocolDispatcher.kt
+                - deviceReportResponse L547-567: state = lastScan (L548);
+                  returns full report JSON (L562), markdown (L563),
+                  reportId/sessionUuid/serial (L559-561), SHA-256 (L564).
+                  Request payload never consulted.
+                - exportReportResponse L620-639: state = lastScan (L621);
+                  refuses only on report status != COMPLETE (L622); writes
+                  artifacts and returns paths. Request payload never consulted.
+                - finalReportResponse L1099-1189: state = lifecycleResult
+                  (L1100) -> finalReport (L1106) -> certificate written under
+                  certificates/<reportId>/ (L1129-1134); entitlement debit at
+                  L1159-1160 keyed on lastScan?.sessionUuid; returns
+                  certificate object/JSON/markdown + paths + manifest hashes +
+                  debit state (L1162-1188). Request payload never consulted.
+                - dispatch() L113-132 is a pure routing table; the only
+                  pre-dispatch check anywhere is JSON deserializability
+                  (protocol/HostMain.kt L53-70). No identity, session, or
+                  authorization validation exists in the dispatch layer.
+                - report/HostReportStore.kt (169 lines) is WRITE-ONLY:
+                  writeReport L58, writeCertificate L71, persist L84,
+                  writeUtf8 L153. No read API of any kind exists; retrieval
+                  never touches the store. Manifest (L112-122) records
+                  artifactId/algorithm/filenames/SHA-256 only - no serial, no
+                  sessionUuid, no ownership fields - and is never read back for
+                  authorization. artifactId validated SAFE_ARTIFACT_ID L100
+                  before path resolution (traversal-safe).
+     Impact   : Any client of the local stdio protocol receives the active
+                session's device data regardless of any identity it may (or
+                may not) supply; the stale-state window in D-4 extends this to
+                the PREVIOUS device's data after a failed scan.
+     Next     : CE ratifies U-2 (ownership model + explicit empty-payload
+                policy), then serial-when-present comparison in the three
+                handlers, with red-first mismatch tests.
+
+D-3  WIRE-SUPPLIED SANITIZATION TARGET OVERRIDE (unchecked)
+     Status   : CONFIRMED (SOURCE-VERIFIED) / fix BLOCKED on U-2/U-3 policy
+     Evidence : HostProtocolDispatcher.kt
+                - SANITIZE_START L768:
+                    targetSerial = request.stringPayload(KEY_SERIAL)
+                        ?: scan.deviceDescriptor.serial
+                - SANITIZE_EXECUTE L994:
+                    targetSerial = request.stringPayload(KEY_SERIAL)
+                        ?: start.targetSerial
+                In both cases the wire serial is PREFERRED OVER the recorded
+                scan/lifecycle serial with NO comparison between them.
+     Impact   : A wire-supplied serial can silently retarget the sanitization
+                lifecycle away from the device that produced the active scan,
+                with no refusal and no telemetry.
+     Next     : Compare wire vs recorded serial; refuse (or log per CE
+                ruling) on mismatch.
+
+D-4  FAILED-SCAN STATE RETENTION (stale lastScan stays servable)
+     Status   : CONFIRMED (SOURCE-VERIFIED) / fix BLOCKED on U-3
+     Evidence : HostProtocolDispatcher.kt
+                - lastScan L82 is assigned ONLY at L521, on the success path
+                  of runScanResponse (after entitlement check L455-458 and
+                  target resolution orchestratorFor(serial) L442).
+                - Exhaustive reference list L82/521/548/578/621/677/762/1159/
+                  1274: there is NO clearing of lastScan anywhere.
+                - lifecycleResult L86 IS cleared on every successful new scan
+                  (resetSanitizationState() call at L522, immediately after
+                  lastScan = result) and at SANITIZE_START (L818, called as
+                  resetSanitizationState(keepStart = true), preserving the
+                  freshly assigned lifecycleStart L817; eligibility gate
+                  follows at L820-824).
+                - Therefore after a FAILED scan attempt, the previous device's
+                  lastScan (and any retained lifecycleResult) remain live and
+                  every empty-payload retrieval command serves the previous
+                  device's data.
+     Impact   : In any interleaved or multi-slot workflow, the operator can be
+                shown the prior device's report/inventory/export with no host-
+                side refusal.
+     Next     : CE ratifies U-3 (clear-on-failure recommended, paired with
+                U-2(a) serial-when-present comparison).
+
+A-SERIES AND B-SERIES (from Desktop\Defect Register.txt, 272 lines;
+sections 1-8; REPORTED - register contents summarized, source lines therein
+were read during the original 18-10 session, not re-verified line-by-line
+here):
+     A1  Operator control that unblocks the final step is not on that step.
+     A2  Reports do not meet required format/destination/naming/scope - HIGH.
+     A3  Help panel states the wrong number of steps - MEDIUM.
+     A4  Help panel states an unlocking rule the app does not enforce.
+     A5  Release builds install no logging at all - MEDIUM.
+     A6  apps/desktop has no typecheck script - MEDIUM.
+     A7  Reports accumulate without an index - MEDIUM.
+     A8  Generated report prints a placeholder operator name - LOW-MEDIUM.
+     A9  Report states Coverage Level PARTIAL while interface reports
+         completion (open CE question).
+     A10 Purge capability cannot be exercised as shipped - REGISTERED.
+     A11 Device table advertises a value the product never collects.
+     B1  ACTIVATE screen blocked because <cyvra.home> unwritable - RULED
+         16 October (fix applied under B1 only, per the register).
+     B2  Reports written inside Program Files - addressed by Option C
+         (HostRepository move) per the register.
+     B3  Fault causes undiagnosable - half addressed by Option C (audit file).
+     Register section 7 lists open CE questions on A9, A4, A5, A2.
+
+OTHER OBSERVATIONS (SOURCE-VERIFIED during Gate 2):
+     O-1  GET_FINAL_REPORT couples two state holders: the served certificate
+          comes from lifecycleResult while the entitlement debit (L1159-1160)
+          keys on lastScan.sessionUuid. In the current flow both are replaced
+          together on a successful new scan, so divergence is not reachable by
+          traced paths; the coupling is a latent confusion point.
+     O-2  SANITIZE_EXECUTION_REFUSED (L1015-1022) returns AFTER
+          lifecycleResult = result (L1013), so a refused execution leaves
+          lifecycleResult populated with executionResult == null. Downstream,
+          GET_FINAL_REPORT gates on result.finalReport (L1106), so the refusal
+          state is gated - observed, no further claim.
+     O-3  FINALISE_REPORT (L676-710) finalises a FRESHLY GENERATED template
+          report (ReportGenerator().generate(), L681-685), not scan.report; it
+          only reads lastScan for the operatorId fallback (L677-678) and mints
+          a new id CYVRA-FCR-<year>-<uuid6> (L694-695). Product intent
+          unconfirmed - CE to confirm.
+     O-4  Checklist record is memory-only (checklistRecord in dispatcher
+          state); it is lost on host restart. RECORD_CHECKLIST binds to
+          scan.report.header.sessionUuid (L1308) and records brand/model,
+          never the serial (L1293-1296, deliberate per comment).
+     O-5  UI sends a target serial ONLY for RUN_SCAN (apps/desktop/src/App.tsx
+          L1244); every other send is an empty/ack payload - REPORTED, verified
+          by clean reads during Gate 2; drives the U-2 empty-payload question.
+     O-6  ADB client uses per-command `-s <serial>` targeting; transport-level
+          device targeting is correct - the defects above are selection/
+          binding defects, not transport defects.
+
+--------------------------------------------------------------------------------
+4. CORRECTED AUDIT HISTORY (corrections preserved, not silently rewritten)
+--------------------------------------------------------------------------------
+C1  WITHDRAWN: "HostReportStore.latest() exists (L38-51, DANGER-unscoped) with
+    byId() dead code (L54); retrieval callers at dispatcher L1104/L1166."
+    Current verified fact: HostReportStore.kt (169 lines) is WRITE-ONLY; zero
+    `latest(` matches in apps/host/src/main; `byId` exists only as a local
+    LinkedHashMap variable in ChecklistRecorder.kt L110-115. Retrieval uses
+    in-memory session state only. Affected Phase A statements must be
+    corrected (authorization pending - section 8).
+C2  RETRACTED: "the scan path has no resetSanitizationState() call."
+    Current verified fact: lastScan = result (L521) is immediately followed
+    by resetSanitizationState() (L522) inside runScanResponse.
+C3  CORRECTED: Phase A audit A4.4 claimed FIVE `(lastScanSerial ?? serial)`
+    consumers. Actual: THREE lastScanSerial references; the claimed pattern is
+    absent. (Correction owed to CYVRA-PhaseA-Audit-2026-10-20.txt.)
+C4  ERRONEOUS: an early Phase A output contained a "GATE 1 STATUS" tail; it
+    was not reproducible at SHA 3453752B... and is ruled erroneous.
+C5  OVERTURNED: earlier sessions reported Desktop\Defect Register.txt as
+    MISSING. It EXISTS (18848 b, mtime 19-10-2026 09:31). It must not be
+    described as missing. The repo artifact docs/DEFECT_REGISTER_2026-10-18.md
+    (20221 b, mtime 18-10) is a SEPARATE document (different size/mtime) and
+    is not an assumed replacement - see section 8 for the register-of-record
+    question.
+C6  SUPERSEDED: "main is 2 unpushed commits ahead of origin/main." On
+    20-10-2026 17:07 +0530 an external push (reflog: "update by push") moved
+    origin/main from fa3420a to 8f7e053; main and origin/main are now
+    IDENTICAL (0 ahead / 0 behind, verified without fetch). The push was not
+    performed by the audit session.
+C7  EVIDENCE RULE: output fragments that arrived broken/aborted or that were
+    internally inconsistent (e.g., an excerpt showing duplicated lines, a
+    fabricated inline "// NOTE" comment, and shifted line numbers) were
+    excluded from evidence; every affected claim was re-read cleanly. All
+    line numbers in this record come from cross-checked reads (Select-String
+    positions verified against file array contents at matching indices).
+
+--------------------------------------------------------------------------------
+5. REPORT RETRIEVAL AND STATE ISOLATION (current verified behavior)
+--------------------------------------------------------------------------------
+5.1  Handler behavior for the three retrieval commands: see D-2 evidence.
+     State sources: GET_DEVICE_REPORT = lastScan; EXPORT_REPORT = lastScan;
+     GET_FINAL_REPORT = lifecycleResult (+ debit keyed on lastScan, O-1).
+5.2  Ownership checks: NONE anywhere in the host path. dispatch() L113-132 and
+     HostMain.processLine (L53-60) perform no identity/session/authorization
+     validation; no handler reads a request-supplied serial/session/reportId
+     for retrieval.
+5.3  Scan/lifecycle reset behavior: successful scan -> lastScan replaced
+     (L521) + lifecycle state reset (L522); SANITIZE_START -> lifecycle reset
+     with keepStart (L818); failed scan -> NOTHING cleared (D-4).
+5.4  Classification (all three): UNSCOPED RETRIEVAL PATH CONFIRMED.
+     Explicitly NOT "REACHABLE CROSS-DEVICE EXPOSURE CONFIRMED": (a) physical
+     multi-device operation has never been demonstrated (0/4 ports); (b)
+     lifecycleResult is cleared on every successful new scan, bounding
+     GET_FINAL_REPORT staleness; (c) the desktop UI's reportReady gate
+     (App.tsx L1898-1899) exists at presentation level and its effectiveness
+     under interleaving is unverified. The SOURCE-ESTABLISHED residual risk is
+     the stale-serving window of D-4. Physical multi-device behavior remains
+     UNPROVEN - see section 10.
+
+--------------------------------------------------------------------------------
+6. IDENTITY ARCHITECTURE
+--------------------------------------------------------------------------------
+6.1  Contract mismatch: see D-1. Two semantically distinct identities at the
+     interface; one value passed at the orchestrator call site.
+6.2  Canonical meaning: docs/DEVICE_EVIDENCE_ARCHITECTURE.md section 9.3
+     (L370-376): deviceLifecycleId is "CYVRA's longer-lived service/registry
+     identity for a device lifecycle", is "not proof of physical identity by
+     itself", and "must not be derived solely from IMEI, serial, MAC address,
+     or Android ID".
+6.3  WHY IT CANNOT BE INVENTED: no registry, service, or propagation
+     mechanism for deviceLifecycleId exists anywhere in apps/host/src/main
+     (repo-wide search); the orchestration layer has no supported way to
+     obtain it. Any substitute (serial, session UUID, hardware hash) either
+     violates section 9.3 or collapses two distinct identity domains - the
+     very defect being reported. The origin is therefore an UNRESOLVED DESIGN
+     DECISION (U-1); no one-line fix is proposed.
+6.4  Test-coverage gap: no test asserts the identity VALUES that reach the
+     Android component; a red-first orchestrator binding test is a prerequisite
+     of any D-1 fix (section 9).
+
+--------------------------------------------------------------------------------
+7. GOVERNANCE AND PROTECTED BOUNDARIES
+--------------------------------------------------------------------------------
+7.1  Canonical hierarchy: the master engineering command as supplied directly
+     by the CE in the audit conversation is authoritative; a Desktop copy of
+     the master context file exists (28855 b). Nine canonical governance
+     documents were verified present in docs/ during Gate 2 (architecture,
+     sanitization, transport, evidence, checklist and related contracts).
+7.2  Subsystem contracts preserved (verified during Gate 2, unchanged):
+     - Sanitization gates: SANITIZATION_ARCHITECTURE L158-176; operator
+       2-step barrier (ack L972-978, phrase L980-985) is a safeguard and is
+       EXCLUDED from any future fix scope.
+     - Transport: WINDOWS_ANDROID_TRANSPORT_ARCHITECTURE - raw WPD/PnP
+       instance IDs must not cross public IPC; Windows truth lives in the
+       transport layer; ADB authorization is not proof of physical connection.
+     - Evidence: DEVICE_EVIDENCE_ARCHITECTURE section 8/9 identity meanings.
+7.3  Protected files / boundaries for ANY future change:
+     - apps/web/src/api.ts (protected; currently DIRTY in the wave1 worktree -
+       never stage it, never run `git add .`).
+     - wave1 worktree: 22 dirty files; stage3 worktree: 1 untracked doc;
+       impl worktree: clean. The audit modified NONE of them.
+     - Release gates, licence/entitlement code (HostLicenseService debit
+       idempotency L1159-1160), signing, third-party driver handling, NSIS
+       installer artifacts, and device operations are out of scope for the
+       documentation task and for any unauthorized fix.
+7.4  Standing exclusions: register cleanup, backlog work, governance changes,
+     broad UI redesign, backend refactoring.
+
+--------------------------------------------------------------------------------
+8. OUTSTANDING CHIEF ENGINEER DECISIONS
+--------------------------------------------------------------------------------
+U-1  deviceLifecycleId origin and propagation.      [REQUIRES CE DECISION]
+     Governing contract: section 9.3 (see 6.2). Options:
+     (a) RECOMMENDED - defer identity propagation; build a CE-ratified
+         registry service (server-issued per-device lifecycle UUID, stored
+         host-side, never derived from hardware identifiers); fix the bridge
+         call only when the registry exists; keep a red-first binding test in
+         the meantime.
+     (b) Documented interim substitution of sessionUuid with an explicit
+         architecture waiver (records the defect as accepted risk).
+     (c) Hardware-derived ID - CONTRACT-FORBIDDEN, excluded.
+     Blocked until ratified: all D-1 code changes.
+
+U-2  Report retrieval ownership + empty-payload policy.  [REQUIRES CE DECISION]
+     Options:
+     (a) RECOMMENDED - serial-when-present comparison in the three retrieval
+         handlers; empty payloads (the current UI's normal behavior) keep
+         serving active-session state, with that policy made EXPLICIT rather
+         than silent. Smallest safe scope; no UI break; testable in isolation.
+     (b) Session-keyed responses (require matching sessionUuid) - breaks the
+         current UI unless changed in the same scope.
+     (c) Per-device state maps - largest scope; presumes multi-device support
+         that has never been physically demonstrated.
+     Blocked until ratified: D-2 implementation and the empty-payload policy
+     statement.
+
+U-3  Failed-scan state retention vs clearing.       [REQUIRES CE DECISION]
+     Options:
+     (a) RECOMMENDED - clear lastScan (and lifecycle state) on scan failure;
+         all downstream handlers then refuse via their existing noScanError
+         gates; pairs with U-2(a) to close the D-4 window. Recovery path is
+         simply re-scanning.
+     (b) Retain-but-tag - keep retention, add a stale marker surfaced to UI.
+     (c) Per-device/session scoping - same objections as U-2(c).
+     Blocked until ratified: D-4 implementation.
+
+U-4  Defect-register register-of-record.             [REQUIRES CE DECISION]
+     Desktop\Defect Register.txt (18848 b, 272 lines, mtime 19-10) and
+     docs/DEFECT_REGISTER_2026-10-18.md (20221 b, mtime 18-10) are DIFFERENT
+     artifacts (size/mtime). They must not be assumed equivalent. Recommended:
+     the Desktop TXT is the session register of record; the md is its committed
+     copy ONLY if CE confirms equivalence.
+
+U-5  Authorization to correct the Phase A audit
+     records (C1/C3/C4 and mirror in the closeout).    [REQUIRES CE DECISION
+     + BLOCKED for edits] Note: the Phase A closeout alignment TXT could not
+     be located this session (1.4); if CE holds a copy, provide it before its
+     correction is planned.
+
+U-6  O-3: confirm whether FINALISE_REPORT finalising a template instead of
+     the scan report is intended product behavior.     [REQUIRES CE DECISION]
+
+--------------------------------------------------------------------------------
+9. IMPLEMENTATION AND REGRESSION PLAN - NOT AUTHORIZED
+--------------------------------------------------------------------------------
+NOTHING IN THIS SECTION HAS BEEN IMPLEMENTED, TESTED, OR EXECUTED. Provided
+for later CE approval only. Order is dependency-aware; each step is red-first:
+
+  Step 1  D-2 (prereq U-2): serial-when-present comparison in
+          deviceReportResponse / exportReportResponse / finalReportResponse;
+          refusal code SERIAL_MISMATCH on mismatch.
+          Tests must FAIL before (mismatch currently served) and PASS after:
+          mismatch -> refused; match -> served; empty payload -> per U-2
+          ruling.
+  Step 2  D-4 (prereq U-3): clear lastScan on scan failure path.
+          Tests: failed scan -> GET_DEVICE_REPORT returns NO_ACTIVE_SCAN;
+          prior device data unreachable.
+  Step 3  D-3 (prereq U-2/U-3 policy): compare wire vs recorded serial at
+          L768/L994; refuse or log per CE ruling.
+          Tests: wire serial != recorded -> refusal/telemetry per ruling.
+  Step 4  D-1 (prereq U-1 RATIFIED): registry-backed identity propagation as
+          designed; orchestrator-level test asserting two DISTINCT values
+          reach the bridge (mock) - this test FAILS TODAY.
+  Step 5  Phase A record corrections (C1/C3/C4), document diff review by CE.
+
+Regression coverage required: failure-path state tests (step 2); lifecycle
+reset tests (scan L522, SANITIZE_START L818 keepStart semantics); refusal-
+populated lifecycleResult path (O-2) pinned as-is; entitlement debit
+idempotency (L1159-1160) untouched and re-asserted.
+
+Proposed validation commands (for later approval; NOT run):
+    .\gradlew :apps:host:test --tests "*HostProtocolDispatcher*"
+    pnpm --filter desktop test -- --maxWorkers=1
+
+Explicit exclusions: entitlement/licence code, release gates, sanitization
+barriers, governance documents, apps/web/src/api.ts, all wave1 dirty files,
+all device operations.
+
+--------------------------------------------------------------------------------
+10. PHYSICAL VERIFICATION AND CAPABILITY LIMITS
+--------------------------------------------------------------------------------
+10.1 Port baseline status (REPORTED; consistent with the baseline matrix
+     file): ALL FOUR PORTS PENDING - 0/4. The baseline sheet explicitly states
+     "No row below may be read as a pass."
+10.2 Operator-run checklist (for CE bench execution; serial masked <BENCH>):
+     Prerequisites: all four ports enumerated and stable; bench device
+     charged; ADB authorization pre-granted; licence installed; workstation
+     at 8f7e053 (or a later ratified build); baseline sheet open.
+     Per port: attach device -> GET_CONNECTED_DEVICES / GET_PREFLIGHT sanity
+     -> one full RUN_SCAN -> retrieval commands (empty payload per current
+     UI) -> record serial/session/reportId observed at each step; screenshot
+     each panel; note wall-clock.
+     Expected evidence: exactly one scan session per port; correct serial in
+     every response; artifacts under <cyvra.home>/reports/<reportId>/ with
+     matching SHA-256; entitlement debits reconcile.
+     Failure capture: record exact refusal code, host log excerpt, port
+     device state; max two retries; record verbatim.
+     STOP CONDITIONS: any response showing a DIFFERENT serial than the
+     attached device (immediate stop - potential D-2/D-4 reachability
+     evidence; escalate to CE before continuing); any destructive
+     sanitization attempt on an unconfirmed target; USB instability; any
+     ambiguous identity at any step.
+10.3 Capability limits: multi-device behavior and 50-device capacity remain
+     UNPROVEN and MUST NOT be claimed from this record. Only measured bench
+     runs can establish them.
+
+--------------------------------------------------------------------------------
+11. GIT AND PRESERVATION HISTORY
+--------------------------------------------------------------------------------
+11.1 Verified without mutation (this session, no fetch):
+     branch main; HEAD 8f7e05337070280c048b761f5e59d3a51abe8162;
+     working tree clean; origin/main == main (0 ahead/0 behind) after the
+     external push of 20-10-2026 17:07 +0530; remote origin = public GitHub
+     URL github.com/mukpswar-prog/CYVRA-Mobile (no credentials embedded).
+11.2 Preservation semantics:
+     - Committed main history is preserved by the remote once pushed (it now
+       is, at 8f7e053).
+     - A checkpoint branch (proposed name, still uncreated at time of
+       writing: backup/pre-gate2-checkpoint-2026-10-20) pointing at main
+       preserves ONLY the commit it references. It does NOT preserve and must
+       never be represented as backing up: the wave1 worktree's 22 dirty
+       files (including protected apps/web/src/api.ts), the stage3
+       worktree's untracked doc, or any other uncommitted/untracked content.
+     - No `git add .`; stage explicitly; never force-push/reset/clean/stash.
+11.3 Remote-state caveat: all remote statements here rest on LOCAL REFS only.
+     Verifying that the remote truly serves the expected refs requires a
+     fetch, which remains unauthorized (REQUIRES EXTERNAL/REMOTE
+     VERIFICATION).
+
+--------------------------------------------------------------------------------
+12. FINAL BLOCKER LIST AND NEXT AUTHORIZED MILESTONE
+--------------------------------------------------------------------------------
+12.1 REQUIRES CE DECISION: U-1, U-2, U-3, U-4 (register-of-record), U-5
+     (Phase A correction authorization), U-6 (FINALISE template intent).
+12.2 REQUIRES PHYSICAL VERIFICATION: four-port baseline (0/4); everything in
+     section 10.
+12.3 REQUIRES EXTERNAL/REMOTE VERIFICATION: remote ref state at any future
+     push time; existence of remote checkpoint branch (none expected).
+12.4 BLOCKED: all implementation, test execution, Phase A record edits, and
+     any Git mutation beyond this documentation publication.
+12.5 Approval sequence before any fix commit or push:
+     (1) CE ratifies U-1/U-2/U-3 (+U-4/U-5/U-6);
+     (2) optional local checkpoint branch created at 8f7e053;
+     (3) implementation proceeds strictly per section 9 order, as reviewed
+         patches with red-first tests - no commit/push without authorization;
+     (4) physical four-port baseline executed per section 10 and its evidence
+         attached;
+     (5) any push requires explicit authorization plus remote-state
+         verification.
+     Until all five are satisfied, every capability claim about multi-device
+     behavior, four-port operation, or 50-device capacity is PROHIBITED.
+
+================================================================================
+END OF CONSOLIDATED AUDIT RECORD
+This document changed no application code, no tests, no original audit
+records, and no governance documents.
+================================================================================
