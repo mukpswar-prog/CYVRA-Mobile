@@ -1,0 +1,163 @@
+================================================================================
+CYVRA MOBILE - SESSION HANDOFF
+End of day 20 October 2026 -> resume 21 October 2026
+================================================================================
+Prepared for : Chief Engineer (CE) / Principal Systems Architect
+Repository  : C:\Users\User\Documents\GitHub\CYVRA-Mobile
+Companion to: docs/CYVRA_MOBILE_CONSOLIDATED_AUDIT_RECORD_2026-10-20.txt
+              (the primary record; this handoff does not duplicate it)
+
+--------------------------------------------------------------------------------
+A. VERIFIED END-OF-DAY BASELINE
+--------------------------------------------------------------------------------
+- Repository (main worktree): C:\Users\User\Documents\GitHub\CYVRA-Mobile
+- Local branch at end of day : docs/session-handoff-2026-10-20
+                               created from verified main for this commit
+- Local main HEAD            : 4d572a87def047c76b690be35bdcf49e7858d003
+- Remote (GitHub) main HEAD  : 4d572a87def047c76b690be35bdcf49e7858d003
+                               (fetched this session; local = remote, 0 ahead /
+                               0 behind; ancestor checks exit 0)
+- Consolidated audit document:
+    path   : docs/CYVRA_MOBILE_CONSOLIDATED_AUDIT_RECORD_2026-10-20.txt
+    commit : ad8c2503508d7f9f17f7c24d3db6a43a671a0dbe
+    branch : docs/gate2-consolidated-audit-record-2026-10-20 (pushed; still
+             present on origin at ad8c250)
+- PR #62 status: MERGED into main on 20 October 2026 by cyvoriqtest-wq;
+  1 commit (ad8c250), 3 checks passed, merge commit 4d572a8. Verified directly
+  on GitHub (PR page) and locally (ad8c250 and pre-audit baseline 8f7e053 are
+  both ancestors of origin/main).
+- Local/remote discrepancy: NONE at end of day. Local main had already been
+  fast-forwarded externally (main reflog: "pull: fast-forward",
+  20-10-2026 20:54:11 +0530) after the PR merge; this session's fetch merely
+  re-verified the equality. NO sync, merge, reset, or ref update was performed
+  by this session - none was needed.
+- Main worktree working tree: CLEAN (only the new handoff file, which is
+  committed below).
+
+--------------------------------------------------------------------------------
+B. WORK COMPLETED TODAY (20 October 2026)
+--------------------------------------------------------------------------------
+1. Consolidated audit record written, verified (UTF-8, 516 lines, 12 sections,
+   32,814 bytes), committed as documentation-only commit ad8c250 on dedicated
+   branch docs/gate2-consolidated-audit-record-2026-10-20, pushed to origin,
+   and merged to GitHub main via PR #62. Exactly one file in that commit.
+2. Gate 2 source-evidence baseline established (Continuations 4E/4F): every
+   cited line cross-checked against the current tree; broken/aborted tool
+   output excluded from evidence.
+3. Confirmed findings (SOURCE-VERIFIED):
+   - D-1 Identity conflation: WorkstationSessionOrchestrator.kt:210 passes
+     sessionUuid for both (sessionUuid, deviceLifecycleId) arguments across a
+     two-identity contract (AndroidComponentModels.kt:83; bridge
+     HostAndroidComponentBridge.kt L53-55 / doc L49). No host-side lifecycle
+     registry exists; no test guards the binding.
+   - D-2 Unscoped report retrieval: GET_DEVICE_REPORT (L547),
+     EXPORT_REPORT (L620), GET_FINAL_REPORT (L1099) serve in-memory state
+     (lastScan / lifecycleResult) with no request-to-state ownership check;
+     dispatch (HostProtocolDispatcher.kt L113-132) and HostMain.processLine
+     (L53-60) add no identity validation; HostReportStore.kt is WRITE-ONLY
+     (169 lines, no read API). Classification: UNSCOPED RETRIEVAL PATH
+     CONFIRMED x3 - NOT physical cross-device exposure.
+   - D-3 Wire-supplied sanitization target override with no comparison:
+     SANITIZE_START L768, SANITIZE_EXECUTE L994.
+   - D-4 Failed scan retains prior successful lastScan (assigned only L521,
+     never cleared); lifecycle state IS reset on successful scan (L522) and
+     SANITIZE_START (L818, keepStart=true).
+4. Corrections C1-C7 preserved in the consolidated audit (latest()/byId()
+   withdrawal; scan-reset retraction; five->three consumers; GATE 1 STATUS
+   tail; Defect Register.txt found on Desktop; "two unpushed commits"
+   superseded by external push; broken-output evidence rule).
+5. NO application implementation, NO test changes, NO original audit record
+   changes, NO governance document changes were made today. Only two new
+   documents were created (the consolidated audit and this handoff).
+
+--------------------------------------------------------------------------------
+C. EXACT NEXT STARTING POINT
+--------------------------------------------------------------------------------
+NEXT TASK: Chief Engineer review and ratification of outstanding decisions
+U-1 through U-6, using the consolidated audit TXT as the primary record.
+Do NOT restart Phase A or Gate 2 source inspection unless a specific
+contradiction requires it.
+
+Decision subjects:
+  U-1  deviceLifecycleId origin and propagation (canonical contract:
+       DEVICE_EVIDENCE_ARCHITECTURE.md 9.3, L370-376; no registry exists in
+       source; hardware-identifier derivation is contract-forbidden).
+  U-2  Report retrieval ownership model and explicit empty-payload policy
+       (the current UI sends serials only for RUN_SCAN).
+  U-3  Failed-scan state retention vs clearing (D-4).
+  U-4  Defect-register register-of-record: Desktop\Defect Register.txt
+       (18,848 b) vs docs/DEFECT_REGISTER_2026-10-18.md (20,221 b) - different
+       artifacts; do not assume equivalent.
+  U-5  Authorization to correct the Phase A audit records (corrections C1/C3/C4).
+       Note: CYVRA-PhaseA-Closeout-Alignment-2026-10-20.txt could NOT be
+       located this session - if CE holds a copy, provide it.
+  U-6  Intended behavior of FINALISE_REPORT (currently finalises a freshly
+       generated template report, HostProtocolDispatcher.kt L681-685, not the
+       active scan report).
+
+--------------------------------------------------------------------------------
+D. CURRENT BLOCKERS
+--------------------------------------------------------------------------------
+- No implementation authorization; the plan in consolidated-audit section 9
+  is NOT AUTHORIZED.
+- No test execution or validation of any proposed fix has occurred.
+- Physical four-port baseline remains 0/4 (all rows PENDING) unless new
+  evidence proves otherwise.
+- Multi-device behavior and 50-device capacity remain UNPROVEN and must not
+  be claimed.
+- Remote state must be re-verified (fetch) before any future push; the local
+  ref picture is only as fresh as the last fetch.
+- Identity propagation (D-1 fix) remains BLOCKED until U-1 is ratified.
+- Protected files and unrelated dirty worktrees must remain untouched
+  (apps/web/src/api.ts is modified in wave1; never `git add .`).
+
+--------------------------------------------------------------------------------
+E. EXACT FIRST ACTIONS TOMORROW (21 October 2026)
+--------------------------------------------------------------------------------
+1. Read the consolidated audit TXT from GitHub main:
+   docs/CYVRA_MOBILE_CONSOLIDATED_AUDIT_RECORD_2026-10-20.txt
+2. Read this handoff file.
+3. Verify current repository branch, HEAD, worktree status, and remote state
+   (fetch, then compare local main vs origin/main).
+4. Review U-1 through U-6 and record explicit CE decisions.
+5. Only after those decisions, propose the smallest authorized implementation
+   and regression-test plan (per consolidated-audit section 9 order).
+6. Do not implement, test, commit, or push fixes until separately authorized.
+
+--------------------------------------------------------------------------------
+F. SAFETY AND PRESERVATION RULES
+--------------------------------------------------------------------------------
+- Do NOT use `git add .` - stage files explicitly, one at a time.
+- Do NOT mix unrelated worktree changes into any commit.
+- Do NOT modify apps/web/src/api.ts or other protected release files without
+  specific authorization.
+- Do NOT overwrite existing branches or handoff files (including this one -
+  create a dated successor instead).
+- No physical device operations or USB tests without CE bench instruction.
+- No application source or test changes outside an authorized fix scope.
+- Never force-push, reset, clean, stash, or rewrite refs to "fix" a state;
+  preserve and report blockers instead.
+
+--------------------------------------------------------------------------------
+PRESERVATION SNAPSHOT (read-only, taken this session, untouched)
+--------------------------------------------------------------------------------
+Worktrees:
+  main  C:/Users/User/Documents/GitHub/CYVRA-Mobile
+        @ 4d572a8 [docs/session-handoff-2026-10-20 at save; main=4d572a8]
+  .worktrees/cyvra-mobile-implementation @ f99995f (detached) - CLEAN
+  CYVRA-Mobile-stage3-final-truth @ 2463f79
+        [cyvra/stage3-final-truth-consolidation] - 1 untracked:
+        ?? docs/CYVRA_MOBILE_MASTER_ENGINEERING_CONTEXT.txt
+  CYVRA-Mobile-wave1 @ f4f253b [cyvra/engineering-wave-1] - 22 dirty entries
+        including PROTECTED M apps/web/src/api.ts (plus .gitignore,
+        database/*, pnpm-lock.yaml, pnpm-workspace.yaml, ...)
+Stashes (intact, unmodified):
+  stash@{0}: On cursor/g0-g3-mobile-slice-7474: !!GitHub_Desktop<cursor/g0-g3-mobile-slice-7474>
+  stash@{1}: On cyvra-mobile-implementation: B3A failed native USB notification attempt - preserved 2026-09-18
+Remotes:
+  origin https://github.com/mukpswar-prog/CYVRA-Mobile
+
+================================================================================
+END OF HANDOFF - resume at section C. No engineering work was performed after
+this document was saved.
+================================================================================
