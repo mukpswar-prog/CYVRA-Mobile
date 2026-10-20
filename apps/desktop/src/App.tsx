@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
@@ -15,6 +15,21 @@ import type { LedgerReadResult } from "./ledger/parseLedger";
 declare const __CYVRA_BUILD_COMMIT__: string;
 
 const BUILD_COMMIT: string = __CYVRA_BUILD_COMMIT__;
+
+/**
+ * Number of fixed slots on the Connected Devices dashboard.
+ *
+ * A slot is a position on the board, not a phone: on a workstation with one
+ * handset attached, 49 slots are empty and that is the normal case. This
+ * number bounds what the dashboard can display. It is not a claim that 50
+ * phones are present, and it is not the scan allowance - the Host reports
+ * that separately as `scansRemaining`.
+ */
+const DEVICE_SLOT_CAPACITY = 50;
+
+/** CYVRA.01 .. CYVRA.50 - a dashboard slot number, never a serial or a report ID. */
+const slotLabelFor = (slotNumber: number): string =>
+  `CYVRA.${slotNumber.toString().padStart(2, "0")}`;
 
 type HostInfoResult = {
   connected: boolean;
@@ -104,6 +119,52 @@ type DeviceRowState = {
   reason: string;
   /** True only after `EXPORT_REPORT` returned OK for this serial. */
   exportedOk: boolean;
+  /**
+   * This phone's own six-stage bar.
+   *
+   * Written only where an operation already patches this row, so every entry
+   * traces to a Host response that named this serial - never to a global
+   * envelope belonging to whichever phone happened to be scanned last.
+   * Optional so a row that has done nothing simply has no entries, which the
+   * bar renders as `pending`.
+   */
+  stages?: Partial<Record<StageKey, StageRecord>>;
+};
+
+/**
+ * The six stages of the workflow bar, in display order.
+ *
+ * These are presentation labels for the same six operations the wizard runs;
+ * `StageKey` maps onto `StepKey` below by name, so no second set of stage
+ * definitions is introduced.
+ */
+type StageKey = "connect" | "scan" | "applications" | "sanitize" | "verify" | "download";
+
+/**
+ * How one stage of one phone's workflow is doing.
+ *
+ *   PENDING       nothing has been attempted for this phone
+ *   IN PROGRESS   an operation for this phone has genuinely started
+ *   COMPLETED     the operation reported full success
+ *   PARTIAL       the operation answered, but its own result says the outcome
+ *                 was incomplete - never rendered as full success
+ *   BLOCKED       the Host answered and governance refused it - never a success
+ *   FAILED        the operation refused or the bridge failed
+ */
+type StageTone =
+  | "pending"
+  | "in-progress"
+  | "completed"
+  | "partial"
+  | "blocked"
+  | "failed";
+
+type StageRecord = {
+  tone: StageTone;
+  /** Short operator-facing sentence. Carries the reason for anything not OK. */
+  note: string;
+  /** Local wall-clock time the operation reported, "HH:MM". */
+  at?: string;
 };
 
 type SanitizeStage = "start" | "authorize" | "confirm" | "execute";
@@ -213,6 +274,181 @@ const STEPS: StepMeta[] = [
     next: "The files stay with the scan on this laptop; nothing is uploaded anywhere.",
   },
 ];
+
+/**
+ * The six workflow segments, in display order.
+ *
+ * `key` is the same stage key the wizard uses, so a segment and the operation
+ * that drives it can never drift apart. `hue` is presentation only - it gives
+ * a segment its colour identity and never decides a state: the state comes
+ * from the phone's own `stages` record and is always printed in words beside
+ * the symbol, so colour is never the sole signal.
+ *
+ * `head` is the column header text only, and it is never the accessible name -
+ * that stays `label` via `aria-label`, so the full unbroken word is always
+ * available to a screen reader.
+ *
+ * A 52px column cannot hold "Applications" or "Download" on one line. Soft
+ * hyphens (U+00AD) were tried first and are NOT honoured here: Chromium /
+ * WebView2 declined to use them because the syllable before the break did not
+ * fit the content box either, and it fell back to a character-boundary break
+ * with no hyphen printed - "Applicatio/ns", which reads as a rendering fault.
+ * `hyphens: auto` is also a no-op: that engine ships no hyphenation
+ * dictionary, so the property does nothing regardless of the document
+ * language.
+ *
+ * So the break is stated outright: a real hyphen followed by a newline, with
+ * `white-space: pre-line` on the header. The hyphen is an ordinary character
+ * and is always drawn, so the header reads as typeset ("Applica-" / "tions")
+ * instead of accidentally split.
+ */
+const STAGE_SEGMENTS: { key: StageKey; label: string; hue: string; head: string }[] = [
+  { key: "connect", label: "Connect", hue: "blue", head: "Connect" },
+  { key: "scan", label: "Scan", hue: "orange", head: "Scan" },
+  {
+    key: "applications",
+    label: "Applications",
+    hue: "purple",
+    head: "Applica-\ntions",
+  },
+  { key: "sanitize", label: "Sanitize", hue: "teal", head: "Sanitize" },
+  { key: "verify", label: "Verify", hue: "indigo", head: "Verify" },
+  { key: "download", label: "Download", hue: "green", head: "Down-\nload" },
+];
+
+/** Plain-language state word shown inside a segment. */
+const STAGE_TONE_TEXT: Record<StageTone, string> = {
+  pending: "Pending",
+  "in-progress": "In progress",
+  completed: "Completed",
+  partial: "Partial",
+  blocked: "Blocked",
+  failed: "Failed",
+};
+
+/** Symbol shown inside a segment. Paired with the word, never a replacement. */
+const STAGE_TONE_GLYPH: Record<StageTone, string> = {
+  pending: "○",
+  "in-progress": "◔",
+  completed: "✓",
+  partial: "◑",
+  blocked: "⊘",
+  failed: "✕",
+};
+
+/** Class-name slug for a stage tone. */
+const stageToneSlug: Record<StageTone, string> = {
+  pending: "pending",
+  "in-progress": "in-progress",
+  completed: "completed",
+  partial: "partial",
+  blocked: "blocked",
+  failed: "failed",
+};
+
+/** Class-name slug for a derived row status ("In progress" -> "in-progress"). */
+const slugify = (value: string): string => value.toLowerCase().replace(/\s+/g, "-");
+
+/**
+ * Row state for a slot no phone has ever claimed.
+ *
+ * One shared object rather than a fresh literal per slot: 50 empty slots would
+ * otherwise allocate 50 identical records on every render. Safe to share
+ * because every write path replaces the row object instead of mutating it, and
+ * `stages` is left absent so an empty slot reads as "nothing has happened here"
+ * rather than borrowing any phone's result.
+ */
+const EMPTY_ROW_STATE: DeviceRowState = Object.freeze({
+  phase: "idle",
+  status: "Not started",
+  reason: "",
+  exportedOk: false,
+} as const);
+
+/**
+ * Execution statuses that mean NO wipe took place.
+ *
+ * Every status the Host can answer when the purge did not run: the device has
+ * no enrolled agent, its eligibility could not be read, or the trigger never
+ * reached it. A stage carrying one of these is BLOCKED and is never rendered
+ * as completed.
+ *
+ * `TRIGGERED_AGENT_BASED_REBOOT_PENDING` is deliberately NOT in this list: it
+ * means a wipe was requested, and whether it completed is established only
+ * later, by post-reset verification.
+ *
+ * Module scope because `runSanitize` records the sanitize stage against the
+ * phone it was sent for, and that function is declared above the point where
+ * the list used to live.
+ */
+const BLOCKED_EXECUTION_STATUSES = [
+  "BLOCKED_NOT_ELIGIBLE",
+  "BLOCKED_ELIGIBILITY_NOT_ESTABLISHED",
+  "FAILED_TRIGGER_NOT_ISSUED",
+  // Not a success and not a failure: the command went out and the device stopped
+  // answering, which is what a wipe does as it starts. It must be shown as
+  // unsettled, never as done and never as failed.
+  "TRIGGER_OUTCOME_INDETERMINATE",
+];
+
+/**
+ * Row label a phone is carried under in the monitoring dashboard.
+ *
+ * Precedence is chosen so that a row can never read as better than it is:
+ *
+ *   Disconnected  the phone is gone - stated first, before any colour is read
+ *   Scanning      the scan itself is running right now
+ *   In progress   some other stage is running right now
+ *   Failed        a stage reported failure
+ *   Blocked       a stage was refused (governance, or ALLOW not tapped)
+ *   Partial       a stage answered with less than full coverage
+ *   Completed     every one of the six stages genuinely completed
+ *   Pending       otherwise - work remains
+ *
+ * The property that matters: `Completed` is reached ONLY when all six stages
+ * read completed, so an overall status can never launder a blocked Sanitize or
+ * a partial Applications answer into a green row. On a build where the purge is
+ * held by decision D-1, Sanitize never reaches `completed`, which means no row
+ * reports `Completed` - that is the truthful output, not a defect, and it is
+ * reported as such rather than papered over.
+ */
+function overallFor(
+  stages: { key: StageKey; tone: StageTone }[],
+  disconnected: boolean,
+): string {
+  if (disconnected) {
+    return "Disconnected";
+  }
+
+  const toneOf = (key: StageKey): StageTone =>
+    stages.find((stage) => stage.key === key)?.tone ?? "pending";
+
+  if (toneOf("scan") === "in-progress") {
+    return "Scanning";
+  }
+
+  if (stages.some((stage) => stage.tone === "in-progress")) {
+    return "In progress";
+  }
+
+  if (stages.some((stage) => stage.tone === "failed")) {
+    return "Failed";
+  }
+
+  if (stages.some((stage) => stage.tone === "blocked")) {
+    return "Blocked";
+  }
+
+  if (stages.some((stage) => stage.tone === "partial")) {
+    return "Partial";
+  }
+
+  if (stages.every((stage) => stage.tone === "completed")) {
+    return "Completed";
+  }
+
+  return "Pending";
+}
 
 /**
  * Stepper tone for a stage. Six words, each derived from a predicate the
@@ -525,8 +761,6 @@ function SerialProvenance({
   );
 }
 
-type DeviceView = { text: string; ready: boolean };
-
 /**
  * Which of the workstation's two top-level views is on screen.
  *
@@ -538,70 +772,15 @@ type DeviceView = { text: string; ready: boolean };
 type ScreenKey = "workflow" | "ledger";
 
 /**
- * Turns the Host's connection enums into one plain sentence for the operator.
+ * The old `deviceView()` sentence-builder lived here and turned the Host's
+ * connection enums into one plain sentence for the removed connection panel.
+ * It is gone with that panel - nothing on this view renders it any more.
  *
- * The raw enums (NO_DEVICE, USB_DETECTED, ADB_DETECTED, ADB_UNAVAILABLE,
- * ADB_UNAUTHORIZED, ADB_OFFLINE, ADB_READY) and the Host's own diagnostic
- * strings never reach the operator view - no part of the interface renders
- * them. Two rules here are deliberate and
- * must not be relaxed:
- *
- *   - `ready` is produced only when the Host itself reported readyToScan
- *     with an ADB_READY device present, so an unauthorized phone can never
- *     be shown as ready;
- *   - a phone that is plugged in but not yet authorised is never reported
- *     as absent.
+ * The rules it enforced were never cosmetic and are carried forward untouched
+ * in the gates themselves: `readyToScan` plus `ADB_READY` plus a real device
+ * is still the only combination `preflightReady` accepts, and an unauthorized
+ * phone is still never treated as connected.
  */
-function deviceView(deviceState: DeviceStateResult | null, failed: boolean): DeviceView {
-  if (!deviceState) {
-    return {
-      text: failed
-        ? "Checking the phone failed - the workstation engine did not answer."
-        : "Checking the phone connection...",
-      ready: false,
-    };
-  }
-
-  const ready =
-    deviceState.readyToScan === true &&
-    deviceState.adbState === "ADB_READY" &&
-    deviceState.device !== null;
-
-  if (ready) {
-    const device = deviceState.device;
-    const name = (device?.model ?? "").trim() || (device?.serial ?? "").trim();
-    return { text: name ? `Phone ready: ${name}` : "Phone ready", ready: true };
-  }
-
-  if (deviceState.usbState === "USB_NOT_CONNECTED") {
-    return {
-      text: "No phone detected. Connect the phone to any USB port of this laptop with a data cable.",
-      ready: false,
-    };
-  }
-
-  if (deviceState.adbState === "ADB_OFFLINE") {
-    return {
-      text: "Phone is reconnecting. Check the USB cable, or unplug it and plug it back in.",
-      ready: false,
-    };
-  }
-
-  if (
-    deviceState.adbState === "ADB_UNAVAILABLE" ||
-    deviceState.adbState === "ADB_UNAUTHORIZED"
-  ) {
-    return {
-      text: "Phone detected on USB. On the phone: enable USB debugging (Developer options) and tap ALLOW when asked to trust this computer.",
-      ready: false,
-    };
-  }
-
-  return {
-    text: "Phone detected, but the workstation cannot read its state yet. Check the phone screen and try again.",
-    ready: false,
-  };
-}
 
 function App() {
   const [host, setHost] = useState<HostInfoResult | null>(null);
@@ -611,7 +790,15 @@ function App() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
   const [preflight, setPreflight] = useState<HostEnvelope | null>(null);
-  const [deviceState, setDeviceState] = useState<DeviceStateResult | null>(null);
+  /**
+   * The Host's device-state reply.
+   *
+   * The payload itself is no longer stored: it was only ever read by the
+   * removed connection panel. What still matters from this query is carried
+   * by the other two stores - `deviceStateError` drives the connect-stage
+   * failure, and `adoptHostSerial` takes the serial that the whole rest of
+   * the workflow is keyed by - so the command still runs exactly as before.
+   */
   const [deviceStateError, setDeviceStateError] = useState<string | null>(null);
 
   const [serial, setSerial] = useState("");
@@ -652,11 +839,73 @@ function App() {
   const [devicesLoading, setDevicesLoading] = useState(true);
   const [devicesError, setDevicesError] = useState<string | null>(null);
 
+  /**
+   * Wall-clock label of the last inventory refresh the Host actually answered.
+   *
+   * Set only when `GET_CONNECTED_DEVICES` returned `OK`, so the timestamp is a
+   * real response time rather than a render time - and it stays where it was
+   * when a later refresh is refused, because a failed poll must not present
+   * itself as a successful one.
+   */
+  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
+
+  /** Dashboard toolbar. Both filters operate on the real inventory only. */
+  const [slotQuery, setSlotQuery] = useState("");
+  const [slotStatusFilter, setSlotStatusFilter] = useState<string>("all");
+
+  /**
+   * Stable CYVRA slot assignment: serial -> slot number.
+   *
+   * A serial is given the lowest slot number that is not yet taken, and it
+   * keeps that number for the life of this window. That means:
+   *  - unplugging and replugging a phone returns it to its own slot, so a
+   *    report can never be handed back against the wrong handset;
+   *  - two phones are never given the same slot;
+   *  - a slot is released only when this component unmounts, never because a
+   *    phone dropped off the bus.
+   *
+   * Deliberately NOT derived from the order devices appear in an enumeration
+   * result, and not persisted: persistence across a restart belongs with the
+   * per-device report store, not with the dashboard.
+   */
+  const [slotOfSerial, setSlotOfSerial] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setSlotOfSerial((previous) => {
+      const taken = new Set(Object.values(previous));
+      const next: Record<string, number> = { ...previous };
+      let changed = false;
+
+      for (const device of connectedDevices) {
+        if (next[device.serial] !== undefined) continue;
+        let slot = 1;
+        while (slot <= DEVICE_SLOT_CAPACITY && taken.has(slot)) slot += 1;
+        // Capacity exhausted: leave the phone unslotted and say so, rather
+        // than inventing an identifier for it.
+        if (slot > DEVICE_SLOT_CAPACITY) break;
+        next[device.serial] = slot;
+        taken.add(slot);
+        changed = true;
+      }
+
+      return changed ? next : previous;
+    });
+  }, [connectedDevices]);
+
   /** `GET_LICENSE_STATE` answer, needed before a row's Scan may arm (D-3). */
   const [licensePresent, setLicensePresent] = useState<boolean | null>(null);
 
-  /** Which stage of the wizard is on screen. Navigation only: it gates nothing. */
-  const [activeStep, setActiveStep] = useState<StepKey>("connect");
+  /**
+   * Which stage of the wizard is on screen. Navigation only: it gates nothing.
+   *
+   * Opens on Scan because the connection step is no longer a wizard panel: the
+   * 50-slot dashboard above carries every phone's connection state, so a
+   * separate "Workstation and phone connection" panel would show the same
+   * fact twice. The underlying checks still run - GET_PREFLIGHT and
+   * GET_DEVICE_STATE are still issued on mount, and they still feed the stage
+   * gates below - only the display is gone.
+   */
+  const [activeStep, setActiveStep] = useState<StepKey>("scan");
 
   /** Which top-level view is on screen. Navigation only, like `activeStep`. */
   const [screen, setScreen] = useState<ScreenKey>("workflow");
@@ -750,7 +999,6 @@ function App() {
 
     try {
       const next = await invoke<DeviceStateResult>("get_device_state");
-      setDeviceState(next);
       adoptHostSerial(next.device?.serial ?? null);
       return next;
     } catch (error) {
@@ -797,6 +1045,10 @@ function App() {
         setDevicesError(null);
         setAdbAvailable(payload.adbAvailable === true);
         setConnectedDevices(rows);
+        // Recorded only here, on the OK path: a refused listing leaves the
+        // previous stamp alone so the screen never shows a fresh-looking time
+        // on top of stale data.
+        setLastRefreshAt(clockNow());
 
         return rows;
       } catch (error) {
@@ -847,6 +1099,46 @@ function App() {
       return { ...current, [rowSerial]: { ...existing, ...patch } };
     });
   }, []);
+
+  /**
+   * Records ONE stage result for ONE phone.
+   *
+   * Deliberately separate from `patchRow`: a stage entry is merged one key at
+   * a time, so Applications being recorded can never overwrite Scan's own
+   * outcome on the same row. That is what lets a phone show Scan = Completed
+   * and Applications = In Progress at the same instant, and what stops one
+   * phone's operation from touching another phone's bar - every call names
+   * the serial the command was actually sent for.
+   */
+  const patchStage = useCallback(
+    (rowSerial: string, key: StageKey, record: StageRecord) => {
+      if (!rowSerial) {
+        return;
+      }
+
+      setDeviceRows((current) => {
+        const existing: DeviceRowState = current[rowSerial] ?? {
+          phase: "idle",
+          status: "Not started",
+          reason: "",
+          exportedOk: false,
+        };
+
+        return {
+          ...current,
+          [rowSerial]: {
+            ...existing,
+            stages: { ...existing.stages, [key]: record },
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  /** Local wall-clock "HH:MM" for the moment a Host response arrived. */
+  const clockNow = (): string =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   useEffect(() => {
     let cancelled = false;
@@ -943,6 +1235,11 @@ function App() {
     }
 
     patchRow(scanSerial, { phase: "scanning", status: "In progress", reason: "" });
+    patchStage(scanSerial, "scan", {
+      tone: "in-progress",
+      note: "The inspection engine is reading this phone.",
+      at: clockNow(),
+    });
 
     const envelope = await send("RUN_SCAN", payload);
     setScan(envelope);
@@ -955,11 +1252,46 @@ function App() {
         reason: "Scan finished for this phone. The report is ready to review.",
         exportedOk: false,
       });
+
+      // A fresh scan invalidates this phone's downstream stages, so they go
+      // back to pending rather than carrying the previous scan's result.
+      const completeness = readString(payloadOf(envelope), "enumerationCompleteness");
+      patchStage(scanSerial, "scan", {
+        tone: completeness !== null && completeness !== "COMPLETE" ? "partial" : "completed",
+        note:
+          completeness === null
+            ? "Scan finished. The engine did not report an enumeration completeness value."
+            : completeness === "COMPLETE"
+              ? "Scan finished. Enumeration was complete."
+              : `Scan finished, but enumeration is ${completeness}.`,
+        at: clockNow(),
+      });
+      patchStage(scanSerial, "applications", {
+        tone: "pending",
+        note: "Not loaded for this phone yet.",
+      });
+      patchStage(scanSerial, "sanitize", {
+        tone: "pending",
+        note: "Not attempted for this phone.",
+      });
+      patchStage(scanSerial, "verify", {
+        tone: "pending",
+        note: "No checks recorded for this phone yet.",
+      });
+      patchStage(scanSerial, "download", {
+        tone: "pending",
+        note: "This phone's report has not been written yet.",
+      });
     } else {
       patchRow(scanSerial, {
         phase: "idle",
         status: "Failed",
         reason: envelopeReason(envelope, ""),
+      });
+      patchStage(scanSerial, "scan", {
+        tone: "failed",
+        note: envelopeReason(envelope, "The engine refused the scan for this phone."),
+        at: clockNow(),
       });
     }
 
@@ -975,6 +1307,11 @@ function App() {
     const target = (lastScanSerial ?? serial).trim();
 
     patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
+    patchStage(target, "applications", {
+      tone: "in-progress",
+      note: "Reading this phone's application inventory.",
+      at: clockNow(),
+    });
 
     const envelope = await send("GET_APPLICATION_INVENTORY", {});
     setInventory(envelope);
@@ -984,6 +1321,24 @@ function App() {
       status: envelope?.status === "OK" ? "Ok" : "Failed",
       reason: envelopeReason(envelope, inventoryOutcomeText(envelope)),
     });
+
+    // The engine's own enumeration completeness decides the stage - an answer
+    // that says UNAVAILABLE or PARTIAL is never recorded as full success.
+    const completeness = readString(payloadOf(envelope), "enumerationCompleteness");
+    const failed = envelope?.status !== "OK";
+
+    patchStage(target, "applications", failed
+      ? {
+          tone: "failed",
+          note: envelopeReason(envelope, "The engine refused the application list for this phone."),
+          at: clockNow(),
+        }
+      : {
+          tone:
+            completeness !== null && completeness !== "COMPLETE" ? "partial" : "completed",
+          note: inventoryOutcomeText(envelope),
+          at: clockNow(),
+        });
   };
 
   const runSanitize = async (stage: SanitizeStage) => {
@@ -1007,6 +1362,11 @@ function App() {
     const target = (lastScanSerial ?? serial).trim();
 
     patchRow(target, { phase: "sanitize", status: "In progress", reason: "" });
+    patchStage(target, "sanitize", {
+      tone: "in-progress",
+      note: "The workstation is working through the purge guide for this phone.",
+      at: clockNow(),
+    });
 
     const envelope = await send(SANITIZE_COMMANDS[stage], payload);
     setSanitize((current) => ({ ...current, [stage]: envelope }));
@@ -1019,12 +1379,57 @@ function App() {
       status: accepted ? "Ok" : "Failed",
       reason: envelopeReason(envelope, "The purge guide recorded this step."),
     });
+
+    // Governance, not the operator, decides this stage's colour. An execution
+    // whose status means "no wipe took place" is BLOCKED and is recorded as
+    // blocked against this phone - never completed, whatever the guide did.
+    const outcomeStatus =
+      stage === "execute" ? readString(payloadOf(envelope), "executionStatus") : null;
+    const governanceBlocked =
+      outcomeStatus !== null && BLOCKED_EXECUTION_STATUSES.includes(outcomeStatus);
+
+    if (governanceBlocked) {
+      patchStage(target, "sanitize", {
+        tone: "blocked",
+        note:
+          outcomeStatus === "TRIGGER_OUTCOME_INDETERMINATE"
+            ? "No wipe is confirmed for this phone. The outcome is unsettled and is not reported as done."
+            : "Blocked: this build does not perform the purge, so no sanitization has occurred.",
+        at: clockNow(),
+      });
+    } else if (stage === "execute" && accepted) {
+      patchStage(target, "sanitize", {
+        tone: "partial",
+        note:
+          "The trigger was issued for this phone. Completion is established only by post-reset verification, not by this step.",
+        at: clockNow(),
+      });
+    } else if (accepted) {
+      // A guide step was recorded. That is progress through the guide and
+      // nothing more - it is never a sanitization of the phone.
+      patchStage(target, "sanitize", {
+        tone: "in-progress",
+        note: "A purge-guide step was recorded for this phone. Nothing has been erased.",
+        at: clockNow(),
+      });
+    } else {
+      patchStage(target, "sanitize", {
+        tone: "failed",
+        note: envelopeReason(envelope, "The workstation refused this purge-guide step."),
+        at: clockNow(),
+      });
+    }
   };
 
   const runExport = async () => {
     const target = (lastScanSerial ?? serial).trim();
 
     patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
+    patchStage(target, "download", {
+      tone: "in-progress",
+      note: "Writing this phone's report to disk.",
+      at: clockNow(),
+    });
 
     const envelope = await send("EXPORT_REPORT", {});
     setExported(envelope);
@@ -1036,11 +1441,21 @@ function App() {
         reason: "Report downloaded for this phone.",
         exportedOk: true,
       });
+      patchStage(target, "download", {
+        tone: "completed",
+        note: "This phone's report was written and is ready to download.",
+        at: clockNow(),
+      });
     } else {
       patchRow(target, {
         phase: "idle",
         status: "Failed",
         reason: envelopeReason(envelope, ""),
+      });
+      patchStage(target, "download", {
+        tone: "failed",
+        note: envelopeReason(envelope, "The workstation could not write this phone's report."),
+        at: clockNow(),
       });
     }
   };
@@ -1074,6 +1489,17 @@ function App() {
       })
       .filter((row): row is { id: string; outcome: string } => row !== null);
 
+    // This stage previously recorded nothing against a phone, which left Verify
+    // ungovernable per device. It now targets the same serial the other stages
+    // use, so the bar's Verify segment belongs to the phone it was taken on.
+    const target = (lastScanSerial ?? serial).trim();
+
+    patchStage(target, "verify", {
+      tone: "in-progress",
+      note: "Recording this phone's technician checks.",
+      at: clockNow(),
+    });
+
     const envelope = await send("RECORD_CHECKLIST", { results });
     setChecklistRecorded(envelope);
 
@@ -1081,6 +1507,17 @@ function App() {
     // so re-read the catalogue too: it carries the same progress for display.
     if (envelope?.status === "OK") {
       setChecklist(await send("GET_CHECKLIST", {}));
+      patchStage(target, "verify", {
+        tone: "completed",
+        note: "The technician's checks were recorded for this phone.",
+        at: clockNow(),
+      });
+    } else {
+      patchStage(target, "verify", {
+        tone: "failed",
+        note: envelopeReason(envelope, "The workstation did not record this phone's checks."),
+        at: clockNow(),
+      });
     }
   };
 
@@ -1095,6 +1532,11 @@ function App() {
     const target = (lastScanSerial ?? serial).trim();
 
     patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
+    patchStage(target, "download", {
+      tone: "in-progress",
+      note: "Finalising this phone's report.",
+      at: clockNow(),
+    });
 
     const envelope = await send("FINALISE_REPORT", { operatorId: operatorId.trim() });
     setFinalised(envelope);
@@ -1106,11 +1548,21 @@ function App() {
         reason: "Report finalised, operator-authorised and sealed.",
         exportedOk: true,
       });
+      patchStage(target, "download", {
+        tone: "completed",
+        note: "This phone's report was finalised, operator-authorised and sealed.",
+        at: clockNow(),
+      });
     } else {
       patchRow(target, {
         phase: "idle",
         status: "Failed",
         reason: envelopeReason(envelope, ""),
+      });
+      patchStage(target, "download", {
+        tone: "failed",
+        note: envelopeReason(envelope, "The workstation did not finalise this phone's report."),
+        at: clockNow(),
       });
     }
   };
@@ -1129,21 +1581,6 @@ function App() {
   const executePayload = payloadOf(sanitize.execute);
 
   const executeStatus = readString(executePayload, "executionStatus");
-  // An execution that did not happen must be rendered as such. The set covers every
-  // status the host can answer when no wipe took place: the device has no enrolled
-  // agent, its eligibility could not be read at all, or the trigger did not reach it.
-  // TRIGGERED_AGENT_BASED_REBOOT_PENDING is deliberately NOT in this list: it means a
-  // wipe was requested, and whether it completed is established only later, by
-  // post-reset verification.
-  const BLOCKED_EXECUTION_STATUSES = [
-    "BLOCKED_NOT_ELIGIBLE",
-    "BLOCKED_ELIGIBILITY_NOT_ESTABLISHED",
-    "FAILED_TRIGGER_NOT_ISSUED",
-    // Not a success and not a failure: the command went out and the device stopped
-    // answering, which is what a wipe does as it starts. It must be shown as
-    // unsettled, never as done and never as failed.
-    "TRIGGER_OUTCOME_INDETERMINATE",
-  ];
   // `readString` returns null when the field is absent, and an absent status is not a
   // blocked outcome - it is no outcome at all. The guard makes that explicit instead of
   // leaning on the implicit null → false coercion, which is what kept this line a type
@@ -1369,39 +1806,11 @@ function App() {
     lockWhenBusy ?? (!confirmOk ? "Confirm the purge first." : null);
 
   /**
-   * Operator-facing phone connection line, and the phones that are actually
-   * ready. Both derive from the Host's device state; nothing here is
-   * computed locally or assumed.
+   * The workstation check (`preflight`) is NOT turned into operator copy
+   * here any more. It was only ever rendered by the removed connection panel;
+   * the envelope itself is still consumed below by `connectPassed`,
+   * `stepLock` and `stageEnvelope`, so the gate is intact and unchanged.
    */
-  const device = deviceView(deviceState, deviceStateError !== null);
-  const readyDevices =
-    device.ready && deviceState?.device ? [deviceState.device] : [];
-  const readyCount = readyDevices.length;
-
-  /**
-   * One-line workstation check. The green check is shown only when the Host
-   * both answered OK and reported readyToScan - anything else is a plain
-   * starting or failed line, never a success.
-   */
-  const preflightTone: "ok" | "failed" | "pending" =
-    preflight === null
-      ? bridgeError !== null || hostError !== null
-        ? "failed"
-        : "pending"
-      : preflight.status === "ERROR" || preflightReady !== true
-        ? "failed"
-        : "ok";
-
-  const preflightLine =
-    preflight === null
-      ? preflightTone === "failed"
-        ? "Workstation check failed - the workstation engine did not answer."
-        : "Workstation check is still starting..."
-      : preflight.status === "ERROR"
-        ? "Workstation check failed - the workstation reported a problem."
-        : preflightReady === true
-          ? "Workstation ready - successfully installed."
-          : "Workstation check did not pass - read the message below, then run the check again.";
 
   const activeMeta = STEPS.find((step) => step.key === activeStep) ?? STEPS[0];
   const activeLock = stepLock[activeStep];
@@ -1489,8 +1898,400 @@ function App() {
     const reportReady =
       rowState.exportedOk && rowState.status === "Ok" && lastScanSerial === device.serial;
 
-    return { device, number: index + 1, rowState, activeReason, scanLock, reportReady };
+    const slotNumber = slotOfSerial[device.serial];
+
+    return {
+      device,
+      number: index + 1,
+      rowState,
+      activeReason,
+      scanLock,
+      reportReady,
+      slotLabel: slotNumber === undefined ? null : slotLabelFor(slotNumber),
+    };
   });
+
+  /**
+   * The Connected Devices dashboard: always exactly 50 slots, always drawn.
+   *
+   * A slot is `occupied` when the Host currently reports a phone at that
+   * slot number, `disconnected` when the slot's phone dropped off the bus,
+   * and `empty` when nothing has ever claimed it. No slot is ever drawn as
+   * occupied on the strength of a guess, a count, or a previous session: the
+   * only input is the Host's own device inventory.
+   */
+  /**
+   * The 50-slot view: one row per CYVRA slot, in slot order.
+   *
+   * Empty slots are included deliberately rather than filtered out - the
+   * operator must see the whole rack, including the holes in it, and a slot
+   * only ever shows a phone the Host actually reported at that number.
+   */
+  const deviceSlotsView = Array.from({ length: DEVICE_SLOT_CAPACITY }, (_, index) => {
+    const slotNumber = index + 1;
+    const label = slotLabelFor(slotNumber);
+
+    const serial = Object.keys(slotOfSerial).find(
+      (candidate) => slotOfSerial[candidate] === slotNumber,
+    );
+
+    // ---- Empty slot: no phone has ever claimed this number. ---------------
+    // Every stage is pending and the row says Empty. Nothing here is invented.
+    if (serial === undefined) {
+      const emptyStages = STAGE_SEGMENTS.map((segment) => ({
+        key: segment.key,
+        tone: "pending" as StageTone,
+        note: "No phone is in this slot.",
+      }));
+
+      return {
+        slotNumber,
+        label,
+        serial: null,
+        tone: "empty" as const,
+        device: null,
+        modelMake: "",
+        stages: emptyStages,
+        overall: "Empty" as const,
+        overallNote: "This slot holds no device.",
+        rowState: EMPTY_ROW_STATE,
+      };
+    }
+
+    const device = connectedDevices.find((candidate) => candidate.serial === serial) ?? null;
+    const rowState: DeviceRowState = deviceRows[serial] ?? EMPTY_ROW_STATE;
+    const recorded = rowState.stages ?? {};
+    const disconnected = device === null || device.state === "disconnected";
+
+    // ---- Connect is read live from this phone's own inventory entry. -------
+    // Deliberately carries no timestamp: this window never receives when the
+    // connection was confirmed, so none is shown rather than a guessed one.
+    const connectStage: StageRecord = disconnected
+      ? { tone: "failed", note: "Connection dropped - check the data cable." }
+      : device.state === "authorized"
+        ? { tone: "completed", note: "The engine has confirmed this phone." }
+        : device.state === "detected"
+          ? { tone: "in-progress", note: "The engine is identifying this phone." }
+          : {
+              tone: "blocked",
+              note: "This phone has not allowed the workstation. Tap ALLOW on the phone.",
+            };
+
+    // Connect is derived from live inventory; the other five come from the
+    // phone's own recorded results, so one phone's operation never colours
+    // another phone's bar.
+    const stages = STAGE_SEGMENTS.map((segment) =>
+      segment.key === "connect"
+        ? { key: segment.key, ...connectStage }
+        : {
+            key: segment.key,
+            tone: (recorded[segment.key]?.tone ?? "pending") as StageTone,
+            note: recorded[segment.key]?.note ?? "Not started for this phone.",
+            ...(recorded[segment.key]?.at ? { at: recorded[segment.key]?.at } : {}),
+          },
+    );
+
+    const model = device?.model?.trim();
+    const make = device?.make?.trim();
+
+    return {
+      slotNumber,
+      label,
+      serial,
+      tone: disconnected ? ("disconnected" as const) : ("connected" as const),
+      device,
+      modelMake: [model, make].filter(Boolean).join(" / "),
+      stages,
+      overall: overallFor(stages, disconnected),
+      overallNote: "",
+      rowState,
+    };
+  });
+
+  const connectedSlotCount = deviceSlotsView.filter((slot) => slot.tone === "connected").length;
+  const disconnectedSlotCount = deviceSlotsView.filter(
+    (slot) => slot.tone === "disconnected",
+  ).length;
+  const emptySlotCount = deviceSlotsView.filter((slot) => slot.tone === "empty").length;
+
+  /** Devices whose scan is running right now. Read from their own stage record. */
+  const scanningSlotCount = deviceSlotsView.filter(
+    (slot) => slot.overall === "Scanning" || slot.overall === "In progress",
+  ).length;
+
+  /** Devices whose six stages have all genuinely completed. Never inferred. */
+  const completedSlotCount = deviceSlotsView.filter(
+    (slot) => slot.overall === "Completed",
+  ).length;
+
+  /** Devices with refused work. Governance blocks and untapped ALLOW both count. */
+  const blockedSlotCount = deviceSlotsView.filter((slot) => slot.overall === "Blocked").length;
+
+  /** Devices where work remains - anything not settled and not disconnected. */
+  const pendingSlotCount = deviceSlotsView.filter(
+    (slot) => slot.overall === "Pending" || slot.overall === "Partial",
+  ).length;
+
+  /**
+   * Toolbar filter, applied to the real inventory only.
+   *
+   * An empty query shows all 50 slots - filtering narrows the view, it never
+   * decides which slots exist. Match is on the stable CYVRA ID or the model /
+   * make the Host actually reported, never on a serial or any other value the
+   * privacy rules keep off the screen.
+   */
+  const queryLower = slotQuery.trim().toLowerCase();
+  const filteredSlots = deviceSlotsView.filter((slot) => {
+    if (slotStatusFilter !== "all" && slot.overall !== slotStatusFilter) {
+      return false;
+    }
+    if (queryLower === "") {
+      return true;
+    }
+    return (
+      slot.label.toLowerCase().includes(queryLower) ||
+      slot.modelMake.toLowerCase().includes(queryLower)
+    );
+  });
+
+  /**
+   * Serial -> the live controls that phone's row may offer (its scan lock and
+   * whether its report is genuinely ready to download). Read from the same
+   * per-device view the old table used, so a menu button can never offer an
+   * action the row itself would have refused.
+   */
+  const controlsBySerial = new Map(deviceRowsView.map((row) => [row.device.serial, row]));
+
+  /** Row the operator has opened in place. Opening a row changes no screen. */
+  const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
+
+  /**
+   * One monitoring table: 25 compact rows, six stage segments per row.
+   *
+   * Rendering is a plain function rather than a component so it cannot acquire
+   * its own state - the two tables are views over the single 50-slot list, and
+   * a shared render guarantees their columns stay identical.
+   */
+  const renderSlotTable = (slots: typeof filteredSlots, heading: string) => (
+    <table className="monitor-grid">
+      <caption className="visually-hidden">{heading}</caption>
+      <thead>
+        <tr>
+          <th scope="col" className="col-slot">
+            #
+          </th>
+          <th scope="col" className="col-pop">
+            <span className="visually-hidden">Slot populated</span>
+          </th>
+          <th scope="col" className="col-id">
+            CYVRA ID
+          </th>
+          <th scope="col" className="col-model">
+            Model / Make
+          </th>
+          {STAGE_SEGMENTS.map((segment) => (
+            <th
+              key={segment.key}
+              scope="col"
+              className={`col-stage hue-${segment.hue}`}
+              aria-label={segment.label}
+            >
+              {segment.head}
+            </th>
+          ))}
+          <th scope="col" className="col-overall">
+            Status
+          </th>
+          <th scope="col" className="col-actions">
+            <span className="visually-hidden">Actions</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {slots.map((slot) => {
+          const controls = slot.serial === null ? undefined : controlsBySerial.get(slot.serial);
+          const isExpanded = expandedSlot === slot.slotNumber;
+          const scanLock = controls?.scanLock ?? null;
+          const reportReady = controls?.reportReady ?? false;
+          const activeReason = controls?.activeReason ?? null;
+
+          return (
+            <Fragment key={slot.label}>
+              <tr
+                className={`monitor-row is-${slot.tone}${isExpanded ? " is-open" : ""}`}
+                aria-expanded={isExpanded}
+                onClick={() => setExpandedSlot(isExpanded ? null : slot.slotNumber)}
+              >
+                <td className="col-slot">{String(slot.slotNumber).padStart(2, "0")}</td>
+                <td className="col-pop">
+                  <span
+                    className={`pop-dot is-${slot.tone}`}
+                    aria-label={
+                      slot.tone === "connected"
+                        ? "Slot populated"
+                        : slot.tone === "disconnected"
+                          ? "Device disconnected"
+                          : "Slot empty"
+                    }
+                    role="img"
+                  />
+                </td>
+                <td className="col-id">
+                  <strong>{slot.label}</strong>
+                </td>
+                <td
+                  className="col-model"
+                  title={slot.modelMake || "Not reported by the inspection engine"}
+                >
+                  {slot.modelMake || <span className="not-reported">Not reported</span>}
+                </td>
+
+                {STAGE_SEGMENTS.map((segment) => {
+                  const stage = slot.stages.find((entry) => entry.key === segment.key);
+                  const tone = stage?.tone ?? "pending";
+                  const text = STAGE_TONE_TEXT[tone];
+                  const note = stage?.note ?? "Not started for this phone.";
+                  const label = `${slot.label} ${segment.label}: ${text}. ${note}`;
+                  const spinning = tone === "in-progress";
+
+                  return (
+                    <td key={segment.key} className={`col-stage hue-${segment.hue}`}>
+                      <span
+                        className={`stage-seg is-${stageToneSlug[tone]}`}
+                        title={label}
+                        aria-label={label}
+                        role="img"
+                      >
+                        <span
+                          className={`stage-glyph${spinning ? " is-spinning" : ""}`}
+                          aria-hidden="true"
+                        >
+                          {STAGE_TONE_GLYPH[tone]}
+                        </span>
+                        <span className="stage-word">{text}</span>
+                      </span>
+                    </td>
+                  );
+                })}
+
+                <td className="col-overall">
+                  <span className={`overall-chip is-${slugify(slot.overall)}`}>
+                    {slot.overall}
+                  </span>
+                </td>
+                <td className="col-actions">
+                  <button
+                    type="button"
+                    className="row-more"
+                    aria-expanded={isExpanded}
+                    aria-label={`${isExpanded ? "Hide" : "Show"} details and actions for ${slot.label}`}
+                    title={isExpanded ? "Hide details" : "Show details and actions"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setExpandedSlot(isExpanded ? null : slot.slotNumber);
+                    }}
+                  >
+                    {isExpanded ? "−" : "⋯"}
+                  </button>
+                </td>
+              </tr>
+
+              {isExpanded && (
+                <tr className="monitor-detail">
+                  <td colSpan={12}>
+                    <div className="detail-inner">
+                      <dl className="detail-facts">
+                        <div>
+                          <dt>Slot</dt>
+                          <dd>{slot.label}</dd>
+                        </div>
+                        <div>
+                          <dt>Model / Make</dt>
+                          <dd>{slot.modelMake || "Not reported"}</dd>
+                        </div>
+                        <div>
+                          <dt>IMEI</dt>
+                          <dd>
+                            {slot.device?.imei ?? (
+                              <span className="not-reported" title={slot.device?.imeiReason}>
+                                Not reported
+                              </span>
+                            )}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Connection</dt>
+                          <dd>{activeReason ?? "Ready to inspect"}</dd>
+                        </div>
+                        <div>
+                          <dt>Last result</dt>
+                          <dd>{slot.rowState.reason || slot.rowState.status}</dd>
+                        </div>
+                      </dl>
+
+                      <ul className="detail-stages">
+                        {slot.stages.map((stage) => (
+                          <li key={stage.key} className={`is-${stageToneSlug[stage.tone]}`}>
+                            <span className="detail-glyph" aria-hidden="true">
+                              {STAGE_TONE_GLYPH[stage.tone]}
+                            </span>
+                            <strong>
+                              {
+                                STAGE_SEGMENTS.find((segment) => segment.key === stage.key)
+                                  ?.label
+                              }
+                            </strong>
+                            <span>{STAGE_TONE_TEXT[stage.tone]}</span>
+                            <span className="detail-note">{stage.note}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {slot.serial !== null && (
+                        <div className="detail-actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-compact"
+                            disabled={scanLock !== null}
+                            title={scanLock ?? `Scan phone at ${slot.label}`}
+                            aria-label={`Scan phone at ${slot.label}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void runScan(slot.serial);
+                            }}
+                          >
+                            Scan
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-compact"
+                            disabled={!reportReady}
+                            title={
+                              reportReady
+                                ? `Download the report for ${slot.label}`
+                                : `A report is downloadable for ${slot.label} only after its export finished successfully.`
+                            }
+                            aria-label={`Download report for ${slot.label}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void runExport();
+                            }}
+                          >
+                            Download
+                          </button>
+                          <span className="detail-activity">{slot.rowState.status}</span>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 
   return (
     <main className="cyvra-app">
@@ -1587,54 +2388,198 @@ function App() {
                 engine could not read is shown as &quot;Not reported&quot;.
               </p>
             </div>
+          </div>
 
-            <div className="device-badges">
-              <span
-                className="count-badge"
-                title="How many phones this workstation can see over USB/ADB."
+          {/* ---- A. Connected Devices summary: every figure computed ----- */}
+          {/* One region, not two. The two phone counters used to sit in the
+              header as 64px circles while the eight metrics sat below as
+              rectangles, so the row read as a header afterthought rather than
+              a summary. They are the same kind of fact - a count of what the
+              Host currently reports - so they are now the same shape, on the
+              same baseline, in the same centred row, with the same type. */}
+          <div className="summary-strip" aria-live="polite">
+            <span
+              className="summary-tile is-sensed"
+              title="How many phones this workstation can see over USB/ADB."
+            >
+              <strong>{connectedPhoneCount}</strong>
+              <span>Sensed</span>
+            </span>
+            <span
+              className="summary-tile is-authorized"
+              title="How many of those phones have allowed this workstation to inspect them."
+            >
+              <strong>
+                {connectedDevices.filter((device) => device.state === "authorized").length}
+              </strong>
+              <span>Authorized</span>
+            </span>
+
+            <span className="summary-sep" aria-hidden="true" />
+
+            <span className="summary-tile is-total">
+              <strong>{DEVICE_SLOT_CAPACITY}</strong>
+              <span>Total Slots</span>
+            </span>
+            <span className="summary-tile is-connected">
+              <strong>{connectedSlotCount}</strong>
+              <span>Connected</span>
+            </span>
+            <span className="summary-tile is-empty">
+              <strong>{emptySlotCount}</strong>
+              <span>Empty Slots</span>
+            </span>
+            <span className="summary-tile is-disconnected">
+              <strong>{disconnectedSlotCount}</strong>
+              <span>Disconnected</span>
+            </span>
+            <span className="summary-tile is-scanning">
+              <strong>{scanningSlotCount}</strong>
+              <span>Scanning</span>
+            </span>
+            <span className="summary-tile is-completed">
+              <strong>{completedSlotCount}</strong>
+              <span>Completed</span>
+            </span>
+            <span className="summary-tile is-pending">
+              <strong>{pendingSlotCount}</strong>
+              <span>Pending</span>
+            </span>
+            <span className="summary-tile is-blocked">
+              <strong>{blockedSlotCount}</strong>
+              <span>Blocked</span>
+            </span>
+          </div>
+
+          {/* ---- C. Dashboard toolbar ---------------------------------- */}
+          <div className="dash-toolbar">
+            <label className="toolbar-field">
+              <span className="toolbar-label">Search</span>
+              <input
+                type="search"
+                className="toolbar-input"
+                placeholder="CYVRA ID or model"
+                value={slotQuery}
+                onChange={(event) => setSlotQuery(event.target.value)}
+                aria-label="Search by CYVRA device ID or model"
+              />
+            </label>
+
+            <label className="toolbar-field">
+              <span className="toolbar-label">Status</span>
+              <select
+                className="toolbar-select"
+                value={slotStatusFilter}
+                onChange={(event) => setSlotStatusFilter(event.target.value)}
+                aria-label="Filter slots by overall status"
               >
-                <strong>{connectedPhoneCount}</strong>
-                <span>Sensed</span>
-              </span>
-              <span
-                className="count-badge is-authorized"
-                title="How many of those phones have allowed this workstation to inspect them."
+                <option value="all">All statuses</option>
+                <option value="Completed">Completed</option>
+                <option value="Scanning">Scanning</option>
+                <option value="In progress">In progress</option>
+                <option value="Pending">Pending</option>
+                <option value="Partial">Partial</option>
+                <option value="Blocked">Blocked</option>
+                <option value="Failed">Failed</option>
+                <option value="Disconnected">Disconnected</option>
+                <option value="Empty">Empty</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-compact"
+              disabled={devicesLoading}
+              aria-label="Refresh connected devices"
+              title={
+                devicesLoading
+                  ? "The workstation is listing phones."
+                  : "Ask the inspection engine for the current phone list and re-check the connection."
+              }
+              onClick={() => {
+                // The removed "Check connection" button owned GET_DEVICE_STATE.
+                // Its check is preserved here rather than dropped: Refresh now
+                // re-issues both queries, so the workstation check and the
+                // phone list are re-run from the one control this view keeps.
+                void refreshDeviceState();
+                void refreshDevices(true);
+              }}
+            >
+              {devicesLoading ? "Refreshing…" : "Refresh"}
+            </button>
+
+            {(slotQuery !== "" || slotStatusFilter !== "all") && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-compact"
+                aria-label="Clear search and status filter"
+                onClick={() => {
+                  setSlotQuery("");
+                  setSlotStatusFilter("all");
+                }}
               >
-                <strong>
-                  {connectedDevices.filter((device) => device.state === "authorized").length}
-                </strong>
-                <span>Authorized</span>
-              </span>
-            </div>
+                Clear
+              </button>
+            )}
+
+            <span className="toolbar-spacer" />
+
+            <span className="toolbar-updated">
+              Last updated:{" "}
+              <strong>{lastRefreshAt ?? "not yet refreshed"}</strong>
+            </span>
           </div>
 
           <div className="grid-region" aria-live="polite">
             {devicesLoading && connectedDevices.length === 0 ? (
-              <table className="data-grid is-loading">
-                <caption className="visually-hidden">Loading connected phones</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">IMEI no</th>
-                    <th scope="col">Model/Make</th>
-                    <th scope="col">Active</th>
-                    <th scope="col" className="col-action">
-                      Action (Live Situation)
-                    </th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Report</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[0, 1, 2].map((placeholder) => (
-                    <tr key={placeholder} className="is-skeleton">
-                      <td colSpan={7}>
-                        <span className="skeleton-bar" aria-hidden="true" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="monitor-split is-loading">
+                {[0, 1].map((placeholder) => (
+                  <div key={placeholder} className="monitor-panel">
+                    <table className="monitor-grid is-loading">
+                      <caption className="visually-hidden">Loading connected phones</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">#</th>
+                          <th scope="col" className="col-pop">
+                            <span className="visually-hidden">Slot populated</span>
+                          </th>
+                          <th scope="col" className="col-id">
+                            CYVRA ID
+                          </th>
+                          <th scope="col" className="col-model">
+                            Model / Make
+                          </th>
+                          {STAGE_SEGMENTS.map((segment) => (
+                            <th
+                              key={segment.key}
+                              scope="col"
+                              className={`col-stage hue-${segment.hue}`}
+                              aria-label={segment.label}
+                            >
+                              {segment.head}
+                            </th>
+                          ))}
+                          <th scope="col" className="col-overall">
+                            Status
+                          </th>
+                          <th scope="col" className="col-actions">
+                            <span className="visually-hidden">Actions</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[0, 1, 2].map((placeholder) => (
+                          <tr key={placeholder} className="is-skeleton">
+                            <td colSpan={12}>
+                              <span className="skeleton-bar" aria-hidden="true" />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
             ) : devicesError !== null ? (
               <div className="band band-error">
                 <strong>COULD NOT LIST PHONES</strong>
@@ -1664,131 +2609,113 @@ function App() {
                   Retry
                 </button>
               </div>
-            ) : deviceRowsView.length === 0 ? (
+            ) : filteredSlots.length === 0 ? (
               <div className="grid-empty">
-                <p>No phone is connected to this workstation right now.</p>
-                <ul className="list-plain">
-                  <li>Connect the data cable to this laptop.</li>
-                  <li>Enable USB debugging on the phone (Developer options).</li>
-                  <li>Tap ALLOW on the phone when it asks to trust this computer.</li>
-                </ul>
+                <p>
+                  {deviceSlotsView.length === connectedSlotCount && connectedSlotCount === 0
+                    ? "No phone is connected to this workstation right now."
+                    : "No slot matches the current search or status filter."}
+                </p>
+                {connectedSlotCount === 0 ? (
+                  <ul className="list-plain">
+                    <li>Connect the data cable to this laptop.</li>
+                    <li>Enable USB debugging on the phone (Developer options).</li>
+                    <li>Tap ALLOW on the phone when it asks to trust this computer.</li>
+                  </ul>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    aria-label="Clear search and status filter"
+                    onClick={() => {
+                      setSlotQuery("");
+                      setSlotStatusFilter("all");
+                    }}
+                  >
+                    Clear filter
+                  </button>
+                )}
               </div>
             ) : (
-              <table className="data-grid">
-                <caption className="visually-hidden">
-                  Connected phones, read from the inspection engine
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">IMEI no</th>
-                    <th scope="col">Model/Make</th>
-                    <th scope="col">Active</th>
-                    <th scope="col" className="col-action">
-                      Action (Live Situation)
-                    </th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Report</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deviceRowsView.map(
-                    ({ device, number, rowState, activeReason, scanLock, reportReady }) => {
-                      const situation =
-                        rowState.phase === "scanning"
-                          ? "Scanning"
-                          : rowState.phase === "reporting"
-                            ? "Reporting"
-                            : rowState.phase === "sanitize"
-                              ? "Sanitize guide"
-                              : rowState.phase === "exported"
-                                ? "Exported"
-                                : "Idle";
-
-                      const model = device.model?.trim();
-                      const make = device.make?.trim();
-                      const imei = device.imei?.trim();
-                      const modelMake = [model, make].filter(Boolean).join(" / ");
-
-                      return (
-                        <tr
-                          key={device.serial}
-                          className={activeReason ? "is-inactive" : undefined}
-                        >
-                          <td className="col-index">{number}</td>
-                          <td>
-                            {imei ?? (
-                              <span className="not-reported" title={device.imeiReason}>
-                                Not reported
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            {modelMake || (
-                              <span className="not-reported">Not reported</span>
-                            )}
-                          </td>
-                          <td>
-                            {activeReason ? (
-                              <>
-                                <span className="yesno is-no">No</span>
-                                <span className="cell-reason">{activeReason}</span>
-                              </>
-                            ) : (
-                              <span className="yesno is-yes">Yes</span>
-                            )}
-                          </td>
-                          <td className="col-action">
-                            <span className="situation">{situation}</span>
-                            {situation === "Idle" && (
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-compact"
-                                disabled={scanLock !== null}
-                                title={scanLock ?? `Scan ${device.serial}`}
-                                aria-label={`Scan phone ${device.serial}`}
-                                onClick={() => void runScan(device.serial)}
-                              >
-                                Scan
-                              </button>
-                            )}
-                          </td>
-                          <td>
-                            <span className={`row-status is-${rowState.status.toLowerCase().replace(" ", "-")}`}>
-                              {rowState.status}
-                            </span>
-                            {rowState.reason && (
-                              <span className="cell-reason">{rowState.reason}</span>
-                            )}
-                          </td>
-                          <td className="col-action">
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-compact"
-                              disabled={!reportReady}
-                              title={
-                                reportReady
-                                  ? "Download this phone's report"
-                                  : "A report is downloadable only after this phone's export finished successfully."
-                              }
-                              aria-label={`Download report for phone ${device.serial}`}
-                              onClick={() => void runExport()}
-                            >
-                              Download
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    },
+              <div className="monitor-split">
+                <div className="monitor-panel">
+                  {renderSlotTable(
+                    filteredSlots.filter((slot) => slot.slotNumber <= 25),
+                    "Device slots 1 to 25",
                   )}
-                </tbody>
-              </table>
+                </div>
+                <div className="monitor-panel">
+                  {renderSlotTable(
+                    filteredSlots.filter((slot) => slot.slotNumber > 25),
+                    "Device slots 26 to 50",
+                  )}
+                </div>
+              </div>
             )}
           </div>
+
+          {/* ---- D. Legend: every symbol explained in words -------------- */}
+          <footer className="monitor-legend">
+            <span className="legend-title">Workflow states</span>
+            {(
+              [
+                ["pending", "Pending"],
+                ["in-progress", "In progress"],
+                ["completed", "Completed"],
+                ["partial", "Partial"],
+                ["blocked", "Blocked"],
+                ["failed", "Failed"],
+              ] as const
+            ).map(([tone, word]) => (
+              <span key={tone} className={`legend-item is-${tone}`}>
+                <span className="stage-glyph" aria-hidden="true">
+                  {STAGE_TONE_GLYPH[tone]}
+                </span>
+                <span>{word}</span>
+              </span>
+            ))}
+
+            <span className="legend-divider" aria-hidden="true" />
+
+            <span className="legend-item">
+              <span className="pop-dot is-connected" aria-hidden="true" />
+              <span>Slot populated</span>
+            </span>
+            <span className="legend-item">
+              <span className="pop-dot is-empty" aria-hidden="true" />
+              <span>Slot empty</span>
+            </span>
+            <span className="legend-item">
+              <span className="pop-dot is-disconnected" aria-hidden="true" />
+              <span>Disconnected</span>
+            </span>
+
+            <span className="legend-divider" aria-hidden="true" />
+
+            <span className="legend-stages">
+              Connect <span className="hue-swatch hue-blue" aria-hidden="true" /> · Scan{" "}
+              <span className="hue-swatch hue-orange" aria-hidden="true" /> · Applications{" "}
+              <span className="hue-swatch hue-purple" aria-hidden="true" /> · Sanitize{" "}
+              <span className="hue-swatch hue-teal" aria-hidden="true" /> · Verify{" "}
+              <span className="hue-swatch hue-indigo" aria-hidden="true" /> · Download{" "}
+              <span className="hue-swatch hue-green" aria-hidden="true" />
+            </span>
+
+            <span className="toolbar-spacer" />
+            <span className="legend-updated">
+              Last inventory refresh: <strong>{lastRefreshAt ?? "not yet refreshed"}</strong>
+            </span>
+          </footer>
         </section>
 
-        <nav className="stepper" aria-label="Workflow stages">
-          {STEPS.map((step) => {
+        {/* Workflow navigation: a compact tab strip over the five operation
+            panels the wizard still owns. The connection stage is deliberately
+            absent - its state is carried per-device by the 50-slot dashboard
+            above, and a sixth tab repeating it would show the same fact twice.
+            The stage numbering is left untouched: this is still a six-stage
+            workflow and an operator reading "Step 2 of 6" is reading the truth. */}
+        <nav className="stage-tabs" aria-label="Workflow stages">
+          {STEPS.filter((step) => step.key !== "connect").map((step) => {
             const state = nodeStates[step.key];
             const slug = stateSlug[state];
             const reason = stepLock[step.key];
@@ -1799,21 +2726,25 @@ function App() {
               <button
                 key={step.key}
                 type="button"
-                className={`step-node is-${slug}${isActive ? " is-active" : ""}`}
+                className={`stage-tab is-${slug}${isActive ? " is-active" : ""}`}
                 aria-current={isActive ? "step" : undefined}
-                aria-label={`Step ${step.index}: ${step.label}`}
+                aria-label={
+                  reason
+                    ? `Step ${step.index}: ${step.label}. ${state}. ${reason}`
+                    : `Step ${step.index}: ${step.label}. ${state}`
+                }
+                title={reason ?? `${step.label}: ${state}`}
                 onClick={() => setActiveStep(step.key)}
               >
-                <span className="node-top">
+                <span className="stage-tab-index" aria-hidden="true">
                   {spinning ? (
-                    <img className="node-spin" src={cyvoriqLogo} alt="" aria-hidden="true" />
+                    <img className="node-spin" src={cyvoriqLogo} alt="" />
                   ) : (
-                    <span className="node-index">{step.index}</span>
+                    step.index
                   )}
-                  <span className="node-label">{step.label}</span>
                 </span>
-                <span className={`node-chip is-${slug}`}>{state}</span>
-                {reason && <span className="node-reason">{reason}</span>}
+                <span className="stage-tab-label">{step.label}</span>
+                <span className={`stage-tab-state is-${slug}`}>{state}</span>
               </button>
             );
           })}
@@ -1840,69 +2771,33 @@ function App() {
               </Notice>
             )}
 
-            {/* Plain-language stage copy: static text, never a result. */}
-            <div className="step-copy">
-              <div className="copy-block">
-                <h3>Purpose</h3>
-                <p>{activeMeta.purpose}</p>
-              </div>
-              <div className="copy-block">
-                <h3>What to do now</h3>
-                <p>{activeMeta.now}</p>
-              </div>
-              <div className="copy-block">
-                <h3>What happens next</h3>
-                <p>{activeMeta.next}</p>
-              </div>
-            </div>
-
-            {/* ---- Step 1 ------------------------------------------------ */}
-            {activeStep === "connect" && (
-              <>
-                <div className={`preflight-line is-${preflightTone}`}>
-                  <span className="preflight-mark" aria-hidden="true" />
-                  <strong>{preflightLine}</strong>
+            {/* Plain-language stage copy: static text, never a result.
+                Hidden on the Scan step: that step is a single action and the
+                three explanation cards pushed the actual control off-screen. */}
+            {activeStep !== "scan" && (
+              <div className="step-copy">
+                <div className="copy-block">
+                  <h3>Purpose</h3>
+                  <p>{activeMeta.purpose}</p>
                 </div>
-
-                <Outcome envelope={preflight} />
-
-                <div className="device-panel">
-                  <div className="device-main">
-                    <span className="card-label">Phone connection</span>
-                    <strong className="device-text">{device.text}</strong>
-                    {device.ready && (
-                      <SerialProvenance id="device-provenance" fromHost value={device.text} />
-                    )}
-                    {!deviceState?.operatorActionRequired && (
-                      <small>No operator action requested</small>
-                    )}
-                  </div>
-
-                  <div
-                    className={`ready-badge${readyCount > 0 ? " is-live" : ""}`}
-                    title="Phones ready to scan right now"
-                  >
-                    <span className="ready-count">{readyCount}</span>
-                    <span className="ready-cap">ready</span>
-                  </div>
+                <div className="copy-block">
+                  <h3>What to do now</h3>
+                  <p>{activeMeta.now}</p>
                 </div>
-
-                {deviceState?.operatorActionRequired && (
-                  <Notice tone="action" label="Operator action">
-                    {deviceState.operatorActionRequired}
-                  </Notice>
-                )}
-
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  aria-label={activeMeta.primary}
-                  onClick={() => void refreshDeviceState()}
-                >
-                  {activeMeta.primary}
-                </button>
-              </>
+                <div className="copy-block">
+                  <h3>What happens next</h3>
+                  <p>{activeMeta.next}</p>
+                </div>
+              </div>
             )}
+
+            {/* Step 1 - the "Workstation and phone connection" panel - is
+                deliberately not rendered. Its checks are untouched: GET_PREFLIGHT
+                and GET_DEVICE_STATE still run on mount, they still feed
+                `connectPassed`, `stepLock` and the stage gates below, and the
+                toolbar Refresh still re-issues GET_DEVICE_STATE. What is gone is
+                only the second copy of that fact on screen - every phone's
+                connection state is already carried per-row by the dashboard. */}
 
             {/* ---- Step 2 ------------------------------------------------ */}
             {activeStep === "scan" && (

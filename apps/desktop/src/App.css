@@ -154,22 +154,29 @@
 
 /* ------------------------------------------------------------- workspace -- */
 
-/* Centered column, max 1120px, every inset on the 8pt grid. */
+/* Centered column, every inset on the 8pt grid.
+ *
+ * Widened from 1120px to 1600px for the monitoring dashboard: two 25-row
+ * tables with six stage segments each need ~650px per panel before the model
+ * column has any room at all. At 1120px the fixed column budget overran the
+ * panel, which pushed a horizontal scrollbar under the dashboard and clipped
+ * the right-hand table's Status column - measured on the running app, not
+ * inferred. The cap still holds on narrower windows. */
 .workspace {
-  width: min(1120px, 100%);
+  width: min(1600px, 100%);
   margin: 0 auto;
-  padding: var(--space-3) var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3) var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 10px;
 }
 
 /* H1 of the workstation, 28/36 600. */
 .page-title {
   margin: 0;
   color: var(--graphite);
-  font-size: 28px;
-  line-height: 36px;
+  font-size: 22px;
+  line-height: 28px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -185,166 +192,28 @@
   text-transform: uppercase;
 }
 
-/* The standing honesty banner: everything below comes from the Host. */
+/* The standing honesty banner: everything below comes from the Host.
+   Compact: it states the contract once and must not push the monitoring
+   tables off a 768px-tall viewport. */
 .workflow-note {
   margin: 0;
-  padding: var(--space-2);
+  padding: 8px var(--space-2);
   border: 1px solid var(--line);
   border-left: 4px solid var(--orange);
   border-radius: var(--radius-card);
   background: var(--card);
-  box-shadow: var(--shadow-card);
   color: var(--ink);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
-/* ---------------------------------------------------------------- stepper -- */
-
-.stepper {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-1);
-}
-
-.step-node {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-card);
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
-}
-
-.step-node:hover {
-  border-color: #d3d8dd;
-  transform: translateY(-1px);
-}
-
-/* --------------------------------------------------- stepper stage states -- */
-
-/*
- * Six stage states, one per token so the colour can never drift from the
- * palette: steel is NOT STARTED, green is READY, blue is IN PROGRESS (the
- * only state that can spin the logo), red is FAILED, brand orange is
- * COMPLETED and amber is a purge blocked by decision D-1 - which is never
- * painted as a success.
+/* ------------------------------------------------------ workflow stage tabs --
+ *
+ * Navigation for the stage panel below the dashboard. The former run of six
+ * oversized numbered cards (.stepper / .step-node) was removed with them; only
+ * the spinner tile survives, reused by the compact tabs.
  */
-.step-node.is-not-started {
-  background: #fafbfc;
-  box-shadow: none;
-}
 
-.step-node.is-ready {
-  border-color: var(--ok-line);
-}
-
-.step-node.is-progress {
-  border-color: var(--assist-ink);
-  box-shadow:
-    0 0 0 3px rgba(29, 78, 216, 0.14),
-    var(--shadow-card);
-}
-
-.step-node.is-failed {
-  border-color: var(--danger-line);
-  box-shadow:
-    0 0 0 3px rgba(201, 42, 42, 0.12),
-    var(--shadow-card);
-}
-
-.step-node.is-completed {
-  border-color: var(--orange);
-}
-
-.step-node.is-blocked {
-  border-color: var(--amber-line);
-}
-
-/* The stage that is open on screen. Deliberately neutral so the selection
-   ring never competes with the state colour of the node itself. */
-.step-node.is-active {
-  box-shadow:
-    0 0 0 3px rgba(21, 24, 28, 0.1),
-    var(--shadow-card);
-}
-
-.node-top {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-width: 0;
-  perspective: 320px;
-}
-
-.node-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--paper);
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.step-node.is-not-started .node-index {
-  background: #f0f2f4;
-  border-color: var(--line);
-  color: var(--steel);
-}
-
-.step-node.is-ready .node-index {
-  background: var(--ok-ink);
-  border-color: var(--ok-ink);
-  color: #fff;
-}
-
-.step-node.is-progress .node-index {
-  background: var(--assist-ink);
-  border-color: var(--assist-ink);
-  color: #fff;
-}
-
-.step-node.is-failed .node-index {
-  background: var(--danger-ink);
-  border-color: var(--danger-ink);
-  color: #fff;
-}
-
-.step-node.is-completed .node-index {
-  background: var(--orange);
-  border-color: var(--orange);
-  color: #fff;
-}
-
-.step-node.is-blocked .node-index {
-  background: var(--amber-soft);
-  border-color: var(--amber-line);
-  color: var(--amber-ink);
-}
-
-/*
- * The 3D CYVORIQ logo tile. It replaces the step number only while a Host
- * request is actually in flight - there is no timer behind it, it spins for
- * exactly as long as the request is outstanding. CSS only, no asset.
- */
 .node-spin {
   flex: 0 0 26px;
   width: 26px;
@@ -367,79 +236,6 @@
   to {
     transform: rotateY(360deg);
   }
-}
-
-.node-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--graphite);
-  font-size: 0.83rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.step-node.is-not-started .node-label {
-  color: var(--steel);
-}
-
-.node-chip {
-  padding: 3px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-/* The chip always prints the state word in the state's own colour. */
-.node-chip.is-not-started {
-  background: #eef0f2;
-  border-color: var(--line);
-  color: var(--steel);
-}
-
-.node-chip.is-ready {
-  background: var(--ok-ink);
-  border-color: var(--ok-ink);
-  color: #fff;
-}
-
-.node-chip.is-progress {
-  background: var(--assist-ink);
-  border-color: var(--assist-ink);
-  color: #fff;
-}
-
-.node-chip.is-failed {
-  background: var(--danger-ink);
-  border-color: var(--danger-ink);
-  color: #fff;
-}
-
-.node-chip.is-completed {
-  background: var(--orange);
-  border-color: var(--orange);
-  color: #fff;
-}
-
-.node-chip.is-blocked {
-  background: var(--amber-ink);
-  border-color: var(--amber-ink);
-  color: #fff;
-}
-
-/* A locked stage always states why, right on the stepper. */
-.node-reason {
-  width: 100%;
-  padding: 5px 7px;
-  border: 1px dashed #d7dbe0;
-  border-radius: 8px;
-  background: #f4f6f8;
-  color: var(--muted);
-  font-size: 0.66rem;
-  line-height: 1.45;
 }
 
 /* ------------------------------------------------------------ wizard card -- */
@@ -971,9 +767,7 @@
  * whatever the Host returned, or the literal "Not reported".
  */
 .grid-region {
-  overflow: auto;
-  max-height: 60vh;
-  border-top: 1px solid var(--line);
+  overflow: visible;
 }
 
 .data-grid {
@@ -1175,23 +969,70 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: 10px var(--space-2) 0;
 }
 
 .device-grid-titles {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 3px;
   min-width: 0;
 }
 
+/* ------------------------------------------------------------- summary row -- */
+
+/* One centred row for every count on this dashboard: Sensed and Authorized
+   followed by the eight slot metrics. They used to be two different widgets -
+   64px circles in the card header, rectangles in a second row - which read as
+   a header with an unrelated list bolted underneath. All ten are the same tile
+   now: same padding, same height, same radius, same type, one baseline.
+   Centred rather than left-clustered so the block is balanced on a wide
+   screen, and capped so it does not stretch into unreadable widths at 1920. */
+.summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: var(--space-1);
+  margin: 0 0 8px;
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.summary-strip .summary-tile {
+  flex: 0 1 auto;
+  min-width: 96px;
+}
+
+/* Hairline separating "who is attached" from "how the 50 slots stand". It is
+   a grouping cue, not a divider of meaning - every figure in the row is still
+   one live count of Host state. */
+.summary-sep {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  margin: 0 3px;
+  background: var(--line);
+}
+
+.summary-tile.is-sensed {
+  border-top-color: var(--steel);
+}
+.summary-tile.is-authorized {
+  border-top-color: var(--ok-ink);
+}
+
+/* Circular counts, used by the Transaction Ledger screen only.
+ *
+ * The inspection dashboard deliberately no longer uses these: its Sensed and
+ * Authorized figures moved into the summary strip as regular tiles so all ten
+ * counts share one shape. The ledger is a different view with its own two
+ * counters, and they keep the circular treatment that fits that header. */
 .device-badges {
   display: flex;
   flex: 0 0 auto;
   gap: var(--space-1);
 }
 
-/* Circular counts: sensed and authorized, both read from the Host. */
 .count-badge {
   display: flex;
   flex-direction: column;
@@ -1231,8 +1072,7 @@
 }
 
 /* Screen-reader-only text, used by table captions. */
-.visually-hidden {
-  position: absolute;
+.visually-hidden {  position: absolute;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -1315,165 +1155,20 @@
   line-height: 20px;
 }
 
-/* --------------------------------------------------- workstation + phone -- */
-
 /*
- * The one-line workstation check. The green treatment is applied only when
- * the Host answered OK and reported readyToScan; anything else stays neutral
- * or turns red, so a check that did not pass can never look like a pass.
+ * The workstation check, phone panel, ready badge and their marks used to be
+ * styled here. They belonged to the removed connection section and nothing on
+ * this view renders them any more, so the rules are gone with it.
+ *
+ * `.device-text` is deliberately kept: the Verify checklist still uses it to
+ * render each reported item.
  */
-.preflight-line {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: #fafbfc;
-}
-
-.preflight-line strong {
-  color: var(--graphite);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-}
-
-.preflight-mark {
-  position: relative;
-  flex: 0 0 22px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--steel);
-}
-
-.preflight-line.is-pending {
-  border-style: dashed;
-}
-
-.preflight-line.is-ok {
-  background: var(--ok-soft);
-  border-color: var(--ok-line);
-}
-
-.preflight-line.is-ok .preflight-mark {
-  background: var(--ok-ink);
-}
-
-/* A CSS-drawn tick: no icon font, no extra asset. */
-.preflight-line.is-ok .preflight-mark::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  top: 4px;
-  width: 5px;
-  height: 10px;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.preflight-line.is-failed {
-  background: var(--danger-soft);
-  border-color: var(--danger-line);
-}
-
-.preflight-line.is-failed .preflight-mark {
-  background: var(--danger-ink);
-}
-
-.preflight-line.is-failed .preflight-mark::after {
-  content: "!";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 3px;
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-align: center;
-}
-
-/*
- * Operator-facing phone status: one plain sentence derived from the Host's
- * connection state, beside a live count of phones that are genuinely ready.
- * The count is rendered from deviceState - never assumed.
- */
-.device-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: #fbfcfd;
-}
-
-.device-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.device-main .card-label {
-  margin-bottom: 0;
-}
-
-.device-main small {
-  display: block;
-  color: var(--steel);
-  font-size: 13px;
-  line-height: 20px;
-}
-
 .device-text {
   color: var(--graphite);
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
   overflow-wrap: anywhere;
-}
-
-.ready-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 64px;
-  width: 64px;
-  height: 64px;
-  border: 2px solid var(--line);
-  border-radius: 50%;
-  background: var(--card);
-}
-
-.ready-badge.is-live {
-  border-color: var(--ok-ink);
-  background: var(--ok-soft);
-}
-
-.ready-count {
-  color: var(--graphite);
-  font-size: 1.3rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.ready-badge.is-live .ready-count {
-  color: var(--ok-ink);
-}
-
-.ready-cap {
-  margin-top: 3px;
-  color: var(--steel);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 /* ------------------------------------------------------------------ help -- */
@@ -1542,6 +1237,797 @@
   line-height: 16px;
 }
 
+/* ------------------------------------------------- monitoring dashboard ---- */
+
+/* Each tile is a label/value pair rather than coloured text alone, so the
+   count reads correctly without hue. Height is fixed so all ten tiles share
+   one baseline regardless of how a label wraps; `align-items: stretch` on
+   `.summary-strip` plus this `min-height` is what makes them line up. */
+.summary-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 92px;
+  min-height: 44px;
+  padding: 5px 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  border-top: 3px solid var(--steel);
+}
+
+.summary-tile strong {
+  font-size: 17px;
+  line-height: 21px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite);
+}
+
+.summary-tile span {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--muted);
+}
+
+.summary-tile.is-connected {
+  border-top-color: var(--ok-ink);
+}
+/* An empty slot is the neutral, healthy absence of a phone - 42 of the 50
+   slots are meant to read this way on a normal day. It was drawing the same
+   danger red as a genuine failure, which taught an operator to read the
+   normal state of the dashboard as a fault. Red on this screen now means one
+   thing: the Host reported a real failure or a real block. */
+.summary-tile.is-empty {
+  border-top-color: var(--line);
+}
+.summary-tile.is-empty strong {
+  color: var(--muted);
+  font-weight: 600;
+}
+.summary-tile.is-disconnected {
+  border-top-color: var(--amber-ink);
+}
+.summary-tile.is-scanning {
+  border-top-color: var(--orange-ink);
+}
+.summary-tile.is-completed {
+  border-top-color: var(--ok-ink);
+}
+.summary-tile.is-pending {
+  border-top-color: var(--assist-ink);
+}
+.summary-tile.is-blocked {
+  border-top-color: var(--danger-ink);
+}
+
+/* Toolbar: one row, controls sized to their content, timestamp pushed right. */
+.dash-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.toolbar-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.toolbar-input,
+.toolbar-select {
+  height: 30px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.toolbar-input {
+  width: 200px;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.toolbar-updated,
+.legend-updated {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.toolbar-updated strong,
+.legend-updated strong {
+  font-weight: 600;
+  color: var(--graphite);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Two panels of 25. `minmax(0, 1fr)` stops a wide model name from pushing one
+   panel past its half of the screen; the tables scroll only as a last resort. */
+.monitor-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.monitor-panel {
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.monitor-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.monitor-grid caption {
+  text-align: left;
+}
+
+.monitor-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 13px;
+  text-align: left;
+  color: var(--muted);
+  background: var(--grid-zebra);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stage headers wrap rather than truncate: a narrow header cannot hold
+ * "Applications" on one line, and an ellipsised stage name in the column the
+ * operator reads most is a legibility defect, not a space saving.
+ *
+ * The two long headers arrive already split on a real hyphen ("Applica-" /
+ * "tions", "Down-" / "load"), and `white-space: pre-line` is what makes that
+ * newline take effect - without it the newline would collapse to a space and
+ * the word would go back to wrapping on its own terms.
+ *
+ * Soft hyphens were tried first and are not honoured by this engine: the
+ * syllable before the break did not fit the content box either, so the
+ * browser fell back to a character-boundary break with no hyphen printed
+ * ("Applicatio/ns"), which reads as a rendering fault. `hyphens: auto` is a
+ * no-op here too - Chromium/WebView2 ships no hyphenation dictionary, so it
+ * does nothing regardless of the document language.
+ *
+ * The hyphen in the text is an ordinary character and is always drawn, so the
+ * header reads as typeset rather than accidentally split. `aria-label` still
+ * carries the full unbroken name for assistive technology. */
+.col-stage {
+  white-space: pre-line;
+  overflow-wrap: break-word;
+}
+
+.monitor-grid thead th.col-stage {
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  line-height: 12px;
+}
+
+.monitor-grid tbody td {
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.monitor-grid tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Column sizing shared by both tables so the halves line up.
+ *
+ * Budgeted against the panel width instead of chosen freely: the six stage
+ * columns are the largest block (6 x 56 = 336px) and the model column is the
+ * only one allowed to absorb the remainder. Every other column is fixed so the
+ * two panels stay aligned. */
+.col-slot {
+  width: 26px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.col-pop {
+  width: 16px;
+  text-align: center;
+}
+.col-id {
+  width: 72px;
+}
+.col-model {
+  width: auto;
+  /* A long model string must never wrap into a taller row - wrapping one row
+     made row 01 three lines high while every other row stayed one line, which
+     broke the table's vertical rhythm. Truncated with the full value in the
+     title instead. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.col-stage {
+  /* 56px rather than 52px: the extra 4px is what lets the soft-hyphenated
+     syllable of "Applica-tions" fit, so the header breaks with a visible
+     hyphen instead of mid-letter. See the header rule above. */
+  width: 56px;
+  text-align: center;
+}
+.col-overall {
+  width: 78px;
+}
+.col-actions {
+  width: 30px;
+  text-align: center;
+}
+
+.monitor-grid tbody tr.monitor-row {
+  cursor: pointer;
+}
+
+.monitor-grid tbody tr.monitor-row:hover {
+  background: var(--grid-hover);
+}
+
+.monitor-grid tbody tr.monitor-row.is-open {
+  background: var(--assist-soft);
+}
+
+/* Empty and disconnected rows are dimmed but never hidden: their stages stay
+   readable so an operator can still see what a slot last did. */
+.monitor-row.is-empty td {
+  color: var(--steel);
+}
+
+.col-id strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite);
+}
+
+.monitor-row.is-empty .col-id strong {
+  color: var(--steel);
+}
+
+/* Population indicator: dot for quick scanning plus an accessible name that
+   states the fact in words. */
+.pop-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--steel);
+  border: 1px solid transparent;
+}
+
+.pop-dot.is-connected {
+  background: var(--ok-ink);
+}
+/* An empty slot is a hollow ring, not a filled dot and not red. It is the
+   normal, unremarkable majority state of this dashboard, and it must read as
+   "nothing is here" rather than "something is wrong". Hollow versus filled
+   separates it from connected and disconnected without relying on hue, so a
+   colour-blind operator, a greyscale print, and a screenshot all still tell
+   the three population states apart. Red stays reserved for a real failure
+   or a real block reported by the Host. */
+.pop-dot.is-empty {
+  background: var(--card);
+  border-color: var(--steel);
+}
+.pop-dot.is-disconnected {
+  background: var(--amber-ink);
+}
+
+/* ---- Stage segments ------------------------------------------------------ */
+
+/* Each segment carries its stage hue on the left rail and its state in the
+   background, glyph and text. Hue never decides the state and state never
+   relies on hue alone: the glyph differs per state, the accessible name spells
+   the state out, and the legend at the foot of the dashboard repeats both. */
+.stage-seg {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  min-height: 22px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-left-color: var(--seg-hue, var(--steel));
+  background: var(--card);
+}
+
+.col-stage.hue-blue,
+td.col-stage.hue-blue .stage-seg {
+  --seg-hue: #2f6feb;
+}
+.col-stage.hue-orange,
+td.col-stage.hue-orange .stage-seg {
+  --seg-hue: var(--orange-ink);
+}
+.col-stage.hue-purple,
+td.col-stage.hue-purple .stage-seg {
+  --seg-hue: #7048e8;
+}
+.col-stage.hue-teal,
+td.col-stage.hue-teal .stage-seg {
+  --seg-hue: #0b7285;
+}
+.col-stage.hue-indigo,
+td.col-stage.hue-indigo .stage-seg {
+  --seg-hue: #3b5bdb;
+}
+.col-stage.hue-green,
+td.col-stage.hue-green .stage-seg {
+  --seg-hue: var(--ok-ink);
+}
+
+.stage-glyph {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 700;
+  color: var(--steel);
+}
+
+/* The state word is present for assistive technology and the tooltip. Glyph
+   shape already distinguishes state visually, so the row stays compact enough
+   for 25 rows per panel without colour ever carrying the meaning alone. */
+.stage-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.stage-seg.is-completed {
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+  border-left-color: var(--seg-hue, var(--ok-ink));
+}
+.stage-seg.is-completed .stage-glyph {
+  color: var(--ok-ink);
+}
+
+.stage-seg.is-pending {
+  background: var(--grid-zebra);
+}
+.stage-seg.is-pending .stage-glyph {
+  color: var(--steel);
+}
+
+.stage-seg.is-in-progress {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  border-left-color: var(--seg-hue, var(--amber-ink));
+}
+.stage-seg.is-in-progress .stage-glyph {
+  color: var(--amber-ink);
+}
+
+.stage-seg.is-partial {
+  background: var(--orange-soft);
+  border-color: var(--orange);
+  border-left-color: var(--seg-hue, var(--orange-ink));
+}
+.stage-seg.is-partial .stage-glyph {
+  color: var(--orange-ink);
+}
+
+.stage-seg.is-blocked,
+.stage-seg.is-failed {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+  border-left-color: var(--seg-hue, var(--danger-ink));
+}
+.stage-seg.is-blocked .stage-glyph,
+.stage-seg.is-failed .stage-glyph {
+  color: var(--danger-ink);
+}
+
+/* Spins only while the stage genuinely reports in progress - it is driven by
+   the phone's own recorded tone, never by a timer in this file. */
+.stage-glyph.is-spinning {
+  display: inline-block;
+  animation: cyvra-spin 900ms linear infinite;
+}
+
+@keyframes cyvra-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-glyph.is-spinning {
+    animation: none;
+  }
+}
+
+/* Overall chip: the row's derived status, printed as a word. */
+.overall-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--grid-zebra);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.overall-chip.is-completed {
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+  color: var(--ok-ink);
+}
+.overall-chip.is-scanning,
+.overall-chip.is-in-progress {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber-ink);
+}
+.overall-chip.is-blocked,
+.overall-chip.is-failed {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+  color: var(--danger-ink);
+}
+.overall-chip.is-partial {
+  background: var(--orange-soft);
+  border-color: var(--orange);
+  color: var(--orange-ink);
+}
+.overall-chip.is-disconnected {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber-ink);
+}
+.overall-chip.is-pending {
+  background: var(--assist-soft);
+  border-color: var(--assist-line);
+  color: var(--assist-ink);
+}
+/* An empty slot is a fact about the rack, not a fault: it gets the neutral
+   steel treatment, deliberately NOT the danger red that Failed and Blocked
+   share, so a red chip on this dashboard always means something went wrong. */
+.overall-chip.is-empty {
+  background: var(--grid-zebra);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* Compact actions control. Opens the row in place - no second screen. */
+.row-more {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.row-more:hover {
+  background: var(--grid-zebra);
+  border-color: var(--line);
+  color: var(--graphite);
+}
+
+/* ---- In-row detail ------------------------------------------------------- */
+/* An expansion under the row: the dashboard stays on screen behind it, which
+   is the whole point of not opening a device page. */
+
+.monitor-detail > td {
+  padding: 0 !important;
+  background: var(--grid-zebra);
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.detail-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.detail-facts div {
+  min-width: 120px;
+}
+
+.detail-facts dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.detail-facts dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--graphite);
+}
+
+.detail-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-stages li {
+  display: grid;
+  grid-template-columns: 16px auto 1fr;
+  align-items: baseline;
+  column-gap: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.detail-stages li strong {
+  color: var(--graphite);
+}
+
+.detail-stages li > span:nth-child(3) {
+  color: var(--muted);
+}
+
+.detail-stages li.is-completed .detail-glyph {
+  color: var(--ok-ink);
+}
+.detail-stages li.is-blocked .detail-glyph,
+.detail-stages li.is-failed .detail-glyph {
+  color: var(--danger-ink);
+}
+.detail-stages li.is-in-progress .detail-glyph {
+  color: var(--amber-ink);
+}
+.detail-stages li.is-partial .detail-glyph {
+  color: var(--orange-ink);
+}
+
+.detail-glyph {
+  font-weight: 700;
+  color: var(--steel);
+}
+
+.detail-note {
+  grid-column: 2 / -1;
+  color: var(--muted);
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.detail-activity {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---- Legend -------------------------------------------------------------- */
+
+.monitor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.legend-title {
+  font-weight: 600;
+  color: var(--graphite);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-item.is-completed .stage-glyph {
+  color: var(--ok-ink);
+}
+.legend-item.is-blocked .stage-glyph,
+.legend-item.is-failed .stage-glyph {
+  color: var(--danger-ink);
+}
+.legend-item.is-in-progress .stage-glyph {
+  color: var(--amber-ink);
+}
+.legend-item.is-partial .stage-glyph {
+  color: var(--orange-ink);
+}
+
+.legend-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+}
+
+.legend-stages {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hue-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.hue-swatch.hue-blue {
+  background: #2f6feb;
+}
+.hue-swatch.hue-orange {
+  background: var(--orange-ink);
+}
+.hue-swatch.hue-purple {
+  background: #7048e8;
+}
+.hue-swatch.hue-teal {
+  background: #0b7285;
+}
+.hue-swatch.hue-indigo {
+  background: #3b5bdb;
+}
+.hue-swatch.hue-green {
+  background: var(--ok-ink);
+}
+
+/* ---- Workflow stage tabs ------------------------------------------------- */
+/* Navigation only. Compact enough to sit above the stage panel without
+   competing with the monitoring tables for the operator's attention. */
+
+.stage-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.stage-tab:hover {
+  border-color: var(--steel);
+  color: var(--ink);
+}
+
+.stage-tab.is-active {
+  background: var(--assist-soft);
+  border-color: var(--assist-line);
+  color: var(--assist-ink);
+}
+
+.stage-tab-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+  background: var(--grid-zebra);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.stage-tab-index img {
+  /* Overrides the old stepper's 26px flex basis so the spinner fits the
+     16px index circle instead of overflowing it. */
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-width: 1px;
+  animation: cyvra-spin 900ms linear infinite;
+}
+
+.stage-tab-state {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--grid-zebra);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.stage-tab-state.is-completed {
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+  color: var(--ok-ink);
+}
+.stage-tab-state.is-progress {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber-ink);
+}
+.stage-tab-state.is-failed,
+.stage-tab-state.is-blocked {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+  color: var(--danger-ink);
+}
+
+
 /* ------------------------------------------------------------- responsive -- */
 
 @media (max-width: 860px) {
@@ -1556,8 +2042,44 @@
     padding: var(--space-2) var(--space-2) var(--space-3);
   }
 
-  .stepper {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  /* The two panels stack rather than shrink: at this width a 25-row table
+     keeps its columns and the dashboard stays complete, never paginated. */
+  .monitor-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-toolbar {
+    gap: var(--space-1);
+    padding: var(--space-1);
+  }
+
+  .toolbar-input {
+    width: 140px;
+  }
+
+  .summary-tile {
+    min-width: 76px;
+    padding: 4px 8px;
+  }
+
+  .summary-tile strong {
+    font-size: 16px;
+    line-height: 20px;
+  }
+
+  .monitor-grid tbody td,
+  .monitor-grid thead th {
+    padding-left: 4px;
+    padding-right: 4px;
+    font-size: 11px;
+  }
+
+  .col-model {
+    width: 96px;
+  }
+
+  .col-stage {
+    width: 50px;
   }
 
   .step-head {
@@ -1580,10 +2102,6 @@
 
   .step-copy {
     grid-template-columns: 1fr;
-  }
-
-  .device-panel {
-    align-items: flex-start;
   }
 
   .device-grid-head {
