@@ -7,7 +7,14 @@ import cyvra.mobile.core.TechnicianCheckOutcome
 import cyvra.mobile.core.TechnicianCheckResult
 import cyvra.mobile.core.TechnicianChecklistCatalog
 import cyvra.mobile.core.TechnicianChecklistRecord
+import cyvra.mobile.core.WorkstationDeviceDescriptor
 import cyvra.mobile.host.engine.CapabilityMatrixLoader
+import cyvra.mobile.host.engine.CapabilityResult
+import cyvra.mobile.host.engine.DeviceProfile
+import cyvra.mobile.host.engine.MatrixLoadResult
+import cyvra.mobile.host.engine.PatchSetState
+import cyvra.mobile.host.engine.PatchStateOutcome
+import cyvra.mobile.host.engine.Plane
 import cyvra.mobile.host.engine.ReportFinaliser
 import cyvra.mobile.host.engine.ReportGenerator
 import cyvra.mobile.host.license.LicenseFileResult
@@ -26,6 +33,10 @@ import cyvra.mobile.host.transport.AdbClient
 import cyvra.mobile.host.transport.AdbDeviceDescriptor
 import cyvra.mobile.host.transport.ConnectionStateMachine
 import cyvra.mobile.host.transport.HostPreflightVerifier
+import cyvra.mobile.host.transport.AdbTransport
+import cyvra.mobile.host.transport.ProbeOutcome
+import cyvra.mobile.host.transport.ProbeResult
+import cyvra.mobile.host.transport.TransportManager
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -60,7 +71,49 @@ class HostProtocolDispatcher(
      * on the wire and the digests stored in `manifest.json` are always the same bytes.
      */
     private val reportStore: HostReportStore = HostReportStore(reportEngine = reportEngine),
+    /**
+     * Establishes the authoritative applied patch state for a completed scan.
+     *
+     * A production deployment wires [cyvra.mobile.host.engine.FileBasedPatchStateProvider],
+     * which reads the signed patch corpus from the read-only installation root, verifies it
+     * through [cyvra.mobile.host.engine.PatchVerifier] against governed build-time trust
+     * anchors (contract §3), and reconciles it against the applied-state record. Until that
+     * subsystem can establish an authoritative state the default seam is **null**: it
+     * establishes nothing, so [FINALISE_REPORT] refuses rather than substituting the
+     * default empty state. An interface existing is not authority.
+     *
+     * The live [DeviceProfile] of the scan being recorded is passed in, so contract §6
+     * step 7 can resolve `oem_scope` against the actual device. Without it every patch is
+     * legitimately NOT APPLICABLE and no applied record could ever be reconciled.
+     *
+     * The return type is deliberately [PatchStateOutcome] and not a bare [PatchSetState].
+     * [PatchSetState]'s own default *is* `NO-PATCHES`, so a provider that merely failed to
+     * find a corpus could otherwise hand back that default and have it reported as an
+     * authoritative claim. Contract §8 requires `patch_set_mode` to be "never blank, never
+     * inferred"; forcing a positive [PatchStateOutcome.Established] makes the permissive
+     * fallback structurally impossible rather than a convention to be remembered.
+     *
+     * [PatchStateOutcome] itself lives in the engine layer, next to [PatchSetState] and
+     * [cyvra.mobile.host.engine.FileBasedPatchStateProvider]: patch-state vocabulary
+     * belongs to the engine, and this protocol layer consumes it.
+     */
+    private val patchStateProvider: ((DeviceProfile?) -> PatchStateOutcome)? = null,
 ) {
+    /**
+     * Immutable evidence captured once for the completed scan currently held in [lastScan].
+     *
+     * D-5 (Option B): a controlled final report must carry the actual probe results and
+     * the authoritative patch state that belonged to *this* completed scan/session. The
+     * packet is created at scan success, bound to that scan's `sessionUuid`, invalidated
+     * whenever the scan is (see the `SCAN_FAILED` path), and never silently regenerated at
+     * finalisation. If authoritative patch state cannot be established the packet is null
+     * and finalisation refuses.
+     */
+    private data class ScanEvidencePacket(
+        val sessionUuid: String,
+        val probeResults: List<ProbeResult>,
+        val patchState: PatchSetState,
+    )
 
     private val json = Json {
         encodeDefaults = true
@@ -80,6 +133,16 @@ class HostProtocolDispatcher(
      * never carry over onto fresh evidence.
      */
     private var lastScan: WorkstationDiagnosticExecutionResult? = null
+    private var scanEvidence: ScanEvidencePacket? = null
+
+    /**
+     * Why [scanEvidence] is absent, captured at scan time.
+     *
+     * Purely diagnostic: it lets `FINALISE_REPORT` state which gate refused instead of
+     * returning an opaque "unavailable". It never influences the decision, which is taken
+     * solely on whether the packet exists.
+     */
+    private var patchStateRefusalReason: String? = null
     private var lifecycleStart: SanitizationLifecycleStart? = null
     private var operatorAcknowledged: Boolean? = null
     private var operatorConfirmationPhrase: String? = null
@@ -109,6 +172,21 @@ class HostProtocolDispatcher(
     }
 
     private var cachedOrchestrator: WorkstationSessionOrchestrator? = null
+
+    /**
+     * The one AdbClient for the resolved binary, built through [adbClientFactory] so the
+     * orchestrator and the D-5 probe capture share a single client (and therefore a single
+     * process runner). Building a second client for capture would bypass a factory that
+     * supplies a custom runner.
+     */
+    private var cachedAdbClient: AdbClient? = null
+
+    private fun adbClientFor(adbBinary: java.io.File): AdbClient {
+        cachedAdbClient?.let { return it }
+        val built = adbClientFactory(adbBinary)
+        cachedAdbClient = built
+        return built
+    }
 
     fun dispatch(request: HostRequest): HostResponse {
         return when (request.command) {
@@ -511,6 +589,19 @@ class HostProtocolDispatcher(
                 message = error.message ?: "Scan refused by entitlement accounting",
             )
         } catch (error: Exception) {
+            /*
+             * U-3(a): a genuine scan-execution failure invalidates the previous
+             * scan's evidence. `executeDiagnostic` has already abandoned the
+             * failed reservation; clearing the stale scan here stops report
+             * retrieval and sanitization from operating on a report the current
+             * attempt did not produce. The entitlement-refusal path above
+             * (IllegalStateException -> SCAN_REFUSED) fires before any scan work
+             * begins and deliberately preserves the current scan.
+             */
+            lastScan = null
+            scanEvidence = null
+            patchStateRefusalReason = null
+            resetSanitizationState()
             return errorResponse(
                 request = request,
                 code = "SCAN_FAILED",
@@ -519,6 +610,40 @@ class HostProtocolDispatcher(
         }
 
         lastScan = result
+        /*
+         * D-5 (Option B): capture the actual probe results for THIS completed scan, bound
+         * to its sessionUuid. The probe suite runs once here, at scan success, and is
+         * never re-run at finalisation.
+         *
+         * Patch state is recorded ONLY when a real provider positively establishes it
+         * ([PatchStateOutcome.Established]). An absent provider, or one answering
+         * [PatchStateOutcome.Unavailable], leaves the packet null so finalisation refuses
+         * - never a default `NO-PATCHES` reported as authoritative.
+         *
+         * The live device goes to the provider so contract §6 step 7 can resolve
+         * `oem_scope` against the device this scan actually observed.
+         */
+        val probeResults = probeCapture(serial)
+        val patchStateOutcome = if (probeResults == null) {
+            null
+        } else {
+            patchStateProvider?.invoke(deviceProfileFor(result.deviceDescriptor))
+                ?: PatchStateOutcome.Unavailable("NO_PATCH_STATE_PROVIDER")
+        }
+        scanEvidence = if (probeResults != null && patchStateOutcome is PatchStateOutcome.Established) {
+            ScanEvidencePacket(result.sessionUuid, probeResults, patchStateOutcome.state)
+        } else {
+            null
+        }
+        /*
+         * Why the packet is absent, so the refusal at finalisation is diagnosable rather
+         * than opaque. Diagnostic only: it never changes the decision to refuse.
+         */
+        patchStateRefusalReason = when {
+            probeResults == null -> "no probe results were captured for this scan"
+            patchStateOutcome is PatchStateOutcome.Unavailable -> patchStateOutcome.reason
+            else -> null
+        }
         resetSanitizationState()
         /*
          * A new scan starts a new session, so attestations made against the previous
@@ -546,6 +671,9 @@ class HostProtocolDispatcher(
     /** GET_DEVICE_REPORT returns Report 1 exactly as it was generated by the scan. */
     private fun deviceReportResponse(request: HostRequest): HostResponse {
         val scan = lastScan ?: return noScanError(request, "GET_DEVICE_REPORT")
+        // Serial-when-present (U-2(a)): a named serial must match the active scan's device.
+        serialOwnershipRefusal(request, "GET_DEVICE_REPORT", scan.deviceDescriptor.serial)
+            ?.let { return it }
         val reportObject = json.parseToJsonElement(scan.reportJson) as? JsonObject
             ?: return errorResponse(
                 request = request,
@@ -619,6 +747,9 @@ class HostProtocolDispatcher(
      */
     private fun exportReportResponse(request: HostRequest): HostResponse {
         val scan = lastScan ?: return noScanError(request, "EXPORT_REPORT")
+        // Serial-when-present (U-2(a)): a named serial must match the active scan's device.
+        serialOwnershipRefusal(request, "EXPORT_REPORT", scan.deviceDescriptor.serial)
+            ?.let { return it }
         val jsonContent = scan.reportJson
         val markdownContent = scan.reportMarkdown
 
@@ -675,6 +806,30 @@ class HostProtocolDispatcher(
      */
     private fun finaliseReportResponse(request: HostRequest): HostResponse {
         val scan = lastScan ?: return noScanError(request, "FINALISE_REPORT")
+        /*
+         * D-5 (Option B): a controlled final report must carry the actual probe results
+         * and the authoritative patch state belonging to THIS completed scan. When the
+         * packet is absent, its session does not match the active scan, its patch state
+         * was never authoritatively established, or no probe results were captured, we
+         * refuse here - before any report artifact is written - rather than silently
+         * regenerating a default/empty report and presenting it as controlled evidence.
+         */
+        val evidence = scanEvidence
+        if (evidence == null || evidence.sessionUuid != scan.sessionUuid || evidence.probeResults.isEmpty()) {
+            val reason = when {
+                evidence != null && evidence.sessionUuid != scan.sessionUuid ->
+                    "the captured evidence belongs to a different session"
+                evidence != null && evidence.probeResults.isEmpty() ->
+                    "no probe results were captured for this scan"
+                else -> patchStateRefusalReason ?: "authoritative patch state was not established"
+            }
+            return errorResponse(
+                request = request,
+                code = FINALISE_INPUTS_UNAVAILABLE,
+                message = "Authoritative scan evidence (probe results and applied patch state) " +
+                    "is unavailable for this completed scan: $reason",
+            )
+        }
         val operatorId = request.stringPayload(KEY_OPERATOR_ID) ?: scan.report.header.operatorId
 
         val finalised = try {
@@ -682,7 +837,10 @@ class HostProtocolDispatcher(
                 loader = CapabilityMatrixLoader(),
                 engineVersion = HostProtocolV1.DEFAULT_HOST_VERSION,
             )
-            ReportFinaliser().finalise(generator.generate(), operatorId)
+            ReportFinaliser().finalise(
+                generator.generate(evidence.probeResults, evidence.patchState),
+                operatorId,
+            )
         } catch (error: Exception) {
             return errorResponse(
                 request = request,
@@ -765,7 +923,13 @@ class HostProtocolDispatcher(
 
         val operatorId = request.stringPayload(KEY_OPERATOR_ID)
             ?: scan.report.header.operatorId
-        val targetSerial = request.stringPayload(KEY_SERIAL) ?: scan.deviceDescriptor.serial
+        // Serial-when-present (D-3, U-2(a)): this operation is scan-bound, so the
+        // serial recorded on the active scan is authoritative. A differing wire
+        // serial is refused; it can never rebind the session to a device the scan
+        // did not observe. Absent/matching serial keeps the established behaviour.
+        serialOwnershipRefusal(request, "SANITIZE_START", scan.deviceDescriptor.serial)
+            ?.let { return it }
+        val targetSerial = scan.deviceDescriptor.serial
 
         val preRecord = PreSanitizationRecord(
             operationId = PLACEHOLDER_OPERATION_ID,
@@ -991,7 +1155,13 @@ class HostProtocolDispatcher(
                 message = "Refused: no workstation session is attached to this command",
             )
 
-        val targetSerial = request.stringPayload(KEY_SERIAL) ?: start.targetSerial
+        // Serial-when-present (D-3, U-2(a)): this operation is lifecycle-bound, so
+        // the target locked at SANITIZE_START is authoritative. A differing wire
+        // serial is refused before it can reach the destructive call — it can never
+        // substitute the execution target. Absent/matching serial is unchanged.
+        serialOwnershipRefusal(request, "SANITIZE_EXECUTE", start.targetSerial)
+            ?.let { return it }
+        val targetSerial = start.targetSerial
         val operatorId = start.preRecord?.operatorId ?: DEFAULT_OPERATOR_ID
 
         val result = try {
@@ -1103,6 +1273,11 @@ class HostProtocolDispatcher(
                 code = "NO_EXECUTION_SESSION",
                 message = "SANITIZE_EXECUTE must succeed before GET_FINAL_REPORT",
             )
+        // Serial-when-present (U-2(a)): ownership is judged against the ACTIVE SCAN's
+        // recorded serial — never the lifecycle result (which carries no serial) and
+        // never a client-supplied reference value.
+        serialOwnershipRefusal(request, "GET_FINAL_REPORT", lastScan?.deviceDescriptor?.serial)
+            ?.let { return it }
         val certificate = result.finalReport
             ?: return errorResponse(
                 request = request,
@@ -1204,6 +1379,63 @@ class HostProtocolDispatcher(
         val built = orchestratorFactory(adbBinary, licenseService)
         cachedOrchestrator = built
         return built
+    }
+
+    /**
+     * The live device identity of the scan being recorded, for contract §6 step 7.
+     *
+     * Returns null when the descriptor did not carry every field `oem_scope` matching
+     * needs. A partial identity is not guessed at: with no profile the verifier records
+     * every patch as NOT APPLICABLE, which is conservative and cannot assert scope that
+     * was never observed.
+     */
+    private fun deviceProfileFor(descriptor: WorkstationDeviceDescriptor): DeviceProfile? {
+        val manufacturer = descriptor.manufacturer?.takeIf { it.isNotBlank() } ?: return null
+        val model = descriptor.model?.takeIf { it.isNotBlank() } ?: return null
+        val apiLevel = descriptor.apiLevel ?: return null
+        return DeviceProfile(
+            manufacturer = manufacturer,
+            model = model,
+            apiLevel = apiLevel,
+        )
+    }
+
+    /**
+     * Runs the probe suite once for the scan that just completed, over the capability
+     * matrix's real domain rows, and returns one [ProbeResult] per domain.
+     *
+     * Only production sources are wired. The ADB plane (P3) is backed by the real
+     * [AdbClient] already resolved for the scan. The USB/PnP (P1), WPD/MTP (P2) and
+     * companion (P4) planes have no production platform adapter in this repository, so
+     * they are deliberately NOT registered: `TransportManager` records each of their
+     * domains as an honest `TRANSPORT_NOT_REGISTERED` refusal. A refused or unavailable
+     * plane is never simulated as a successful observation.
+     *
+     * Returns null when the matrix cannot be loaded, so no evidence is captured from a
+     * matrix the engine would itself treat as unusable.
+     */
+    private fun probeCapture(serial: String): List<ProbeResult>? {
+        val matrixLoader = CapabilityMatrixLoader()
+        val matrix = (matrixLoader.load() as? MatrixLoadResult.Loaded)?.matrix ?: return null
+        val adbBinary = adbLocator.locate()
+        if (adbBinary == null) {
+            // No ADB binary resolved: no plane can answer. Record an honest refusal per
+            // domain rather than fabricating an observation or capturing nothing.
+            return matrix.rows.map { domain ->
+                ProbeResult(
+                    domain = domain.domain,
+                    plane = Plane.ADB,
+                    outcome = ProbeOutcome.NOT_OBSERVABLE,
+                    result = CapabilityResult.NOT_AVAILABLE,
+                    reasonCode = "ADB_BINARY_UNRESOLVED",
+                )
+            }
+        }
+        val transportManager = TransportManager(
+            loader = matrixLoader,
+            transports = listOf(AdbTransport(adbClientFor(adbBinary)) { serial }),
+        )
+        return matrix.rows.map { transportManager.probe(it.domain) }
     }
 
     /**
@@ -1386,6 +1618,37 @@ class HostProtocolDispatcher(
             message = "$command requires a completed scan; this session holds no RUN_SCAN result",
         )
 
+    /**
+     * Serial-when-present ownership rule (U-2(a), ratified 21 October 2026).
+     *
+     * A retrieval request that explicitly names a device serial must never be
+     * answered from a different device's active scan: a present-but-different
+     * serial is refused with `SERIAL_MISMATCH`. An absent serial is NOT a
+     * mismatch — the single-session workstation UI sends no serial today, and
+     * that behaviour is deliberately preserved, not silently changed.
+     *
+     * [activeSerial] is the serial recorded on the active scan itself; a request
+     * that names a serial while no scan records one cannot be verified against
+     * anything and is refused rather than served blind.
+     */
+    private fun serialOwnershipRefusal(
+        request: HostRequest,
+        command: String,
+        activeSerial: String?,
+    ): HostResponse? {
+        val requested = request.stringPayload(KEY_SERIAL) ?: return null
+        if (activeSerial == null || requested != activeSerial) {
+            return errorResponse(
+                request = request,
+                code = "SERIAL_MISMATCH",
+                message = "$command refused: payload.serial '$requested' does not match the " +
+                    "active scan's device" +
+                    (activeSerial?.let { " ('$it')." } ?: "; no active scan records one."),
+            )
+        }
+        return null
+    }
+
     private fun notEligibleError(request: HostRequest): HostResponse {
         val reasons = lifecycleStart?.eligibility?.blockReasons
         return errorResponse(
@@ -1438,6 +1701,15 @@ class HostProtocolDispatcher(
 
         /** Refusal code returned when generated artifacts cannot be written to disk. */
         const val REPORT_WRITE_FAILED: String = "REPORT_WRITE_FAILED"
+
+        /**
+         * Refusal code returned when authoritative scan evidence (actual probe results and
+         * the applied patch state) is unavailable for the completed scan at FINALISE_REPORT.
+         *
+         * A controlled final report may never silently substitute an empty probe list or the
+         * default patch state, so the absence is surfaced as an explicit refusal instead.
+         */
+        const val FINALISE_INPUTS_UNAVAILABLE: String = "FINALISE_INPUTS_UNAVAILABLE"
 
         /**
          * The `imeiReason` every connected-device row carries.
