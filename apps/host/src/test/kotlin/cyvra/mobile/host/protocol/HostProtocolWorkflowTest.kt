@@ -260,22 +260,27 @@ class HostProtocolWorkflowTest {
             reportEngine = reportEngine,
             homeProvider = { null },
         ),
-    ): HostProtocolDispatcher =
-        HostProtocolDispatcher(
+    ): HostProtocolDispatcher {
+        // Probe capture (D-5) builds an AdbClient through [adbClientFactory]; the fake
+        // runner must reach that client too, or capture would spawn a real `adb`.
+        val adbRunner = FakeAdbRunner()
+        return HostProtocolDispatcher(
             licenseResultProvider = { license },
             adbLocator = if (withAdb) fakeBinaryLocator() else AdbBinaryLocator(
                 installationRootProvider = { null },
                 environmentProvider = { null },
             ),
+            adbClientFactory = { binary -> AdbClient(binary, adbRunner) },
             orchestratorFactory = { _, licenseService ->
                 WorkstationSessionOrchestrator(
-                    adbClient = AdbClient(File("/mock/adb"), FakeAdbRunner()),
+                    adbClient = AdbClient(File("/mock/adb"), adbRunner),
                     licenseService = licenseService,
                 )
             },
             reportEngine = reportEngine,
             reportStore = reportStore,
         )
+    }
 
     // ------------------------------------------------------------------
     // JSON-lines session

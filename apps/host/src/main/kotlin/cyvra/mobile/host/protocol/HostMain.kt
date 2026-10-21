@@ -1,5 +1,6 @@
 package cyvra.mobile.host.protocol
 
+import cyvra.mobile.host.engine.FileBasedPatchStateProvider
 import cyvra.mobile.host.service.HostBootstrap
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -14,7 +15,24 @@ object HostMain {
         ignoreUnknownKeys = false
     }
 
-    private val dispatcher = HostProtocolDispatcher()
+    /**
+     * The production patch-state provider.
+     *
+     * Wired rather than left null so a real scan exercises the actual contract §3/§6
+     * gates and refuses with a precise, diagnosable reason instead of the generic
+     * `NO_PATCH_STATE_PROVIDER`. Today [FileBasedPatchStateProvider] cannot establish an
+     * authoritative state at all — [cyvra.mobile.host.engine.PatchTrustAnchors.ALL] is
+     * empty (custody is open item §9.1) and no applied-state record format is governed —
+     * so every production `FINALISE_REPORT` after a real scan still refuses. That refusal
+     * is the correct behaviour, not a defect to route around.
+     */
+    private val patchStateProvider = FileBasedPatchStateProvider(
+        engineVersion = HostProtocolV1.DEFAULT_HOST_VERSION,
+    )::establish
+
+    private val dispatcher = HostProtocolDispatcher(
+        patchStateProvider = patchStateProvider,
+    )
 
     @JvmStatic
     fun main(args: Array<String>) {

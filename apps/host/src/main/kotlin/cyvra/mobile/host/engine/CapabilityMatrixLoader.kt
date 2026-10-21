@@ -222,7 +222,27 @@ data class MatrixDomainRow(
     val result: CapabilityResult,
     val status: DomainStatus,
     val evidenceReference: String,
-)
+) {
+    /**
+     * The stable identity a signed patch's `matrix_rows[]` entry MUST use (contract §5).
+     *
+     * [itemId] carries the ratification marker because the matrix document prints it in
+     * the same cell (`CON-001 **[S]**`, `SEC-001 **[P]**`). That marker is **status, not
+     * identity**: governed `CYVRA_CAPABILITY_MATRIX_V1.md` §4 defines `ITEM ID` as the
+     * bare id and the marker as annotation on it, and a provisional row keeps its id when
+     * it is ratified — `SEC-001 [P]` becomes `SEC-001 [S]`.
+     *
+     * Resolving patches against [itemId] would therefore reject a patch at the precise
+     * moment its row gained authority, which is the opposite of the intent. [rowId] is
+     * what contract §5 means by "every id MUST resolve in the signed capability matrix".
+     *
+     * [itemId] is deliberately left unchanged: it is emitted verbatim into the report's
+     * `itemId` field, alongside the [provisional] flag that already carries the same
+     * status separately.
+     */
+    val rowId: String
+        get() = itemId.substringBefore(" [").trim()
+}
 
 /** A validated capability matrix: 22 domains, indexed for lookup. */
 class CapabilityMatrix(

@@ -49,6 +49,26 @@ class CapabilityMatrixLoaderTest {
     }
 
     @Test
+    fun rowIdStripsTheRatificationMarkerAndNeverCollides() {
+        // `[S]`/`[P]` is status printed alongside the id, not part of it. A signed patch
+        // names the stable id, so ratifying a provisional row cannot invalidate patches
+        // that already reference it.
+        val matrix = loaded()
+
+        assertEquals("CON-001", matrix.row("Connection")!!.rowId, "a ratified row keeps its bare id")
+        assertEquals("SEC-001", matrix.row("Security")!!.rowId, "a provisional row keeps its bare id")
+        assertEquals(
+            matrix.row("Connection")!!.itemId,
+            matrix.row("Connection")!!.rowId + " [S]",
+            "itemId still carries the marker the report emits verbatim",
+        )
+
+        val ids = matrix.rows.map { it.rowId }
+        assertTrue(ids.none { it.contains("[") }, "no rowId may carry a ratification marker")
+        assertEquals(ids.size, ids.toSet().size, "rowId must stay unique across the matrix")
+    }
+
+    @Test
     fun dispatchClassesMatchTheRecordedResults() {
         assertEquals(DomainStatus.EVIDENCE_BACKED, loader.statusOf("Connection"))
         assertEquals(CapabilityResult.PASS, loader.resultOf("Connection"))
