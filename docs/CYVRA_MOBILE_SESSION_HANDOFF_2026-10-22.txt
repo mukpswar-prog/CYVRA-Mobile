@@ -1,0 +1,768 @@
+CYVRA MOBILE - CANONICAL END-OF-DAY HANDOFF
+Date: 22 October 2026
+Produced under Block 7 of
+  docs/CYVRA_MOBILE_TODAYS_MASTER_WORK_PLAN_2026-10-22.txt
+Audience: user, OpenCode, ChatGPT
+Dated successor to docs/CYVRA_MOBILE_SESSION_HANDOFF_2026-10-20.txt
+  (per that handoff, section F: "Do NOT overwrite existing branches or
+  handoff files (including this one - create a dated successor instead)")
+
+DOCUMENT STATUS: DRAFT - not yet written to the repository.
+
+Nothing in this document is an approval, a ratification, a governance
+decision, or a release declaration. It records evidence and the absence
+of evidence. It does not close any open item.
+
+=======================================================================
+1. BASELINE AND REPOSITORY STATE - VERIFIED FACT
+=======================================================================
+
+Authoritative checkpoint : 7568c96779541ed32c0a4d58972839d1c08e26d9
+Expected HEAD            : 7e8439d13d354764206f631852b81441a4b8a032
+Actual HEAD              : 7e8439d13d354764206f631852b81441a4b8a032  MATCH
+Expected branch          : docs/session-handoff-2026-10-20
+Actual branch            : docs/session-handoff-2026-10-20            MATCH
+Upstream                 : origin/docs/session-handoff-2026-10-20
+Upstream divergence      : 0 behind, 0 ahead
+origin/main              : 9a55808cbdc69a6fc4db9896fcf3e3f797fcb3d0
+
+Checkpoint verification:
+  git cat-file -t 7568c96                      -> commit
+  git merge-base --is-ancestor ... HEAD        -> exit 0 (YES)
+  git merge-base --is-ancestor ... origin/main -> exit 0 (YES)
+  git log 7568c96..HEAD                        -> 7e8439d only
+
+Worktree:
+  staged    : nothing
+  unstaged  : nothing
+  untracked : none
+  result    : CLEAN
+
+Stashes - present, untouched, not applied, not dropped, not renamed:
+  stash@{0}: On cursor/g0-g3-mobile-slice-7474:
+             !!GitHub_Desktop<cursor/g0-g3-mobile-slice-7474>
+  stash@{1}: On cyvra-mobile-implementation:
+             B3A failed native USB notification attempt - preserved 2026-09-18
+
+Only commit after the checkpoint on this branch:
+  7e8439d docs: add 22-Oct master work plan
+  (author mukpswar@gmail.com - covered by H3 accepted exception,
+   CE-5 ruling 8)
+
+Expected-versus-actual discrepancy: NONE.
+
+=======================================================================
+2. SCOPE - WHAT THIS DOCUMENT IS NOT
+=======================================================================
+
+VERIFIED FACT. This handoff is not:
+  - a completion claim for any product capability;
+  - a CI result, or evidence that any GitHub Actions run exists;
+  - a hardware validation record;
+  - a release-readiness approval;
+  - a decision on any pending item in section 9.
+
+The 22-Oct plan is a tracking plan. Per its own line 71: "This file is
+a tracking plan, not a substitute for the formal governance ledger or
+product requirements."
+
+=======================================================================
+3. PERMITTED STATUS LABELS USED IN THIS DOCUMENT
+=======================================================================
+
+Only the seven labels defined at plan lines 229-236 are used:
+
+  CLOSED WITH EVIDENCE
+  IMPLEMENTED - TESTS PENDING
+  TESTED - HARDWARE VALIDATION PENDING
+  DECISION REQUIRED
+  BLOCKED BY DEPENDENCY
+  NOT TESTED
+  DEFERRED
+
+Verdict-level qualifiers VERIFIED FACT, RECOMMENDATION, BLOCKED and
+NOT TESTED are used as prefixes to distinguish evidence classes.
+
+=======================================================================
+4. BLOCK-BY-BLOCK RECONCILIATION
+=======================================================================
+
+Format per plan line 237: planned / completed / changed / not done /
+why not done / evidence.
+
+-----------------------------------------------------------------------
+BLOCK 1 - BASELINE AND GOVERNANCE RECONCILIATION (plan lines 81-97)
+-----------------------------------------------------------------------
+
+1.1 Confirm branch/HEAD and distinguish from origin/main (L83)
+    COMPLETED: baseline recorded, checkpoint proven an ancestor of both
+    HEAD and origin/main.
+    STATUS: CLOSED WITH EVIDENCE
+
+1.2 Reconcile the six governance sources (L84)
+    COMPLETED: comparison table across FORENSIC_AUDIT_2026-10-10.md,
+    CYVRA_FINAL_PLAN_VS_ACTUAL_HANDSHAKE_MATRIX_2026-10-12.md,
+    CYVRA_GOVERNANCE_LEDGER.md, CONSOLIDATED_AUDIT_RECORD_2026-10-20.txt,
+    CYVRA_PATCH_STATE_PROVIDER.md, and PR #64.
+    STATUS: CLOSED WITH EVIDENCE
+
+1.3 Verify the three reported governance-gap claims (L85)
+    COMPLETED: all three CONFIRMED.
+      a) Governance ledger last substantive entry is 16-Oct. Ledger
+         authority wording: "append-forward: entries are added and
+         superseded, never rewritten".
+      b) git grep -E 'U-2|U-3|U-6' on CYVRA_GOVERNANCE_LEDGER.md -> NO
+         MATCHES (exit 1). Ledger last entry is line 1492.
+      c) The string "21 October" is absent from all three governing
+         records. The only dated claim anywhere is a SOURCE COMMENT at
+         apps/host/src/main/kotlin/cyvra/mobile/host/protocol/
+         HostProtocolDispatcher.kt:1622 ("ratified 21 October 2026").
+    CHANGED: nothing.
+    STATUS: CLOSED WITH EVIDENCE
+
+1.4 Prepare a dated governance addendum for decisions with written
+    authority (L86)
+    COMPLETED: section 14-style addendum drafted and shown in-response.
+    NOT DONE: it was not written to any file, because plan line 96
+    requires the proposed diff to be shown to the user first, and
+    approval has not been given.
+    WHY NOT DONE: approval is a precondition, not a formality.
+    STATUS: DECISION REQUIRED
+
+1.5 Preserve U-1, U-4, U-5 as OPEN (L87)
+    COMPLETED: all three preserved OPEN. CYVRA_GOVERNANCE_LEDGER.md
+    lines 522-525 confirm the D-1 substitution was deliberate.
+    STATUS: CLOSED WITH EVIDENCE
+
+1.6 Distinguish source comment vs authorized decision vs missing record
+    for U-2(a), U-3(a), U-6, D-5 Option B, and the 7568c96 / PR #64
+    authorisation (L88)
+    COMPLETED: all classified as ASSERTED IN SOURCE ONLY. PR #64
+    https://github.com/mukpswar-prog/CYVRA-Mobile/pull/64 carries
+    "No reviews". No governance record authorises 7568c96.
+    STATUS: CLOSED WITH EVIDENCE
+
+1.7 Disclose the unsatisfied steps of section 12.5 (L89)
+    COMPLETED: steps 3, 4 and 5 disclosed as unsatisfied.
+    STATUS: CLOSED WITH EVIDENCE
+
+1.8 Investigate the missing 16-Oct item 4, the B1 numbering collision,
+    and the ACTIVITY_REVIEW status (L90-92)
+    COMPLETED: all three investigated; conflicts C-3, C-4 and C-5
+    raised and left unresolved.
+    STATUS: CLOSED WITH EVIDENCE
+
+1.9 Make no code change; do not rewrite the ledger or governance
+    records (L93)
+    COMPLETED: 0 files changed.
+    STATUS: CLOSED WITH EVIDENCE
+
+-----------------------------------------------------------------------
+BLOCK 2 - DEFECT STATUS AND DEPENDENCY REGISTER (plan lines 99-139)
+-----------------------------------------------------------------------
+
+2.1 D-1 status against current tree and tests (L102)
+    COMPLETED: D-1 is OPEN / NOT FIXED.
+    VERIFIED FACT: the lifecycle value CYVRA-SESSION-... at
+    WorkstationSessionOrchestrator.kt:149 is not a UUID. It fails the
+    declared "format: uuid" constraint (validate.ts:41-42 ->
+    ids.ts:34-36) and the device_lifecycles foreign key
+    (schema.ts:367-369). Three inconsistent producers exist: host
+    prefixed, APK random per-run, and the literal "unknown-lifecycle".
+    STATUS: CLOSED WITH EVIDENCE   (the defect itself remains open)
+
+2.2 D-2 verify or reopen (L103)
+    COMPLETED: guards VERIFIED PRESENT in the current tree at
+    HostProtocolDispatcher deviceReportResponse:674,
+    exportReportResponse:750, finalReportResponse:1276.
+    STATUS: CLOSED WITH EVIDENCE
+
+2.3 D-3 verify or reopen (L104)
+    COMPLETED: guards VERIFIED PRESENT at sanitizeStartResponse:926 and
+    sanitizeExecuteResponse:1158.
+    STATUS: CLOSED WITH EVIDENCE
+
+2.4 D-4 verify or reopen (L105)
+    COMPLETED: clear at runScanResponse:591-604.
+    STATUS: CLOSED WITH EVIDENCE
+
+2.5 D-5 status, blockers and dependencies (L106)
+    COMPLETED: BLOCKED BY DESIGN.
+    VERIFIED FACT: PatchTrustAnchors.ALL = emptyMap()
+    (PatchTrustAnchors.kt:67); no key has been issued
+    (PatchTrustAnchors.kt:17-19); the store is unwired; there is no
+    procedure registry; there is no authenticity binding.
+    STATUS: CLOSED WITH EVIDENCE   (the defect itself remains blocked)
+
+2.6 Inspect the governing source for A-9 / R-2 / R-3 and record the
+    result (L107)
+    COMPLETED: inspected and recorded.
+    VERIFIED FACT - two SEPARATE facts, deliberately not merged:
+      a) The NIST verification string is DELETED. Only a historical
+         comment remains at SanitizationModels.kt:104-109.
+      b) The CYVRA-CERT- generator is LIVE at
+         WorkstationSessionOrchestrator.kt:457.
+    NOT DONE: the R-2/R-3 precondition was not executed, so neither
+    defect is closed.
+    STATUS: CLOSED WITH EVIDENCE for the inspection and record only.
+
+2.7 Preserve A-10 / R-P and A-13 / R-Q(c) priority (L108)
+    COMPLETED: priority preserved. A-10's offending string is absent
+    from the tree but this is NOT claimed as a fix. A-13 is recorded as
+    NOT RE-VERIFIED.
+    STATUS: CLOSED WITH EVIDENCE
+
+2.8 Verify the P2B current tree (L109)
+    COMPLETED: the "APPLIED, NOT COMMITTED" claim in P2B-SERVER-GAPS.md
+    line 4 is NOT evidenced in the current tree; paymentStatusesFor is
+    absent from services/api/src/admin.ts. Conflict C-1 raised.
+    STATUS: CLOSED WITH EVIDENCE
+
+2.9 Preserve the full register A1-A11 and B1-B3 (L110-113)
+    COMPLETED: preserved verbatim in the Block 2 report.
+    STATUS: CLOSED WITH EVIDENCE
+
+2.10 Preserve the approved-diversion ledger if the register locates one
+    (L110)
+    NOT DONE: the diversion-ledger location was not re-confirmed during
+    this session.
+    WHY NOT DONE: not reached within the permitted Block 2 scope.
+    STATUS: DEFERRED
+
+2.11 Do not reimplement D-2 / D-3 / D-4 unless a regression is found
+    (L137)
+    COMPLETED: no regression found, therefore no reimplementation was
+    attempted. This complies with the plan's prohibition.
+    STATUS: CLOSED WITH EVIDENCE
+
+-----------------------------------------------------------------------
+BLOCK 3 - RE-RUN CURRENT-TREE FOCUSED TESTS (plan lines 141-160)
+-----------------------------------------------------------------------
+
+3.1 Re-run the six focused suites (L143-149)
+    COMPLETED. VERIFIED FACT - LOCAL ONLY:
+      FileBasedPatchStateProviderTest    22 passed
+      PatchStateStoreTest                17 passed
+      PatchVerifierTest                  14 passed
+      CapabilityMatrixLoaderTest         14 passed
+      HostProtocolDispatcherTest         34 passed
+      HostProtocolWorkflowTest           16 passed
+      ------------------------------------------------
+      TOTAL                             117 passed
+                                        0 failed
+                                        0 errors
+                                        0 skipped
+      Every suite exit code 0, at commit 7e8439d.
+    CHANGED: nothing in the repository.
+    STATUS: CLOSED WITH EVIDENCE
+
+3.2 Record commit, command line, counts, exit codes and timestamps
+    (L150-151)
+    COMPLETED: recorded with logs.
+    STATUS: CLOSED WITH EVIDENCE
+
+3.3 Run git diff --check on the reviewed changes (L152)
+    COMPLETED: exit 0.
+    STATUS: CLOSED WITH EVIDENCE
+
+3.4 Clearly distinguish local results from Actions runs and from
+    commit-status checks (L153)
+    COMPLETED: results are labelled LOCAL ONLY throughout.
+    STATUS: CLOSED WITH EVIDENCE
+
+3.5 Investigate why commit-status evidence was empty, without assuming
+    a cause (L155)
+    COMPLETED. VERIFIED FACT - root cause established:
+      a) .github/workflows/windows-engineering-build.yml lines 30-33
+         filter on branches that do not exist in this repository.
+      b) No "pull_request" trigger exists in ANY of the five workflows.
+      c) The GitHub status API returned total_count: 0.
+    The correct conclusion is that no status was ever expected, NOT
+    that tests were skipped or failed.
+    STATUS: CLOSED WITH EVIDENCE
+
+3.6 Do NOT run the entire repository suite (L156)
+    COMPLETED: only the six named suites were run.
+    STATUS: CLOSED WITH EVIDENCE
+
+3.7 Produce the reproducible log, comparison table and CI note
+    (L158-160)
+    COMPLETED: produced.
+    STATUS: CLOSED WITH EVIDENCE
+
+-----------------------------------------------------------------------
+BLOCK 4 - DECISION PACKAGE, NO UNAUTHORIZED IMPLEMENTATION
+(plan lines 162-177)
+-----------------------------------------------------------------------
+
+4.1 D-a Applied-state authenticity (L167)        DECISION REQUIRED
+4.2 D-b Patch-state record format (L168)         DECISION REQUIRED
+4.3 D-c Key issuance (L169)                      DECISION REQUIRED
+4.4 D-d [P] rows (L170)                          DECISION REQUIRED
+4.5 D-e U-1 (L171)                               DECISION REQUIRED
+4.6 D-f U-4 / U-5 (L172)                         DECISION REQUIRED
+4.7 Beyond-plan: D-1 / U-1 package and CI cause
+       D-1 / U-1 package                         DECISION REQUIRED
+       CI root cause                             CLOSED WITH EVIDENCE
+4.8 One decision document, each item marked
+    DECISION REQUIRED / APPROVED WITH SOURCE / BLOCKED (L176)
+    COMPLETED: delivered covering D-a through D-f plus D-1 and CI.
+    NOT ONE ITEM carries APPROVED WITH SOURCE. This is correct: no
+    item is approved, so no item may be marked as such.
+    STATUS: CLOSED WITH EVIDENCE for the deliverable.
+4.9 No implementation, no repository change (L177)
+    COMPLETED: 0 files changed.
+    STATUS: CLOSED WITH EVIDENCE
+
+VERIFIED FACT: a decision package is not an approval.
+
+-----------------------------------------------------------------------
+BLOCK 5 - WINDOWS PACKAGING DECISION, FROZEN (plan lines 179-199)
+-----------------------------------------------------------------------
+
+5.1 Preserve the pre-approved NSIS-only, unsigned engineering scope
+    (L196)
+    COMPLETED. VERIFIED FACT: apps/desktop/src-tauri/tauri.conf.json
+    has bundle.targets = "nsis"; there is no MSI or WiX target; no
+    signing configuration exists in tauri.conf.json or in any workflow.
+    The unsigned gate AGENT_APK_SIGNED_UNEXPECTED is present at
+    scripts/stage-windows-installer-resources.ps1:508.
+    STATUS: CLOSED WITH EVIDENCE
+
+5.2 Keep the existing Tauri + NSIS configuration and workflow
+    unchanged (L197)
+    COMPLETED: unchanged; the workflow file was not edited.
+    STATUS: CLOSED WITH EVIDENCE
+
+5.3 Record the current workflow run/artifact status accurately if
+    inspected (L198)
+    COMPLETED: recorded as zero statuses, which is the CONFIGURED
+    outcome, not a failure. See section 3.5.
+    STATUS: CLOSED WITH EVIDENCE
+
+5.4 No WiX/MSI work and no .exe rebuild (L199)
+    COMPLETED: none performed.
+    STATUS: CLOSED WITH EVIDENCE
+
+PLAN-VERSUS-EXECUTION DISCREPANCY - REPORTED, NOT RESOLVED:
+The user re-designated Block 5 as "CHIEF ENGINEER DECISION AND
+APPROVAL PACK", which is not the plan's Block 5 content (the frozen
+packaging decision). Both were satisfied: the approval pack was
+delivered as an additional deliverable, and the packaging freeze was
+preserved and re-verified, with its evidence gathered under Blocks 3
+and 6. Every one of the plan's Block 5 acceptance criteria is met.
+
+-----------------------------------------------------------------------
+BLOCK 6 - READINESS ASSESSMENT (plan lines 201-223)
+-----------------------------------------------------------------------
+
+6.1 Assess readiness checks without destructive testing (L203-220)
+    COMPLETED: ten checks assessed, each with evidence, prerequisites
+    and limitations.
+    STATUS: CLOSED WITH EVIDENCE for the assessment.
+    The subject-matter items carry their own statuses, below.
+
+6.2 Acceptance: each check marked with evidence and prerequisites, no
+    physical or release claim (L222-223)
+    COMPLETED. Overall verdict recorded as NOT RELEASE-READY. No
+    physical or release claim was made.
+    STATUS: CLOSED WITH EVIDENCE
+
+-----------------------------------------------------------------------
+BLOCK 7 - END-OF-DAY THREE-WAY RECONCILIATION (plan lines 225-240)
+-----------------------------------------------------------------------
+
+7.1 Read the governing Block 7 instructions (L227)
+    COMPLETED. STATUS: CLOSED WITH EVIDENCE
+
+7.2 Verify repository state (L228)
+    COMPLETED. One tooling false-negative was raised and corrected;
+    see section 12.
+    STATUS: CLOSED WITH EVIDENCE
+
+7.3 Compare actual versus planned across all blocks (L237)
+    COMPLETED: this document.
+    STATUS: CLOSED WITH EVIDENCE
+
+7.4 Record every item using exactly one permitted status (L238)
+    COMPLETED. All labels drawn only from the seven defined at L229-236.
+    STATUS: CLOSED WITH EVIDENCE
+
+7.5 Preserve branch, commit, tree and stash state (L238)
+    COMPLETED: all verified preserved. No cleanup operation was run.
+    STATUS: CLOSED WITH EVIDENCE
+
+7.6 Produce ONE canonical end-of-day handoff (L239)
+    COMPLETED: content produced. The file was NOT written during
+    Block 7 because the plan prescribes no destination path or naming
+    convention for the handoff. The only path the plan authorises is
+    the plan file itself (L73-74, L368). Creation was withheld pending
+    explicit authorisation of the destination.
+    STATUS: DECISION REQUIRED at the time of Block 7; that authorisation
+    is what this document's creation resolves.
+
+7.7 Do not mark items complete merely because a report exists (L240)
+    COMPLETED and enforced throughout: nothing is marked CLOSED on
+    report-existence alone; decisions remain DECISION REQUIRED; source
+    guards are not treated as hardware proof; local tests are not
+    treated as CI evidence.
+    STATUS: CLOSED WITH EVIDENCE
+
+=======================================================================
+5. STATUS TOTALS
+=======================================================================
+
+A. PLAN ITEMS ACROSS BLOCKS 1-7 (the reconciliation above)   50
+     CLOSED WITH EVIDENCE                    40
+     DECISION REQUIRED                        9
+     DEFERRED                                 1
+
+B. READINESS SUBJECT-MATTER ITEMS (section 8)                10
+     CLOSED WITH EVIDENCE                     2
+     BLOCKED BY DEPENDENCY                    4
+     NOT TESTED                               4
+
+C. TOTAL ITEMS ASSESSED                                        60
+
+     IMPLEMENTED - TESTS PENDING              0
+     TESTED - HARDWARE VALIDATION PENDING     0
+
+COUNTING RULE: group A counts only the plan's own numbered items in
+Blocks 1-7. Group B counts the ten readiness subject-matter checks
+assessed under Block 6. They are kept separate so that no item is
+counted twice. Group B's two CLOSED entries are the packaging scope
+and the absence of physical/release claims, which are distinct from
+the Block 5 packaging items 5.1-5.4.
+
+The last two labels are CORRECTLY ZERO across both groups. Nothing was
+implemented on 22 October, and nothing reached hardware testing.
+
+Note on BD-5: the four-port baseline carries a blocking dependency
+(hardware authorisation) but its ASSIGNED STATUS LABEL is NOT TESTED,
+so it is counted in group B under NOT TESTED, not under BLOCKED BY
+DEPENDENCY. Each item carries exactly one status.
+
+=======================================================================
+6. VERIFIED FACTS PRESERVED
+=======================================================================
+
+Each fact below survived Block 7 unchanged. No direct evidence
+available during that block corrected any of them.
+
+VF-1 Six focused local test suites: 117 passed, 0 failed, 0 errors,
+     0 skipped, at 7e8439d. LOCAL ONLY. No CI result and no hardware
+     validation is implied.
+
+VF-2 Four-port physical baseline: 0 of 4. Every row remains PENDING.
+     The baseline document states at line 58 that "no row may be read
+     as a pass".
+
+VF-3 End-to-end hardware scan and report: NOT TESTED.
+
+VF-4 Multi-device isolation: NOT TESTED.
+     50-device capacity: NOT TESTED.
+     No such claims are permitted.
+
+VF-5 Windows USB/PnP and WPD/MTP production integration: still blocked
+     and incomplete.
+
+VF-6 Entitlement and sanitization qualification: BLOCKED. Sanitization
+     must not be executed. OfflinePermissions.NONE is fail-closed
+     (sanitizeExecute = false); UNRESTRICTED exists only as the
+     license.json test/development seam.
+
+VF-7 D-5 patch-state authority and finalisation: BLOCKED BY DESIGN.
+     Trust anchors remain emptyMap(). No key is to be created or
+     inserted. PatchVerifier still returns
+     NoGovernedPatchApplicationAuthoriser and
+     UngovernedAppliedStateAuthenticator.
+
+VF-8 Packaging remains frozen: NSIS-only, unsigned engineering build.
+     No installer build was performed.
+
+VF-9 CI workflow evidence: no run was established. CI was not
+     dispatched and no workflow YAML was edited.
+
+VF-10 A-9 / R-2 / R-3: the NIST verification string removal and the
+      live CYVRA-CERT- generator are TWO SEPARATE FACTS. Neither defect
+      is marked closed.
+
+VF-11 U-1 through U-6, and all other governance decisions, remain
+      PENDING. No actual authorised decision record was found.
+
+VF-12 Unresolved conflicts C-1 through C-6 are preserved verbatim and
+      were not silently resolved.
+
+VF-13 No capability is RELEASE-VALIDATED. Capability position remains
+      62 of 114 coded, 0 end-to-end, 0 RELEASE-VALIDATED, with three
+      domains absent: Biometrics, Mechanical, Touch.
+
+VF-14 Commit author mukpswar@gmail.com on 7e8439d is covered by the H3
+      accepted exception, CE-5 ruling 8.
+
+=======================================================================
+7. LOCAL TEST versus CI versus HARDWARE / RELEASE VALIDATION
+=======================================================================
+
+This distinction is load-bearing and must not be collapsed.
+
+LOCAL TEST
+  VERIFIED FACT. 117/117 passed, 0 failed, 0 errors, 0 skipped, all
+  exit 0, at 7e8439d. Reproduced locally in the OpenCode environment.
+
+CI / GITHUB ACTIONS
+  NO EVIDENCE. No run exists. None was dispatched. None was edited
+  into existence. Zero statuses is the configured outcome of a branch
+  filter on non-existent branches plus the absence of a pull_request
+  trigger. LOCAL TEST RESULT IS NOT CI EVIDENCE.
+
+HARDWARE VALIDATION
+  NOT TESTED. Zero of four ports. No device was operated.
+
+RELEASE VALIDATION
+  NONE. Verdict is NOT RELEASE-READY. SOURCE-LEVEL GUARDS ARE NOT
+  HARDWARE PROOF. A DECISION PACKAGE IS NOT AN APPROVAL.
+
+=======================================================================
+8. READINESS ASSESSMENT - ITEM STATUS
+=======================================================================
+
+Four-port physical baseline .................. NOT TESTED (0/4)
+End-to-end hardware scan and report ......... NOT TESTED
+Multi-device isolation ....................... NOT TESTED
+50-device capacity ........................... NOT TESTED
+Windows USB/PnP and WPD/MTP integration ..... BLOCKED BY DEPENDENCY
+Entitlement and sanitization qualification .. BLOCKED BY DEPENDENCY
+D-5 patch-state authority / finalisation .... BLOCKED BY DEPENDENCY
+D-1 lifecycle repair plus 10 lifecycle tests  BLOCKED BY DEPENDENCY
+Windows packaging scope ...................... CLOSED WITH EVIDENCE
+Absence of physical / release claims ........ CLOSED WITH EVIDENCE
+
+Overall verdict: NOT RELEASE-READY.
+
+=======================================================================
+9. OUTSTANDING DECISIONS - DECISION REQUIRED
+=======================================================================
+
+None of these may be self-decided, inferred, or dated. All remain
+PENDING.
+
+D-01 U-1  D-1 lifecycle-ID format and the reconciliation of the three
+          producers. Governs the D-1 repair. Authority: Engineering
+          decision.
+D-02 U-4  Entitlement qualification.
+D-03 U-5  Sanitization qualification.
+D-04 CE-1 / D-a  Authoritative patch authenticity model. Keys are
+          absent and trust anchors are empty.
+D-05 D-b  Persisted patch-state record format and validation order.
+D-06 CE-2 / D-c  Key-custody issuance model. No key may be generated
+          before this decision exists.
+D-07 CE-7 / D-d  Treatment of the 15 [P] capability rows.
+D-08 The drafted section 14 governance addendum: approve or reject.
+
+Total decisions carried in the Block 5 decision sheet: 12, ALL PENDING,
+NONE dated. The split of the implementation gate is Engineering
+(CE-1..CE-8) versus Security Owner (SO-1..SO-4).
+
+CUSTODY NOTE - VERIFIED FACT, separate from the APK-signing hold H4:
+The schema section 9.1 role "Security Owner" is the Ed25519 custodian.
+Recorded at docs/CYVRA_PATCH_STATE_PROVIDER.md line 45, commit 7568c96.
+This custody role is NOT mirrored into the governance ledger. That gap
+is itself unresolved.
+
+=======================================================================
+10. BLOCKED DEPENDENCIES
+=======================================================================
+
+BD-1 D-5 patch-state authority. Blocked BY DESIGN. Requires CE-2 plus
+     SO-1, SO-2, SO-3 and SO-4. Trust anchors empty; no procedure
+     registry; no authenticity binding.
+BD-2 D-1 lifecycle repair. Blocked on U-1.
+BD-3 Windows USB/PnP and WPD/MTP production integration.
+BD-4 Entitlement and sanitization qualification. Sanitization must not
+     be executed until U-5 is decided.
+BD-5 Four-port physical baseline. Requires hardware authorisation.
+
+Also unsatisfied and carried forward:
+  - The precondition for R-2 / R-3 has not been executed.
+  - Section 12.5 steps 3, 4 and 5 remain unsatisfied.
+  - U-1, U-4 and U-5 remain OPEN.
+  - U-2(a), U-3(a) and U-6 are asserted in source only.
+  - No authorisation record exists for 7568c96 or for PR #64, which
+    carries "No reviews".
+
+=======================================================================
+11. UNRESOLVED CONFLICTS - CARRIED FORWARD, NOT RESOLVED
+=======================================================================
+
+These six conflicts were raised and deliberately left unresolved. No
+assumption was used to settle any of them.
+
+C-1  P2B-SERVER-GAPS.md line 4 states the change is "APPLIED, NOT
+     COMMITTED", but the worktree is clean and paymentStatusesFor is
+     absent from services/api/src/admin.ts. Stash contents were not
+     examined. Severity P2B.
+
+C-2  CYVRA_GOVERNANCE_LEDGER.md line 62 records R-2 as "clean under
+     grep", but the CYVRA-CERT- generator is live at
+     WorkstationSessionOrchestrator.kt:457.
+
+C-3  The ledger cites B1 / "item 7" at line 993, but the Option C
+     ruling is item 2 at line 1395.
+
+C-4  Two distinct 16-Oct numbering sets exist. In the ledger, "B1"
+     means the H2 enforcement entry; in the defect register, "B1" is
+     the ACTIVATE defect at line 407.
+
+C-5  ACTIVITY_REVIEW carries a "DRAFT" header while being tracked at
+     commit bdbb32c.
+
+C-6  The U-6 citation to HostProtocolDispatcher lines 681-685 is stale
+     by approximately 278 lines.
+
+=======================================================================
+12. DISCREPANCIES AND CORRECTIONS
+=======================================================================
+
+DC-1 Repository expected-versus-actual: NO DISCREPANCY. HEAD, branch,
+     upstream, checkpoint ancestry, clean worktree and both stashes all
+     match expectation exactly.
+
+DC-2 TOOLING CORRECTION, DISCLOSED. The first Block 7 ancestry check
+     returned a false "NO" for "is 7568c96 an ancestor of HEAD". The
+     cause was PowerShell truthiness: git merge-base --is-ancestor
+     prints nothing on success, and empty output evaluated as false.
+     Re-run using $LASTEXITCODE the result is exit 0, YES. This was an
+     artefact of the checking command, NOT a repository finding.
+
+DC-3 Plan Block 5 content differs from the executed Block 5 content,
+     because the user re-designated that block. Reported in section 4,
+     not resolved by assumption.
+
+DC-4 One instruction fragment delivered during Block 1 was truncated
+     after "docs/CYVRA_MOBILE_CONSOLIDATED_AUDIT_RECORD_2026...". It was
+     flagged to the user rather than guessed at.
+
+=======================================================================
+13. NOT RE-VERIFIED
+=======================================================================
+
+The following were deliberately NOT re-verified and must not be read as
+confirmed:
+
+  - Held code ReportGenerator.kt lines 52-53 and line 63,
+    "0011-DRAFT".
+  - The A-13 gate.
+  - Re-execution of O-3.
+
+=======================================================================
+14. RECOMMENDATION
+=======================================================================
+
+RECOMMENDATION, not a decision and not an approval:
+
+  Option A - CONTINUE THE APPROVED PLAN. This is the single
+  recommended action.
+
+  Option B is not owed: no closure status was misstated.
+  Option C is not justified: no material contradiction was found.
+
+=======================================================================
+15. EXACT NEXT AUTHORISED ACTION AFTER 22 OCTOBER
+=======================================================================
+
+No schedule is invented here, and no approval is inferred.
+
+The 22-Oct plan is exhausted through Block 7. The next authorised step
+is a DECISION GATE, not implementation:
+
+  1. The user authorises the canonical handoff destination, which is
+     what writing this document to
+     docs/CYVRA_MOBILE_SESSION_HANDOFF_2026-10-22.txt represents.
+  2. The pending decisions in section 9 are recorded by the authorised
+     decision-makers.
+
+Only after those decisions are recorded may D-1 repair, D-5
+ratification, hardware work, or CI work proceed.
+
+UNTIL THEN, THE FOLLOWING REMAIN IN FORCE:
+  - No implementation before U-1.
+  - No key creation or insertion before CE-2.
+  - No sanitization execution.
+  - No installer build; packaging stays NSIS-only and unsigned.
+  - No CI dispatch and no workflow YAML edits.
+  - No multi-device or 50-device claims.
+  - No RELEASE-VALIDATED assertion for any capability.
+  - No merge, reset, clean, stash, checkout, switch, rebase or
+    force-push.
+  - No key generation, no patch apply or rollback, no destructive
+    operation.
+
+=======================================================================
+16. PROVENANCE AND EVIDENCE LOCATIONS
+=======================================================================
+
+GOVERNING RECORDS
+  docs/CYVRA_PATCH_STATE_PROVIDER.md                 (in 7568c96)
+  docs/CYVRA_MOBILE_SESSION_HANDOFF_2026-10-20.txt   (sections C, D, F)
+  docs/CYVRA_MOBILE_CONSOLIDATED_AUDIT_RECORD_2026-10-20.txt
+  docs/CYVRA_MOBILE_TODAYS_MASTER_WORK_PLAN_2026-10-22.txt
+
+SUPPORTING RECORDS
+  docs/CYVRA_GOVERNANCE_LEDGER.md        (:58-63, :62, :69-77, :993,
+                                          :1395, :1452, :1492,
+                                          :522-525)
+  docs/DEFECT_REGISTER_2026-10-18.md     (:407-409, section 5, 7)
+  docs/FORENSIC_AUDIT_2026-10-10.md      (L478, L479, L480)
+  docs/P2B-SERVER-GAPS.md                (:4)
+  docs/CYVRA_FINAL_PLAN_VS_ACTUAL_HANDSHAKE_MATRIX_2026-10-12.md
+                                          (L208 end-to-end hardware
+                                          scan validated = 0; L307
+                                          "nothing in this repository is
+                                          RELEASE-VALIDATED")
+
+TEST EVIDENCE
+  Six focused suites, 117/117, exit 0, at 7e8439d, LOCAL ONLY.
+  Logs held in the OpenCode temp evidence directory
+  (block3-logs): six suite logs plus part1.json and part2.json.
+
+HARDWARE EVIDENCE
+  Four-port physical baseline, 2026-10-20: all rows PENDING,
+  0 of 4. Line 58: "no row may be read as a pass".
+
+SOURCE EVIDENCE
+  apps/host/src/main/kotlin/cyvra/mobile/host/
+    service/WorkstationSessionOrchestrator.kt   :149, :210, :312-335,
+                                                 :457
+    protocol/HostProtocolDispatcher.kt          :593-604, :674, :750,
+                                                 :807-832, :926, :1118,
+                                                 :1158, :1276, :1622,
+                                                 :1643
+    engine/PatchTrustAnchors.kt                 :17-19, :67
+    engine/PatchStateStore.kt
+  apps/desktop/src-tauri/tauri.conf.json        bundle.targets
+  .github/workflows/windows-engineering-build.yml :18-21, :30-33,
+                                                 :263-265
+  scripts/stage-windows-installer-resources.ps1 :508, :828
+
+EXTERNAL
+  PR #64 https://github.com/mukpswar-prog/CYVRA-Mobile/pull/64
+  Status: "No reviews"
+
+=======================================================================
+17. APPROVAL BLOCK
+=======================================================================
+
+This document is a DRAFT until the user approves it.
+
+  Prepared by : OpenCode, controlled execution agent
+  Prepared on  : 22 October 2026, under Block 7
+  Baseline     : 7568c96 / 7e8439d / docs/session-handoff-2026-10-20
+  Worktree     : CLEAN at time of drafting; 0 files changed by Block 7
+  Stashes      : stash@{0} and stash@{1} intact and untouched
+
+  USER APPROVAL: ______________________  (required before writing)
+
+  No commit and no push is authorised by this document.
+
+END OF CANONICAL END-OF-DAY HANDOFF, 22 OCTOBER 2026
