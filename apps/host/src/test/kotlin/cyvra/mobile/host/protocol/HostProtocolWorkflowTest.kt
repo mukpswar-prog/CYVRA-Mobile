@@ -1218,4 +1218,209 @@ class HostProtocolWorkflowTest {
         assertEquals(HostResponseStatus.OK, response.status)
         assertNull(response.error)
     }
+
+    // ------------------------------------------------------------------
+    // D-2 / U-2(a) — report and sanitization ownership
+    // ------------------------------------------------------------------
+
+    /**
+     * A retrieval request that explicitly names a device serial must never be answered
+     * from a different device's active scan.
+     *
+     * This is the product's most important safety property: it is what stops a report —
+     * or an erasure — being redirected onto the wrong physical device. The shared
+     * refusal lives at `HostProtocolDispatcher.serialOwnershipRefusal` (:1634) and
+     * returns `SERIAL_MISMATCH` (:1643).
+     *
+     * Covered here are the boundaries that DO apply the guard: GET_DEVICE_REPORT,
+     * EXPORT_REPORT and SANITIZE_START. FAKE ADB ONLY — no code path here can reach a
+     * real device.
+     */
+    @Test
+    fun serialMismatch_isRefusedAtEveryOwnershipBoundary_beforeAnyWrongDeviceDataIsReturned() {
+        val session = Session()
+        session.scan() // active scan records SERIAL
+
+        val wrongSerial = "ATTACKER-DEVICE-0001"
+
+        // Each sits directly in front of a report or an erasure. A mismatched serial
+        // must be refused at the boundary, before any per-device payload is built.
+        listOf(
+            HostCommand.GET_DEVICE_REPORT,
+            HostCommand.EXPORT_REPORT,
+            HostCommand.SANITIZE_START,
+        ).forEach { command ->
+            val refused = session.send(command, buildJsonObject { put("serial", wrongSerial) })
+            assertError(
+                refused,
+                "SERIAL_MISMATCH",
+                "$command must refuse a serial that does not match the active scan",
+            )
+            assertTrue(
+                refused.payload.isEmpty(),
+                "$command must return no payload at all when it refuses, " +
+                    "otherwise wrong-device data could still leak into the response",
+            )
+        }
+
+        session.printTranscript()
+    }
+
+    /**
+     * U-2(a) DEFECT — PRESERVED FAILING EVIDENCE. DO NOT "FIX" WITHOUT AUTHORIZATION.
+     *
+     * `deviceReportResponse` (:672) guards with
+     * `serialOwnershipRefusal(request, "GET_DEVICE_REPORT", ...)` at :675, commented
+     * "Serial-when-present (U-2(a)): a named serial must match the active scan's
+     * device." Its sibling `applicationInventoryResponse` (:705) applies NO such guard,
+     * so a request that explicitly names a DIFFERENT device serial is answered `OK`
+     * with the active scan's application inventory.
+     *
+     * The U-2(a) guard is therefore not applied uniformly: 5 of the 6 device-scoped
+     * read paths carry it, and GET_APPLICATION_INVENTORY does not.
+     *
+     * Consequence: an application-inventory read can be attributed to the wrong
+     * device. This is a read-path wrong-attribution defect — it does NOT reach
+     * sanitization, because SANITIZE_START (:930) and SANITIZE_EXECUTE (:1162) are both
+     * guarded. It is nonetheless precisely the failure mode U-2(a) was ratified to
+     * close.
+     *
+     * This test is EXPECTED TO FAIL against the current source. A red result is the
+     * evidence. Do not weaken the assertion and do not edit the dispatcher without
+     * authorization.
+     */
+    @Test
+    fun U2A_DEFECT_applicationInventoryIgnoresAWronglyNamedSerial() {
+        val session = Session()
+        session.scan() // active scan records SERIAL
+
+        val wrongSerial = "ATTACKER-DEVICE-0001"
+        val response = session.send(
+            HostCommand.GET_APPLICATION_INVENTORY,
+            buildJsonObject { put("serial", wrongSerial) },
+        )
+
+        assertError(
+            response,
+            "SERIAL_MISMATCH",
+            "GET_APPLICATION_INVENTORY must apply the same U-2(a) ownership guard as " +
+                "GET_DEVICE_REPORT. A request naming '$wrongSerial' was answered with the " +
+                "active scan's inventory, so inventory can be attributed to the wrong " +
+                "device. See HostProtocolDispatcher:705 (no serialOwnershipRefusal call) " +
+                "against :675 (GET_DEVICE_REPORT, guarded).",
+        )
+    }
+
+    /**
+     * The rule is "serial **when present**", and the boundary matters as much as the
+     * happy case. An absent serial is deliberately NOT a mismatch — the single-session
+     * workstation UI sends no serial today.
+     *
+     * Pinning this prevents a future "hardening" change from silently breaking that UI.
+     */
+    @Test
+    fun serialOwnership_anAbsentSerialIsDeliberatelyNotAMismatch() {
+        val session = Session()
+        session.scan()
+
+        // Absent serial: deliberately served. This is preserved behaviour, not a gap.
+        val noSerial = session.send(HostCommand.GET_DEVICE_REPORT)
+        assertEquals(
+            HostResponseStatus.OK,
+            noSerial.status,
+            "an absent serial is not a mismatch — the workstation UI sends none today",
+        )
+
+        // A matching serial is served too, so the guard is not simply blocking everything.
+        val matching = session.send(
+            HostCommand.GET_DEVICE_REPORT,
+            buildJsonObject { put("serial", SERIAL) },
+        )
+        assertEquals(HostResponseStatus.OK, matching.status, matching.error?.message ?: "")
+
+        // A MISMATCHED serial is refused, which is the whole point of the rule.
+        assertError(
+            session.send(
+                HostCommand.GET_DEVICE_REPORT,
+                buildJsonObject { put("serial", "OTHER-DEVICE") },
+            ),
+            "SERIAL_MISMATCH",
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // D-4 / U-3(a) — a failed scan must leave no stale evidence behind
+    // ------------------------------------------------------------------
+
+    /**
+     * After a failed scan, no scan state may survive, so a later report, export or
+     * sanitization request cannot accidentally be answered from the failed attempt's
+     * partial evidence. A subsequent successful scan must recover cleanly.
+     *
+     * This covers the *state* half of D-4. It does NOT prove the full
+     * fail-then-succeed sequence against real hardware, and it is not a substitute for
+     * the four-port baseline (0 of 4).
+     */
+    @Test
+    fun failedScan_leavesNoScanState_soStaleEvidenceCannotBeServed() {
+        // A scan that fails because there is no licence to charge against.
+        val unlicensed = Session(license = deniedResult())
+        assertError(unlicensed.send(HostCommand.RUN_SCAN, buildJsonObject { put("serial", SERIAL) }), HostProtocolDispatcher.LICENSE_REQUIRED)
+
+        // A scan that fails because no transport is available.
+        val noTransport = Session(withAdb = false)
+        assertError(noTransport.send(HostCommand.RUN_SCAN, buildJsonObject { put("serial", SERIAL) }), "ADB_UNAVAILABLE")
+
+        // In BOTH failure modes, nothing may be served afterwards. Anything else would
+        // mean partial state from the failed attempt was retained and could reach a
+        // customer. Note GET_FINAL_REPORT refuses with NO_EXECUTION_SESSION rather than
+        // NO_SCAN_SESSION: it is gated one stage further downstream, and either refusal
+        // proves no evidence survived.
+        listOf(unlicensed, noTransport).forEach { failed ->
+            listOf(
+                HostCommand.GET_DEVICE_REPORT,
+                HostCommand.GET_APPLICATION_INVENTORY,
+                HostCommand.EXPORT_REPORT,
+                HostCommand.SANITIZE_START,
+            ).forEach { command ->
+                assertError(
+                    failed.send(command),
+                    "NO_SCAN_SESSION",
+                    "a failed scan must leave no state behind, so $command must still refuse",
+                )
+            }
+            assertError(
+                failed.send(HostCommand.GET_FINAL_REPORT),
+                "NO_EXECUTION_SESSION",
+                "a failed scan must leave no execution state, so GET_FINAL_REPORT must still refuse",
+            )
+        }
+    }
+
+    @Test
+    fun aLaterSuccessfulScanRecoversAndServesOnlyItsOwnEvidence() {
+        // A failed scan first, in the same session that then succeeds.
+        val session = Session(withAdb = false)
+        assertError(session.send(HostCommand.RUN_SCAN, buildJsonObject { put("serial", SERIAL) }), "ADB_UNAVAILABLE")
+
+        // Everything is still refused: the failure left nothing to reuse.
+        assertError(session.send(HostCommand.GET_DEVICE_REPORT), "NO_SCAN_SESSION")
+
+        // Recovery must be clean once a working transport is available.
+        val recovered = Session()
+        val scan = recovered.scan()
+        assertEquals(HostResponseStatus.OK, scan.status, scan.error?.message ?: "")
+
+        val report = recovered.send(HostCommand.GET_DEVICE_REPORT)
+        assertEquals(HostResponseStatus.OK, report.status, report.error?.message ?: "")
+
+        // The entitlement is untouched by the earlier failure: a failed scan is not a
+        // spent scan, so the customer is never debited for an attempt that produced
+        // nothing.
+        assertEquals(
+            25,
+            int(recovered.send(HostCommand.GET_LICENSE_STATE), "scansRemaining"),
+            "a failed scan must never consume an entitlement",
+        )
+    }
 }
