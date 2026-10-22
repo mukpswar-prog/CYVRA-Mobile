@@ -1,0 +1,370 @@
+CYVRA MOBILE — TODAY'S MASTER WORK PLAN
+Date: 22 October 2026
+Deadline: 9:30 PM IST
+Status: PROPOSED WORKING PLAN — requires user approval before repository changes
+Repository: https://github.com/mukpswar-prog/CYVRA-Mobile
+Known checkpoint: origin/main at 9a55808cbdc69a6fc4db9896fcf3e3f797fcb3d0, containing D-5 checkpoint 7568c96779541ed32c0a4d58972839d1c08e26d9
+Primary purpose: Establish one accurate, evidence-backed baseline, repair governance traceability where authorized, verify current tests, and agree the next engineering slice. Do not claim the entire product is complete today.
+
+======================================================================
+1. ORIGINAL PRODUCT OBJECTIVE — PRESERVED
+======================================================================
+
+CYVRA Mobile is a Windows 10/11 workstation application for Android device evidence collection, verification, reporting, and controlled sanitization.
+
+The intended customer journey is:
+1. Connect and identify a supported Android device.
+2. Collect only legitimately available, non-destructive evidence.
+3. Produce Report 1, officially named "CYVRA Device Verification Report", before sanitization.
+4. Obtain separate, explicit sanitization authorization and verify live entitlement.
+5. Execute only a supported, qualified sanitization method.
+6. Reconnect, verify the outcome using appropriate evidence, and issue a final report whose claims match what was actually performed and verified.
+
+Architecture boundary:
+- React/TypeScript: desktop presentation and operator interaction.
+- Rust/Tauri: Windows-native USB/PnP/WPD/MTP truth and process lifecycle.
+- Kotlin/JVM: domain logic, Android semantics, capability policy, licensing, workflow, evidence, and reports.
+- Android component/APK: supporting device-side evidence, not the workstation orchestrator.
+- Cloudflare Worker + Neon: account, entitlement, registry, audit, and cloud coordination.
+- Resend: server-side transactional email.
+- CYVRA Mobile remains a separate product/repository/infrastructure from CYVRA Erase.
+
+Programme sequence:
+CONSOLIDATE -> CORRECT -> INTEGRATE -> HARDWARE-PROVE -> RELEASE-PROVE
+
+Evidence/maturity terms must remain distinct:
+MODELLED -> UNIT-TESTED -> PROTOCOL-EXPOSED -> UI-INTEGRATED -> HARDWARE-VALIDATED -> RELEASE-VALIDATED
+
+A compile, mock, unit test, launcher, or source file does not by itself prove an integrated customer capability.
+
+======================================================================
+2. TODAY'S OBJECTIVE AND DEFINITION OF SUCCESS
+======================================================================
+
+By 9:30 PM IST, aim to have:
+A. One reconciled audit baseline for the user, OpenCode, and ChatGPT.
+B. A source-backed record of decisions that are actually authorized; unresolved decisions remain explicitly open.
+C. A D-1 to D-5 defect ledger with evidence and accurate statuses.
+D. Current-tree focused test results, with exact commit, commands, counts, exit codes, and limitations.
+E. A written explanation of the empty GitHub commit-status/CI evidence and what workflow evidence is actually available.
+F. A reviewed D-5 decision package and D-1 identity decision request, without inventing security decisions or keys.
+G. An accurate hardware/release-readiness checklist.
+H. One canonical end-of-day handoff comparing planned work with actual results.
+I. No unapproved source changes, no destructive testing, and no unsupported completion claims.
+
+This is a target for audit, governance, and planning closure. It is NOT a promise to complete the whole product or make it release-ready today.
+
+======================================================================
+3. FIRST ACTIVITY — CREATE AND TRACK THIS PLAN
+======================================================================
+
+1. Inspect repository state before editing:
+   - Confirm current branch, HEAD, origin/main, working-tree status, and stashes.
+   - Preserve all existing modifications and stashes.
+   - Do not reset, clean, force-push, stash, or overwrite files.
+2. Review this plan with the user.
+3. Add this file to the repository only after the user explicitly directs OpenCode to do so.
+4. Stage only the exact approved plan-file path. Do not use broad staging.
+5. Before committing, show the diff and report branch, HEAD, status, and exact staged paths.
+6. Commit/push only after explicit user authorization for those operations.
+7. Record the final commit/PR/link if a push is authorized and succeeds.
+8. This file is a tracking plan, not a substitute for the formal governance ledger or product requirements.
+
+Suggested file path:
+docs/CYVRA_MOBILE_TODAYS_MASTER_WORK_PLAN_2026-10-22.txt
+
+======================================================================
+4. WORK SEQUENCE FOR TODAY
+======================================================================
+
+BLOCK 1 — BASELINE AND GOVERNANCE RECONCILIATION (FIRST; DOCUMENTATION-FOCUSED)
+
+Tasks:
+- Confirm the exact repository branch/HEAD and distinguish it from origin/main.
+- Reconcile OpenCode's forensic audit, the comparison report, the current governance ledger, the Consolidated Gate 2 Audit Record, the D-5 provider record, and PR #64.
+- Verify the reported governance gap directly in the current files before writing conclusions.
+- The audit reports that the governance ledger ends at 16 October, that D-5/patch-state names are absent from the governance documents, and that some ratifications are present only in source comments. Re-check these observations against the current tree.
+- Prepare a dated addendum only for decisions supported by actual written authority.
+- For U-1, U-4, and U-5, preserve OPEN status unless the Chief Engineer provides the missing decision and authority.
+- For U-2(a), U-3(a), U-6/D-5 Option B, and authorization history around checkpoint 7568c96 / PR #64, distinguish: (a) what source comments say, (b) what an actual authorized decision says, and (c) what is missing from the formal record.
+- Explicitly disclose any process steps from Consolidated Audit §12.5 that were not satisfied. Do not retrospectively pretend they were satisfied.
+- Investigate the missing 16-Oct ledger item 4, the "B1" identifier collision, and the status/authority of ACTIVITY_REVIEW_POST_FREEZE_2026-10-10.md. Do not silently promote a draft into an approved record.
+- No code changes in this block.
+
+Acceptance evidence:
+- Exact file paths/line references or commit links.
+- Proposed governance addendum diff shown to the user.
+- Unresolved decisions labelled OPEN, not inferred.
+
+BLOCK 2 — DEFECT STATUS AND DEPENDENCY REGISTER
+
+D-1 — OPEN / NOT FIXED
+- Reported source evidence: WorkstationSessionOrchestrator.kt around line 210 passes sessionUuid as both sessionUuid and deviceLifecycleId.
+- Do not substitute hardware identifiers or silently reuse sessionUuid as lifecycle identity.
+- Required next step: obtain the authorized U-1 decision on lifecycle identity origin/registry/propagation, then implement and test the distinct identity.
+
+D-2 — SOURCE-LEVEL FIX REPORTED; VERIFY AGAINST CURRENT TREE
+- Reported serial-ownership refusal on five retrieval paths.
+- Preserve regression tests and verify retrieval ownership behavior.
+- Do not describe this as proof of multi-device hardware isolation.
+
+D-3 — SOURCE-LEVEL FIX REPORTED; VERIFY AGAINST CURRENT TREE
+- Reported sanitization target is bound to the active scan's recorded target and conflicting wire serial is refused.
+- Preserve regression tests.
+- This does not qualify sanitization methods or authorize destructive actions.
+
+D-4 — SOURCE-LEVEL FIX REPORTED; VERIFY AGAINST CURRENT TREE
+- Reported failed-scan handling clears lastScan, scanEvidence, patch refusal reason, and sanitization state.
+- Preserve regression tests.
+- This does not prove all crash/retry/persistence scenarios.
+
+D-5 — BLOCKED BY DESIGN; NOT PRODUCTION-COMPLETE
+- PatchTrustAnchors.ALL is reported empty.
+- No approved production public key/key_id has been issued.
+- PatchStateStore is not wired into a governed production application lifecycle.
+- No production procedure registry and genuine apply/rollback boundary are established.
+- Local applied-state data cannot authenticate itself as proof that a patch was applied.
+- Applied-state authenticity, schema, key lifecycle, and provisional [P] row authority require explicit decisions.
+- Keep fail-closed behavior. Do not infer NO-PATCHES from missing evidence.
+- Do not generate or promote temporary/test keys; do not manufacture applied-state evidence; do not claim D-5 complete.
+
+Other recorded blockers to preserve:
+- A-9 CRITICAL / R-2/R-3 forbidden certification-string precondition: inspect the governing source and record; do not claim closed until the required precondition is executed and evidenced.
+- A-10 HIGH / R-P and A-13 HIGH / R-Q(c): preserve their priority and dependency ordering from the canonical defect/forensic records.
+- P2B five display/metadata gaps were reported APPLIED, NOT COMMITTED; verify current tree and do not claim phase progression without evidence.
+- Keep the full Defect Register (A1-A11, B1-B3) and approved-diversion ledger in the master handoff. Disambiguate duplicate IDs by document/context; do not silently rename or erase history.
+
+Acceptance evidence:
+- One defect table with status, source/test evidence, dependencies, owner/authority needed, and exact closure criteria.
+- Do not reimplement D-2/D-3/D-4 unless a current-tree regression or evidence gap is found.
+
+BLOCK 3 — RE-RUN CURRENT-TREE FOCUSED TESTS
+
+- Re-run the six focused suites cited in the D-5 audit, if the repository and environment are available:
+  1. FileBasedPatchStateProviderTest
+  2. PatchStateStoreTest
+  3. PatchVerifierTest
+  4. CapabilityMatrixLoaderTest
+  5. HostProtocolDispatcherTest
+  6. HostProtocolWorkflowTest
+- Use exact commands that match the current Gradle project and test class names.
+- Record the checked-out commit, command line, suite/test counts, failures/errors/skips, exit code, and timestamp.
+- Run git diff --check on the reviewed changes.
+- Clearly distinguish local OpenCode results from GitHub Actions runs and GitHub commit-status checks.
+- Previous reported result: 117 tests, zero failures/errors/skips, exit code 0 on 21 October. This is historical/reported evidence until rerun today.
+- Investigate why commit-status evidence was empty. Inspect workflow triggers, branch filters, actual Actions run history, and check-run/status data where accessible. Do not assume that no status entries means no tests exist; state exactly what was and was not found.
+- Do not run the entire test suite unless separately authorized as a scope change; the supplied audit plan explicitly prioritizes the six focused suites today.
+
+Acceptance evidence:
+- Reproducible test log and concise results table tied to a commit.
+- CI/status investigation note with exact observed evidence.
+
+BLOCK 4 — DECISION PACKAGE; NO UNAUTHORIZED IMPLEMENTATION
+
+Prepare a concise decision package for the Chief Engineer/security authority:
+D-a. Applied-state authenticity: compare hardware-rooted attestation options (including TPM/DPAPI limits) with uplink countersigning; explain trust assumptions and operational requirements.
+D-b. Applied-state record format: identify the exact proposed amendments to CYVRA_PATCH_STATE_PROVIDER.md §4.1–§4.5 and what must be ratified.
+D-c. Production key issuance, key_id ownership, rotation/retirement, and audit ledger requirements. Security Owner role approval does not mean a key has been issued.
+D-d. [P] capability-row patch authority: list options and impact; no authority may be inferred.
+D-e. U-1 deviceLifecycleId origin, registry, propagation, and tests.
+D-f. U-4 register-of-record and U-5 Phase A correction authority.
+- Include recommendation, alternatives, risks, dependencies, and exact authority required for each question.
+- Do not choose or implement security-sensitive options on behalf of the authorized decision-maker.
+- Do not start patch application/rollback implementation until D-a and D-b and any required governance decisions are ratified.
+- If D-a/D-b are approved, implementation scope should replace the refusing application authorizer/authenticator seams coherently and wire PatchStateStore only in the same governed change. Do not implement a half-chain that appears authoritative.
+
+Acceptance evidence:
+- One decision document, each item marked DECISION REQUIRED / APPROVED WITH SOURCE / BLOCKED.
+
+BLOCK 5 — WINDOWS PACKAGING DECISION (FROZEN)
+
+Approved user decision:
+- The only installer format for the current development workflow is the NSIS setup `.exe`.
+- Keep the existing Tauri + NSIS configuration and the existing Windows Engineering Build GitHub Actions workflow.
+- Artifacts are unsigned engineering artifacts during development. Do not describe them as signed or commercial releases.
+- WiX is REMOVED from today's task list. Do not install WiX.
+- MSI packaging is DROPPED from the current packaging scope. Do not add or migrate to an MSI target.
+- Do not change installer technology or packaging targets without a new explicit user decision.
+
+Repository evidence previously inspected:
+- apps/desktop/src-tauri/tauri.conf.json has bundle.targets configured as ["nsis"].
+- .github/workflows/windows-engineering-build.yml builds/tests/packages on windows-latest, validates an installed-layout self-test and bundled payload, and uploads the NSIS setup .exe as an unsigned engineering artifact.
+- The user's screenshot showed 0 runs for the Windows Engineering Build workflow at that time. That proves no run was listed in that screenshot; it does not prove a later run cannot exist.
+- The workflow's current configuration may be branch-filtered. Inspect it before triggering. Do not create a workflow run or modify branch/workflow configuration without authorization.
+- Do not rebuild the .exe merely to satisfy the plan. The attached audit plan says no .exe rebuild today. If a fresh build becomes necessary, first explain the reason, confirm source branch/commit and workflow trigger, and obtain explicit approval.
+
+Acceptance evidence:
+- Packaging scope remains NSIS-only, unsigned engineering build.
+- Current workflow run/artifact status recorded accurately if inspected.
+- No WiX/MSI work.
+
+BLOCK 6 — HARDWARE AND RELEASE READINESS (ASSESSMENT ONLY)
+
+Check and report availability/status of:
+- Authorized Android test device and required Windows workstation/ports/cables.
+- Valid workstation entitlement and authorized device state.
+- Production/approved transport adapters (P1/P2/P4 status, including TRANSPORT_NOT_REGISTERED where still applicable).
+- WPD/MTP read-only discovery and bounded metadata scanner.
+- Multi-device isolation, four-port baseline, and 50-device capacity test prerequisites.
+- Clean Windows 10/11 acceptance environment and signing infrastructure for a future release.
+- Live cloud/API/admin acceptance evidence.
+- Method-specific sanitization qualification and post-operation evidence.
+
+Current known limits from the supplied audits:
+- Four-port baseline: 0/4 in the consolidated Gate 2 record.
+- 50-device capacity: unproven.
+- No end-to-end product scan validated on hardware in the cited handshake matrix.
+- No capability is RELEASE-VALIDATED.
+- The reported bench device was ADB-unauthorized, and prior standalone launch lacked the expected workstation home configuration.
+- These are reported historical conditions; re-check current conditions before asserting they still hold.
+- No destructive testing today. Do not execute wipeData or any sanitization operation without the project's standing approvals, same-device confirmation, and live sanitizeExecute entitlement.
+
+Acceptance evidence:
+- Each check marked PASS / FAIL / BLOCKED / NOT TESTED, with source/evidence and prerequisites.
+
+BLOCK 7 — END-OF-DAY THREE-WAY RECONCILIATION
+
+Before 9:30 PM:
+- Compare the day's actual diffs, test logs, CI findings, governance addendum, decision package, and readiness assessment against this plan.
+- Record every item as one of:
+  CLOSED WITH EVIDENCE
+  IMPLEMENTED — TESTS PENDING
+  TESTED — HARDWARE VALIDATION PENDING
+  DECISION REQUIRED
+  BLOCKED BY DEPENDENCY
+  NOT TESTED
+  DEFERRED
+- List what was planned, what was actually completed, what changed, what was not done, why it was not done, and the evidence link.
+- Preserve branch, commit, working tree, and stash state. No cleanup operations.
+- Produce one canonical end-of-day handoff for the user, OpenCode, and ChatGPT.
+- Do not mark all checklist items complete merely because the plan or report exists.
+
+======================================================================
+5. WHAT WE WILL DO TODAY
+======================================================================
+
+1. Confirm repository state and preserve all existing work.
+2. Add this plan to the repository only under explicit user direction.
+3. Reconcile governance records and prepare an evidence-backed addendum.
+4. Re-verify D-1 to D-5 against the current tree and tests.
+5. Re-run the six focused test suites and record reproducible evidence.
+6. Investigate GitHub Actions/status evidence without assuming a cause.
+7. Prepare D-5 and D-1 decision packages for the authorized decision-makers.
+8. Assess hardware, transport, entitlement, and release prerequisites.
+9. Produce the end-of-day comparison and canonical handoff by 9:30 PM IST.
+
+======================================================================
+6. WHAT WE WILL NOT DO TODAY
+======================================================================
+
+- No wholesale rewrite or broad refactor.
+- No unauthorized source edits or implementation before required decisions.
+- No D-1 implementation before U-1 identity authority is resolved.
+- No D-5 completion claim, no inferred NO-PATCHES, no fabricated applied-state.
+- No generating keys of any kind for this task and no promoting test keys to production.
+- No patch apply/rollback implementation before the required authenticity and record-format decisions.
+- No destructive sanitization tests; no wipeData except under the separately commissioned, explicitly authorized process.
+- No assumption that ADB visibility grants authorization.
+- No private-content extraction; WPD/MTP remains read-only and metadata-first.
+- No claim that 50 devices, four-port operation, or all supported Android devices are proven.
+- No claim of hardware validation based only on unit tests.
+- No full-suite run unless separately authorized; today's verification target is the six focused suites.
+- No forced `.exe` rebuild today; only reconsider with a reason and explicit authorization.
+- No WiX installation, MSI target, or MSI packaging.
+- No signing or commercial-release claim.
+- No commit, push, merge, force-push, reset, clean, stash, or broad staging unless explicitly authorized by the user.
+- No use of `git add .` or equivalent broad staging. Stage only exact approved paths.
+- No claiming a GitHub Actions run passed unless the actual run and logs support that claim.
+
+======================================================================
+7. WHAT IS DROPPED, DEFERRED, OR OUT OF TODAY'S SCOPE
+======================================================================
+
+A. DROPPED FROM THE CURRENT PACKAGING SCOPE BY USER DECISION
+- WiX installation and investigation as a prerequisite for the current pipeline.
+- MSI installer target/output.
+- Any migration away from the existing Tauri + NSIS setup `.exe`.
+These are excluded from the current plan, not technical blockers for the chosen NSIS path.
+
+B. NOT TODAY / DEFERRED — NOT ABANDONED FROM THE PRODUCT VISION
+- WPD evidence-plane expansion, production USB/PnP and WPD/MTP adapter integration, and bounded metadata scanning.
+- Full desktop UI lifecycle integration.
+- Broader licensing/report/artifact/retry/crash integration beyond focused verification.
+- Four-port physical baseline and multi-device/50-device stress testing, pending hardware availability.
+- Production D-5 key issuance and patch-state authority, pending Security Owner and Chief Engineer decisions.
+- D-5 apply/rollback lifecycle, pending approved architecture.
+- Sanitization method qualification, post-reset verification, and live entitlement acceptance.
+- Clean-machine release validation, code signing, branch protection, release CI/status requirements, and commercial release.
+- AI-assisted physical inspection, deterministic grading, human review, country-specific grading, Windows Server, enterprise/Knox privileged sanitization, CYVRA Station, advanced payment/admin-approval policies, and production updater experience.
+These remain deferred/discoverable as specified in governing project documents; deferred does not mean abandoned.
+
+C. NO PRODUCT CAPABILITY IS PERMANENTLY DROPPED BY THIS PLAN
+- Do not delete requirements, features, records, or scope simply because they are not today's focus.
+- Any permanent scope removal requires an explicit, recorded authority decision.
+- Do not confuse today's task exclusions with a change to the original product vision.
+
+======================================================================
+8. SAFETY, GOVERNANCE, AND EVIDENCE RULES
+======================================================================
+
+- Evidence outranks assumptions, remembered discussion, and optimistic interpretation.
+- Separate a proposal from an approved decision; source comments alone do not automatically replace a formal governance record.
+- Preserve the original product scope and historical approved diversions; do not invent scope changes.
+- CYVRA Mobile remains separate from CYVRA Erase.
+- The D-5 patch-signing custody decision is not an authorization to change the separate Android APK signing hold.
+- Never fabricate evidence, certificates, scan results, patch state, key material, or release status.
+- Never represent missing evidence as a successful measurement.
+- Keep destructive operations separately authorized and entitlement-gated.
+- All source modifications require review of the exact diff.
+- All commit/push operations require explicit user authorization and an accurately reported result.
+
+======================================================================
+9. END-OF-DAY REPORT TEMPLATE
+======================================================================
+
+Date/time:
+Repository / branch / HEAD:
+origin/main:
+Working tree / stashes preserved:
+Plan file commit/link, if authorized:
+Governance changes and evidence:
+U-1 to U-6 status:
+D-1 status/evidence:
+D-2 status/evidence:
+D-3 status/evidence:
+D-4 status/evidence:
+D-5 status/evidence:
+Other critical blockers (A-9, A-10, A-13, P2B):
+Focused test commands/results/exit codes:
+GitHub Actions runs/status evidence:
+NSIS packaging status (do not infer a run):
+Hardware/transport/entitlement readiness:
+Completed today:
+Not completed and why:
+Decisions required:
+Blocked dependencies:
+Changes made to the plan:
+Next authorized action:
+Final status classification for every item:
+
+======================================================================
+10. OPEN CODE FIRST COMMAND — SAFE INTAKE PROMPT
+======================================================================
+
+Use this as the first OpenCode instruction after reviewing this plan:
+
+"Read the attached CYVRA Mobile Today's Master Work Plan dated 2026-10-22 completely, together with the prior audit and comparison reports available in this conversation/project. Treat the plan as a proposed tracking baseline, not permission to alter product code.
+
+First, perform a READ-ONLY repository-state check. Report:
+1. repository root, current branch, HEAD commit, origin/main commit;
+2. git status --short and whether any tracked/untracked changes exist;
+3. stash list, without changing it;
+4. whether docs/CYVRA_MOBILE_TODAYS_MASTER_WORK_PLAN_2026-10-22.txt already exists;
+5. whether the working tree is at the checkpoint described in the plan or has advanced;
+6. any conflict between the plan and the current repository/workflow configuration.
+
+Do not edit, stage, commit, push, merge, reset, clean, stash, rebuild the EXE, run destructive device operations, generate keys, install WiX, or change installer targets during this first pass. Do not use broad staging. Do not infer approval from the plan itself.
+
+This user instruction explicitly authorizes only the following documentation action: add this plan at the exact path docs/CYVRA_MOBILE_TODAYS_MASTER_WORK_PLAN_2026-10-22.txt, stage only that exact file, commit only that file, and push the commit to the current branch so the plan can be tracked. First inspect repository state. If the target file already exists, the branch is unexpected, the repository state suggests the exact-file commit could overwrite or conflict with existing work, or pushing would require a force-push, do not mutate anything; report the specific issue and ask. Preserve all other modified/untracked files and stashes. Before committing, show the plan diff and exact staged paths. Never use broad staging. Afterward, report commit hash, branch, push result, and GitHub link. Do not alter product code. The approved packaging decision is NSIS setup .exe only, unsigned engineering artifacts during development; WiX and MSI are out of scope. Preserve all existing work and the current workflow."
+
+END OF PLAN
