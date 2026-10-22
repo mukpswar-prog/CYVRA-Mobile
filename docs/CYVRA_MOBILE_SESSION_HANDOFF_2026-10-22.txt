@@ -550,8 +550,11 @@ PENDING.
 D-01 U-1  D-1 lifecycle-ID format and the reconciliation of the three
           producers. Governs the D-1 repair. Authority: Engineering
           decision.
-D-02 U-4  Entitlement qualification.
-D-03 U-5  Sanitization qualification.
+D-02 U-4  Defect-register register-of-record. Declare the authoritative
+          defect register; do not merge two different artifacts by
+          assumption.
+D-03 U-5  Authorization to correct the Phase A audit records
+          (corrections C1/C3/C4).
 D-04 CE-1 / D-a  Authoritative patch authenticity model. Keys are
           absent and trust anchors are empty.
 D-05 D-b  Persisted patch-state record format and validation order.
