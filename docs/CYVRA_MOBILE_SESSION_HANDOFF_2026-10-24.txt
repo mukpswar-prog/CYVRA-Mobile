@@ -1,0 +1,130 @@
+CYVRA MOBILE - SESSION HANDOFF FOR THE D-1 IDENTITY SESSION, 24 OCTOBER 2026
+===========================================================================
+Written 23 Oct 2026 by the OpenCode readiness session. This document is
+preparation only. It implements nothing, approves nothing, and closes nothing.
+
+1. VERIFIED REPOSITORY STATE AT HANDOFF
+---------------------------------------
+  Repository : C:\Users\User\Documents\GitHub\CYVRA-Mobile
+  Branch     : docs/session-handoff-2026-10-20 (tracks origin, same name)
+  Tip        : this handoff commit; GitHub PR #65 head shows the same tip.
+  PR #65     : open, mergeable (conflict resolved by merge 7c02787), 9+ commits,
+               base main@4e7224e. No human reviews yet. Do not merge without
+               the required approval.
+  Main       : 4e7224e625d208d21441140f0114451fdb0035ac - NOT modified today.
+  Stashes    : stash@{0} and stash@{1} intact, untouched.
+  Worktrees  : .worktrees/cyvra-mobile-implementation (clean, detached f99995f);
+               CYVRA-Mobile-stage3-final-truth (1 untracked user file);
+               CYVRA-Mobile-wave1 (22 UNCOMMITTED user modifications incl.
+               apps/web/src/api.ts and database/src/schema.ts). THE WAVE1 AND
+               STAGE3 WORKTREES ARE USER-OWNED. Do not modify, reconcile,
+               stash, reset, or commit anything in them without explicit
+               owner instruction.
+
+2. CANONICAL PLANS AND DECISION RECORDS
+---------------------------------------
+  Canonical work plan : docs/CYVRA_MOBILE_PENDING_ENGINEERING_WORK_PLAN_2026-10-22.md
+                        (V-BRANCH + owner-approved 23 Oct reconciliation; EW-01..EW-29)
+  Archived variants   : docs/archive/..._VMAIN_848f862.md and ..._ENGB_39D3BB.md
+                        (byte-for-byte verified)
+  Governance ledger   : docs/CYVRA_GOVERNANCE_LEDGER.md
+  Canonical scanning spec: docs/CYVRA_MOBILE_AGENT_BASED_SCANNING_ARCHITECTURE_AND_EXECUTION_PLAN_2026-10-23.md
+  D-1 red marker      : apps/host/src/test/.../DeviceLifecycleIdentityContractTest.kt:112
+  P2B disposition     : docs/CYVRA_P2B_FIVE_GAP_DISPOSITION_2026-10-23.md (new, 23 Oct)
+
+3. D-1 ROOT CAUSE (revalidated 23 Oct at 7c02787, tree == 4e68382)
+-------------------------------------------------------------------
+  - WorkstationSessionOrchestrator.kt:149 mints "CYVRA-SESSION-" + 12 chars of a
+    truncated UUID: neither a UUID nor a registered device_lifecycles key.
+  - WorkstationSessionOrchestrator.kt:210 calls
+    .triggerEvidenceCollection(sessionUuid, sessionUuid) - the session identity
+    is passed into the deviceLifecycleId parameter of an interface that declares
+    them semantically distinct (AndroidComponentModels.kt:83).
+  - Consequence chain: the value fails UUID validation (packages/evidence ids.ts
+    readUuid) and cannot satisfy the device_lifecycles uuid PK/FKs
+    (database/src/schema.ts:302-316; migrations 0002/0003). No host-side
+    lifecycle registry exists. The receiver echoes whatever extras arrive, with
+    silent "unknown-session"/"unknown-lifecycle" fallbacks
+    (ComponentEvidenceReceiver.kt:34-35), and the bridge never echo-validates or
+    deletes the stale evidence file before broadcasting
+    (HostAndroidComponentBridge.kt:74-99).
+
+4. COMPLETED D-CE-26-01 DECISION PACKET (source-verified, 23 Oct)
+------------------------------------------------------------------
+  a) Report identity boundary (partially resolved): reports.id is a server UUID
+     minted by crypto.randomUUID() at POST /reports/freeze (services/api/src
+     reports.ts:244); lifecycle is derived from the processing session
+     (:248,:259), never accepted from the client. Host-local CYVRA-R1-... /
+     CYVRA-CERT-... labels (orchestrator :253,:457) are a different identifier
+     type and never cross that boundary today. No runtime failure demonstrated.
+  b) Anchor inventory: the host ALREADY reads settings get secure android_id
+     (AdbGenericEvidenceProvider.kt:48 -> platformIdentifier :64) while hardware
+     serial/IMEI are RESTRICTED/null (:71-85). The APK receiver does NOT collect
+     android_id; MainActivity displays it (MainActivity.kt:59) and mints
+     per-run newEvidenceId() batch ids (:31-34) - a fourth producer family.
+     The probe-harness allowlist deliberately excludes identifiers. This
+     asymmetry needs an explicit PRIVACY RULING; android_id must not be silently
+     promoted to lifecycle anchor.
+  c) Option matrix: A (backend-registered UUID + durable local cache) vs
+     B (host-persisted registry on a privacy-approved anchor). Prior
+     recommendation - evaluate A with cache - is a PROPOSAL, not a decision.
+     First-seen-offline policy, registry ownership, and cross-workstation
+     behaviour must be settled in the ruling.
+
+5. DECISIONS REQUIRED BEFORE ANY IMPLEMENTATION (accountable approver)
+----------------------------------------------------------------------
+  - D-CE-26-01 (Chief Engineer, PENDING - no ruling record exists): authoritative
+    lifecycle identity source, registry owner/propagation, approved anchor.
+  - Privacy ruling on android_id as a lifecycle anchor (Chief Engineer + owner).
+  - Protocol amendment before changing the broadcast wire (deviceLifecycleId
+    extra) - companion APK involvement, H4 boundaries apply.
+  - Report-ID mapping rule before any local-artifact/server-UUID sync is wired.
+
+6. THE FIVE REQUIRED CONTRACT CASES (author tomorrow; do not pre-write)
+----------------------------------------------------------------------
+  1. Valid      - a valid, registered lifecycle UUID is accepted.
+  2. Missing    - missing lifecycle identity is rejected or represented pending.
+  3. Invalid    - a malformed lifecycle UUID is rejected.
+  4. Unregistered - syntactically valid but unregistered is not silently
+                 accepted as authoritative.
+  5. Mismatched ownership - another user's lifecycle cannot be used.
+  Author as ADDITIONAL failing tests. Never weaken, delete, or edit the existing
+  DeviceLifecycleIdentityContractTest (its red is D-1 evidence).
+
+7. IMPLEMENTATION SEQUENCE (permitted ONLY after D-CE-26-01 + amendment)
+------------------------------------------------------------------------
+  1. Obtain the dated ruling naming identity authority + registry + anchor.
+  2. Obtain the protocol-amendment approval for the broadcast wire.
+  3. Implement the lifecycle-registration call returning a registered UUID.
+  4. Replace ALL producer families: orchestrator :149, receiver fallbacks
+     :34-35, MainActivity demo batch :31-34, desktop ledger fixtures (display).
+  5. Keep sessionUuid as a separate, legitimate correlation field.
+  6. Verify: marker green BY FIX (never by edit); five cases green; a DB
+     round-trip test proves the FK is satisfied; full host suite, desktop 79/79
+     and tsc -b re-run and recorded; no serial in any evidence file; no
+     per-scan UUID claimed as stable device identity.
+
+8. WHY IMPLEMENTATION REMAINS GATED
+----------------------------------
+  D-CE-26-01 has no ruling record in the ledger or docs (searched 23 Oct).
+  The plan's non-closure rule stands: inclusion in a document or commit closes
+  nothing. The red marker stays red until the fix exists. Recommendation text
+  (Option A + cache) is a proposal and must not be treated as adopted.
+
+9. STATE OF THE REST (today's readiness work, all non-D-1)
+----------------------------------------------------------
+  - Merged origin/main into the branch (merge 7c02787): the single predicted
+    add/add conflict on the work plan resolved by keeping the reconciled
+    canonical inventory; V-MAIN preserved as the verified archive; tree of the
+    merge == pre-merge tip (zero content change); PR #65 now mergeable.
+  - EW-15 closed out with evidence: five-gap disposition record committed;
+    provenance established (6ff8065); API suite 413/413 exit 0.
+  - Workflow triggers NOT changed (stale branches remain; workflow_dispatch
+    stays the only live trigger; the proposed minimal diff still awaits a
+    separate owner decision). No CI dispatched, no installer, no release, no
+    APK, no hardware operation performed today.
+  - Local evidence at 4e68382 earlier on 23 Oct: host 405 completed / 1 failed
+    (D-1 marker only, exit 1), desktop 79/79 exit 0, tsc -b exit 0. The merge
+    changed no content, so these remain the applicable figures.
+
+END OF HANDOFF - 23 OCTOBER 2026
