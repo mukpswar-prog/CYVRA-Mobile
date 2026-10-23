@@ -677,6 +677,16 @@ session's source inspection.
 - **Can work start now?:** `YES` — and it is the highest-value ungated work available.
 - **Next action:** Run the five-gap disposition.
 
+> **Disposition (23 Oct 2026, append-forward; the text above is left intact).** The
+> five-gap disposition table required by this item's completion criteria has been
+> produced: `docs/CYVRA_P2B_FIVE_GAP_DISPOSITION_2026-10-23.md`. Finding: the P2B diff
+> was **applied and committed** in `6ff8065` (3 Oct 2026), an ancestor of both `main`
+> and this branch, so the document's "APPLIED, NOT COMMITTED" status line is stale.
+> All five gaps are dispositioned (PRESENT, or SUPERSEDED-by-a-committed-implementation
+> for the `paymentStatusesFor` naming) with file/line evidence, and the API suite passes
+> 413/413 (exit 0) at `7c02787`. This note records evidence only; any EW-15 status
+> transition follows the plan's retained closure format and owner review.
+
 ---
 
 ### EW-16 — Unresolved register, authority and citation conflicts (C-2 … C-6)
