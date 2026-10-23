@@ -1113,3 +1113,82 @@ Every decision identifier in this document — `D-CE-26-01` through `D-CE-26-08`
 `SO-1` through `SO-4`, `U-1` through `U-6` — remains **PENDING**.
 
 END OF DRAFT ENGINEERING WORK INVENTORY, 22 OCTOBER 2026
+
+---
+
+## Amendment - 23 Oct 2026 - work-plan variant reconciliation (owner-approved 23 Oct 2026 as planning identifiers only; creates no governance ID, approval, or ruling)
+
+### A. Source-variant registry (reference rule: variant + immutable hash)
+
+Verified at execution time, 23 October 2026:
+
+- **V-BRANCH (canonical inventory):** this file; pre-amendment git blob
+  `f42ca591ebee2d662b3eb1bb5768e656105f506f`, SHA-256 `2D0CAE2F238FAFEB...`.
+- **V-MAIN:** `origin/main` git blob
+  `848f86277a636cee56d61bd6708a9b62d79f3c27` (327 lines, added to main by commit
+  `4e7224e625d208d21441140f0114451fdb0035ac`), preserved verbatim as
+  `docs/archive/CYVRA_MOBILE_PENDING_ENGINEERING_WORK_PLAN_2026-10-22_VMAIN_848f862.md`
+  (archive re-hashed to the identical git blob `848f862...` - byte-for-byte verified).
+- **V-DOWNLOADS (ENG-b):** ENG review prepared against head `9c7697d`, 707 lines,
+  SHA-256 `39D3BB3B062AF9F2004ECD739386AF17BF7BB67ECEDD32E1C088365331C99558`,
+  git blob `cda7336b88eb27e083a1f756563304ada04a2ecd`, preserved verbatim as
+  `docs/archive/CYVRA_MOBILE_PENDING_ENGINEERING_WORK_PLAN_2026-10-22_ENGB_39D3BB.md`
+  (archive SHA-256 identical to source - byte-for-byte verified).
+
+No variant is deleted, renumbered or overwritten. References to any `ENG-xx` item
+must state `[V-MAIN@848f862]` or `[ENG-b@39D3BB]`.
+
+### B. Identifier-collision warnings (standing text)
+
+1. `ENG-01..ENG-28` denote **different topics** in V-MAIN and ENG-b (17 of 28
+   positions diverge, including ENG-08 and ENG-24). Never resolve an ENG
+   reference without its variant qualifier.
+2. `D-CE-26-02`, `-03`, `-04`, `-07` and `-08` carry **different meanings** in
+   V-MAIN than in V-BRANCH/ENG-b (the governance ledger follows the
+   V-BRANCH/ENG-b sense). Any formal ruling quoting a `D-CE-26-*` ID must state
+   the variant + hash of the definition being ruled on.
+
+### C. Preserved unique requirements (new planning items; owner-approved identifiers; none duplicates existing EW coverage)
+
+- **EW-23** Desktop workflow, help-text and gate-behaviour consistency (A1/A3/A4;
+  sources: V-MAIN ENG-08 + ENG-b ENG-13, verbatim "help says five steps /
+  source defines six steps").
+- **EW-24** Report deliverables: destination, filename, manifest/index and label
+  truthfulness (A2/A7/A11; sources: V-MAIN ENG-09 + ENG-b ENG-11 and ENG-25).
+- **EW-25** Operator-identity control placement and attribution truthfulness
+  (A1/A8; sources: V-MAIN ENG-11 + ENG-b ENG-12; defect A8).
+- **EW-26** Release logging and privacy-safe diagnosability (A5/B3; sources:
+  V-MAIN ENG-12 + ENG-b ENG-15).
+- **EW-27** Desktop/root typecheck coverage and named small defects (A6;
+  sources: V-MAIN ENG-13 + ENG-b ENG-16; note: `apps/desktop` `build` already
+  runs `tsc -b`, so remaining scope is the root/workspace command and the
+  triage of `hostVersion=0.0.0`, the duplicate React-key warning and the
+  `retention-days` upload-step text).
+- **EW-28** Ordinary-user-writable state root and installed-layout proof
+  (B1/B2/B3; sources: ENG-b ENG-19 + defect register B1 root cause).
+- **EW-29** Project-wide security/privacy/unsupported-claim threat review
+  (source: ENG-b ENG-28; references holds H1-H8; complements, does not
+  duplicate, EW-21/EW-22).
+
+### D. Structural elements retained by reference
+
+V-MAIN's decision/dependency register, required test/evidence matrix, stop
+conditions/protected boundaries and per-item closure format
+(`..._VMAIN_848f862.md` sections 4, 7, 8, 9), and ENG-b's "Evidence limits and
+repository discrepancies" section (`..._ENGB_39D3BB.md` section 9), remain
+binding references for this inventory until superseded by an explicit dated
+amendment. V-MAIN's protected-path rule (`apps/web/src/api.ts`) is retained.
+
+### E. Non-closure and pending-status rule
+
+No item is closed by appearing in any variant, amendment or commit message.
+`D-CE-26-01` through `D-CE-26-08`, `SO-1..SO-4`, SEC-03/U-2(a), CE-4/O5 and the
+EW-02 formal status update remain exactly as pending as the governance ledger
+records them; this amendment changes none of them.
+
+### F. Stale-evidence register (preserved as history, not current proof)
+
+- V-MAIN's "117 passed" six-suite figure is superseded by the 23-Oct local runs
+  (host 405 completed / 1 failed = the intentional D-1 contract marker; desktop
+  79/79; `tsc -b` clean). Local evidence only - not CI, hardware or release evidence.
+- ENG-b's `paymentStatusesFor` vs current `paymentsFor` conflict remains open (C-1).
