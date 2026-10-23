@@ -1566,3 +1566,93 @@ identities: `mukpswar@gmail.com`, `github-actions[bot]`, and
 release workflow's own bot, configured in `.github/workflows/release-windows-installer.yml`.
 The third is a previous tooling identity; it is noted here as a fact of the record and
 was not raised as a finding.
+
+---
+
+## Amendment - 23 Oct 2026 - product-owner decisions D7/D2/D4 recorded; WP-S1 executed under owner authorization (NOT engineering rulings)
+
+Recorded by the OpenCode assistant on the project owner's instruction, 23-Oct-2026.
+Append-forward: this entry supersedes nothing and rewrites nothing.
+
+**Status of this entry: product-owner decisions plus an execution record — not
+engineering rulings.** No designated engineering authority has reviewed, adopted or
+ratified anything here, and none is claimed. The formal governance gate (Phase-4 P1-P5)
+remains OPEN.
+
+### Product-owner decisions (owner direction, not rulings)
+
+| # | Question | Owner decision | Date |
+|---|---|---|---|
+| D7 | Operating model / licence wording | **Option C** — one active device-scoped operation at a time in the current implementation; genuine concurrent 1–50-device processing retained as a future engineering requirement, never as a supported or validated capability. Four values kept distinct in product logic, reports and UI labels: licensed device quota, devices currently detected, active processing sessions, highest experimentally validated capacity. | 23-Oct-2026 |
+| D2 | Missing and mismatching identity | **Option (iii)** — deterministic refusal when the intended target cannot be safely established; an absent serial is not by itself proof of a mismatch; any temporary compatibility fallback is kept only where an established Host-side binding safely resolves the target, with its scope and removal condition documented. | 23-Oct-2026 |
+| D4 | Guard coverage | **Option (iii)** — mechanical verification of all six device-scoped guard paths including GET_APPLICATION_INVENTORY, with a coverage test that fails if any required guard is missing; identifier D-CE-26-03 to be confirmed only if repository evidence establishes it. | 23-Oct-2026 |
+
+No licence, pricing, entitlement or user-facing wording change was made. No 50-device
+concurrent claim is made in product logic, reports, tests or UI labels; no capacity
+number is upgraded by this entry.
+
+### Formal engineering rulings still outstanding
+
+- **D-CE-26-03 (guard-coverage ruling): not recorded.** The identifier originates from
+  the 22-Oct work plan as a *request* identifier; this ledger contains no entry bearing
+  it. It is neither confirmed nor replaced here — adopting, renumbering or declining it
+  belongs to the designated engineering authority.
+- **SEC-03: UNRESOLVED.** `HostProtocolDispatcher.kt` still carries a source comment
+  claiming U-2(a) was "ratified 21 October 2026". This ledger contains no `U-2(a)`
+  entry and no 21-Oct ratification, and no authentic prior evidence was found. The
+  comment is deliberately left in place: correcting it is a governance act belonging to
+  the designated authority through this register (Path 1/Path 2 disposition unchosen).
+- **Engineering counterparts of D7/D2/D4: unruled.** Owner choices bind product
+  direction; they do not substitute for engineering rulings recording scope, acceptance
+  criteria and authority.
+
+### EW-02 wording correction (append-forward)
+
+The accurate rule: **an absent serial is NOT automatically a mismatch.** The shared
+helper (`serialOwnershipRefusal`, `HostProtocolDispatcher.kt:1634-1643`) serves an
+absent serial from the active Host-side scan and refuses only a *present, non-matching*
+serial with `SERIAL_MISMATCH`; a present serial with no active scan is refused as
+`NO_SCAN_SESSION`. The absence-vs-mismatch boundary is pinned by
+`HostProtocolWorkflowTest.kt:1321-1349`. The work plan's EW-02 evidence line
+(`CYVRA_MOBILE_PENDING_ENGINEERING_WORK_PLAN_2026-10-22.md:219`, "an absent serial is
+NOT treated as a match") inverts that behaviour. The original line is left in place
+(append-forward); a dated correction pointer now sits under EW-02, and this entry is the
+correction of record. EW-02's "five call sites" is now six — see below.
+
+### WP-S1 executed under owner authorization (bounded scope approved 23-Oct-2026)
+
+| Change | File |
+|---|---|
+| Sixth serial-when-present guard added to `applicationInventoryResponse`, mirroring the `:675` pattern | `apps/host/src/main/kotlin/cyvra/mobile/host/protocol/HostProtocolDispatcher.kt` |
+| Mechanical six-path coverage test with negative self-test (unguarded control detected), plus D2 refusal / absent-serial compatibility / recovery test | `apps/host/src/test/kotlin/cyvra/mobile/host/protocol/HostProtocolWorkflowTest.kt` |
+| Stale scan-binding invalidation on scan failure, device change and disconnect/reconnect | `apps/desktop/src/App.tsx`, new `apps/desktop/src/scanBinding.ts` and `scanBinding.test.ts` |
+
+The U-2(a) red marker (`HostProtocolWorkflowTest.kt:1293`) turned green **without being
+modified**. The D-1 red marker (`DeviceLifecycleIdentityContractTest.kt`, failing at
+`:112`) was not touched and remains red. No commit, no push, no CI, no packaging, no
+hardware.
+
+### Measured evidence (local runs, 23-Oct-2026)
+
+| Run | Command | Result | Exit |
+|---|---|---|---:|
+| Focused host | `gradlew.bat :host:test --tests "*HostProtocolWorkflowTest*"` | BUILD SUCCESSFUL | 0 |
+| Full host | `gradlew.bat :host:test` | 405 completed, **1 failed** (D-1 marker only) | 1 |
+| Core | `gradlew.bat :core:test` | UP-TO-DATE, BUILD SUCCESSFUL | 0 |
+| Desktop focused | `vitest run src/scanBinding.test.ts` | 8 passed | 0 |
+| Desktop full | `pnpm test` | 6 files, 79 passed | 0 |
+| Typecheck | `tsc -b` (desktop) | clean | 0 |
+
+The suite is **not** reported green: it exits 1 while the independently governed D-1
+marker stands, by design. The earlier vitest worker-start timeouts observed during this
+session were machine saturation from concurrent Gradle compilation, not test failures;
+both were re-run isolated and passed (the same phenomenon recorded under 15-Oct).
+
+### Standing
+
+Holds H1-H8 untouched; no gate, test, marker or frozen file weakened or deleted; the
+two intentional failures remain visible (one reduced from two, by fixing the guarded
+path rather than touching the test). Four-port sequential hardware validation is
+prepared as a separate non-executing protocol
+(`docs/CYVRA_FOUR_PORT_SEQUENTIAL_HARDWARE_VALIDATION_PROTOCOL_2026-10-23.md`) and has
+NOT been run — no device was connected in this phase.

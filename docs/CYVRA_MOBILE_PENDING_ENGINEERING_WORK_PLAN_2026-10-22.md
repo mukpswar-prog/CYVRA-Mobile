@@ -238,6 +238,25 @@ session's source inspection.
 - **Can work start now?:** `YES` — for the test work. `NO` — for the approval.
 - **Next action:** Write the five-point redirection integration test.
 
+> **Amendment — 23 Oct 2026 (append-forward; the original text above is left intact).**
+> Two corrections of record, both detailed in `docs/CYVRA_GOVERNANCE_LEDGER.md`
+> under `Amendment - 23 Oct 2026`:
+>
+> 1. **Polarity.** The evidence line above ("an absent serial is NOT treated as a
+>    match") inverts the actual behaviour. The accurate rule is that **an absent
+>    serial is NOT automatically a mismatch**: `serialOwnershipRefusal`
+>    (`HostProtocolDispatcher.kt:1634-1643`) serves an absent serial from the active
+>    Host-side scan and refuses only a *present, non-matching* serial with
+>    `SERIAL_MISMATCH`; a present serial with no active scan is refused as
+>    `NO_SCAN_SESSION`. The boundary is pinned by
+>    `HostProtocolWorkflowTest.kt:1321-1349`.
+> 2. **Site count and next action.** There are now **six** guarded call sites, not
+>    five: `GET_APPLICATION_INVENTORY` was added under the owner-approved WP-S1
+>    scope (23-Oct-2026), the six-point redirection test described under "Next
+>    action" now exists (`serialOwnership_guardCoverage_isMechanicalAcrossAllSixPaths_andDetectsMissingGuards`),
+>    and it is still NOT hardware-validated and NOT formally ratified — D-CE-26-03
+>    remains an unrecorded request identifier.
+
 ---
 
 ### EW-03 — Sanitisation-target ownership and A-9 / R-2 / R-3
