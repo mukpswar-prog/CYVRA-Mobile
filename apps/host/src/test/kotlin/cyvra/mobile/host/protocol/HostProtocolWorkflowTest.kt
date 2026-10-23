@@ -1348,6 +1348,179 @@ class HostProtocolWorkflowTest {
         )
     }
 
+    /**
+     * Mechanical coverage of the serial-when-present rule at every device-scoped
+     * path the dispatcher owns (owner-approved D4, direction iii): GET_DEVICE_REPORT,
+     * GET_APPLICATION_INVENTORY, EXPORT_REPORT, SANITIZE_START, SANITIZE_EXECUTE and
+     * GET_FINAL_REPORT.
+     *
+     * The probe is identical for every command — send a serial that belongs to no
+     * device and demand `SERIAL_MISMATCH` with an empty payload. A path that loses
+     * its guard answers some other way (usually a success), the probe stops
+     * matching, and this test fails: that is the "coverage derived from the
+     * dispatcher" property, enforced by behaviour rather than by a comment.
+     *
+     * The last block is the negative self-test: the very same probe is pointed at
+     * GET_HOST_INFO, which is deliberately NOT device-scoped and carries no guard,
+     * and the check must report that command as unguarded. That proves the probe
+     * distinguishes guarded from unguarded paths — it cannot pass vacuously.
+     */
+    @Test
+    fun serialOwnership_guardCoverage_isMechanicalAcrossAllSixPaths_andDetectsMissingGuards() {
+        val session = Session()
+        session.scan()
+        val wrongSerial = "ATTACKER-DEVICE-0001"
+
+        /** True only when the dispatcher refused this command on serial ownership. */
+        fun probeIsGuarded(command: HostCommand): Boolean {
+            val refused = session.send(command, buildJsonObject { put("serial", wrongSerial) })
+            val refusedOnOwnership = refused.error?.code == "SERIAL_MISMATCH"
+            if (refusedOnOwnership) {
+                assertTrue(
+                    refused.payload.isEmpty(),
+                    "$command must return no payload at all when it refuses on ownership, " +
+                        "otherwise wrong-device data could still leak into the response",
+                )
+            }
+            return refusedOnOwnership
+        }
+
+        // Paths reachable directly behind an active scan.
+        val directlyReachable = listOf(
+            HostCommand.GET_DEVICE_REPORT,
+            HostCommand.GET_APPLICATION_INVENTORY,
+            HostCommand.EXPORT_REPORT,
+            HostCommand.SANITIZE_START,
+        )
+
+        // Stage the sanitization gate exactly as the lifecycle E2E test does, so the
+        // two lifecycle-bound probes reach their own guards rather than an earlier
+        // NO_*SESSION refusal. Refusals above left no state behind.
+        val start = session.send(HostCommand.SANITIZE_START)
+        assertEquals(HostResponseStatus.OK, start.status, start.error?.message ?: "")
+        val phrase = assertNotNull(str(start, "step2PhraseRequired"))
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.SANITIZE_AUTHORIZE, buildJsonObject {
+                put("acknowledged", true)
+            }).status,
+        )
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.SANITIZE_CONFIRM, buildJsonObject {
+                put("confirmationPhrase", phrase)
+            }).status,
+        )
+
+        assertTrue(probeIsGuarded(HostCommand.SANITIZE_EXECUTE), "SANITIZE_EXECUTE must apply the ownership guard")
+
+        // A clean execution establishes the lifecycle result GET_FINAL_REPORT requires.
+        val execute = session.send(HostCommand.SANITIZE_EXECUTE)
+        assertEquals(HostResponseStatus.OK, execute.status, execute.error?.message ?: "")
+        assertEquals(true, bool(execute, "finalReportAvailable"))
+
+        val requiredPaths = directlyReachable + listOf(
+            HostCommand.SANITIZE_EXECUTE,
+            HostCommand.GET_FINAL_REPORT,
+        )
+        val missing = requiredPaths.filterNot { probeIsGuarded(it) }
+        assertTrue(
+            missing.isEmpty(),
+            "these device-scoped paths are missing the serial-when-present guard: $missing",
+        )
+
+        // Negative self-test: the same probe against a command outside the
+        // device-scoped set must detect that no guard is present.
+        val unguardedControl = listOf(HostCommand.GET_HOST_INFO)
+        assertEquals(
+            unguardedControl,
+            unguardedControl.filterNot { probeIsGuarded(it) },
+            "the coverage probe must detect a command that carries no ownership guard",
+        )
+    }
+
+    /**
+     * Owner-approved D2 (deterministic refusal when the intended target cannot be
+     * safely established), pinned as behaviour rather than reimplemented:
+     *
+     *  - without a trustworthy Host-side binding (no active scan), every
+     *    device-scoped request is refused deterministically, whatever serial it
+     *    names — absent, matching or hostile;
+     *  - a refused request carries no device-specific payload to mislead with;
+     *  - the safe absent-serial compatibility path survives, for the single-session
+     *    UI that still drives these commands without a serial;
+     *  - after the refusals, a matching request and a fresh scan recover normally,
+     *    proving the refusals changed no state.
+     */
+    @Test
+    fun serialOwnership_noTrustworthyBindingRefuses_andCompatibilityStillRecovers() {
+        // No active scan at all: nothing device-scoped may be answered.
+        val fresh = Session()
+        listOf(
+            HostCommand.GET_DEVICE_REPORT,
+            HostCommand.GET_APPLICATION_INVENTORY,
+        ).forEach { command ->
+            listOf(
+                buildJsonObject { },
+                buildJsonObject { put("serial", SERIAL) },
+                buildJsonObject { put("serial", "ATTACKER-DEVICE-0001") },
+            ).forEach { payload ->
+                val refused = fresh.send(command, payload)
+                assertEquals(
+                    HostResponseStatus.ERROR,
+                    refused.status,
+                    "$command without an active scan must refuse deterministically",
+                )
+                assertTrue(
+                    refused.payload.isEmpty(),
+                    "$command must return no payload at all when it refuses",
+                )
+            }
+        }
+
+        // With an active scan: absent serial stays compatible (the UI sends none
+        // today), a matching serial is served, a mismatching serial is refused.
+        val session = Session()
+        session.scan()
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.GET_APPLICATION_INVENTORY).status,
+            "an absent serial is deliberately not a mismatch on this path either",
+        )
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(
+                HostCommand.GET_APPLICATION_INVENTORY,
+                buildJsonObject { put("serial", SERIAL) },
+            ).status,
+            "a matching serial must be served",
+        )
+        val refused = session.send(
+            HostCommand.GET_APPLICATION_INVENTORY,
+            buildJsonObject { put("serial", "OTHER-DEVICE") },
+        )
+        assertError(refused, "SERIAL_MISMATCH")
+        assertTrue(refused.payload.isEmpty(), "a refusal must carry no payload at all")
+
+        // Recovery: the refusals changed no state. The next matching request works,
+        // and a fresh scan afterwards recovers normally end to end.
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(
+                HostCommand.GET_APPLICATION_INVENTORY,
+                buildJsonObject { put("serial", SERIAL) },
+            ).status,
+            "a matching request after a refusal must succeed",
+        )
+        val rescan = session.scan()
+        assertEquals(HostResponseStatus.OK, rescan.status, rescan.error?.message ?: "")
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.GET_DEVICE_REPORT).status,
+            "a subsequent valid scan must leave the session fully usable",
+        )
+    }
+
     // ------------------------------------------------------------------
     // D-4 / U-3(a) — a failed scan must leave no stale evidence behind
     // ------------------------------------------------------------------

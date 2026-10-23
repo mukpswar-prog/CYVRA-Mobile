@@ -5,6 +5,7 @@ import "./App.css";
 import cyvoriqLogo from "./assets/cyvoriq-solutions.png";
 import { LedgerScreen } from "./ledger/LedgerScreen";
 import type { LedgerReadResult } from "./ledger/parseLedger";
+import { nextScanBinding } from "./scanBinding";
 
 /**
  * Commit this bundle was built from, injected by `vite.config.ts`.
@@ -870,6 +871,27 @@ function App() {
    */
   const [slotOfSerial, setSlotOfSerial] = useState<Record<string, number>>({});
 
+  /**
+   * A scan binding may only outlive the phone it was taken on (owner-approved
+   * D7/D2). When the operator switches phones, or the bound phone leaves the
+   * detected inventory (disconnect, reconnect, transport re-enumeration), the
+   * binding is dropped so a stale target is never presented as current. This
+   * is presentation hygiene only: on the wire the Host still enforces the
+   * authoritative serial-when-present rule whatever this state says.
+   */
+  useEffect(() => {
+    setLastScanSerial((bound) =>
+      nextScanBinding(
+        bound,
+        { kind: "context-changed" },
+        {
+          activeSerial: serial,
+          connectedSerials: connectedDevices.map((device) => device.serial),
+        },
+      ),
+    );
+  }, [serial, connectedDevices]);
+
   useEffect(() => {
     setSlotOfSerial((previous) => {
       const taken = new Set(Object.values(previous));
@@ -1245,7 +1267,9 @@ function App() {
     setScan(envelope);
 
     if (envelope?.status === "OK") {
-      setLastScanSerial(scanSerial);
+      setLastScanSerial(
+        nextScanBinding(lastScanSerial, { kind: "scan-succeeded", scannedSerial: scanSerial }),
+      );
       patchRow(scanSerial, {
         phase: "idle",
         status: "Ok",
@@ -1283,6 +1307,10 @@ function App() {
         note: "This phone's report has not been written yet.",
       });
     } else {
+      // The Host clears its own scan state when a scan fails, so no binding
+      // may survive here either: a failed scan must not leave the UI
+      // presenting a stale target as current (owner-approved D7/D2).
+      setLastScanSerial(nextScanBinding(lastScanSerial, { kind: "scan-failed" }));
       patchRow(scanSerial, {
         phase: "idle",
         status: "Failed",

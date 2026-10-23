@@ -701,9 +701,16 @@ class HostProtocolDispatcher(
      * carry device UIDs, and raw UID values are withheld from the user-facing report.
      * Completeness is reported verbatim - FILTERED never becomes COMPLETE here, and an
      * unavailable source stays UNAVAILABLE rather than being dropped.
+     *
+     * Ownership follows the same serial-when-present rule as GET_DEVICE_REPORT: a
+     * request naming a different serial is refused with SERIAL_MISMATCH before any
+     * inventory is built, so an inventory can never be attributed to the wrong device.
      */
     private fun applicationInventoryResponse(request: HostRequest): HostResponse {
         val scan = lastScan ?: return noScanError(request, "GET_APPLICATION_INVENTORY")
+        // Serial-when-present (U-2(a)): a named serial must match the active scan's device.
+        serialOwnershipRefusal(request, "GET_APPLICATION_INVENTORY", scan.deviceDescriptor.serial)
+            ?.let { return it }
         val section = scan.report.applicationInventory
 
         return okResponse(
