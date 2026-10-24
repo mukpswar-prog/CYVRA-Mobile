@@ -146,7 +146,7 @@ class WorkstationSessionOrchestrator(
         operatorId: String,
         deviceSideInventory: ApplicationInventoryEvidence? = null,
     ): WorkstationDiagnosticExecutionResult {
-        val sessionUuid = "CYVRA-SESSION-${UUID.randomUUID().toString().take(12).uppercase()}"
+        val sessionUuid = UUID.randomUUID().toString()
 
         /*
          * 1. Reserve the scan as a committed-pending transaction.
