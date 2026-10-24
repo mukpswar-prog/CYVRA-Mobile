@@ -1328,6 +1328,8 @@ function App() {
     setInventory(null);
     setSanitize(EMPTY_SANITIZE);
     setExported(null);
+    setFinalised(null);
+    setChecklistRecorded(null);
     void refreshDevices();
   };
 
@@ -1663,7 +1665,7 @@ function App() {
     // The recorded answer is the furthest point this stage reaches: loading the
     // catalogue is preparation, not the stage's own result.
     checklist: checklistRecorded ?? checklist,
-    export: exported,
+    export: finalised ?? exported,
   };
 
   const stageRefused = (key: StepKey): boolean => stageEnvelope[key]?.status === "ERROR";
@@ -2856,7 +2858,9 @@ function App() {
                       onChange={(event) => setOperatorId(event.target.value)}
                       placeholder="Sent only when filled in"
                     />
-                    <small>Omitted from the payload when blank - the Host applies its default.</small>
+                    <small>
+                      Optional for the initial scan (the Host applies its default when blank); required in Step 6 to finalise and seal the report.
+                    </small>
                   </label>
                 </div>
 
@@ -3376,6 +3380,20 @@ function App() {
                   controlled report only exists once it has been normalised, authorised
                   by a named operator and sealed - which is this control.
                 */}
+                <div className="field-row">
+                  <label className="field">
+                    <span>Operator ID (required to finalise and seal)</span>
+                    <input
+                      value={operatorId}
+                      onChange={(event) => setOperatorId(event.target.value)}
+                      placeholder="Name or ID of the authorising operator"
+                    />
+                    <small>
+                      Required by FINALISE_REPORT before the workstation will normalise, sign and seal the final report.
+                    </small>
+                  </label>
+                </div>
+
                 <button
                   type="button"
                   className="btn btn-primary"
@@ -3429,7 +3447,13 @@ function App() {
 
           <div className="help-body">
             <ul className="help-list">
-              <li>Work through the five steps above in order. A step unlocks only when the one before it has finished.</li>
+              <li>
+                The workflow has six stages: Step 1 (Connect) is tracked live per slot in the
+                Connected Phones table above; Step 2 (Scan) requires a connected Host and phone
+                serial; Steps 3 (Applications), 4 (Sanitize) and 6 (Download) unlock once a scan
+                succeeds; and Step 5 (Verify) is always open to review the 14 checks (recording
+                requires a completed scan).
+              </li>
               <li>Only the connected phone is inspected. This laptop is never scanned and never wiped.</li>
               <li>
                 Nothing personal is copied off the phone - the workstation reads the device details
