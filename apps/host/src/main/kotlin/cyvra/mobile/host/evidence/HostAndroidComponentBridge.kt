@@ -5,6 +5,7 @@ import cyvra.mobile.core.AndroidComponentEvidencePayload
 import cyvra.mobile.core.AndroidComponentExecutionResult
 import cyvra.mobile.host.transport.AdbClient
 import kotlinx.serialization.json.Json
+import java.util.UUID
 
 /**
  * Host-side implementation of [AndroidComponentBridge] using controlled ADB transport.
@@ -26,6 +27,12 @@ class HostAndroidComponentBridge(
         const val DEFAULT_PACKAGE_NAME = "co.in.cyvra.mobile"
         const val COMPONENT_RECEIVER_ACTION = "co.in.cyvra.mobile.COLLECT_EVIDENCE"
         const val COMPONENT_DATA_PATH = "/sdcard/Android/data/co.in.cyvra.mobile/files/cyvra-component-evidence.json"
+
+        internal fun isCanonicalUuid(value: String): Boolean {
+            if (value.isBlank()) return false
+            val parsed = runCatching { UUID.fromString(value) }.getOrNull() ?: return false
+            return parsed.toString() == value
+        }
     }
 
     override fun checkInstalled(): Boolean {
@@ -83,12 +90,41 @@ class HostAndroidComponentBridge(
 
         return try {
             val payload = json.decodeFromString<AndroidComponentEvidencePayload>(readResult.stdout.trim())
-            AndroidComponentExecutionResult(
-                isInstalled = true,
-                packageVersion = version,
-                isExecutable = true,
-                payload = payload,
-            )
+            when {
+                !isCanonicalUuid(deviceLifecycleId) || !isCanonicalUuid(payload.deviceLifecycleId) ->
+                    AndroidComponentExecutionResult(
+                        isInstalled = true,
+                        packageVersion = version,
+                        isExecutable = true,
+                        payload = null,
+                        error = "Android Component evidence rejected: invalid or missing deviceLifecycleId '${payload.deviceLifecycleId}'",
+                    )
+                !isCanonicalUuid(sessionUuid) || !isCanonicalUuid(payload.sessionUuid) ->
+                    AndroidComponentExecutionResult(
+                        isInstalled = true,
+                        packageVersion = version,
+                        isExecutable = true,
+                        payload = null,
+                        error = "Android Component evidence rejected: invalid or missing sessionUuid '${payload.sessionUuid}'",
+                    )
+                payload.deviceLifecycleId != deviceLifecycleId || payload.sessionUuid != sessionUuid ->
+                    AndroidComponentExecutionResult(
+                        isInstalled = true,
+                        packageVersion = version,
+                        isExecutable = true,
+                        payload = null,
+                        error = "Android Component evidence rejected: lifecycle/session ownership mismatch " +
+                            "(expected lifecycle=$deviceLifecycleId session=$sessionUuid, " +
+                            "got lifecycle=${payload.deviceLifecycleId} session=${payload.sessionUuid})",
+                    )
+                else ->
+                    AndroidComponentExecutionResult(
+                        isInstalled = true,
+                        packageVersion = version,
+                        isExecutable = true,
+                        payload = payload,
+                    )
+            }
         } catch (e: Exception) {
             AndroidComponentExecutionResult(
                 isInstalled = true,

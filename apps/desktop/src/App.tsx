@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState, type ReactNode } from "reac
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+import { ActivationScreen, type ActivationFields } from "./activation/ActivationScreen";
 import cyvoriqLogo from "./assets/cyvoriq-solutions.png";
 import { LedgerScreen } from "./ledger/LedgerScreen";
 import type { LedgerReadResult } from "./ledger/parseLedger";
@@ -37,6 +38,12 @@ type HostInfoResult = {
   protocolVersion: string;
   requestId: string;
   hostVersion: string;
+};
+
+type ActivationStatusResult = {
+  state: "activated" | "unactivated" | "rejected" | "error";
+  termsVersion: string;
+  message: string | null;
 };
 
 type HostError = {
@@ -184,6 +191,26 @@ const EMPTY_SANITIZE: Record<SanitizeStage, HostEnvelope | null> = {
   execute: null,
 };
 
+type DeviceSessionEnvelopes = {
+  scan: HostEnvelope | null;
+  inventory: HostEnvelope | null;
+  checklistRecorded: HostEnvelope | null;
+  checklistAnswers: Record<string, string>;
+  sanitize: Record<SanitizeStage, HostEnvelope | null>;
+  exported: HostEnvelope | null;
+  finalised: HostEnvelope | null;
+};
+
+const EMPTY_DEVICE_ENVELOPES: DeviceSessionEnvelopes = {
+  scan: null,
+  inventory: null,
+  checklistRecorded: null,
+  checklistAnswers: {},
+  sanitize: EMPTY_SANITIZE,
+  exported: null,
+  finalised: null,
+};
+
 type StepKey = "connect" | "scan" | "inventory" | "sanitize" | "checklist" | "export";
 
 /**
@@ -304,17 +331,10 @@ const STEPS: StepMeta[] = [
  * instead of accidentally split.
  */
 const STAGE_SEGMENTS: { key: StageKey; label: string; hue: string; head: string }[] = [
-  { key: "connect", label: "Connect", hue: "blue", head: "Connect" },
-  { key: "scan", label: "Scan", hue: "orange", head: "Scan" },
-  {
-    key: "applications",
-    label: "Applications",
-    hue: "purple",
-    head: "Applica-\ntions",
-  },
-  { key: "sanitize", label: "Sanitize", hue: "teal", head: "Sanitize" },
-  { key: "verify", label: "Verify", hue: "indigo", head: "Verify" },
-  { key: "download", label: "Download", hue: "green", head: "Down-\nload" },
+  { key: "scan", label: "H/W SCN", hue: "orange", head: "H/W SCN" },
+  { key: "applications", label: "App SCN", hue: "purple", head: "App SCN" },
+  { key: "sanitize", label: "SAN", hue: "teal", head: "SAN" },
+  { key: "verify", label: "VER", hue: "indigo", head: "VER" },
 ];
 
 /** Plain-language state word shown inside a segment. */
@@ -916,6 +936,16 @@ function App() {
 
   /** `GET_LICENSE_STATE` answer, needed before a row's Scan may arm (D-3). */
   const [licensePresent, setLicensePresent] = useState<boolean | null>(null);
+  const [licenseStatus, setLicenseStatus] = useState<string | null>(null);
+  const [licenseScansRemaining, setLicenseScansRemaining] = useState<number | null>(null);
+  const [showActivationModal, setShowActivationModal] = useState(false);
+  const [activationBusy, setActivationBusy] = useState(false);
+  const [activationMessage, setActivationMessage] = useState<string | null>(null);
+
+  /** Per-device session envelopes keyed by serial so multi-device workflows never overwrite each other. */
+  const [deviceEnvelopes, setDeviceEnvelopes] = useState<Record<string, DeviceSessionEnvelopes>>(
+    {},
+  );
 
   /**
    * Which stage of the wizard is on screen. Navigation only: it gates nothing.
@@ -1096,13 +1126,85 @@ function App() {
       });
 
       const envelope = JSON.parse(raw) as HostEnvelope;
+      const payload = payloadOf(envelope);
       setLicensePresent(
-        envelope.status === "OK" && readBoolean(payloadOf(envelope), "present") === true,
+        envelope.status === "OK" && readBoolean(payload, "present") === true,
       );
+      setLicenseStatus(readString(payload, "status"));
+      setLicenseScansRemaining(readCount(payload, "scansRemaining"));
     } catch {
       setLicensePresent(null);
+      setLicenseStatus(null);
+      setLicenseScansRemaining(null);
     }
   }, []);
+
+  const submitWorkstationActivation = useCallback(
+    async (fields: ActivationFields) => {
+      setActivationBusy(true);
+      setActivationMessage(null);
+      try {
+        const result = await invoke<ActivationStatusResult>("activation_submit", { fields });
+        if (result.state === "activated") {
+          setShowActivationModal(false);
+          setActivationMessage(null);
+          void loadLicense();
+        } else {
+          setActivationMessage(
+            result.message ??
+              "This workstation declined those details. Check the User ID and Serial Key and try again.",
+          );
+        }
+      } catch (error) {
+        setActivationMessage(String(error));
+      } finally {
+        setActivationBusy(false);
+      }
+    },
+    [loadLicense],
+  );
+
+  const patchDeviceEnvelope = useCallback(
+    (rowSerial: string, patch: Partial<DeviceSessionEnvelopes>) => {
+      if (!rowSerial) {
+        return;
+      }
+      setDeviceEnvelopes((current) => {
+        const existing: DeviceSessionEnvelopes = current[rowSerial] ?? EMPTY_DEVICE_ENVELOPES;
+        return {
+          ...current,
+          [rowSerial]: { ...existing, ...patch },
+        };
+      });
+    },
+    [],
+  );
+
+  const selectDeviceForStage = useCallback(
+    (targetSerial: string, nextStep: StepKey) => {
+      const trimmed = targetSerial.trim();
+      if (!trimmed) {
+        return;
+      }
+      setSerial(trimmed);
+      setSerialFromHost(true);
+      setActiveStep(nextStep);
+      const saved = deviceEnvelopes[trimmed];
+      if (saved) {
+        setScan(saved.scan);
+        setInventory(saved.inventory);
+        setChecklistRecorded(saved.checklistRecorded);
+        setChecklistAnswers(saved.checklistAnswers);
+        setSanitize(saved.sanitize);
+        setExported(saved.exported);
+        setFinalised(saved.finalised);
+        if (saved.scan?.status === "OK") {
+          setLastScanSerial(trimmed);
+        }
+      }
+    },
+    [deviceEnvelopes],
+  );
 
   /** Merges a patch into one phone's row, keeping every other field intact. */
   const patchRow = useCallback((rowSerial: string, patch: Partial<DeviceRowState>) => {
@@ -1265,6 +1367,15 @@ function App() {
 
     const envelope = await send("RUN_SCAN", payload);
     setScan(envelope);
+    patchDeviceEnvelope(scanSerial, {
+      scan: envelope,
+      inventory: null,
+      checklistRecorded: null,
+      checklistAnswers: {},
+      sanitize: EMPTY_SANITIZE,
+      exported: null,
+      finalised: null,
+    });
 
     if (envelope?.status === "OK") {
       setLastScanSerial(
@@ -1331,10 +1442,15 @@ function App() {
     setFinalised(null);
     setChecklistRecorded(null);
     void refreshDevices();
+    void loadLicense();
   };
 
-  const loadInventory = async () => {
-    const target = (lastScanSerial ?? serial).trim();
+  const loadInventory = async (targetSerial?: string) => {
+    const target = (targetSerial ?? lastScanSerial ?? serial).trim();
+    if (targetSerial) {
+      setSerial(target);
+      setSerialFromHost(true);
+    }
 
     patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
     patchStage(target, "applications", {
@@ -1343,8 +1459,12 @@ function App() {
       at: clockNow(),
     });
 
-    const envelope = await send("GET_APPLICATION_INVENTORY", {});
+    const envelope = await send(
+      "GET_APPLICATION_INVENTORY",
+      targetSerial ? { serial: target } : {},
+    );
     setInventory(envelope);
+    patchDeviceEnvelope(target, { inventory: envelope });
 
     patchRow(target, {
       phase: "idle",
@@ -1371,25 +1491,29 @@ function App() {
         });
   };
 
-  const runSanitize = async (stage: SanitizeStage) => {
-    let payload: Record<string, unknown> = {};
+  const runSanitize = async (stage: SanitizeStage, targetSerial?: string) => {
+    const target = (targetSerial ?? lastScanSerial ?? serial).trim();
+    if (targetSerial) {
+      setSerial(target);
+      setSerialFromHost(true);
+    }
+    const currentSanitize = (targetSerial && deviceEnvelopes[target]?.sanitize) || sanitize;
+    let payload: Record<string, unknown> = targetSerial ? { serial: target } : {};
 
     if (stage === "authorize") {
-      payload = { acknowledged: true };
+      payload = { ...payload, acknowledged: true };
     }
 
     if (stage === "confirm") {
-      const phrase = readString(payloadOf(sanitize.start), "step2PhraseRequired");
+      const phrase = readString(payloadOf(currentSanitize.start), "step2PhraseRequired");
 
       if (!phrase) {
         setBridgeError("SANITIZE_CONFIRM: SANITIZE_START did not issue a confirmation phrase");
         return;
       }
 
-      payload = { confirmationPhrase: phrase };
+      payload = { ...payload, confirmationPhrase: phrase };
     }
-
-    const target = (lastScanSerial ?? serial).trim();
 
     patchRow(target, { phase: "sanitize", status: "In progress", reason: "" });
     patchStage(target, "sanitize", {
@@ -1399,7 +1523,9 @@ function App() {
     });
 
     const envelope = await send(SANITIZE_COMMANDS[stage], payload);
-    setSanitize((current) => ({ ...current, [stage]: envelope }));
+    const nextSanitize = { ...currentSanitize, [stage]: envelope };
+    setSanitize(nextSanitize);
+    patchDeviceEnvelope(target, { sanitize: nextSanitize });
 
     const accepted = envelope?.status === "OK";
 
@@ -1451,8 +1577,12 @@ function App() {
     }
   };
 
-  const runExport = async () => {
-    const target = (lastScanSerial ?? serial).trim();
+  const runExport = async (targetSerial?: string) => {
+    const target = (targetSerial ?? lastScanSerial ?? serial).trim();
+    if (targetSerial) {
+      setSerial(target);
+      setSerialFromHost(true);
+    }
 
     patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
     patchStage(target, "download", {
@@ -1461,8 +1591,9 @@ function App() {
       at: clockNow(),
     });
 
-    const envelope = await send("EXPORT_REPORT", {});
+    const envelope = await send("EXPORT_REPORT", targetSerial ? { serial: target } : {});
     setExported(envelope);
+    patchDeviceEnvelope(target, { exported: envelope });
 
     if (envelope?.status === "OK") {
       patchRow(target, {
@@ -1495,8 +1626,11 @@ function App() {
    * never locks; the catalogue is the Host's to serve and this screen only
    * displays it.
    */
-  const loadChecklist = async () => {
-    const envelope = await send("GET_CHECKLIST", {});
+  const loadChecklist = async (targetSerial?: string) => {
+    const envelope = await send(
+      "GET_CHECKLIST",
+      targetSerial ? { serial: targetSerial.trim() } : {},
+    );
     setChecklist(envelope);
   };
 
@@ -1509,7 +1643,8 @@ function App() {
    * that looks complete when nobody finished it is the one failure the protocol
    * was built to prevent.
    */
-  const recordChecklist = async () => {
+  const recordChecklist = async (targetSerial?: string) => {
+    const target = (targetSerial ?? lastScanSerial ?? serial).trim();
     const payload = payloadOf(checklist);
     const results = readObjectList(payload, "checks")
       .map((check) => {
@@ -1519,24 +1654,23 @@ function App() {
       })
       .filter((row): row is { id: string; outcome: string } => row !== null);
 
-    // This stage previously recorded nothing against a phone, which left Verify
-    // ungovernable per device. It now targets the same serial the other stages
-    // use, so the bar's Verify segment belongs to the phone it was taken on.
-    const target = (lastScanSerial ?? serial).trim();
-
     patchStage(target, "verify", {
       tone: "in-progress",
       note: "Recording this phone's technician checks.",
       at: clockNow(),
     });
 
-    const envelope = await send("RECORD_CHECKLIST", { results });
+    const envelope = await send(
+      "RECORD_CHECKLIST",
+      targetSerial ? { serial: target, results } : { results },
+    );
     setChecklistRecorded(envelope);
+    patchDeviceEnvelope(target, { checklistRecorded: envelope, checklistAnswers });
 
     // The Host's own progress block is the source of truth after a recording,
     // so re-read the catalogue too: it carries the same progress for display.
     if (envelope?.status === "OK") {
-      setChecklist(await send("GET_CHECKLIST", {}));
+      setChecklist(await send("GET_CHECKLIST", targetSerial ? { serial: target } : {}));
       patchStage(target, "verify", {
         tone: "completed",
         note: "The technician's checks were recorded for this phone.",
@@ -1558,8 +1692,8 @@ function App() {
    * The operator id is whatever this screen already holds. Finalisation refuses a blank
    * one rather than sealing a report no person signed, so the refusal is shown as-is.
    */
-  const runFinalise = async () => {
-    const target = (lastScanSerial ?? serial).trim();
+  const runFinalise = async (targetSerial?: string) => {
+    const target = (targetSerial ?? lastScanSerial ?? serial).trim();
 
     patchRow(target, { phase: "reporting", status: "In progress", reason: "" });
     patchStage(target, "download", {
@@ -1568,8 +1702,12 @@ function App() {
       at: clockNow(),
     });
 
-    const envelope = await send("FINALISE_REPORT", { operatorId: operatorId.trim() });
+    const envelope = await send("FINALISE_REPORT", {
+      operatorId: operatorId.trim(),
+      ...(targetSerial ? { serial: target } : {}),
+    });
     setFinalised(envelope);
+    patchDeviceEnvelope(target, { finalised: envelope });
 
     if (envelope?.status === "OK") {
       patchRow(target, {
@@ -1906,10 +2044,6 @@ function App() {
             ? "Not allowed yet - tap ALLOW on the phone."
             : "Still being identified by the workstation.";
 
-    const unfinished = Object.entries(deviceRows).some(
-      ([rowSerial, row]) => rowSerial !== device.serial && row.status === "In progress",
-    );
-
     const scanLock =
       device.state === "disconnected"
         ? "This phone's connection dropped. Unplug the data cable and plug it back in."
@@ -1919,14 +2053,19 @@ function App() {
             ? "This phone is still being identified. Wait a moment, then try again."
             : licensePresent !== true
               ? "No licence is installed on this workstation, so a scan cannot start."
-              : unfinished
-                ? "Another phone's session is still running. Wait for it to finish first."
-                : busy !== null
-                  ? "The workstation is busy with the current step. Wait for it to finish."
-                  : null;
+              : busy !== null
+                ? "The workstation is busy with the current step. Wait for it to finish."
+                : null;
+
+    const recorded = rowState.stages ?? {};
+    const scanCompleted =
+      recorded.scan?.tone === "completed" ||
+      recorded.scan?.tone === "partial" ||
+      deviceEnvelopes[device.serial]?.scan?.status === "OK";
 
     const reportReady =
-      rowState.exportedOk && rowState.status === "Ok" && lastScanSerial === device.serial;
+      scanCompleted ||
+      (rowState.exportedOk && rowState.status === "Ok");
 
     const slotNumber = slotOfSerial[device.serial];
 
@@ -1936,6 +2075,7 @@ function App() {
       rowState,
       activeReason,
       scanLock,
+      scanCompleted,
       reportReady,
       slotLabel: slotNumber === undefined ? null : slotLabelFor(slotNumber),
     };
@@ -1982,6 +2122,10 @@ function App() {
         device: null,
         modelMake: "",
         stages: emptyStages,
+        downloadTone: "pending" as StageTone,
+        downloadNote: "No phone is in this slot.",
+        scanCompleted: false,
+        reportExported: false,
         overall: "Empty" as const,
         overallNote: "This slot holds no device.",
         rowState: EMPTY_ROW_STATE,
@@ -2007,9 +2151,6 @@ function App() {
               note: "This phone has not allowed the workstation. Tap ALLOW on the phone.",
             };
 
-    // Connect is derived from live inventory; the other five come from the
-    // phone's own recorded results, so one phone's operation never colours
-    // another phone's bar.
     const stages = STAGE_SEGMENTS.map((segment) =>
       segment.key === "connect"
         ? { key: segment.key, ...connectStage }
@@ -2020,6 +2161,21 @@ function App() {
             ...(recorded[segment.key]?.at ? { at: recorded[segment.key]?.at } : {}),
           },
     );
+
+    const downloadTone = (recorded.download?.tone ?? "pending") as StageTone;
+    const downloadNote =
+      recorded.download?.note ?? "This phone's report has not been downloaded yet.";
+    const scanCompleted =
+      recorded.scan?.tone === "completed" ||
+      recorded.scan?.tone === "partial" ||
+      deviceEnvelopes[serial]?.scan?.status === "OK";
+    const reportExported = rowState.exportedOk || downloadTone === "completed";
+
+    const allStagesForOverall: { key: StageKey; tone: StageTone }[] = [
+      { key: "connect", tone: connectStage.tone },
+      ...stages,
+      { key: "download", tone: downloadTone },
+    ];
 
     const model = device?.model?.trim();
     const make = device?.make?.trim();
@@ -2032,7 +2188,11 @@ function App() {
       device,
       modelMake: [model, make].filter(Boolean).join(" / "),
       stages,
-      overall: overallFor(stages, disconnected),
+      downloadTone,
+      downloadNote,
+      scanCompleted,
+      reportExported,
+      overall: overallFor(allStagesForOverall, disconnected),
       overallNote: "",
       rowState,
     };
@@ -2095,8 +2255,39 @@ function App() {
   /** Row the operator has opened in place. Opening a row changes no screen. */
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
 
+  const handleSlotStageAction = (targetSerial: string, stageKey: StageKey, scanLock: string | null, scanCompleted: boolean) => {
+    if (stageKey === "scan") {
+      selectDeviceForStage(targetSerial, "scan");
+      if (scanLock === null) {
+        void runScan(targetSerial);
+      }
+      return;
+    }
+    if (stageKey === "applications") {
+      selectDeviceForStage(targetSerial, "inventory");
+      if (scanCompleted && busy === null) {
+        void loadInventory(targetSerial);
+      }
+      return;
+    }
+    if (stageKey === "sanitize") {
+      selectDeviceForStage(targetSerial, "sanitize");
+      const devSanitize = deviceEnvelopes[targetSerial]?.sanitize;
+      if (scanCompleted && busy === null && !devSanitize?.start) {
+        void runSanitize("start", targetSerial);
+      }
+      return;
+    }
+    if (stageKey === "verify") {
+      selectDeviceForStage(targetSerial, "checklist");
+      if (busy === null) {
+        void loadChecklist(targetSerial);
+      }
+    }
+  };
+
   /**
-   * One monitoring table: 25 compact rows, six stage segments per row.
+   * One monitoring table: 25 compact rows, four operational stage controls + separate Report column per row.
    *
    * Rendering is a plain function rather than a component so it cannot acquire
    * its own state - the two tables are views over the single 50-slot list, and
@@ -2116,9 +2307,6 @@ function App() {
           <th scope="col" className="col-id">
             CYVRA ID
           </th>
-          <th scope="col" className="col-model">
-            Model / Make
-          </th>
           {STAGE_SEGMENTS.map((segment) => (
             <th
               key={segment.key}
@@ -2129,6 +2317,9 @@ function App() {
               {segment.head}
             </th>
           ))}
+          <th scope="col" className="col-report">
+            Report
+          </th>
           <th scope="col" className="col-overall">
             Status
           </th>
@@ -2169,12 +2360,6 @@ function App() {
                 <td className="col-id">
                   <strong>{slot.label}</strong>
                 </td>
-                <td
-                  className="col-model"
-                  title={slot.modelMake || "Not reported by the inspection engine"}
-                >
-                  {slot.modelMake || <span className="not-reported">Not reported</span>}
-                </td>
 
                 {STAGE_SEGMENTS.map((segment) => {
                   const stage = slot.stages.find((entry) => entry.key === segment.key);
@@ -2186,23 +2371,87 @@ function App() {
 
                   return (
                     <td key={segment.key} className={`col-stage hue-${segment.hue}`}>
-                      <span
-                        className={`stage-seg is-${stageToneSlug[tone]}`}
-                        title={label}
-                        aria-label={label}
-                        role="img"
-                      >
-                        <span
-                          className={`stage-glyph${spinning ? " is-spinning" : ""}`}
-                          aria-hidden="true"
+                      {slot.serial !== null ? (
+                        <button
+                          type="button"
+                          className={`stage-seg stage-btn is-${stageToneSlug[tone]}`}
+                          title={label}
+                          aria-label={label}
+                          disabled={busy !== null}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleSlotStageAction(
+                              slot.serial,
+                              segment.key,
+                              scanLock,
+                              slot.scanCompleted,
+                            );
+                          }}
                         >
-                          {STAGE_TONE_GLYPH[tone]}
+                          <span
+                            className={`stage-glyph${spinning ? " is-spinning" : ""}`}
+                            aria-hidden="true"
+                          >
+                            {STAGE_TONE_GLYPH[tone]}
+                          </span>
+                          <span className="stage-word">{text}</span>
+                        </button>
+                      ) : (
+                        <span
+                          className={`stage-seg is-${stageToneSlug[tone]}`}
+                          title={label}
+                          aria-label={label}
+                          role="img"
+                        >
+                          <span
+                            className={`stage-glyph${spinning ? " is-spinning" : ""}`}
+                            aria-hidden="true"
+                          >
+                            {STAGE_TONE_GLYPH[tone]}
+                          </span>
+                          <span className="stage-word">{text}</span>
                         </span>
-                        <span className="stage-word">{text}</span>
-                      </span>
+                      )}
                     </td>
                   );
                 })}
+
+                <td className="col-report">
+                  {slot.serial !== null ? (
+                    <button
+                      type="button"
+                      className={`btn-report is-${stageToneSlug[slot.downloadTone]}${
+                        slot.scanCompleted ? " is-ready" : ""
+                      }`}
+                      disabled={!slot.scanCompleted || busy !== null}
+                      title={
+                        !slot.scanCompleted
+                          ? `Complete H/W SCN for ${slot.label} before downloading its report.`
+                          : slot.downloadNote
+                      }
+                      aria-label={`Download Report for ${slot.label}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectDeviceForStage(slot.serial, "export");
+                        void runExport(slot.serial);
+                      }}
+                    >
+                      {slot.downloadTone === "in-progress"
+                        ? "Preparing…"
+                        : slot.reportExported
+                          ? "✓ Download Report"
+                          : slot.downloadTone === "failed"
+                            ? "Retry Download"
+                            : slot.scanCompleted
+                              ? "Download Report"
+                              : "Not available"}
+                    </button>
+                  ) : (
+                    <span className="report-cell-empty" aria-label={`${slot.label} Report: Not available`}>
+                      —
+                    </span>
+                  )}
+                </td>
 
                 <td className="col-overall">
                   <span className={`overall-chip is-${slugify(slot.overall)}`}>
@@ -2228,26 +2477,12 @@ function App() {
 
               {isExpanded && (
                 <tr className="monitor-detail">
-                  <td colSpan={12}>
+                  <td colSpan={10}>
                     <div className="detail-inner">
                       <dl className="detail-facts">
                         <div>
                           <dt>Slot</dt>
                           <dd>{slot.label}</dd>
-                        </div>
-                        <div>
-                          <dt>Model / Make</dt>
-                          <dd>{slot.modelMake || "Not reported"}</dd>
-                        </div>
-                        <div>
-                          <dt>IMEI</dt>
-                          <dd>
-                            {slot.device?.imei ?? (
-                              <span className="not-reported" title={slot.device?.imeiReason}>
-                                Not reported
-                              </span>
-                            )}
-                          </dd>
                         </div>
                         <div>
                           <dt>Connection</dt>
@@ -2283,14 +2518,55 @@ function App() {
                             type="button"
                             className="btn btn-secondary btn-compact"
                             disabled={scanLock !== null}
-                            title={scanLock ?? `Scan phone at ${slot.label}`}
+                            title={scanLock ?? `Run H/W SCN for ${slot.label}`}
                             aria-label={`Scan phone at ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
+                              selectDeviceForStage(slot.serial, "scan");
                               void runScan(slot.serial);
                             }}
                           >
-                            Scan
+                            H/W SCN
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-compact"
+                            disabled={!slot.scanCompleted || busy !== null}
+                            title={`Run App SCN for ${slot.label}`}
+                            aria-label={`Load applications for ${slot.label}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              selectDeviceForStage(slot.serial, "inventory");
+                              void loadInventory(slot.serial);
+                            }}
+                          >
+                            App SCN
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-compact"
+                            disabled={!slot.scanCompleted || busy !== null}
+                            title={`Open Sanitize workflow for ${slot.label}`}
+                            aria-label={`Sanitize phone at ${slot.label}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleSlotStageAction(slot.serial, "sanitize", scanLock, slot.scanCompleted);
+                            }}
+                          >
+                            SAN
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-compact"
+                            disabled={busy !== null}
+                            title={`Open Verification checklist for ${slot.label}`}
+                            aria-label={`Verify phone at ${slot.label}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleSlotStageAction(slot.serial, "verify", scanLock, slot.scanCompleted);
+                            }}
+                          >
+                            VER
                           </button>
                           <button
                             type="button"
@@ -2299,15 +2575,16 @@ function App() {
                             title={
                               reportReady
                                 ? `Download the report for ${slot.label}`
-                                : `A report is downloadable for ${slot.label} only after its export finished successfully.`
+                                : `A report is downloadable for ${slot.label} only after its scan finished successfully.`
                             }
                             aria-label={`Download report for ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
-                              void runExport();
+                              selectDeviceForStage(slot.serial, "export");
+                              void runExport(slot.serial);
                             }}
                           >
-                            Download
+                            Download Report
                           </button>
                           <span className="detail-activity">{slot.rowState.status}</span>
                         </div>
@@ -2335,6 +2612,30 @@ function App() {
         </div>
 
         <div className="header-pills">
+          <button
+            type="button"
+            className={`status-pill is-interactive ${
+              licensePresent === true ? "is-online" : "is-idle"
+            }`}
+            aria-label="Open User ID and Licence Key activation dialog"
+            title={
+              licensePresent === true
+                ? `Active licence (${licenseStatus ?? "VALID"}). Click to view or update User ID and Serial Key.`
+                : "Enter Registered User ID and Serial Key to activate this workstation."
+            }
+            onClick={() => {
+              setActivationMessage(null);
+              setShowActivationModal(true);
+            }}
+          >
+            <span className="status-dot" aria-hidden="true" />
+            {licensePresent === true
+              ? `LICENCE: ACTIVE${
+                  licenseScansRemaining !== null ? ` (${licenseScansRemaining})` : ""
+                }`
+              : "USER ID / LICENCE KEY"}
+          </button>
+
           <span
             className={`status-pill is-${engineState}`}
             title="The inspection engine is running on this PC. Phone connection is shown in the device table."
@@ -2353,6 +2654,35 @@ function App() {
           </span>
         </div>
       </header>
+
+      {showActivationModal && (
+        <div
+          className="activation-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Workstation User ID and Licence Key activation"
+        >
+          <div className="activation-modal-card">
+            <div className="activation-modal-bar">
+              <span>Workstation User ID &amp; Serial Key</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-compact"
+                aria-label="Close activation dialog"
+                onClick={() => setShowActivationModal(false)}
+              >
+                Close
+              </button>
+            </div>
+            <ActivationScreen
+              termsVersion="2026-04-12"
+              busy={activationBusy}
+              message={activationMessage}
+              onSubmit={(fields) => void submitWorkstationActivation(fields)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* The workstation's two top-level views. Its own bar rather than a
           button in the brand header: that header carries status, and status is
@@ -2576,9 +2906,6 @@ function App() {
                           <th scope="col" className="col-id">
                             CYVRA ID
                           </th>
-                          <th scope="col" className="col-model">
-                            Model / Make
-                          </th>
                           {STAGE_SEGMENTS.map((segment) => (
                             <th
                               key={segment.key}
@@ -2589,6 +2916,9 @@ function App() {
                               {segment.head}
                             </th>
                           ))}
+                          <th scope="col" className="col-report">
+                            Report
+                          </th>
                           <th scope="col" className="col-overall">
                             Status
                           </th>
@@ -2600,7 +2930,7 @@ function App() {
                       <tbody>
                         {[0, 1, 2].map((placeholder) => (
                           <tr key={placeholder} className="is-skeleton">
-                            <td colSpan={12}>
+                            <td colSpan={10}>
                               <span className="skeleton-bar" aria-hidden="true" />
                             </td>
                           </tr>

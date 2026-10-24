@@ -1596,4 +1596,71 @@ class HostProtocolWorkflowTest {
             "a failed scan must never consume an entitlement",
         )
     }
+
+    @Test
+    fun multiDeviceSessionsRemainIndependentAcrossSimultaneousWorkflows() {
+        val session = Session()
+        val serialA = "RF8R123456"
+        val serialB = "RF8R999888"
+
+        val scanA = session.send(
+            HostCommand.RUN_SCAN,
+            buildJsonObject {
+                put("serial", serialA)
+                put("operatorId", OPERATOR)
+            },
+        )
+        assertEquals(HostResponseStatus.OK, scanA.status, scanA.error?.message ?: "")
+        val reportIdA = assertNotNull(str(scanA, "reportId"))
+
+        val scanB = session.send(
+            HostCommand.RUN_SCAN,
+            buildJsonObject {
+                put("serial", serialB)
+                put("operatorId", OPERATOR)
+            },
+        )
+        assertEquals(HostResponseStatus.OK, scanB.status, scanB.error?.message ?: "")
+        val reportIdB = assertNotNull(str(scanB, "reportId"))
+        assertNotEquals(reportIdA, reportIdB, "each device scan must produce its own reportId")
+
+        // Retrieving Report 1 and exporting for Device A after Device B was scanned must return Device A's report.
+        val reportA = session.send(
+            HostCommand.GET_DEVICE_REPORT,
+            buildJsonObject { put("serial", serialA) },
+        )
+        assertEquals(HostResponseStatus.OK, reportA.status, reportA.error?.message ?: "")
+        assertEquals(serialA, str(reportA, "serial"))
+        assertEquals(reportIdA, str(reportA, "reportId"))
+
+        val exportA = session.send(
+            HostCommand.EXPORT_REPORT,
+            buildJsonObject { put("serial", serialA) },
+        )
+        assertEquals(HostResponseStatus.OK, exportA.status, exportA.error?.message ?: "")
+        assertEquals(reportIdA, str(exportA, "reportId"))
+
+        // And Device B's report and export remain independently intact.
+        val reportB = session.send(
+            HostCommand.GET_DEVICE_REPORT,
+            buildJsonObject { put("serial", serialB) },
+        )
+        assertEquals(HostResponseStatus.OK, reportB.status, reportB.error?.message ?: "")
+        assertEquals(serialB, str(reportB, "serial"))
+        assertEquals(reportIdB, str(reportB, "reportId"))
+
+        val exportB = session.send(
+            HostCommand.EXPORT_REPORT,
+            buildJsonObject { put("serial", serialB) },
+        )
+        assertEquals(HostResponseStatus.OK, exportB.status, exportB.error?.message ?: "")
+        assertEquals(reportIdB, str(exportB, "reportId"))
+
+        // Unscanned Device C is still refused with SERIAL_MISMATCH.
+        val refusedC = session.send(
+            HostCommand.GET_DEVICE_REPORT,
+            buildJsonObject { put("serial", "UNSCANNED-DEVICE-C") },
+        )
+        assertError(refusedC, "SERIAL_MISMATCH")
+    }
 }

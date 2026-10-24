@@ -2126,3 +2126,125 @@ td.col-stage.hue-green .stage-seg {
     padding: var(--space-2);
   }
 }
+
+/* ---- Interactive Per-Device Controls, Report Column, and Activation Modal ---- */
+
+.status-pill.is-interactive {
+  cursor: pointer;
+  font: inherit;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.status-pill.is-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+}
+
+.stage-btn {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  transition: filter 0.12s ease, transform 0.08s ease;
+}
+
+.stage-btn:hover:not(:disabled) {
+  filter: brightness(0.95);
+  transform: translateY(-0.5px);
+}
+
+.stage-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.col-report {
+  width: 118px;
+  text-align: center;
+}
+
+.btn-report {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.btn-report.is-ready {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.btn-report.is-completed {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}
+
+.btn-report.is-failed {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.btn-report:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.btn-report:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.report-cell-empty {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.activation-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.activation-modal-card {
+  width: 100%;
+  max-width: 540px;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.28);
+}
+
+.activation-modal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+

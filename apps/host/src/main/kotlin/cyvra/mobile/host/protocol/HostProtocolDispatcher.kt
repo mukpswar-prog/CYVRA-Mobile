@@ -123,42 +123,48 @@ class HostProtocolDispatcher(
      * P2 workflow state.
      *
      * The Host is a single long-lived process reading JSON-lines on stdin, so one
-     * dispatcher instance serves the whole operator session. These fields are the
-     * server-side half of the workflow: a later command can only succeed because an
-     * earlier one actually ran. Nothing here is supplied by the client, so no step can
-     * be reached by asserting that it already happened.
+     * dispatcher instance serves the whole operator session. Session state is indexed
+     * per device serial (`D-CE-26-03`) so up to 50 connected phones can be scanned,
+     * inspected, finalised, verified, and sanitized independently without overwriting
+     * one another, while `activeSerial` preserves single-device fallback when a caller
+     * omits `payload.serial`.
      *
-     * A successful RUN_SCAN clears every sanitization field: a new scan invalidates the
-     * previous report, so the prior eligibility gate, target lock and confirmation can
-     * never carry over onto fresh evidence.
+     * A successful RUN_SCAN on a device clears every sanitization field for that device:
+     * a new scan invalidates that device's previous report, so its prior eligibility gate,
+     * target lock and confirmation can never carry over onto fresh evidence.
      */
-    private var lastScan: WorkstationDiagnosticExecutionResult? = null
-    private var scanEvidence: ScanEvidencePacket? = null
+    private class DeviceSessionState(
+        var lastScan: WorkstationDiagnosticExecutionResult? = null,
+        var scanEvidence: ScanEvidencePacket? = null,
+        var patchStateRefusalReason: String? = null,
+        var lifecycleStart: SanitizationLifecycleStart? = null,
+        var operatorAcknowledged: Boolean? = null,
+        var operatorConfirmationPhrase: String? = null,
+        var lifecycleResult: WorkstationSanitizationLifecycleResult? = null,
+        var checklistRecord: TechnicianChecklistRecord? = null,
+    ) {
+        fun resetSanitizationState(keepStart: Boolean = false) {
+            operatorAcknowledged = null
+            operatorConfirmationPhrase = null
+            lifecycleResult = null
+            if (!keepStart) {
+                lifecycleStart = null
+            }
+        }
+    }
 
-    /**
-     * Why [scanEvidence] is absent, captured at scan time.
-     *
-     * Purely diagnostic: it lets `FINALISE_REPORT` state which gate refused instead of
-     * returning an opaque "unavailable". It never influences the decision, which is taken
-     * solely on whether the packet exists.
-     */
-    private var patchStateRefusalReason: String? = null
-    private var lifecycleStart: SanitizationLifecycleStart? = null
-    private var operatorAcknowledged: Boolean? = null
-    private var operatorConfirmationPhrase: String? = null
-    private var lifecycleResult: WorkstationSanitizationLifecycleResult? = null
+    private val deviceSessions = java.util.concurrent.ConcurrentHashMap<String, DeviceSessionState>()
 
-    /**
-     * The technician checklist recorded against the current session, if any.
-     *
-     * Held server-side for the same reason as every other field above: a later command
-     * can only succeed because an earlier one actually ran. It is cleared when a new
-     * RUN_SCAN succeeds and deliberately NOT from [resetSanitizationState], which also
-     * runs part-way through a sanitization - an attestation describes the device state
-     * the technician looked at, so it must outlive the lifecycle stage, not be swept
-     * away by it.
-     */
-    private var checklistRecord: TechnicianChecklistRecord? = null
+    @Volatile
+    private var activeSerial: String? = null
+
+    private fun sessionFor(request: HostRequest): DeviceSessionState? {
+        val requested = request.stringPayload(KEY_SERIAL)
+        if (requested != null) {
+            deviceSessions[requested]?.let { return it }
+        }
+        return activeSerial?.let { deviceSessions[it] }
+    }
 
     /** Licence state, resolved once so the reason a scan is refused never shifts mid-session. */
     private val licenseResult: LicenseFileResult by lazy { licenseResultProvider() }
@@ -598,10 +604,10 @@ class HostProtocolDispatcher(
              * (IllegalStateException -> SCAN_REFUSED) fires before any scan work
              * begins and deliberately preserves the current scan.
              */
-            lastScan = null
-            scanEvidence = null
-            patchStateRefusalReason = null
-            resetSanitizationState()
+            deviceSessions.remove(serial)
+            if (activeSerial == serial) {
+                activeSerial = deviceSessions.keys().asSequence().lastOrNull()
+            }
             return errorResponse(
                 request = request,
                 code = "SCAN_FAILED",
@@ -609,20 +615,6 @@ class HostProtocolDispatcher(
             )
         }
 
-        lastScan = result
-        /*
-         * D-5 (Option B): capture the actual probe results for THIS completed scan, bound
-         * to its sessionUuid. The probe suite runs once here, at scan success, and is
-         * never re-run at finalisation.
-         *
-         * Patch state is recorded ONLY when a real provider positively establishes it
-         * ([PatchStateOutcome.Established]). An absent provider, or one answering
-         * [PatchStateOutcome.Unavailable], leaves the packet null so finalisation refuses
-         * - never a default `NO-PATCHES` reported as authoritative.
-         *
-         * The live device goes to the provider so contract §6 step 7 can resolve
-         * `oem_scope` against the device this scan actually observed.
-         */
         val probeResults = probeCapture(serial)
         val patchStateOutcome = if (probeResults == null) {
             null
@@ -630,27 +622,22 @@ class HostProtocolDispatcher(
             patchStateProvider?.invoke(deviceProfileFor(result.deviceDescriptor))
                 ?: PatchStateOutcome.Unavailable("NO_PATCH_STATE_PROVIDER")
         }
-        scanEvidence = if (probeResults != null && patchStateOutcome is PatchStateOutcome.Established) {
+        val capturedEvidence = if (probeResults != null && patchStateOutcome is PatchStateOutcome.Established) {
             ScanEvidencePacket(result.sessionUuid, probeResults, patchStateOutcome.state)
         } else {
             null
         }
-        /*
-         * Why the packet is absent, so the refusal at finalisation is diagnosable rather
-         * than opaque. Diagnostic only: it never changes the decision to refuse.
-         */
-        patchStateRefusalReason = when {
+        val refusalReason = when {
             probeResults == null -> "no probe results were captured for this scan"
             patchStateOutcome is PatchStateOutcome.Unavailable -> patchStateOutcome.reason
             else -> null
         }
-        resetSanitizationState()
-        /*
-         * A new scan starts a new session, so attestations made against the previous
-         * device state must not carry over onto fresh evidence. Cleared here rather than
-         * inside resetSanitizationState, which also runs part-way through a lifecycle.
-         */
-        checklistRecord = null
+        deviceSessions[serial] = DeviceSessionState(
+            lastScan = result,
+            scanEvidence = capturedEvidence,
+            patchStateRefusalReason = refusalReason,
+        )
+        activeSerial = serial
 
         val section = result.report.applicationInventory
         return okResponse(
@@ -670,8 +657,9 @@ class HostProtocolDispatcher(
 
     /** GET_DEVICE_REPORT returns Report 1 exactly as it was generated by the scan. */
     private fun deviceReportResponse(request: HostRequest): HostResponse {
-        val scan = lastScan ?: return noScanError(request, "GET_DEVICE_REPORT")
-        // Serial-when-present (U-2(a)): a named serial must match the active scan's device.
+        val state = sessionFor(request)
+        val scan = state?.lastScan ?: return noScanError(request, "GET_DEVICE_REPORT")
+        // Serial-when-present (U-2(a)): a named serial must match the resolved scan's device.
         serialOwnershipRefusal(request, "GET_DEVICE_REPORT", scan.deviceDescriptor.serial)
             ?.let { return it }
         val reportObject = json.parseToJsonElement(scan.reportJson) as? JsonObject
@@ -707,8 +695,9 @@ class HostProtocolDispatcher(
      * inventory is built, so an inventory can never be attributed to the wrong device.
      */
     private fun applicationInventoryResponse(request: HostRequest): HostResponse {
-        val scan = lastScan ?: return noScanError(request, "GET_APPLICATION_INVENTORY")
-        // Serial-when-present (U-2(a)): a named serial must match the active scan's device.
+        val state = sessionFor(request)
+        val scan = state?.lastScan ?: return noScanError(request, "GET_APPLICATION_INVENTORY")
+        // Serial-when-present (U-2(a)): a named serial must match the resolved scan's device.
         serialOwnershipRefusal(request, "GET_APPLICATION_INVENTORY", scan.deviceDescriptor.serial)
             ?.let { return it }
         val section = scan.report.applicationInventory
@@ -753,8 +742,9 @@ class HostProtocolDispatcher(
      * already returned here, so the file on disk and the payload on the wire agree.
      */
     private fun exportReportResponse(request: HostRequest): HostResponse {
-        val scan = lastScan ?: return noScanError(request, "EXPORT_REPORT")
-        // Serial-when-present (U-2(a)): a named serial must match the active scan's device.
+        val state = sessionFor(request)
+        val scan = state?.lastScan ?: return noScanError(request, "EXPORT_REPORT")
+        // Serial-when-present (U-2(a)): a named serial must match the resolved scan's device.
         serialOwnershipRefusal(request, "EXPORT_REPORT", scan.deviceDescriptor.serial)
             ?.let { return it }
         val jsonContent = scan.reportJson
@@ -812,7 +802,10 @@ class HostProtocolDispatcher(
      * the raw artifact recorded.
      */
     private fun finaliseReportResponse(request: HostRequest): HostResponse {
-        val scan = lastScan ?: return noScanError(request, "FINALISE_REPORT")
+        val state = sessionFor(request)
+        val scan = state?.lastScan ?: return noScanError(request, "FINALISE_REPORT")
+        serialOwnershipRefusal(request, "FINALISE_REPORT", scan.deviceDescriptor.serial)
+            ?.let { return it }
         /*
          * D-5 (Option B): a controlled final report must carry the actual probe results
          * and the authoritative patch state belonging to THIS completed scan. When the
@@ -821,14 +814,14 @@ class HostProtocolDispatcher(
          * refuse here - before any report artifact is written - rather than silently
          * regenerating a default/empty report and presenting it as controlled evidence.
          */
-        val evidence = scanEvidence
+        val evidence = state.scanEvidence
         if (evidence == null || evidence.sessionUuid != scan.sessionUuid || evidence.probeResults.isEmpty()) {
             val reason = when {
                 evidence != null && evidence.sessionUuid != scan.sessionUuid ->
                     "the captured evidence belongs to a different session"
                 evidence != null && evidence.probeResults.isEmpty() ->
                     "no probe results were captured for this scan"
-                else -> patchStateRefusalReason ?: "authoritative patch state was not established"
+                else -> state.patchStateRefusalReason ?: "authoritative patch state was not established"
             }
             return errorResponse(
                 request = request,
@@ -924,7 +917,8 @@ class HostProtocolDispatcher(
      * record from the barrier itself.
      */
     private fun sanitizeStartResponse(request: HostRequest): HostResponse {
-        val scan = lastScan ?: return noScanError(request, "SANITIZE_START")
+        val state = sessionFor(request)
+        val scan = state?.lastScan ?: return noScanError(request, "SANITIZE_START")
         val orchestrator = cachedOrchestrator
             ?: return noScanError(request, "SANITIZE_START")
 
@@ -985,8 +979,8 @@ class HostProtocolDispatcher(
             started
         }
 
-        lifecycleStart = aligned
-        resetSanitizationState(keepStart = true)
+        state.lifecycleStart = aligned
+        state.resetSanitizationState(keepStart = true)
 
         if (!aligned.eligibility.isEligible || session == null) {
             val reasons = aligned.eligibility.blockReasons
@@ -1014,13 +1008,14 @@ class HostProtocolDispatcher(
 
     /** SANITIZE_AUTHORIZE records step 1 of the 2-step operator barrier. */
     private fun sanitizeAuthorizeResponse(request: HostRequest): HostResponse {
-        val start = lifecycleStart
+        val state = sessionFor(request)
+        val start = state?.lifecycleStart
             ?: return errorResponse(
                 request = request,
                 code = "NO_SANITIZE_SESSION",
                 message = "SANITIZE_START must succeed before SANITIZE_AUTHORIZE",
             )
-        val session = start.session ?: return notEligibleError(request)
+        val session = start.session ?: return notEligibleError(request, state)
 
         val acknowledged = (request.payload[KEY_ACKNOWLEDGED] as? JsonPrimitive)?.booleanOrNull
             ?: return errorResponse(
@@ -1029,9 +1024,9 @@ class HostProtocolDispatcher(
                 message = "SANITIZE_AUTHORIZE requires payload.acknowledged (boolean)",
             )
 
-        operatorAcknowledged = acknowledged
+        state.operatorAcknowledged = acknowledged
         // A new acknowledgement invalidates any phrase recorded against the previous one.
-        operatorConfirmationPhrase = null
+        state.operatorConfirmationPhrase = null
 
         return okResponse(
             request,
@@ -1051,15 +1046,16 @@ class HostProtocolDispatcher(
      * is refused here instead of silently reaching the execution step.
      */
     private fun sanitizeConfirmResponse(request: HostRequest): HostResponse {
-        val start = lifecycleStart
+        val state = sessionFor(request)
+        val start = state?.lifecycleStart
             ?: return errorResponse(
                 request = request,
                 code = "NO_SANITIZE_SESSION",
                 message = "SANITIZE_START must succeed before SANITIZE_CONFIRM",
             )
-        val session = start.session ?: return notEligibleError(request)
+        val session = start.session ?: return notEligibleError(request, state)
 
-        if (operatorAcknowledged != true) {
+        if (state.operatorAcknowledged != true) {
             return errorResponse(
                 request = request,
                 code = "SANITIZE_ACK_REQUIRED",
@@ -1083,7 +1079,7 @@ class HostProtocolDispatcher(
             )
         }
 
-        operatorConfirmationPhrase = phrase
+        state.operatorConfirmationPhrase = phrase
         return okResponse(
             request,
             buildJsonObject {
@@ -1108,19 +1104,6 @@ class HostProtocolDispatcher(
      * claiming any. See HostDestructiveWipeProvider and verification (PUR-005).
      */
     private fun sanitizeExecuteResponse(request: HostRequest): HostResponse {
-        /*
-         * Server-authoritative offline rule, enforced Host-side from the signed
-         * snapshot flags (never from local configuration). Destructive
-         * sanitization stays locked while the entitlement is being served from
-         * a cached snapshot the server restricted.
-         *
-         * Only an *installed* entitlement can be restricted. With no licence at
-         * all this falls through to the pre-existing session refusals, so an
-         * unlicensed workstation is never told it is running on a cached
-         * entitlement - that would be a claim about a snapshot that does not
-         * exist. The `license.json` test/dev seam is unrestricted, so this
-         * branch never fires there either.
-         */
         val offlineLicense = licenseResult
         if (offlineLicense.isLicensed && !offlineLicense.offline.sanitizeExecute) {
             return errorResponse(
@@ -1132,15 +1115,16 @@ class HostProtocolDispatcher(
             )
         }
 
-        val start = lifecycleStart
+        val state = sessionFor(request)
+        val start = state?.lifecycleStart
             ?: return errorResponse(
                 request = request,
                 code = "NO_SANITIZE_SESSION",
                 message = "SANITIZE_START must succeed before SANITIZE_EXECUTE",
             )
-        if (start.session == null) return notEligibleError(request)
+        if (start.session == null) return notEligibleError(request, state)
 
-        if (operatorAcknowledged != true) {
+        if (state.operatorAcknowledged != true) {
             return errorResponse(
                 request = request,
                 code = "SANITIZE_ACK_REQUIRED",
@@ -1148,7 +1132,7 @@ class HostProtocolDispatcher(
             )
         }
 
-        val phrase = operatorConfirmationPhrase
+        val phrase = state.operatorConfirmationPhrase
             ?: return errorResponse(
                 request = request,
                 code = "SANITIZE_PHRASE_REQUIRED",
@@ -1187,7 +1171,7 @@ class HostProtocolDispatcher(
             )
         }
 
-        lifecycleResult = result
+        state.lifecycleResult = result
 
         val execution = result.executionResult
             ?: return errorResponse(
@@ -1222,7 +1206,8 @@ class HostProtocolDispatcher(
 
     /** SANITIZE_VERIFY reports the post-reset verification actually performed. */
     private fun sanitizeVerifyResponse(request: HostRequest): HostResponse {
-        val result = lifecycleResult
+        val state = sessionFor(request)
+        val result = state?.lifecycleResult
             ?: return errorResponse(
                 request = request,
                 code = "NO_EXECUTION_SESSION",
@@ -1274,16 +1259,17 @@ class HostProtocolDispatcher(
      * persists it under `<cyvra.home>/certificates/<certificateId>/`.
      */
     private fun finalReportResponse(request: HostRequest): HostResponse {
-        val result = lifecycleResult
+        val state = sessionFor(request)
+        val result = state?.lifecycleResult
             ?: return errorResponse(
                 request = request,
                 code = "NO_EXECUTION_SESSION",
                 message = "SANITIZE_EXECUTE must succeed before GET_FINAL_REPORT",
             )
-        // Serial-when-present (U-2(a)): ownership is judged against the ACTIVE SCAN's
+        // Serial-when-present (U-2(a)): ownership is judged against the resolved scan's
         // recorded serial — never the lifecycle result (which carries no serial) and
         // never a client-supplied reference value.
-        serialOwnershipRefusal(request, "GET_FINAL_REPORT", lastScan?.deviceDescriptor?.serial)
+        serialOwnershipRefusal(request, "GET_FINAL_REPORT", state.lastScan?.deviceDescriptor?.serial)
             ?.let { return it }
         val certificate = result.finalReport
             ?: return errorResponse(
@@ -1322,23 +1308,7 @@ class HostProtocolDispatcher(
             )
         }
 
-        /*
-         * §14: this is the moment a scan is spent.
-         *
-         * A certificate now exists on disk - a verified condition report or a
-         * purge certificate, D-1 OUTCOME B included, because both are reports
-         * the customer asked for and received. That is the only condition under
-         * which an entitlement may be taken; RUN_SCAN merely reserved one.
-         *
-         * The debit is keyed on the session and is idempotent inside
-         * [HostLicenseService], so fetching this report a second time - a
-         * retry, a double-click, a client resending a request whose answer was
-         * lost - reports the same balance and spends nothing further. The
-         * response therefore states what was done rather than asserting a
-         * fresh count: `debitApplied` is false on every repeat, and the
-         * operator sees the truth either way.
-         */
-        val sessionUuid = lastScan?.sessionUuid
+        val sessionUuid = state.lastScan?.sessionUuid
         val debitApplied = sessionUuid != null && licenseService.debitForSession(sessionUuid)
 
         return okResponse(
@@ -1445,32 +1415,14 @@ class HostProtocolDispatcher(
         return matrix.rows.map { transportManager.probe(it.domain) }
     }
 
-    /**
-     * Clears every sanitization field. Called on a new scan (fresh evidence invalidates
-     * a prior gate) and on SANITIZE_START (a restart reopens the gate from step 1).
-     */
-    private fun resetSanitizationState(keepStart: Boolean = false) {
-        operatorAcknowledged = null
-        operatorConfirmationPhrase = null
-        lifecycleResult = null
-        if (!keepStart) {
-            lifecycleStart = null
+    private fun getChecklistResponse(request: HostRequest): HostResponse {
+        val requestedSerial = request.stringPayload(KEY_SERIAL)
+        val record = if (requestedSerial != null) {
+            deviceSessions[requestedSerial]?.checklistRecord
+        } else {
+            activeSerial?.let { deviceSessions[it]?.checklistRecord }
         }
-    }
-
-    /**
-     * GET_CHECKLIST — the ratified catalogue plus this session's progress.
-     *
-     * Deliberately available before a scan exists, so the UI renders all 14 checks from
-     * `TechnicianChecklistCatalog` itself rather than from a second copy of the list that
-     * could later drift away from the workbook the generator reconciles against.
-     *
-     * `claim` is the standing limit the UI is required to keep visible: these checks are
-     * performed by a person, and the product records what they found. It never presents
-     * them as its own observation.
-     */
-    private fun getChecklistResponse(request: HostRequest): HostResponse =
-        okResponse(
+        return okResponse(
             request,
             buildJsonObject {
                 put("expectedCount", TechnicianChecklistCatalog.expectedCount)
@@ -1496,9 +1448,10 @@ class HostProtocolDispatcher(
                     ),
                 )
                 put("outcomes", stringArray(TechnicianCheckOutcome.entries.map { it.name }))
-                put("progress", checklistProgress(checklistRecord))
+                put("progress", checklistProgress(record))
             },
         )
+    }
 
     /**
      * RECORD_CHECKLIST — a technician's answers, authored and bound to this session.
@@ -1510,38 +1463,25 @@ class HostProtocolDispatcher(
      * indistinguishable from one that was never worked.
      */
     private fun recordChecklistResponse(request: HostRequest): HostResponse {
-        val scan = lastScan ?: return noScanError(request, "RECORD_CHECKLIST")
+        val state = sessionFor(request)
+        val scan = state?.lastScan ?: return noScanError(request, "RECORD_CHECKLIST")
+        serialOwnershipRefusal(request, "RECORD_CHECKLIST", scan.deviceDescriptor.serial)
+            ?.let { return it }
 
         val operatorId = request.stringPayload(KEY_OPERATOR_ID)
             ?: scan.report.header.operatorId
-        /*
-         * One timestamp for the whole call, taken here rather than accepted from the
-         * client. An attestation time the client supplies is a time the client can
-         * backdate, and a backdated observation is a fabricated one. Whether an author is
-         * present at all is the recorder's call to make, not this handler's.
-         */
         val recordedAt = java.time.Instant.now().toString()
 
         val results = request.payload["results"] as? JsonArray
             ?: return rejectedResponse(request, ChecklistRecorder.malformed)
 
-        /*
-         * Brand and model, never the serial: this identifier is written into a persisted
-         * record, and device serials are withheld from files by standing rule.
-         */
         val identity = scan.report.deviceIdentity
         val deviceIdentifier = listOfNotNull(identity.brand.value, identity.model.value)
             .joinToString(" ")
             .ifBlank { "unknown-device" }
 
-        /*
-         * The recorder owns every invariant - author present, ids ratified, outcomes in
-         * the vocabulary, completion decided - so this handler stays a thin translator
-         * between the wire and that object. Duplicating any of it here would create a
-         * second source of the same rule, and two sources of a rule is how they drift.
-         */
         val submission = ChecklistRecorder.apply(
-            existing = checklistRecord,
+            existing = state.checklistRecord,
             results = results,
             operatorId = operatorId,
             sessionUuid = scan.report.header.sessionUuid,
@@ -1555,7 +1495,7 @@ class HostProtocolDispatcher(
         }
 
         val updated = (submission as ChecklistSubmission.Accepted).record
-        checklistRecord = updated
+        state.checklistRecord = updated
 
         return okResponse(
             request,
@@ -1656,8 +1596,8 @@ class HostProtocolDispatcher(
         return null
     }
 
-    private fun notEligibleError(request: HostRequest): HostResponse {
-        val reasons = lifecycleStart?.eligibility?.blockReasons
+    private fun notEligibleError(request: HostRequest, state: DeviceSessionState?): HostResponse {
+        val reasons = state?.lifecycleStart?.eligibility?.blockReasons
         return errorResponse(
             request = request,
             code = "SANITIZE_NOT_ELIGIBLE",

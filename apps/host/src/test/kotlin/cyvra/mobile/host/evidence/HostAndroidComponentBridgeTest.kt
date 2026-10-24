@@ -20,11 +20,14 @@ class HostAndroidComponentBridgeTest {
 
     private val json = Json { prettyPrint = true }
 
+    private val sampleLifecycleUuid = "11111111-2222-4333-8444-555555555555"
+    private val sampleSessionUuid = "22222222-3333-4444-8555-666666666666"
+
     private fun createSamplePayload(): AndroidComponentEvidencePayload {
         return AndroidComponentEvidencePayload(
             componentVersion = "0.0.0-g5",
-            deviceLifecycleId = "life-101",
-            sessionUuid = "sess-202",
+            deviceLifecycleId = sampleLifecycleUuid,
+            sessionUuid = sampleSessionUuid,
             displayMetrics = ComponentDisplayMetrics(
                 densityDpi = 420,
                 widthPixels = 1080,
@@ -94,7 +97,7 @@ class HostAndroidComponentBridgeTest {
         assertTrue(bridge.checkInstalled())
         assertEquals("0.0.0-g5", bridge.getComponentVersion())
 
-        val result = bridge.triggerEvidenceCollection("sess-202", "life-101")
+        val result = bridge.triggerEvidenceCollection(sampleSessionUuid, sampleLifecycleUuid)
         assertTrue(result.isInstalled)
         assertTrue(result.isExecutable)
         assertNotNull(result.payload)

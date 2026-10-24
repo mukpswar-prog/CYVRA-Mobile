@@ -254,6 +254,8 @@ class IntegratedEvidenceWorkflowTest {
         private val componentEvidenceJson: String,
     ) : ProcessRunner {
         private val base = IntegratedAdbRunner(adbAuthorized)
+        private var lastBroadcastSessionUuid: String? = null
+        private var lastBroadcastLifecycleId: String? = null
 
         override fun execute(command: List<String>, timeoutMs: Long): ProcessExecutionResult {
             val shell = command.joinToString(" ")
@@ -269,11 +271,32 @@ class IntegratedEvidenceWorkflowTest {
                 shell.startsWith("dumpsys package ${HostAndroidComponentBridge.DEFAULT_PACKAGE_NAME}") ->
                     DefaultProcessExecutionResult(0, "    versionName=0.0.1-poc\n", "")
 
-                shell.startsWith("am broadcast") ->
+                shell.startsWith("am broadcast") -> {
+                    if (shell.contains("--es sessionUuid \"")) {
+                        lastBroadcastSessionUuid = shell
+                            .substringAfter("--es sessionUuid \"")
+                            .substringBefore("\"")
+                    }
+                    if (shell.contains("--es deviceLifecycleId \"")) {
+                        lastBroadcastLifecycleId = shell
+                            .substringAfter("--es deviceLifecycleId \"")
+                            .substringBefore("\"")
+                    }
                     DefaultProcessExecutionResult(0, "Broadcast completed: result=0\n", "")
+                }
 
-                shell.startsWith("cat ${HostAndroidComponentBridge.COMPONENT_DATA_PATH}") ->
-                    DefaultProcessExecutionResult(0, componentEvidenceJson, "")
+                shell.startsWith("cat ${HostAndroidComponentBridge.COMPONENT_DATA_PATH}") -> {
+                    val hydratedJson = componentEvidenceJson
+                        .let { raw ->
+                            val life = lastBroadcastLifecycleId
+                            if (life != null) raw.replace("\"lifecycle-fixture\"", "\"$life\"") else raw
+                        }
+                        .let { raw ->
+                            val sess = lastBroadcastSessionUuid
+                            if (sess != null) raw.replace("\"session-fixture\"", "\"$sess\"") else raw
+                        }
+                    DefaultProcessExecutionResult(0, hydratedJson, "")
+                }
 
                 else -> base.execute(command, timeoutMs)
             }

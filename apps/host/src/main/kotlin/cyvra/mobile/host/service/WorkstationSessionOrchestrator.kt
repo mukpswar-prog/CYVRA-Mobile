@@ -206,8 +206,9 @@ class WorkstationSessionOrchestrator(
             if (serial.isBlank()) {
                 null
             } else {
+                val deviceLifecycleId = deviceLifecycleIdFor(serial)
                 HostAndroidComponentBridge(adbClient, serial)
-                    .triggerEvidenceCollection(sessionUuid, sessionUuid)
+                    .triggerEvidenceCollection(sessionUuid, deviceLifecycleId)
                     .payload
                     ?.applicationInventory
             }
@@ -488,4 +489,25 @@ class WorkstationSessionOrchestrator(
             sanitizationProvider = HostSanitizationProvider(adbClient, serial),
             verificationProvider = HostVerificationProvider(adbClient, serial),
         )
+
+    companion object {
+        private const val LIFECYCLE_NAMESPACE = "cyvra:device-lifecycle:"
+
+        /**
+         * Derives a deterministic, canonical RFC 4122 UUID v3 for a physical device's
+         * lifecycle identity (`device_lifecycles.id` contract, D-CE-26-01).
+         *
+         * Properties:
+         * - Canonical lowercase UUID string (`UUID.fromString(id).toString() == id`)
+         * - Persistent across multiple diagnostic scans of the same physical device
+         * - Distinct from the ephemeral per-scan `sessionUuid` (UUID v4)
+         * - Never exposes the raw hardware serial in evidence files
+         */
+        fun deviceLifecycleIdFor(serial: String): String {
+            val normalized = serial.trim()
+            return UUID.nameUUIDFromBytes(
+                "$LIFECYCLE_NAMESPACE$normalized".toByteArray(Charsets.UTF_8),
+            ).toString()
+        }
+    }
 }

@@ -188,5 +188,154 @@ describe("App desktop scan-to-seal workflow", () => {
     expect(await screen.findByText(/Device disconnected mid-scan/i)).toBeInTheDocument();
 
     expect(screen.queryByText("sha256-deadbeefcafe")).not.toBeInTheDocument();
-  }, 20_000);
+  }, 45_000);
+
+  it("renders concise H/W SCN, App SCN, SAN, VER headers, separate per-device Download Report buttons, and independent multi-device controls", async () => {
+    const sentCommands: Array<{ command: string; payload: Record<string, unknown> }> = [];
+
+    getVersionMock.mockResolvedValue("0.1.0");
+    invokeMock.mockImplementation(
+      async (cmd: string, args?: { command?: string; payload?: string }) => {
+        if (cmd === "get_host_info") {
+          return {
+            connected: true,
+            protocolVersion: "1.0",
+            requestId: "init-1",
+            hostVersion: "0.1.0",
+          };
+        }
+        if (cmd === "get_device_state") {
+          return {
+            connectionState: "READY",
+            usbState: "CONNECTED",
+            adbState: "AUTHORIZED",
+            adbAvailable: true,
+            readyToScan: true,
+            statusMessage: "Ready",
+            operatorActionRequired: null,
+            device: { serial: "RF8R123456", state: "device", model: "Pixel_7" },
+          };
+        }
+        if (cmd === "send_host_command") {
+          const hostCmd = args?.command ?? "";
+          const parsedPayload = JSON.parse(args?.payload ?? "{}") as Record<string, unknown>;
+          sentCommands.push({ command: hostCmd, payload: parsedPayload });
+
+          if (hostCmd === "GET_PREFLIGHT") {
+            return hostEnvelope("GET_PREFLIGHT", "OK", { readyToScan: true });
+          }
+          if (hostCmd === "GET_CONNECTED_DEVICES") {
+            return hostEnvelope("GET_CONNECTED_DEVICES", "OK", {
+              adbAvailable: true,
+              devices: [
+                { serial: "RF8R123456", state: "authorized", model: "Pixel 7", make: "Google" },
+                { serial: "RF8R999888", state: "authorized", model: "Galaxy S23", make: "Samsung" },
+              ],
+            });
+          }
+          if (hostCmd === "GET_LICENSE_STATE") {
+            return hostEnvelope("GET_LICENSE_STATE", "OK", {
+              present: true,
+              status: "VALID",
+              scansRemaining: 48,
+            });
+          }
+          if (hostCmd === "RUN_SCAN") {
+            const serial = String(parsedPayload.serial ?? "RF8R123456");
+            return hostEnvelope("RUN_SCAN", "OK", {
+              sessionUuid:
+                serial === "RF8R123456"
+                  ? "11111111-2222-4333-8444-555555555555"
+                  : "99999999-2222-4333-8444-555555555555",
+              serial,
+              enumerationCompleteness: "COMPLETE",
+              packageCount: serial === "RF8R123456" ? 12 : 24,
+            });
+          }
+          if (hostCmd === "GET_APPLICATION_INVENTORY") {
+            const serial = String(parsedPayload.serial ?? "RF8R123456");
+            return hostEnvelope("GET_APPLICATION_INVENTORY", "OK", {
+              sessionUuid:
+                serial === "RF8R123456"
+                  ? "11111111-2222-4333-8444-555555555555"
+                  : "99999999-2222-4333-8444-555555555555",
+              enumerationCompleteness: "COMPLETE",
+              packageCount: serial === "RF8R123456" ? 12 : 24,
+              packages: [],
+            });
+          }
+          if (hostCmd === "EXPORT_REPORT") {
+            const serial = String(parsedPayload.serial ?? "RF8R123456");
+            return hostEnvelope("EXPORT_REPORT", "OK", {
+              reportJsonPath: `C:\\cyvra\\reports\\${serial}\\report.json`,
+              reportMarkdownPath: `C:\\cyvra\\reports\\${serial}\\report.md`,
+              manifestPath: `C:\\cyvra\\reports\\${serial}\\manifest.json`,
+            });
+          }
+        }
+        return "{}";
+      },
+    );
+
+    render(<App />);
+
+    // Verify exact concise column headers and absence of Model / Make and Down-load columns
+    expect((await screen.findAllByText("H/W SCN")).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("App SCN").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("SAN").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("VER").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Report").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("Model / Make")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Down-\s*load/i)).not.toBeInTheDocument();
+
+    // Initially, both CYVRA.01 and CYVRA.02 have their own Download Report button disabled
+    const slot1DownloadBtn = await screen.findByLabelText(
+      "Download Report for CYVRA.01",
+      {},
+      { timeout: 10_000 },
+    );
+    const slot2DownloadBtn = await screen.findByLabelText(
+      "Download Report for CYVRA.02",
+      {},
+      { timeout: 10_000 },
+    );
+    expect(slot1DownloadBtn).toBeDisabled();
+    expect(slot2DownloadBtn).toBeDisabled();
+
+    // Trigger H/W SCN directly from CYVRA.01 row
+    const slot1HwScanBtn = screen.getByLabelText(/CYVRA\.01 H\/W SCN:/i);
+    await waitFor(() => expect(slot1HwScanBtn).not.toBeDisabled(), { timeout: 10_000 });
+    fireEvent.click(slot1HwScanBtn);
+
+    // CYVRA.01 Download Report becomes enabled while CYVRA.02 remains disabled
+    await waitFor(() => expect(slot1DownloadBtn).not.toBeDisabled(), { timeout: 10_000 });
+    expect(slot2DownloadBtn).toBeDisabled();
+
+    // Trigger H/W SCN directly from CYVRA.02 row
+    const slot2HwScanBtn = screen.getByLabelText(/CYVRA\.02 H\/W SCN:/i);
+    fireEvent.click(slot2HwScanBtn);
+
+    // Both CYVRA.01 and CYVRA.02 now have independent Download Report buttons enabled
+    await waitFor(() => expect(slot2DownloadBtn).not.toBeDisabled(), { timeout: 10_000 });
+    expect(slot1DownloadBtn).not.toBeDisabled();
+
+    // Download Report for CYVRA.01 specifically passes serial RF8R123456
+    fireEvent.click(slot1DownloadBtn);
+    await waitFor(
+      () =>
+        expect(
+          sentCommands.some(
+            (entry) => entry.command === "EXPORT_REPORT" && entry.payload.serial === "RF8R123456",
+          ),
+        ).toBe(true),
+      { timeout: 10_000 },
+    );
+
+    // Open User ID & Licence Key dialog from header pill
+    const licenseBtn = screen.getByLabelText("Open User ID and Licence Key activation dialog");
+    fireEvent.click(licenseBtn);
+    expect(await screen.findByText(/Workstation User ID & Serial Key/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Registered User ID (email)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Licence Key")).toBeInTheDocument();
+  }, 45_000);
 });
