@@ -1,12 +1,16 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
+    collections::HashMap,
     env,
     fs,
     io::{self, BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc, Arc, Mutex,
+    },
     thread::{self, JoinHandle},
 };
 
@@ -54,7 +58,7 @@ struct HostError {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct HostResponse {
+pub struct HostResponse {
     protocol_version: String,
     request_id: String,
     status: String,
@@ -226,10 +230,13 @@ fn validate_response_envelope(
     Ok(())
 }
 
+type PendingResponse = Result<(String, HostResponse), String>;
+type PendingMap = Arc<Mutex<HashMap<String, mpsc::Sender<PendingResponse>>>>;
+
 pub struct HostProcessManager {
     child: Option<Child>,
     stdin: Option<ChildStdin>,
-    stdout: Option<BufReader<ChildStdout>>,
+    pending: PendingMap,
 }
 
 impl HostProcessManager {
@@ -237,7 +244,7 @@ impl HostProcessManager {
         Self {
             child: None,
             stdin: None,
-            stdout: None,
+            pending: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -383,31 +390,37 @@ impl HostProcessManager {
             .map(|(_line, response)| response)
     }
 
-    /// Writes one request line and reads exactly one response line.
+    /// Enqueues a request by writing one JSON line to the Host's stdin and registering
+    /// a response channel keyed by `request.request_id`.
     ///
-    /// Returns the raw line alongside the decoded envelope so callers that must
-    /// show the Host's answer verbatim - [`Self::send_host_command`] - do not
-    /// have to re-serialize it. Re-serializing would silently normalise field
-    /// order and formatting, which is still "what the Host said" but no longer
-    /// the bytes the Host actually produced.
-    fn send_request_line(
+    /// A dedicated background stdout router thread matches each incoming Host response
+    /// line by `requestId`, enabling true concurrent in-flight requests (such as parallel
+    /// `RUN_SCAN` across multiple connected devices) and out-of-order completion without
+    /// head-of-line mutex blocking.
+    fn enqueue_request(
         &mut self,
         request: &HostRequest,
-    ) -> Result<(String, HostResponse), String> {
+    ) -> Result<mpsc::Receiver<PendingResponse>, String> {
         self.ensure_started()?;
 
-        let encoded = serde_json::to_string(request)
-            .map_err(|e| {
-                format!("HOST_REQUEST_SERIALIZATION_FAILED: {}", e)
-            })?;
+        let encoded = serde_json::to_string(request).map_err(|e| {
+            format!("HOST_REQUEST_SERIALIZATION_FAILED: {}", e)
+        })?;
 
+        let (tx, rx) = mpsc::channel();
         {
+            let mut map = self
+                .pending
+                .lock()
+                .map_err(|_| "HOST_PENDING_LOCK_FAILED".to_string())?;
+            map.insert(request.request_id.clone(), tx);
+        }
+
+        let write_result = (|| -> Result<(), String> {
             let stdin = self
                 .stdin
                 .as_mut()
-                .ok_or_else(|| {
-                    "HOST_PROCESS_NOT_READY: stdin unavailable".to_string()
-                })?;
+                .ok_or_else(|| "HOST_PROCESS_NOT_READY: stdin unavailable".to_string())?;
 
             stdin
                 .write_all(encoded.as_bytes())
@@ -420,71 +433,74 @@ impl HostProcessManager {
             stdin
                 .flush()
                 .map_err(|e| format!("HOST_FLUSH_FAILED: {}", e))?;
+
+            Ok(())
+        })();
+
+        if let Err(err) = write_result {
+            if let Ok(mut map) = self.pending.lock() {
+                map.remove(&request.request_id);
+            }
+            return Err(err);
         }
 
-        /*
-         * The Host writes exactly one JSON line per request, so a blank line is
-         * never the answer. Skipping a few of them rather than failing keeps a
-         * stray newline from being reported as malformed JSON, which would read
-         * to an operator as a broken Host when the pipe is in fact fine.
-         */
-        const MAX_BLANK_LINES: usize = 4;
+        Ok(rx)
+    }
 
-        for _ in 0..=MAX_BLANK_LINES {
-            let mut line = String::new();
-
-            let bytes = {
-                let stdout = self
-                    .stdout
-                    .as_mut()
-                    .ok_or_else(|| {
-                        "HOST_PROCESS_NOT_READY: stdout unavailable"
-                            .to_string()
-                    })?;
-
-                stdout
-                    .read_line(&mut line)
-                    .map_err(|e| format!("HOST_READ_FAILED: {}", e))?
-            };
-
-            if bytes == 0 {
+    fn send_request_line(
+        &mut self,
+        request: &HostRequest,
+    ) -> Result<(String, HostResponse), String> {
+        let rx = self.enqueue_request(request)?;
+        match rx.recv() {
+            Ok(Ok(pair)) => Ok(pair),
+            Ok(Err(err)) => {
+                if err.starts_with("HOST_PROCESS_CLOSED") {
+                    self.stop();
+                }
+                Err(err)
+            }
+            Err(_) => {
                 self.stop();
-
-                return Err(
+                Err(
                     "HOST_PROCESS_CLOSED: Host exited before returning a response"
-                        .to_string()
-                );
+                        .to_string(),
+                )
             }
-
-            let trimmed = line.trim_end();
-
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            let response = serde_json::from_str::<HostResponse>(trimmed)
-                .map_err(|e| format!("HOST_RESPONSE_INVALID_JSON: {}", e))?;
-
-            return Ok((trimmed.to_string(), response));
         }
+    }
 
-        Err(
-            "HOST_RESPONSE_INVALID_JSON: Host produced no non-empty line"
-                .to_string()
-        )
+    /// Enqueues a generic protocol command and returns `(request_id, receiver)` so async
+    /// callers can release the `HostProcessManager` mutex while awaiting completion.
+    pub fn enqueue_host_command(
+        &mut self,
+        command: &str,
+        payload: &str,
+    ) -> Result<(String, mpsc::Receiver<PendingResponse>), String> {
+        let (request_id, request) = build_host_request(command, payload)?;
+        let rx = self.enqueue_request(&request)?;
+        Ok((request_id, rx))
+    }
+
+    /// Validates a completed response envelope delivered from the stdout router.
+    pub fn finalize_host_command(
+        request_id: &str,
+        outcome: Result<PendingResponse, mpsc::RecvError>,
+    ) -> Result<String, String> {
+        match outcome {
+            Ok(Ok((line, response))) => {
+                validate_response_envelope(&response, request_id)?;
+                Ok(line)
+            }
+            Ok(Err(err)) => Err(err),
+            Err(_) => Err(
+                "HOST_PROCESS_CLOSED: Host exited before returning a response".to_string(),
+            ),
+        }
     }
 
     /// Sends any protocol command and returns the Host's response line verbatim.
-    ///
-    /// The envelope is still checked for integrity - protocol version, echoed
-    /// request id and a non-empty `hostVersion` - but `status` is deliberately
-    /// *not* checked here. `LICENSE_REQUIRED`, `SANITIZE_PHRASE_MISMATCH` and the
-    /// decision D-1 `BLOCKED_*` answers are legitimate protocol outcomes that the
-    /// UI has to render accurately, so collapsing them into `Err` would erase the
-    /// difference between "the Host refused" and "the Host is unreachable".
-    ///
-    /// * `Ok(line)` - the Host answered, whatever its status.
-    /// * `Err` - the bridge itself failed (no process, dead pipe, bad envelope).
+    #[allow(dead_code)]
     pub fn send_host_command(
         &mut self,
         command: &str,
@@ -601,22 +617,96 @@ impl HostProcessManager {
             let _drain = tee_host_stderr(stderr, &log_dir);
         }
 
+        spawn_stdout_router(stdout, Arc::clone(&self.pending));
+
         self.child = Some(child);
         self.stdin = Some(stdin);
-        self.stdout = Some(BufReader::new(stdout));
 
         Ok(())
     }
 
     fn stop(&mut self) {
         self.stdin = None;
-        self.stdout = None;
+        if let Ok(mut map) = self.pending.lock() {
+            for (_, tx) in map.drain() {
+                let _ = tx.send(Err(
+                    "HOST_PROCESS_CLOSED: Host exited before returning a response"
+                        .to_string(),
+                ));
+            }
+        }
 
         if let Some(mut child) = self.child.take() {
             let _ = child.kill();
             let _ = child.wait();
         }
     }
+}
+
+fn spawn_stdout_router(stdout: ChildStdout, pending: PendingMap) {
+    let _ = thread::Builder::new()
+        .name("cyvra-host-stdout-router".to_string())
+        .spawn(move || {
+            let mut reader = BufReader::new(stdout);
+            loop {
+                let mut line = String::new();
+                match reader.read_line(&mut line) {
+                    Ok(0) => {
+                        if let Ok(mut map) = pending.lock() {
+                            for (_, tx) in map.drain() {
+                                let _ = tx.send(Err(
+                                    "HOST_PROCESS_CLOSED: Host exited before returning a response"
+                                        .to_string(),
+                                ));
+                            }
+                        }
+                        break;
+                    }
+                    Ok(_) => {
+                        let trimmed = line.trim_end();
+                        if trimmed.is_empty() {
+                            continue;
+                        }
+                        match serde_json::from_str::<HostResponse>(trimmed) {
+                            Ok(response) => {
+                                let sender = if let Ok(mut map) = pending.lock() {
+                                    map.remove(&response.request_id).or_else(|| {
+                                        if response.request_id == "unknown" && map.len() == 1 {
+                                            let key = map.keys().next().cloned()?;
+                                            map.remove(&key)
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                } else {
+                                    None
+                                };
+                                if let Some(tx) = sender {
+                                    let _ = tx.send(Ok((trimmed.to_string(), response)));
+                                }
+                            }
+                            Err(e) => {
+                                let err_msg = format!("HOST_RESPONSE_INVALID_JSON: {}", e);
+                                if let Ok(mut map) = pending.lock() {
+                                    for (_, tx) in map.drain() {
+                                        let _ = tx.send(Err(err_msg.clone()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let err_msg = format!("HOST_READ_FAILED: {}", e);
+                        if let Ok(mut map) = pending.lock() {
+                            for (_, tx) in map.drain() {
+                                let _ = tx.send(Err(err_msg.clone()));
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        });
 }
 
 impl Drop for HostProcessManager {

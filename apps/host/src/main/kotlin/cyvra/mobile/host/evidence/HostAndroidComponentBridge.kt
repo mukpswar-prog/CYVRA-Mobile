@@ -41,6 +41,54 @@ class HostAndroidComponentBridge(
         return result.stdout.lines().any { it.trim() == "package:$packageName" }
     }
 
+    /**
+     * Live agent installation reconciliation across USB port disconnects/reconnects.
+     *
+     * Never assumes prior installation state: queries `pm list packages` live on [serial],
+     * and if the CYVRA Android Component is absent (e.g. uninstalled before reconnecting
+     * on USB Port 2/3/4) and a bundled APK is available on the workstation, deploys it via
+     * `adb -s <serial> install -r <apk>`.
+     */
+    fun ensureInstalledOrDeploy(explicitApkFile: java.io.File? = locateBundledAgentApk()): Pair<Boolean, String> {
+        if (checkInstalled()) {
+            return true to "INSTALLED"
+        }
+        val apk = explicitApkFile?.takeIf { it.isFile }
+            ?: return false to "NOT_INSTALLED_NO_BUNDLED_APK"
+        val installResult = adbClient.installApk(serial, apk)
+        if (!installResult.isSuccess) {
+            return false to "DEPLOY_FAILED: ${installResult.stderr.ifBlank { installResult.stdout }.trim()}"
+        }
+        return if (checkInstalled()) {
+            true to "DEPLOYED"
+        } else {
+            false to "DEPLOY_UNVERIFIED"
+        }
+    }
+
+    private fun locateBundledAgentApk(): java.io.File? {
+        val prop = System.getProperty("cyvra.agent.apk")?.trim()?.takeIf { it.isNotEmpty() }
+        if (prop != null) {
+            val f = java.io.File(prop)
+            if (f.isFile) return f
+        }
+        val env = System.getenv("CYVRA_AGENT_APK")?.trim()?.takeIf { it.isNotEmpty() }
+        if (env != null) {
+            val f = java.io.File(env)
+            if (f.isFile) return f
+        }
+        val home = System.getProperty("cyvra.home")?.trim()?.takeIf { it.isNotEmpty() }
+        if (home != null) {
+            val candidates = listOf(
+                java.io.File(home, "resources/cyvra-agent.apk"),
+                java.io.File(home, "agent/cyvra-agent.apk"),
+                java.io.File(home, "cyvra-agent.apk"),
+            )
+            candidates.firstOrNull { it.isFile }?.let { return it }
+        }
+        return null
+    }
+
     override fun getComponentVersion(): String? {
         val result = adbClient.runShell(serial, "dumpsys package $packageName")
         if (!result.isSuccess) return null

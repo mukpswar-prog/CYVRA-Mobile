@@ -20,10 +20,78 @@ import java.util.UUID
  * check-and-set here is what makes "a scan is never debited twice" true even
  * if a second request is ever dispatched while the first is still settling.
  */
+sealed class ConcurrencyAdmissionOutcome {
+    data class Acquired(
+        val activeCount: Int,
+        val maxAllowed: Int,
+    ) : ConcurrencyAdmissionOutcome()
+
+    data class Refused(
+        val code: String,
+        val message: String,
+    ) : ConcurrencyAdmissionOutcome()
+}
+
 class HostLicenseService(
     private var currentRecord: CustomerLicenseRecord,
 ) {
+    companion object {
+        const val MAX_WORKSTATION_SLOTS = 50
+    }
+
     private val transactions = mutableListOf<DeviceScanTransaction>()
+    private val activeInFlightScans = LinkedHashMap<String, String>()
+
+    @Synchronized
+    fun maxConcurrentScansAllowed(): Int =
+        currentRecord.scansRemaining.coerceIn(0, MAX_WORKSTATION_SLOTS)
+
+    @Synchronized
+    fun activeConcurrentScanCount(): Int = activeInFlightScans.size
+
+    @Synchronized
+    fun activeConcurrentSerials(): Set<String> = activeInFlightScans.keys.toSet()
+
+    @Synchronized
+    fun isScanInFlight(serial: String): Boolean = activeInFlightScans.containsKey(serial)
+
+    /**
+     * Atomically checks and reserves a concurrent scan slot for [serial] bounded by
+     * the active licence's remaining scan entitlement (up to 50 workstation slots).
+     */
+    @Synchronized
+    fun tryAcquireConcurrentScanSlot(serial: String, requestId: String): ConcurrencyAdmissionOutcome {
+        if (activeInFlightScans.containsKey(serial)) {
+            return ConcurrencyAdmissionOutcome.Refused(
+                code = "SCAN_IN_PROGRESS",
+                message = "Scan refused: a diagnostic scan is already in progress for device '$serial'.",
+            )
+        }
+        val maxAllowed = maxConcurrentScansAllowed()
+        if (maxAllowed <= 0) {
+            return ConcurrencyAdmissionOutcome.Refused(
+                code = "SCAN_REFUSED",
+                message = "Cannot commit scan: no remaining scan entitlements",
+            )
+        }
+        if (activeInFlightScans.size >= maxAllowed) {
+            return ConcurrencyAdmissionOutcome.Refused(
+                code = "LICENSE_CONCURRENCY_LIMIT_REACHED",
+                message = "Scan refused: active concurrent scan limit ($maxAllowed) reached for current licence " +
+                    "(${activeInFlightScans.size} device scan(s) currently in flight).",
+            )
+        }
+        activeInFlightScans[serial] = requestId
+        return ConcurrencyAdmissionOutcome.Acquired(
+            activeCount = activeInFlightScans.size,
+            maxAllowed = maxAllowed,
+        )
+    }
+
+    @Synchronized
+    fun releaseConcurrentScanSlot(serial: String) {
+        activeInFlightScans.remove(serial)
+    }
 
     @Synchronized
     fun getLicense(): CustomerLicenseRecord {

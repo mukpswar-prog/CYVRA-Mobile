@@ -205,19 +205,25 @@ pub async fn send_host_command(
     payload: String,
 ) -> Result<String, String> {
     /*
-     * The lock is held across the whole write-then-read exchange on purpose:
-     * the Host speaks JSON-lines over a single stdin/stdout pair, so two
-     * concurrent requests would interleave their bytes and each read the
-     * other's answer. Serialising here is what makes the wire protocol true.
+     * Write the request line under the manager lock and register a per-requestId
+     * response channel, then release the lock before awaiting the response so
+     * multiple concurrent device scans (`RUN_SCAN`) and queries can execute in
+     * parallel and resolve out-of-order by `requestId`.
      */
-    let line = {
+    let (request_id, rx) = {
         let mut manager = state
             .manager
             .lock()
             .map_err(|_| "HOST_STATE_LOCK_FAILED".to_string())?;
 
-        manager.send_host_command(&command, &payload)?
+        manager.enqueue_host_command(&command, &payload)?
     };
+
+    let recv_outcome = tauri::async_runtime::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|e| format!("HOST_ASYNC_JOIN_FAILED: {}", e))?;
+
+    let line = HostProcessManager::finalize_host_command(&request_id, recv_outcome)?;
 
     /*
      * Scan transactions are recorded on this side of the wire rather than by

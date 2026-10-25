@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
@@ -847,6 +847,7 @@ function App() {
 
   const [bridgeError, setBridgeError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [busyBySerial, setBusyBySerial] = useState<Record<string, string | null>>({});
 
   /** Serial of the phone the Host last scanned; the export belongs to it. */
   const [lastScanSerial, setLastScanSerial] = useState<string | null>(null);
@@ -891,6 +892,13 @@ function App() {
    */
   const [slotOfSerial, setSlotOfSerial] = useState<Record<string, number>>({});
 
+  /** Per-device session envelopes keyed by serial so multi-device workflows never overwrite each other. */
+  const [deviceEnvelopes, setDeviceEnvelopes] = useState<Record<string, DeviceSessionEnvelopes>>(
+    {},
+  );
+  const deviceEnvelopesRef = useRef<Record<string, DeviceSessionEnvelopes>>({});
+  deviceEnvelopesRef.current = deviceEnvelopes;
+
   /**
    * A scan binding may only outlive the phone it was taken on (owner-approved
    * D7/D2). When the operator switches phones, or the bound phone leaves the
@@ -900,6 +908,15 @@ function App() {
    * authoritative serial-when-present rule whatever this state says.
    */
   useEffect(() => {
+    const trimmed = serial.trim();
+    if (
+      trimmed &&
+      connectedDevices.some((device) => device.serial === trimmed) &&
+      deviceEnvelopesRef.current[trimmed]?.scan?.status === "OK"
+    ) {
+      setLastScanSerial(trimmed);
+      return;
+    }
     setLastScanSerial((bound) =>
       nextScanBinding(
         bound,
@@ -941,11 +958,6 @@ function App() {
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [activationBusy, setActivationBusy] = useState(false);
   const [activationMessage, setActivationMessage] = useState<string | null>(null);
-
-  /** Per-device session envelopes keyed by serial so multi-device workflows never overwrite each other. */
-  const [deviceEnvelopes, setDeviceEnvelopes] = useState<Record<string, DeviceSessionEnvelopes>>(
-    {},
-  );
 
   /**
    * Which stage of the wizard is on screen. Navigation only: it gates nothing.
@@ -1014,6 +1026,14 @@ function App() {
    */
   const send = useCallback(
     async (command: string, payload: Record<string, unknown> = {}): Promise<HostEnvelope | null> => {
+      const targetSerial =
+        typeof payload.serial === "string" && payload.serial.trim().length > 0
+          ? payload.serial.trim()
+          : null;
+
+      if (targetSerial) {
+        setBusyBySerial((current) => ({ ...current, [targetSerial]: command }));
+      }
       setBusy(command);
       setBridgeError(null);
 
@@ -1028,6 +1048,13 @@ function App() {
         setBridgeError(`${command}: ${String(error)}`);
         return null;
       } finally {
+        if (targetSerial) {
+          setBusyBySerial((current) => {
+            const next = { ...current };
+            delete next[targetSerial];
+            return next;
+          });
+        }
         setBusy(null);
       }
     },
@@ -1461,7 +1488,7 @@ function App() {
 
     const envelope = await send(
       "GET_APPLICATION_INVENTORY",
-      targetSerial ? { serial: target } : {},
+      target ? { serial: target } : {},
     );
     setInventory(envelope);
     patchDeviceEnvelope(target, { inventory: envelope });
@@ -1497,8 +1524,8 @@ function App() {
       setSerial(target);
       setSerialFromHost(true);
     }
-    const currentSanitize = (targetSerial && deviceEnvelopes[target]?.sanitize) || sanitize;
-    let payload: Record<string, unknown> = targetSerial ? { serial: target } : {};
+    const currentSanitize = (target && deviceEnvelopes[target]?.sanitize) || sanitize;
+    let payload: Record<string, unknown> = target ? { serial: target } : {};
 
     if (stage === "authorize") {
       payload = { ...payload, acknowledged: true };
@@ -1577,6 +1604,115 @@ function App() {
     }
   };
 
+  /**
+   * Per-device deliberate sanitization approval (`SANITIZE_CONFIRM` button).
+   *
+   * Requires both H/W SCN and App SCN reports to be completed for [targetSerial]
+   * and executes the consolidated `SANITIZE_START` -> `SANITIZE_AUTHORIZE` workflow
+   * (including internal post-wipe verification, Sanitization Audit Report PDF in
+   * `Downloads/CYVRA/`, and device session disconnect).
+   */
+  const runConsolidatedSanitizeConfirm = async (targetSerial?: string) => {
+    const target = (targetSerial ?? lastScanSerial ?? serial).trim();
+    if (!target) {
+      return;
+    }
+    if (targetSerial) {
+      setSerial(target);
+      setSerialFromHost(true);
+    }
+
+    patchRow(target, { phase: "sanitize", status: "In progress", reason: "" });
+    patchStage(target, "sanitize", {
+      tone: "in-progress",
+      note: "Authorizing and verifying consolidated sanitization for this phone.",
+      at: clockNow(),
+    });
+
+    const currentSanitize = deviceEnvelopes[target]?.sanitize ?? sanitize;
+    let startEnv = currentSanitize.start;
+    if (!startEnv || startEnv.status !== "OK") {
+      startEnv = await send("SANITIZE_START", {
+        serial: target,
+        ...(operatorId.trim() ? { operatorId: operatorId.trim() } : {}),
+      });
+    }
+
+    const startPhrase = readString(payloadOf(startEnv), "step2PhraseRequired");
+    if (!startEnv || startEnv.status !== "OK" || !startPhrase) {
+      const nextSanitize = { ...currentSanitize, start: startEnv };
+      setSanitize(nextSanitize);
+      patchDeviceEnvelope(target, { sanitize: nextSanitize });
+      patchRow(target, {
+        phase: "idle",
+        status: "Failed",
+        reason: envelopeReason(startEnv, "Sanitization eligibility gate refused."),
+      });
+      patchStage(target, "sanitize", {
+        tone: "failed",
+        note: envelopeReason(startEnv, "Sanitization eligibility gate refused for this phone."),
+        at: clockNow(),
+      });
+      return;
+    }
+
+    const authorizeEnv = await send("SANITIZE_AUTHORIZE", {
+      serial: target,
+      acknowledged: true,
+      confirmationPhrase: startPhrase,
+      consolidated: true,
+      ...(operatorId.trim() ? { operatorId: operatorId.trim() } : {}),
+    });
+
+    const nextSanitize: Record<SanitizeStage, HostEnvelope | null> = {
+      start: startEnv,
+      authorize: authorizeEnv,
+      confirm: authorizeEnv,
+      execute: authorizeEnv,
+    };
+    setSanitize(nextSanitize);
+    patchDeviceEnvelope(target, { sanitize: nextSanitize });
+
+    const accepted = authorizeEnv?.status === "OK";
+    const outcomeStatus = readString(payloadOf(authorizeEnv), "executionStatus");
+    const pdfPath = readString(payloadOf(authorizeEnv), "pdfPath");
+    const governanceBlocked =
+      outcomeStatus !== null && BLOCKED_EXECUTION_STATUSES.includes(outcomeStatus);
+
+    patchRow(target, {
+      phase: accepted ? "sanitize" : "idle",
+      status: accepted ? "Ok" : "Failed",
+      reason: pdfPath
+        ? `Sanitization audit report written to ${pdfPath}`
+        : envelopeReason(authorizeEnv, "Consolidated sanitization finished."),
+      exportedOk: Boolean(pdfPath),
+    });
+
+    if (!accepted) {
+      patchStage(target, "sanitize", {
+        tone: "failed",
+        note: envelopeReason(authorizeEnv, "Consolidated sanitization was refused for this phone."),
+        at: clockNow(),
+      });
+    } else if (governanceBlocked) {
+      patchStage(target, "sanitize", {
+        tone: "blocked",
+        note:
+          outcomeStatus === "TRIGGER_OUTCOME_INDETERMINATE"
+            ? "No wipe is confirmed for this phone. Outcome unsettled."
+            : "Blocked: hardware-gated sanitization recorded audit certificate.",
+        at: clockNow(),
+      });
+    } else {
+      patchStage(target, "sanitize", {
+        tone: "completed",
+        note: "Consolidated sanitization and post-wipe verification completed.",
+        at: clockNow(),
+      });
+    }
+    void loadLicense();
+  };
+
   const runExport = async (targetSerial?: string) => {
     const target = (targetSerial ?? lastScanSerial ?? serial).trim();
     if (targetSerial) {
@@ -1591,7 +1727,7 @@ function App() {
       at: clockNow(),
     });
 
-    const envelope = await send("EXPORT_REPORT", targetSerial ? { serial: target } : {});
+    const envelope = await send("EXPORT_REPORT", target ? { serial: target } : {});
     setExported(envelope);
     patchDeviceEnvelope(target, { exported: envelope });
 
@@ -1662,7 +1798,7 @@ function App() {
 
     const envelope = await send(
       "RECORD_CHECKLIST",
-      targetSerial ? { serial: target, results } : { results },
+      target ? { serial: target, results } : { results },
     );
     setChecklistRecorded(envelope);
     patchDeviceEnvelope(target, { checklistRecorded: envelope, checklistAnswers });
@@ -1670,7 +1806,7 @@ function App() {
     // The Host's own progress block is the source of truth after a recording,
     // so re-read the catalogue too: it carries the same progress for display.
     if (envelope?.status === "OK") {
-      setChecklist(await send("GET_CHECKLIST", targetSerial ? { serial: target } : {}));
+      setChecklist(await send("GET_CHECKLIST", target ? { serial: target } : {}));
       patchStage(target, "verify", {
         tone: "completed",
         note: "The technician's checks were recorded for this phone.",
@@ -1704,7 +1840,7 @@ function App() {
 
     const envelope = await send("FINALISE_REPORT", {
       operatorId: operatorId.trim(),
-      ...(targetSerial ? { serial: target } : {}),
+      ...(target ? { serial: target } : {}),
     });
     setFinalised(envelope);
     patchDeviceEnvelope(target, { finalised: envelope });
@@ -2044,6 +2180,14 @@ function App() {
             ? "Not allowed yet - tap ALLOW on the phone."
             : "Still being identified by the workstation.";
 
+    const deviceBusy = busyBySerial[device.serial] ?? null;
+    const activeConcurrentScans = Object.values(busyBySerial).filter(
+      (cmd) => cmd === "RUN_SCAN",
+    ).length;
+    const maxConcurrentAllowed = Math.min(50, licenseScansRemaining ?? 50);
+    const concurrencyReached =
+      activeConcurrentScans >= maxConcurrentAllowed && deviceBusy !== "RUN_SCAN";
+
     const scanLock =
       device.state === "disconnected"
         ? "This phone's connection dropped. Unplug the data cable and plug it back in."
@@ -2053,15 +2197,24 @@ function App() {
             ? "This phone is still being identified. Wait a moment, then try again."
             : licensePresent !== true
               ? "No licence is installed on this workstation, so a scan cannot start."
-              : busy !== null
-                ? "The workstation is busy with the current step. Wait for it to finish."
-                : null;
+              : deviceBusy !== null
+                ? `This phone is busy (${deviceBusy}). Wait for it to finish.`
+                : concurrencyReached
+                  ? `Licence concurrency limit reached (${maxConcurrentAllowed} concurrent scan(s) active).`
+                  : null;
 
     const recorded = rowState.stages ?? {};
     const scanCompleted =
       recorded.scan?.tone === "completed" ||
       recorded.scan?.tone === "partial" ||
       deviceEnvelopes[device.serial]?.scan?.status === "OK";
+
+    const appScanCompleted =
+      recorded.applications?.tone === "completed" ||
+      recorded.applications?.tone === "partial" ||
+      deviceEnvelopes[device.serial]?.inventory?.status === "OK";
+
+    const sanitizeReady = scanCompleted && appScanCompleted;
 
     const reportReady =
       scanCompleted ||
@@ -2076,6 +2229,9 @@ function App() {
       activeReason,
       scanLock,
       scanCompleted,
+      appScanCompleted,
+      sanitizeReady,
+      deviceBusy,
       reportReady,
       slotLabel: slotNumber === undefined ? null : slotLabelFor(slotNumber),
     };
@@ -2255,17 +2411,23 @@ function App() {
   /** Row the operator has opened in place. Opening a row changes no screen. */
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
 
-  const handleSlotStageAction = (targetSerial: string, stageKey: StageKey, scanLock: string | null, scanCompleted: boolean) => {
+  const handleSlotStageAction = (
+    targetSerial: string,
+    stageKey: StageKey,
+    scanLock: string | null,
+    scanCompleted: boolean,
+  ) => {
+    const isDeviceBusy = Boolean(busyBySerial[targetSerial]);
     if (stageKey === "scan") {
       selectDeviceForStage(targetSerial, "scan");
-      if (scanLock === null) {
+      if (scanLock === null && !isDeviceBusy) {
         void runScan(targetSerial);
       }
       return;
     }
     if (stageKey === "applications") {
       selectDeviceForStage(targetSerial, "inventory");
-      if (scanCompleted && busy === null) {
+      if (scanCompleted && !isDeviceBusy) {
         void loadInventory(targetSerial);
       }
       return;
@@ -2273,14 +2435,14 @@ function App() {
     if (stageKey === "sanitize") {
       selectDeviceForStage(targetSerial, "sanitize");
       const devSanitize = deviceEnvelopes[targetSerial]?.sanitize;
-      if (scanCompleted && busy === null && !devSanitize?.start) {
+      if (scanCompleted && !isDeviceBusy && !devSanitize?.start) {
         void runSanitize("start", targetSerial);
       }
       return;
     }
     if (stageKey === "verify") {
       selectDeviceForStage(targetSerial, "checklist");
-      if (busy === null) {
+      if (!isDeviceBusy) {
         void loadChecklist(targetSerial);
       }
     }
@@ -2377,7 +2539,7 @@ function App() {
                           className={`stage-seg stage-btn is-${stageToneSlug[tone]}`}
                           title={label}
                           aria-label={label}
-                          disabled={busy !== null}
+                          disabled={Boolean(slot.serial && busyBySerial[slot.serial])}
                           onClick={(event) => {
                             event.stopPropagation();
                             handleSlotStageAction(
@@ -2423,7 +2585,7 @@ function App() {
                       className={`btn-report is-${stageToneSlug[slot.downloadTone]}${
                         slot.scanCompleted ? " is-ready" : ""
                       }`}
-                      disabled={!slot.scanCompleted || busy !== null}
+                      disabled={!slot.scanCompleted || Boolean(slot.serial && busyBySerial[slot.serial])}
                       title={
                         !slot.scanCompleted
                           ? `Complete H/W SCN for ${slot.label} before downloading its report.`
@@ -2459,6 +2621,26 @@ function App() {
                   </span>
                 </td>
                 <td className="col-actions">
+                  {slot.serial !== null && (
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-compact"
+                      disabled={!controls?.sanitizeReady || Boolean(controls?.deviceBusy)}
+                      title={
+                        controls?.sanitizeReady
+                          ? `Approve and execute sanitization for ${slot.label}`
+                          : `Complete both H/W SCN and App SCN for ${slot.label} before SANITIZE_CONFIRM.`
+                      }
+                      aria-label={`SANITIZE_CONFIRM for ${slot.label}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectDeviceForStage(slot.serial, "sanitize");
+                        void runConsolidatedSanitizeConfirm(slot.serial);
+                      }}
+                    >
+                      SANITIZE_CONFIRM
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="row-more"
@@ -2531,7 +2713,7 @@ function App() {
                           <button
                             type="button"
                             className="btn btn-secondary btn-compact"
-                            disabled={!slot.scanCompleted || busy !== null}
+                            disabled={!slot.scanCompleted || Boolean(controls?.deviceBusy)}
                             title={`Run App SCN for ${slot.label}`}
                             aria-label={`Load applications for ${slot.label}`}
                             onClick={(event) => {
@@ -2544,21 +2726,26 @@ function App() {
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-compact"
-                            disabled={!slot.scanCompleted || busy !== null}
-                            title={`Open Sanitize workflow for ${slot.label}`}
-                            aria-label={`Sanitize phone at ${slot.label}`}
+                            className="btn btn-danger btn-compact"
+                            disabled={!controls?.sanitizeReady || Boolean(controls?.deviceBusy)}
+                            title={
+                              controls?.sanitizeReady
+                                ? `Approve and execute sanitization for ${slot.label}`
+                                : `Complete both H/W SCN and App SCN for ${slot.label} before SANITIZE_CONFIRM.`
+                            }
+                            aria-label={`Confirm sanitization in detail view for ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleSlotStageAction(slot.serial, "sanitize", scanLock, slot.scanCompleted);
+                              selectDeviceForStage(slot.serial, "sanitize");
+                              void runConsolidatedSanitizeConfirm(slot.serial);
                             }}
                           >
-                            SAN
+                            SANITIZE_CONFIRM
                           </button>
                           <button
                             type="button"
                             className="btn btn-secondary btn-compact"
-                            disabled={busy !== null}
+                            disabled={Boolean(controls?.deviceBusy)}
                             title={`Open Verification checklist for ${slot.label}`}
                             aria-label={`Verify phone at ${slot.label}`}
                             onClick={(event) => {
@@ -3423,6 +3610,20 @@ function App() {
                     onClick={() => void runSanitize("execute")}
                   >
                     {busy === "SANITIZE_EXECUTE" ? "Working..." : "Run the purge"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={!(scanOk && inventory?.status === "OK") || busy !== null}
+                    title={
+                      scanOk && inventory?.status === "OK"
+                        ? "Confirm and execute consolidated sanitization (SANITIZE_AUTHORIZE)"
+                        : "Complete both H/W SCN and App SCN for this phone before SANITIZE_CONFIRM."
+                    }
+                    aria-label="SANITIZE_CONFIRM"
+                    onClick={() => void runConsolidatedSanitizeConfirm()}
+                  >
+                    SANITIZE_CONFIRM
                   </button>
                 </div>
 

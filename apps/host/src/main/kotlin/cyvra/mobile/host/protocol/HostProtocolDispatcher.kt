@@ -17,11 +17,15 @@ import cyvra.mobile.host.engine.PatchStateOutcome
 import cyvra.mobile.host.engine.Plane
 import cyvra.mobile.host.engine.ReportFinaliser
 import cyvra.mobile.host.engine.ReportGenerator
+import cyvra.mobile.host.evidence.HostAndroidComponentBridge
 import cyvra.mobile.host.license.LicenseFileResult
 import cyvra.mobile.host.license.LicenseProvider
 import cyvra.mobile.host.license.SignedEntitlementProvider
+import cyvra.mobile.host.report.HostPdfReportWriter
 import cyvra.mobile.host.report.HostReportEngine
 import cyvra.mobile.host.report.HostReportStore
+import cyvra.mobile.host.report.WrittenPdfArtifact
+import cyvra.mobile.host.service.ConcurrencyAdmissionOutcome
 import cyvra.mobile.host.service.HostBootstrap
 import cyvra.mobile.host.service.HostLicenseService
 import cyvra.mobile.host.service.SanitizationLifecycleStart
@@ -98,6 +102,7 @@ class HostProtocolDispatcher(
      * belongs to the engine, and this protocol layer consumes it.
      */
     private val patchStateProvider: ((DeviceProfile?) -> PatchStateOutcome)? = null,
+    private val pdfReportWriter: HostPdfReportWriter = HostPdfReportWriter(),
 ) {
     /**
      * Immutable evidence captured once for the completed scan currently held in [lastScan].
@@ -142,11 +147,16 @@ class HostProtocolDispatcher(
         var operatorConfirmationPhrase: String? = null,
         var lifecycleResult: WorkstationSanitizationLifecycleResult? = null,
         var checklistRecord: TechnicianChecklistRecord? = null,
+        var hwScanPdfArtifact: WrittenPdfArtifact? = null,
+        var appScanPdfArtifact: WrittenPdfArtifact? = null,
+        var sanitizationAuditPdfArtifact: WrittenPdfArtifact? = null,
+        var sanitizedDisconnected: Boolean = false,
     ) {
         fun resetSanitizationState(keepStart: Boolean = false) {
             operatorAcknowledged = null
             operatorConfirmationPhrase = null
             lifecycleResult = null
+            sanitizationAuditPdfArtifact = null
             if (!keepStart) {
                 lifecycleStart = null
             }
@@ -157,6 +167,10 @@ class HostProtocolDispatcher(
 
     @Volatile
     private var activeSerial: String? = null
+
+    fun isScanInFlight(serial: String): Boolean = licenseService.isScanInFlight(serial)
+
+    fun activeConcurrentScanCount(): Int = licenseService.activeConcurrentScanCount()
 
     private fun sessionFor(request: HostRequest): DeviceSessionState? {
         val requested = request.stringPayload(KEY_SERIAL)
@@ -187,6 +201,7 @@ class HostProtocolDispatcher(
      */
     private var cachedAdbClient: AdbClient? = null
 
+    @Synchronized
     private fun adbClientFor(adbBinary: java.io.File): AdbClient {
         cachedAdbClient?.let { return it }
         val built = adbClientFactory(adbBinary)
@@ -431,6 +446,9 @@ class HostProtocolDispatcher(
 
             val client = adbClientFactory(adbBinary)
             val devices = client.listDevices()
+            val probeAgent = (request.payload["probeAgent"] as? JsonPrimitive)?.booleanOrNull == true
+            val deployAgent = (request.payload["deployAgent"] as? JsonPrimitive)?.booleanOrNull == true
+            val targetSerial = request.stringPayload(KEY_SERIAL)
 
             okResponse(
                 request,
@@ -439,7 +457,12 @@ class HostProtocolDispatcher(
                     put(
                         "devices",
                         JsonArray(devices.map { descriptor ->
-                            connectedDevice(client, descriptor)
+                            connectedDevice(
+                                client = client,
+                                descriptor = descriptor,
+                                probeAgent = probeAgent && (targetSerial == null || targetSerial == descriptor.serial),
+                                deployAgent = deployAgent && (targetSerial == null || targetSerial == descriptor.serial),
+                            )
                         }),
                     )
                 },
@@ -457,6 +480,8 @@ class HostProtocolDispatcher(
     private fun connectedDevice(
         client: AdbClient,
         descriptor: AdbDeviceDescriptor,
+        probeAgent: Boolean = false,
+        deployAgent: Boolean = false,
     ): JsonObject = buildJsonObject {
         put("transport", transportOf(descriptor.serial))
         put("serial", descriptor.serial)
@@ -465,6 +490,19 @@ class HostProtocolDispatcher(
         descriptor.model?.takeIf { it.isNotBlank() }?.let { put("model", it) }
 
         manufacturerOf(client, descriptor)?.let { put("make", it) }
+
+        if ((probeAgent || deployAgent) && descriptor.state == "device") {
+            val bridge = HostAndroidComponentBridge(client, descriptor.serial)
+            val (installed, status) = if (deployAgent) {
+                bridge.ensureInstalledOrDeploy()
+            } else {
+                val present = bridge.checkInstalled()
+                present to if (present) "INSTALLED" else "NOT_INSTALLED"
+            }
+            put("agentInstalled", installed)
+            put("agentStatus", status)
+            put("deviceLifecycleId", WorkstationSessionOrchestrator.deviceLifecycleIdFor(descriptor.serial))
+        }
 
         put("imeiReason", IMEI_REASON)
     }
@@ -582,77 +620,114 @@ class HostProtocolDispatcher(
             }
         }
 
-        val result = try {
-            orchestratorFor(adbBinary).executeDiagnostic(
-                serial = serial,
-                operatorId = operatorId,
-                deviceSideInventory = sideInventory,
-            )
-        } catch (error: IllegalStateException) {
+        val admission = licenseService.tryAcquireConcurrentScanSlot(serial, request.requestId)
+        if (admission is ConcurrencyAdmissionOutcome.Refused) {
             return errorResponse(
                 request = request,
-                code = "SCAN_REFUSED",
-                message = error.message ?: "Scan refused by entitlement accounting",
+                code = admission.code,
+                message = admission.message,
             )
-        } catch (error: Exception) {
-            /*
-             * U-3(a): a genuine scan-execution failure invalidates the previous
-             * scan's evidence. `executeDiagnostic` has already abandoned the
-             * failed reservation; clearing the stale scan here stops report
-             * retrieval and sanitization from operating on a report the current
-             * attempt did not produce. The entitlement-refusal path above
-             * (IllegalStateException -> SCAN_REFUSED) fires before any scan work
-             * begins and deliberately preserves the current scan.
-             */
-            deviceSessions.remove(serial)
-            if (activeSerial == serial) {
-                activeSerial = deviceSessions.keys().asSequence().lastOrNull()
+        }
+
+        return try {
+            // Release any superseded unsettled reservation held by a prior un-sanitized scan on this same serial
+            deviceSessions[serial]?.lastScan?.sessionUuid?.let { priorSessionUuid ->
+                licenseService.abandonScan(priorSessionUuid)
             }
-            return errorResponse(
-                request = request,
-                code = "SCAN_FAILED",
-                message = error.message ?: "Diagnostic scan failed",
+
+            val result = try {
+                orchestratorFor(adbBinary).executeDiagnostic(
+                    serial = serial,
+                    operatorId = operatorId,
+                    deviceSideInventory = sideInventory,
+                )
+            } catch (error: IllegalStateException) {
+                return errorResponse(
+                    request = request,
+                    code = "SCAN_REFUSED",
+                    message = error.message ?: "Scan refused by entitlement accounting",
+                )
+            } catch (error: Exception) {
+                /*
+                 * U-3(a): a genuine scan-execution failure invalidates the previous
+                 * scan's evidence. `executeDiagnostic` has already abandoned the
+                 * failed reservation; clearing the stale scan here stops report
+                 * retrieval and sanitization from operating on a report the current
+                 * attempt did not produce. The entitlement-refusal path above
+                 * (IllegalStateException -> SCAN_REFUSED) fires before any scan work
+                 * begins and deliberately preserves the current scan.
+                 */
+                deviceSessions.remove(serial)
+                if (activeSerial == serial) {
+                    activeSerial = deviceSessions.keys().asSequence().lastOrNull()
+                }
+                return errorResponse(
+                    request = request,
+                    code = "SCAN_FAILED",
+                    message = error.message ?: "Diagnostic scan failed",
+                )
+            }
+
+            val probeResults = probeCapture(serial)
+            val patchStateOutcome = if (probeResults == null) {
+                null
+            } else {
+                patchStateProvider?.invoke(deviceProfileFor(result.deviceDescriptor))
+                    ?: PatchStateOutcome.Unavailable("NO_PATCH_STATE_PROVIDER")
+            }
+            val capturedEvidence = if (probeResults != null && patchStateOutcome is PatchStateOutcome.Established) {
+                ScanEvidencePacket(result.sessionUuid, probeResults, patchStateOutcome.state)
+            } else {
+                null
+            }
+            val refusalReason = when {
+                probeResults == null -> "no probe results were captured for this scan"
+                patchStateOutcome is PatchStateOutcome.Unavailable -> patchStateOutcome.reason
+                else -> null
+            }
+            val deviceLifecycleId = WorkstationSessionOrchestrator.deviceLifecycleIdFor(serial)
+            val hwPdf = runCatching {
+                pdfReportWriter.writeHardwareScanPdf(
+                    serial = serial,
+                    deviceLifecycleId = deviceLifecycleId,
+                    scan = result,
+                    checklist = null,
+                )
+            }.getOrNull()
+
+            deviceSessions[serial] = DeviceSessionState(
+                lastScan = result,
+                scanEvidence = capturedEvidence,
+                patchStateRefusalReason = refusalReason,
+                hwScanPdfArtifact = hwPdf,
             )
-        }
+            activeSerial = serial
 
-        val probeResults = probeCapture(serial)
-        val patchStateOutcome = if (probeResults == null) {
-            null
-        } else {
-            patchStateProvider?.invoke(deviceProfileFor(result.deviceDescriptor))
-                ?: PatchStateOutcome.Unavailable("NO_PATCH_STATE_PROVIDER")
+            val section = result.report.applicationInventory
+            okResponse(
+                request,
+                buildJsonObject {
+                    put("scanStatus", "COMPLETED")
+                    put("sessionUuid", result.sessionUuid)
+                    put("deviceLifecycleId", deviceLifecycleId)
+                    put("reportId", result.report.header.reportId)
+                    put(KEY_SERIAL, serial)
+                    put(KEY_OPERATOR_ID, operatorId)
+                    put("scansRemaining", result.updatedLicense.scansRemaining)
+                    put("maxConcurrentScans", licenseService.maxConcurrentScansAllowed())
+                    put("inventoryAvailable", section?.inventoryAvailable ?: false)
+                    put("enumerationCompleteness", section?.enumerationCompleteness?.name ?: "UNAVAILABLE")
+                    put("hwReportGenerated", hwPdf != null)
+                    hwPdf?.let {
+                        put("pdfPath", it.pdfPath)
+                        put("pdfFileName", it.fileName)
+                        put("pdfSha256", it.pdfSha256)
+                    }
+                },
+            )
+        } finally {
+            licenseService.releaseConcurrentScanSlot(serial)
         }
-        val capturedEvidence = if (probeResults != null && patchStateOutcome is PatchStateOutcome.Established) {
-            ScanEvidencePacket(result.sessionUuid, probeResults, patchStateOutcome.state)
-        } else {
-            null
-        }
-        val refusalReason = when {
-            probeResults == null -> "no probe results were captured for this scan"
-            patchStateOutcome is PatchStateOutcome.Unavailable -> patchStateOutcome.reason
-            else -> null
-        }
-        deviceSessions[serial] = DeviceSessionState(
-            lastScan = result,
-            scanEvidence = capturedEvidence,
-            patchStateRefusalReason = refusalReason,
-        )
-        activeSerial = serial
-
-        val section = result.report.applicationInventory
-        return okResponse(
-            request,
-            buildJsonObject {
-                put("scanStatus", "COMPLETED")
-                put("sessionUuid", result.sessionUuid)
-                put("reportId", result.report.header.reportId)
-                put(KEY_SERIAL, serial)
-                put(KEY_OPERATOR_ID, operatorId)
-                put("scansRemaining", result.updatedLicense.scansRemaining)
-                put("inventoryAvailable", section?.inventoryAvailable ?: false)
-                put("enumerationCompleteness", section?.enumerationCompleteness?.name ?: "UNAVAILABLE")
-            },
-        )
     }
 
     /** GET_DEVICE_REPORT returns Report 1 exactly as it was generated by the scan. */
@@ -669,15 +744,38 @@ class HostProtocolDispatcher(
                 message = "Report 1 did not encode as a JSON object",
             )
 
+        val deviceLifecycleId = WorkstationSessionOrchestrator.deviceLifecycleIdFor(scan.deviceDescriptor.serial)
+        val forceNewPdf = (request.payload["forceNewPdf"] as? JsonPrimitive)?.booleanOrNull == true
+        val hwPdf = runCatching {
+            val existing = state.hwScanPdfArtifact
+            if (existing != null && existing.sessionUuid == scan.sessionUuid && !forceNewPdf) {
+                existing
+            } else {
+                pdfReportWriter.writeHardwareScanPdf(
+                    serial = scan.deviceDescriptor.serial,
+                    deviceLifecycleId = deviceLifecycleId,
+                    scan = scan,
+                    checklist = state.checklistRecord,
+                ).also { state.hwScanPdfArtifact = it }
+            }
+        }.getOrNull()
+
         return okResponse(
             request,
             buildJsonObject {
                 put("reportId", scan.report.header.reportId)
                 put("sessionUuid", scan.report.header.sessionUuid)
+                put("deviceLifecycleId", deviceLifecycleId)
                 put(KEY_SERIAL, scan.deviceDescriptor.serial)
                 put("report", reportObject)
                 put("reportMarkdown", scan.reportMarkdown)
                 put("jsonSha256", reportEngine.computeSha256(scan.reportJson))
+                put("hwReportGenerated", hwPdf != null)
+                hwPdf?.let {
+                    put("pdfPath", it.pdfPath)
+                    put("pdfFileName", it.fileName)
+                    put("pdfSha256", it.pdfSha256)
+                }
             },
         )
     }
@@ -701,10 +799,27 @@ class HostProtocolDispatcher(
         serialOwnershipRefusal(request, "GET_APPLICATION_INVENTORY", scan.deviceDescriptor.serial)
             ?.let { return it }
         val section = scan.report.applicationInventory
+        val deviceLifecycleId = WorkstationSessionOrchestrator.deviceLifecycleIdFor(scan.deviceDescriptor.serial)
+        val forceNewPdf = (request.payload["forceNewPdf"] as? JsonPrimitive)?.booleanOrNull == true
+        val appPdf = runCatching {
+            val existing = state.appScanPdfArtifact
+            if (existing != null && existing.sessionUuid == scan.sessionUuid && !forceNewPdf) {
+                existing
+            } else {
+                pdfReportWriter.writeAppScanPdf(
+                    serial = scan.deviceDescriptor.serial,
+                    deviceLifecycleId = deviceLifecycleId,
+                    scan = scan,
+                ).also { state.appScanPdfArtifact = it }
+            }
+        }.getOrNull()
 
         return okResponse(
             request,
             buildJsonObject {
+                put(KEY_SERIAL, scan.deviceDescriptor.serial)
+                put("sessionUuid", scan.sessionUuid)
+                put("deviceLifecycleId", deviceLifecycleId)
                 put("inventoryAvailable", section?.inventoryAvailable ?: false)
                 put("totalApplications", section?.totalApplications ?: 0)
                 put("enumerationCompleteness", section?.enumerationCompleteness?.name ?: "UNAVAILABLE")
@@ -730,6 +845,12 @@ class HostProtocolDispatcher(
                 put("conflicts", stringArray(section?.conflicts))
                 put("limitations", stringArray(section?.limitations))
                 put("rawUidWithheld", true)
+                put("appReportGenerated", appPdf != null)
+                appPdf?.let {
+                    put("pdfPath", it.pdfPath)
+                    put("pdfFileName", it.fileName)
+                    put("pdfSha256", it.pdfSha256)
+                }
             },
         )
     }
@@ -764,16 +885,58 @@ class HostProtocolDispatcher(
             )
         }
 
+        val deviceLifecycleId = WorkstationSessionOrchestrator.deviceLifecycleIdFor(scan.deviceDescriptor.serial)
+        val requestedType = request.stringPayload("reportType")?.uppercase()
+        val hwPdf = runCatching {
+            if (requestedType == HostPdfReportWriter.TYPE_APP_SCAN) {
+                state.hwScanPdfArtifact
+            } else {
+                state.hwScanPdfArtifact?.takeIf { it.sessionUuid == scan.sessionUuid }
+                    ?: pdfReportWriter.writeHardwareScanPdf(
+                        serial = scan.deviceDescriptor.serial,
+                        deviceLifecycleId = deviceLifecycleId,
+                        scan = scan,
+                        checklist = state.checklistRecord,
+                    ).also { state.hwScanPdfArtifact = it }
+            }
+        }.getOrNull()
+        val appPdf = runCatching {
+            if (requestedType == HostPdfReportWriter.TYPE_HW_SCAN) {
+                state.appScanPdfArtifact
+            } else {
+                state.appScanPdfArtifact?.takeIf { it.sessionUuid == scan.sessionUuid }
+                    ?: pdfReportWriter.writeAppScanPdf(
+                        serial = scan.deviceDescriptor.serial,
+                        deviceLifecycleId = deviceLifecycleId,
+                        scan = scan,
+                    ).also { state.appScanPdfArtifact = it }
+            }
+        }.getOrNull()
+        val primaryPdf = when (requestedType) {
+            HostPdfReportWriter.TYPE_APP_SCAN -> appPdf
+            else -> hwPdf ?: appPdf
+        }
+
         return okResponse(
             request,
             buildJsonObject {
                 put("reportId", scan.report.header.reportId)
-                put("format", "json+markdown")
+                put(KEY_SERIAL, scan.deviceDescriptor.serial)
+                put("sessionUuid", scan.sessionUuid)
+                put("deviceLifecycleId", deviceLifecycleId)
+                put("format", "json+markdown+pdf")
                 put("reportJson", jsonContent)
                 put("reportMarkdown", markdownContent)
                 put("reportJsonPath", written.jsonPath)
                 put("reportMarkdownPath", written.markdownPath)
                 put("manifestPath", written.manifestPath)
+                primaryPdf?.let {
+                    put("pdfPath", it.pdfPath)
+                    put("pdfFileName", it.fileName)
+                    put("pdfSha256", it.pdfSha256)
+                }
+                hwPdf?.let { put("hwPdfPath", it.pdfPath) }
+                appPdf?.let { put("appPdfPath", it.pdfPath) }
                 put("artifactsWritten", true)
                 put(
                     "manifest",
@@ -781,6 +944,7 @@ class HostProtocolDispatcher(
                         put("algorithm", "SHA-256")
                         put("jsonSha256", written.jsonSha256)
                         put("markdownSha256", written.markdownSha256)
+                        primaryPdf?.let { put("pdfSha256", it.pdfSha256) }
                     },
                 )
             },
@@ -932,6 +1096,21 @@ class HostProtocolDispatcher(
             ?.let { return it }
         val targetSerial = scan.deviceDescriptor.serial
 
+        val requireScanReports = (request.payload["requireScanReports"] as? JsonPrimitive)?.booleanOrNull == true
+        if (requireScanReports) {
+            val hwReady = state.hwScanPdfArtifact?.sessionUuid == scan.sessionUuid
+            val appReady = state.appScanPdfArtifact?.sessionUuid == scan.sessionUuid
+            if (!hwReady || !appReady) {
+                return errorResponse(
+                    request = request,
+                    code = "PRE_SANITIZATION_REPORTS_REQUIRED",
+                    message = "Sanitization refused for device '$targetSerial': both H/W Scan Report and App Scan Report " +
+                        "must be generated and verified for session '${scan.sessionUuid}' before sanitization can begin " +
+                        "(hwReport=$hwReady, appReport=$appReady).",
+                )
+            }
+        }
+
         val preRecord = PreSanitizationRecord(
             operationId = PLACEHOLDER_OPERATION_ID,
             sessionUuid = scan.report.header.sessionUuid,
@@ -1006,15 +1185,37 @@ class HostProtocolDispatcher(
         )
     }
 
-    /** SANITIZE_AUTHORIZE records step 1 of the 2-step operator barrier. */
+    /**
+     * SANITIZE_AUTHORIZE is the single supported authorization/execution protocol entry point
+     * after SANITIZE_START and report validation (while preserving step-1 compatibility when
+     * invoked with only `acknowledged` by legacy step-by-step tests).
+     *
+     * When `consolidated = true` or `confirmationPhrase` is provided in the payload:
+     * 1. Enforces strict `serial` ownership (`SERIAL_MISMATCH` on cross-device mismatch).
+     * 2. Enforces that both H/W Scan Report and App Scan Report exist for this device and session
+     *    (unless `requireScanReports == false`).
+     * 3. Verifies both step-1 `acknowledged == true` and step-2 `confirmationPhrase`.
+     * 4. Executes the hardware-gated purge AND internal post-wipe verification (`verifyPostReset`).
+     * 5. Generates the per-operation Sanitization Audit Report PDF in `Downloads/CYVRA/`.
+     * 6. Disconnects/closes the active workflow session (`sanitizedDisconnected = true`).
+     */
     private fun sanitizeAuthorizeResponse(request: HostRequest): HostResponse {
         val state = sessionFor(request)
+        if (state?.sanitizedDisconnected == true) {
+            return errorResponse(
+                request = request,
+                code = "DEVICE_SESSION_DISCONNECTED",
+                message = "The sanitization lifecycle for device '${state.lastScan?.deviceDescriptor?.serial ?: ""}' has already concluded and its session is closed. A new diagnostic scan must be completed before authorizing another sanitization.",
+            )
+        }
         val start = state?.lifecycleStart
             ?: return errorResponse(
                 request = request,
                 code = "NO_SANITIZE_SESSION",
                 message = "SANITIZE_START must succeed before SANITIZE_AUTHORIZE",
             )
+        serialOwnershipRefusal(request, "SANITIZE_AUTHORIZE", start.targetSerial)
+            ?.let { return it }
         val session = start.session ?: return notEligibleError(request, state)
 
         val acknowledged = (request.payload[KEY_ACKNOWLEDGED] as? JsonPrimitive)?.booleanOrNull
@@ -1028,13 +1229,190 @@ class HostProtocolDispatcher(
         // A new acknowledgement invalidates any phrase recorded against the previous one.
         state.operatorConfirmationPhrase = null
 
+        val consolidated = (request.payload["consolidated"] as? JsonPrimitive)?.booleanOrNull == true ||
+            request.stringPayload(KEY_CONFIRMATION_PHRASE) != null
+
+        if (!consolidated) {
+            return okResponse(
+                request,
+                buildJsonObject {
+                    put("step", "STEP1_ACKNOWLEDGEMENT_RECORDED")
+                    put(KEY_SERIAL, start.targetSerial)
+                    put("acknowledged", acknowledged)
+                    put("operationId", session.operationId)
+                    put("step2PhraseRequired", session.barrier.step2PhraseRequired)
+                },
+            )
+        }
+
+        // Consolidated single-entry-point sanitization execution + internal verification
+        val offlineLicense = licenseResult
+        if (offlineLicense.isLicensed && !offlineLicense.offline.sanitizeExecute) {
+            return errorResponse(
+                request = request,
+                code = "SANITIZE_LOCKED_OFFLINE",
+                message = "Refused: destructive sanitization is not allowed while this " +
+                    "workstation is running on a cached entitlement. Reconnect to CYVORIQ " +
+                    "so the licence can be confirmed, then try again.",
+            )
+        }
+
+        val scan = state.lastScan ?: return noScanError(request, "SANITIZE_AUTHORIZE")
+        val requireScanReports = (request.payload["requireScanReports"] as? JsonPrimitive)?.booleanOrNull != false
+        if (requireScanReports) {
+            val hwReady = state.hwScanPdfArtifact?.sessionUuid == scan.sessionUuid
+            val appReady = state.appScanPdfArtifact?.sessionUuid == scan.sessionUuid
+            if (!hwReady || !appReady) {
+                return errorResponse(
+                    request = request,
+                    code = "PRE_SANITIZATION_REPORTS_REQUIRED",
+                    message = "Sanitization refused for device '${start.targetSerial}': both H/W Scan Report and App Scan Report " +
+                        "must be generated and verified for session '${scan.sessionUuid}' before sanitization can be authorized " +
+                        "(hwReport=$hwReady, appReport=$appReady).",
+                )
+            }
+        }
+
+        if (!acknowledged) {
+            return errorResponse(
+                request = request,
+                code = "SANITIZE_ACK_REQUIRED",
+                message = "Refused: step 1 acknowledgement must be true to authorize sanitization",
+            )
+        }
+
+        val phrase = request.stringPayload(KEY_CONFIRMATION_PHRASE)
+            ?: return errorResponse(
+                request = request,
+                code = "SANITIZE_PHRASE_REQUIRED",
+                message = "SANITIZE_AUTHORIZE (consolidated) requires payload.confirmationPhrase",
+            )
+
+        val requiredPhrase = session.barrier.step2PhraseRequired
+        if (phrase.trim() != requiredPhrase.trim()) {
+            return errorResponse(
+                request = request,
+                code = "SANITIZE_PHRASE_MISMATCH",
+                message = "Confirmation phrase does not match the phrase issued by SANITIZE_START for '${start.targetSerial}'",
+            )
+        }
+
+        state.operatorConfirmationPhrase = phrase
+
+        val orchestrator = cachedOrchestrator
+            ?: return errorResponse(
+                request = request,
+                code = "ADB_UNAVAILABLE",
+                message = "Refused: no workstation session is attached to this command",
+            )
+
+        val targetSerial = start.targetSerial
+        val operatorId = request.stringPayload(KEY_OPERATOR_ID)
+            ?: start.preRecord?.operatorId
+            ?: DEFAULT_OPERATOR_ID
+
+        val result = try {
+            orchestrator.completeSanitizationLifecycle(
+                start = start,
+                operatorId = operatorId,
+                operatorAcknowledged = true,
+                operatorConfirmationPhrase = phrase,
+                reconnectedTargetSerial = targetSerial,
+            )
+        } catch (error: Exception) {
+            return errorResponse(
+                request = request,
+                code = "SANITIZE_EXECUTION_FAILED",
+                message = error.message ?: "Sanitization execution failed",
+            )
+        }
+
+        state.lifecycleResult = result
+
+        val execution = result.executionResult
+            ?: return errorResponse(
+                request = request,
+                code = "SANITIZE_EXECUTION_REFUSED",
+                message = result.blockReasons.joinToString("; ").ifBlank {
+                    "Sanitization execution was refused before any destructive step"
+                },
+            )
+
+        val deviceLifecycleId = WorkstationSessionOrchestrator.deviceLifecycleIdFor(targetSerial)
+        val auditPdf = runCatching {
+            pdfReportWriter.writeSanitizationAuditPdf(
+                serial = targetSerial,
+                deviceLifecycleId = deviceLifecycleId,
+                sessionUuid = scan.sessionUuid,
+                verificationReportId = scan.report.header.reportId,
+                lifecycleResult = result,
+                operatorId = operatorId,
+            ).also { state.sanitizationAuditPdfArtifact = it }
+        }.getOrNull()
+
+        val certificate = result.finalReport
+        val certificateJson = result.finalReportJson
+        val certificateMarkdown = result.finalReportMarkdown.orEmpty()
+        val storedCertificate = if (certificate != null && certificateJson != null) {
+            runCatching {
+                reportStore.writeCertificate(
+                    certificateId = certificate.header.reportId,
+                    jsonContent = certificateJson,
+                    markdownContent = certificateMarkdown,
+                )
+            }.getOrNull()
+        } else {
+            null
+        }
+
+        val debitApplied = licenseService.debitForSession(scan.sessionUuid)
+        state.sanitizedDisconnected = true
+
+        val verification = result.verificationResult
         return okResponse(
             request,
             buildJsonObject {
-                put("step", "STEP1_ACKNOWLEDGEMENT_RECORDED")
-                put("acknowledged", acknowledged)
-                put("operationId", session.operationId)
-                put("step2PhraseRequired", session.barrier.step2PhraseRequired)
+                put("workflowMode", "CONSOLIDATED_SANITIZE_AUTHORIZE")
+                put("step", "CONSOLIDATED_SANITIZE_AUTHORIZED_AND_VERIFIED")
+                put(KEY_SERIAL, targetSerial)
+                put("sessionUuid", scan.sessionUuid)
+                put("deviceLifecycleId", deviceLifecycleId)
+                put("operationId", execution.operationId)
+                put("acknowledged", true)
+                put("phraseAccepted", true)
+                put("executionStatus", execution.executionStatus)
+                put("executionSuccess", execution.isSuccess)
+                put("sanitizationAuditReportGenerated", auditPdf != null)
+                put("lifecycleOutcome", certificate?.lifecycleOutcome?.name ?: "NOT_RECORDED")
+                put("verificationStatus", verification?.status?.name ?: "NOT_RUN")
+                put("status", verification?.status?.name ?: "NOT_RUN")
+                put("postResetStateDetected", verification?.postResetStateDetected ?: false)
+                put(
+                    "userDataInaccessible",
+                    verification?.userDataInaccessible?.let { JsonPrimitive(it) } ?: JsonNull,
+                )
+                put("setupWizardDetected", verification?.setupWizardDetected ?: false)
+                put("assuranceLevel", verification?.assuranceLevel ?: "REQUIRES_EXTERNAL_VERIFICATION")
+                put("limitations", stringArray(verification?.limitations))
+                put("successClaimed", result.successClaimed)
+                put("sanitizationSuccessClaimed", result.successClaimed)
+                put("finalReportAvailable", certificate != null)
+                put("certificateId", certificate?.header?.reportId ?: "")
+                put("debitApplied", debitApplied)
+                put("scansRemaining", licenseService.getLicense().scansRemaining)
+                put("sessionDisconnected", true)
+                put("blockReasons", stringArray(result.blockReasons))
+                put("decision", "D-1 OUTCOME B: destructive trigger remains hardware-gated")
+                auditPdf?.let {
+                    put("pdfPath", it.pdfPath)
+                    put("pdfFileName", it.fileName)
+                    put("pdfSha256", it.pdfSha256)
+                }
+                storedCertificate?.let {
+                    put("certificateJsonPath", it.jsonPath)
+                    put("certificateMarkdownPath", it.markdownPath)
+                    put("manifestPath", it.manifestPath)
+                }
             },
         )
     }
@@ -1053,6 +1431,8 @@ class HostProtocolDispatcher(
                 code = "NO_SANITIZE_SESSION",
                 message = "SANITIZE_START must succeed before SANITIZE_CONFIRM",
             )
+        serialOwnershipRefusal(request, "SANITIZE_CONFIRM", start.targetSerial)
+            ?.let { return it }
         val session = start.session ?: return notEligibleError(request, state)
 
         if (state.operatorAcknowledged != true) {
@@ -1213,6 +1593,8 @@ class HostProtocolDispatcher(
                 code = "NO_EXECUTION_SESSION",
                 message = "SANITIZE_EXECUTE must succeed before SANITIZE_VERIFY",
             )
+        serialOwnershipRefusal(request, "SANITIZE_VERIFY", state.lastScan?.deviceDescriptor?.serial)
+            ?.let { return it }
         val verification = result.verificationResult
             ?: return errorResponse(
                 request = request,
@@ -1310,6 +1692,29 @@ class HostProtocolDispatcher(
 
         val sessionUuid = state.lastScan?.sessionUuid
         val debitApplied = sessionUuid != null && licenseService.debitForSession(sessionUuid)
+        val targetSerial = state.lastScan?.deviceDescriptor?.serial ?: ""
+        val deviceLifecycleId = if (targetSerial.isNotBlank()) {
+            WorkstationSessionOrchestrator.deviceLifecycleIdFor(targetSerial)
+        } else {
+            ""
+        }
+        val auditPdf = runCatching {
+            val existing = state.sanitizationAuditPdfArtifact
+            if (existing != null && existing.sessionUuid == sessionUuid) {
+                existing
+            } else if (targetSerial.isNotBlank() && sessionUuid != null) {
+                pdfReportWriter.writeSanitizationAuditPdf(
+                    serial = targetSerial,
+                    deviceLifecycleId = deviceLifecycleId,
+                    sessionUuid = sessionUuid,
+                    verificationReportId = certificate.verificationReportReference ?: "",
+                    lifecycleResult = result,
+                    operatorId = certificate.header.operatorId,
+                ).also { state.sanitizationAuditPdfArtifact = it }
+            } else {
+                null
+            }
+        }.getOrNull()
 
         return okResponse(
             request,
@@ -1325,6 +1730,11 @@ class HostProtocolDispatcher(
                 put("certificateJsonPath", written.jsonPath)
                 put("certificateMarkdownPath", written.markdownPath)
                 put("manifestPath", written.manifestPath)
+                auditPdf?.let {
+                    put("pdfPath", it.pdfPath)
+                    put("pdfFileName", it.fileName)
+                    put("pdfSha256", it.pdfSha256)
+                }
                 put("artifactsWritten", true)
                 put("debitApplied", debitApplied)
                 put("scansRemaining", licenseService.getLicense().scansRemaining)
@@ -1334,6 +1744,7 @@ class HostProtocolDispatcher(
                         put("algorithm", "SHA-256")
                         put("jsonSha256", written.jsonSha256)
                         put("markdownSha256", written.markdownSha256)
+                        auditPdf?.let { put("pdfSha256", it.pdfSha256) }
                     },
                 )
             },
@@ -1351,6 +1762,7 @@ class HostProtocolDispatcher(
      * so a test can supply a fake process runner and never construct a client capable of
      * reaching a real device.
      */
+    @Synchronized
     private fun orchestratorFor(adbBinary: java.io.File): WorkstationSessionOrchestrator {
         cachedOrchestrator?.let { return it }
         val built = orchestratorFactory(adbBinary, licenseService)

@@ -338,4 +338,172 @@ describe("App desktop scan-to-seal workflow", () => {
     expect(screen.getByLabelText("Registered User ID (email)")).toBeInTheDocument();
     expect(screen.getByLabelText("Licence Key")).toBeInTheDocument();
   }, 45_000);
+
+  it("supports simultaneous in-flight scans across devices and gates SANITIZE_CONFIRM on both H/W SCN and App SCN", async () => {
+    const sentCommands: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const scan1Deferred: { resolve?: (val: string) => void } = {};
+
+    getVersionMock.mockResolvedValue("0.1.0");
+    invokeMock.mockImplementation(
+      async (cmd: string, args?: { command?: string; payload?: string }) => {
+        if (cmd === "get_host_info") {
+          return {
+            connected: true,
+            protocolVersion: "1.0",
+            requestId: "init-1",
+            hostVersion: "0.1.0",
+          };
+        }
+        if (cmd === "get_device_state") {
+          return {
+            connectionState: "READY",
+            usbState: "CONNECTED",
+            adbState: "AUTHORIZED",
+            adbAvailable: true,
+            readyToScan: true,
+            statusMessage: "Ready",
+            operatorActionRequired: null,
+            device: { serial: "RF8R123456", state: "device", model: "Pixel_7" },
+          };
+        }
+        if (cmd === "send_host_command") {
+          const hostCmd = args?.command ?? "";
+          const parsedPayload = JSON.parse(args?.payload ?? "{}") as Record<string, unknown>;
+          sentCommands.push({ command: hostCmd, payload: parsedPayload });
+
+          if (hostCmd === "GET_PREFLIGHT") {
+            return hostEnvelope("GET_PREFLIGHT", "OK", { readyToScan: true });
+          }
+          if (hostCmd === "GET_CONNECTED_DEVICES") {
+            return hostEnvelope("GET_CONNECTED_DEVICES", "OK", {
+              adbAvailable: true,
+              devices: [
+                { serial: "RF8R123456", state: "authorized", model: "Pixel 7", make: "Google" },
+                { serial: "RF8R999888", state: "authorized", model: "Galaxy S23", make: "Samsung" },
+              ],
+            });
+          }
+          if (hostCmd === "GET_LICENSE_STATE") {
+            return hostEnvelope("GET_LICENSE_STATE", "OK", {
+              present: true,
+              status: "VALID",
+              scansRemaining: 10,
+            });
+          }
+          if (hostCmd === "RUN_SCAN") {
+            const serial = String(parsedPayload.serial ?? "");
+            if (serial === "RF8R123456") {
+              // Hold Device 1 scan in-flight so Device 2 can be launched concurrently
+              return await new Promise<string>((resolve) => {
+                scan1Deferred.resolve = resolve;
+              });
+            }
+            return hostEnvelope("RUN_SCAN", "OK", {
+              sessionUuid: "99999999-2222-4333-8444-555555555555",
+              serial,
+              enumerationCompleteness: "COMPLETE",
+              packageCount: 24,
+              hwReportGenerated: true,
+              pdfPath: "C:\\Users\\User\\Downloads\\CYVRA\\CYVRA_001_RF8R999888-99999999_HW_SCAN_20261024-210000.pdf",
+            });
+          }
+          if (hostCmd === "GET_APPLICATION_INVENTORY") {
+            const serial = String(parsedPayload.serial ?? "");
+            return hostEnvelope("GET_APPLICATION_INVENTORY", "OK", {
+              sessionUuid:
+                serial === "RF8R123456"
+                  ? "11111111-2222-4333-8444-555555555555"
+                  : "99999999-2222-4333-8444-555555555555",
+              enumerationCompleteness: "COMPLETE",
+              packageCount: 24,
+              packages: [],
+              appReportGenerated: true,
+              pdfPath: "C:\\Users\\User\\Downloads\\CYVRA\\CYVRA_002_RF8R999888-99999999_APP_SCAN_20261024-210001.pdf",
+            });
+          }
+          if (hostCmd === "SANITIZE_START") {
+            const serial = String(parsedPayload.serial ?? "");
+            return hostEnvelope("SANITIZE_START", "OK", {
+              serial,
+              step2PhraseRequired: `SANITIZE ${serial}`,
+            });
+          }
+          if (hostCmd === "SANITIZE_AUTHORIZE") {
+            const serial = String(parsedPayload.serial ?? "");
+            return hostEnvelope("SANITIZE_AUTHORIZE", "OK", {
+              serial,
+              workflowMode: "CONSOLIDATED_SANITIZE_AUTHORIZE",
+              executionStatus: "EXECUTION_SUCCEEDED",
+              verificationCompleted: true,
+              sanitizationAuditReportGenerated: true,
+              sessionDisconnected: true,
+              pdfPath: `C:\\Users\\User\\Downloads\\CYVRA\\CYVRA_003_${serial}-99999999_SANITIZATION_AUDIT_20261024-210002.pdf`,
+            });
+          }
+        }
+        return "{}";
+      },
+    );
+
+    render(<App />);
+
+    await screen.findByText(/LICENCE: ACTIVE/i, {}, { timeout: 10_000 });
+    const slot2SanConfirmBtn = await screen.findByLabelText("SANITIZE_CONFIRM for CYVRA.02", {}, { timeout: 10_000 });
+    const slot1HwBtn = screen.getByLabelText(/CYVRA\.01 H\/W SCN:/i);
+    const slot2HwBtn = screen.getByLabelText(/CYVRA\.02 H\/W SCN:/i);
+
+    await waitFor(() => expect(slot1HwBtn).not.toBeDisabled(), { timeout: 10_000 });
+    expect(slot2SanConfirmBtn).toBeDisabled();
+
+    // 1. Start H/W SCN on CYVRA.01 (remains in flight)
+    fireEvent.click(slot1HwBtn);
+    await waitFor(() => expect(scan1Deferred.resolve).toBeDefined(), { timeout: 10_000 });
+
+    // 2. While CYVRA.01 is scanning in flight, CYVRA.02 H/W SCN must NOT be disabled!
+    expect(slot2HwBtn).not.toBeDisabled();
+    fireEvent.click(slot2HwBtn);
+
+    // CYVRA.02 completes out-of-order while CYVRA.01 is still in flight
+    const slot2DownloadBtn = screen.getByLabelText("Download Report for CYVRA.02");
+    await waitFor(() => expect(slot2DownloadBtn).not.toBeDisabled(), { timeout: 10_000 });
+
+    // SANITIZE_CONFIRM for CYVRA.02 is still disabled until App SCN also completes
+    expect(slot2SanConfirmBtn).toBeDisabled();
+
+    // 3. Run App SCN on CYVRA.02
+    const slot2AppBtn = screen.getByLabelText(/CYVRA\.02 App SCN:/i);
+    fireEvent.click(slot2AppBtn);
+
+    // Once both H/W SCN and App SCN have completed for CYVRA.02, SANITIZE_CONFIRM for CYVRA.02 becomes enabled
+    await waitFor(() => expect(slot2SanConfirmBtn).not.toBeDisabled(), { timeout: 10_000 });
+
+    // 4. Click SANITIZE_CONFIRM for CYVRA.02 and verify consolidated SANITIZE_AUTHORIZE is sent for RF8R999888
+    fireEvent.click(slot2SanConfirmBtn);
+    await waitFor(
+      () =>
+        expect(
+          sentCommands.some(
+            (c) =>
+              c.command === "SANITIZE_AUTHORIZE" &&
+              c.payload.serial === "RF8R999888" &&
+              c.payload.consolidated === true &&
+              c.payload.confirmationPhrase === "SANITIZE RF8R999888",
+          ),
+        ).toBe(true),
+      { timeout: 10_000 },
+    );
+
+    // 5. Resolve CYVRA.01's in-flight scan and verify it completes cleanly
+    scan1Deferred.resolve?.(
+      hostEnvelope("RUN_SCAN", "OK", {
+        sessionUuid: "11111111-2222-4333-8444-555555555555",
+        serial: "RF8R123456",
+        enumerationCompleteness: "COMPLETE",
+        packageCount: 12,
+        hwReportGenerated: true,
+      }),
+    );
+    const slot1DownloadBtn = screen.getByLabelText("Download Report for CYVRA.01");
+    await waitFor(() => expect(slot1DownloadBtn).not.toBeDisabled(), { timeout: 10_000 });
+  }, 45_000);
 });

@@ -49,6 +49,10 @@ class AdbClient(
         return executeAdb(listOf("-s", serial, "shell", command), timeoutMs)
     }
 
+    fun installApk(serial: String, apkFile: File, timeoutMs: Long = 30_000L): ProcessExecutionResult {
+        return executeAdb(listOf("-s", serial, "install", "-r", apkFile.absolutePath), timeoutMs)
+    }
+
     private fun executeAdb(args: List<String>, timeoutMs: Long = defaultTimeoutMs): ProcessExecutionResult {
         val fullCommand = listOf(adbBinary.absolutePath) + args
         return processRunner.execute(fullCommand, timeoutMs)

@@ -13,6 +13,7 @@ import cyvra.mobile.host.evidence.AdbApplicationInventoryProvider
 import cyvra.mobile.host.license.FileBasedLicenseProvider
 import cyvra.mobile.host.license.LicenseFileReason
 import cyvra.mobile.host.license.LicenseFileResult
+import cyvra.mobile.host.report.HostPdfReportWriter
 import cyvra.mobile.host.report.HostReportEngine
 import cyvra.mobile.host.report.HostReportStore
 import cyvra.mobile.host.report.ReportWriteException
@@ -23,8 +24,15 @@ import cyvra.mobile.host.transport.AdbClient
 import cyvra.mobile.host.transport.DefaultProcessExecutionResult
 import cyvra.mobile.host.transport.ProcessExecutionResult
 import cyvra.mobile.host.transport.ProcessRunner
+import java.io.BufferedReader
 import java.io.File
+import java.io.PipedReader
+import java.io.PipedWriter
+import java.io.PrintStream
+import java.io.ByteArrayOutputStream
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -260,10 +268,11 @@ class HostProtocolWorkflowTest {
             reportEngine = reportEngine,
             homeProvider = { null },
         ),
+        pdfDownloadsDir: File = Files.createTempDirectory("cyvra-test-downloads").toFile().resolve("CYVRA"),
+        adbRunner: ProcessRunner = FakeAdbRunner(),
     ): HostProtocolDispatcher {
         // Probe capture (D-5) builds an AdbClient through [adbClientFactory]; the fake
         // runner must reach that client too, or capture would spawn a real `adb`.
-        val adbRunner = FakeAdbRunner()
         return HostProtocolDispatcher(
             licenseResultProvider = { license },
             adbLocator = if (withAdb) fakeBinaryLocator() else AdbBinaryLocator(
@@ -279,6 +288,7 @@ class HostProtocolWorkflowTest {
             },
             reportEngine = reportEngine,
             reportStore = reportStore,
+            pdfReportWriter = HostPdfReportWriter(downloadsDirectoryProvider = { pdfDownloadsDir }),
         )
     }
 
@@ -298,6 +308,7 @@ class HostProtocolWorkflowTest {
         license: LicenseFileResult = licensedResult(),
         withAdb: Boolean = true,
         val artifactHome: File? = Files.createTempDirectory("cyvra-artifact-home").toFile(),
+        val downloadsDir: File = File(artifactHome ?: Files.createTempDirectory("cyvra-dl").toFile(), "Downloads/CYVRA"),
     ) {
         private val host = dispatcher(
             license = license,
@@ -306,6 +317,7 @@ class HostProtocolWorkflowTest {
                 reportEngine = reportEngine,
                 homeProvider = { artifactHome?.absolutePath },
             ),
+            pdfDownloadsDir = downloadsDir,
         )
 
         val transcript = mutableListOf<String>()
@@ -1662,5 +1674,375 @@ class HostProtocolWorkflowTest {
             buildJsonObject { put("serial", "UNSCANNED-DEVICE-C") },
         )
         assertError(refusedC, "SERIAL_MISMATCH")
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 6 — True concurrent scanning, licence concurrency limits,
+    // consolidated SANITIZE_AUTHORIZE, D-AUD-01 guards, and PDF reports
+    // ------------------------------------------------------------------
+
+    @Test
+    fun trueConcurrentScans_overlapInTime_completeOutOfOrder_andNeverCrossContaminate() {
+        val serialA = "RF8R123456"
+        val serialB = "RF8R999888"
+        val bothEnteredBarrier = CountDownLatch(2)
+        val delegate = FakeAdbRunner()
+
+        val overlappingRunner = object : ProcessRunner {
+            override fun execute(command: List<String>, timeoutMs: Long): ProcessExecutionResult {
+                val joined = command.joinToString(" ")
+                if (joined.contains("shell getprop ro.product.model")) {
+                    bothEnteredBarrier.countDown()
+                    // Both scans must reach this point concurrently; if HostMain or dispatcher
+                    // serialized them, the first scan would time out waiting for the second.
+                    assertTrue(
+                        bothEnteredBarrier.await(5, TimeUnit.SECONDS),
+                        "Both device scans must overlap concurrently in flight",
+                    )
+                    if (joined.contains(serialA)) {
+                        // Delay Device A so Device B finishes first (out-of-order completion).
+                        Thread.sleep(120)
+                    }
+                }
+                return delegate.execute(command, timeoutMs)
+            }
+        }
+
+        val targetDispatcher = dispatcher(adbRunner = overlappingRunner)
+        val reqA = json.encodeToString(
+            HostRequest.serializer(),
+            HostRequest(
+                protocolVersion = HostProtocolV1.VERSION,
+                requestId = "req-concurrent-A",
+                command = HostCommand.RUN_SCAN,
+                payload = buildJsonObject {
+                    put("serial", serialA)
+                    put("operatorId", OPERATOR)
+                },
+            ),
+        )
+        val reqB = json.encodeToString(
+            HostRequest.serializer(),
+            HostRequest(
+                protocolVersion = HostProtocolV1.VERSION,
+                requestId = "req-concurrent-B",
+                command = HostCommand.RUN_SCAN,
+                payload = buildJsonObject {
+                    put("serial", serialB)
+                    put("operatorId", OPERATOR)
+                },
+            ),
+        )
+
+        val inputLines = "$reqA\n$reqB\n"
+        val outBytes = ByteArrayOutputStream()
+        HostMain.runSession(
+            reader = BufferedReader(inputLines.reader()),
+            output = outBytes.writer(Charsets.UTF_8).buffered(),
+            targetDispatcher = targetDispatcher,
+        )
+
+        val responses = outBytes.toString(Charsets.UTF_8)
+            .lineSequence()
+            .filter { it.isNotBlank() }
+            .map { json.decodeFromString(HostResponse.serializer(), it) }
+            .toList()
+
+        assertEquals(2, responses.size, "Both concurrent scan responses must be emitted")
+        // Because Device A was delayed after the barrier, Device B completes first!
+        assertEquals("req-concurrent-B", responses[0].requestId, "Out-of-order completion: Device B must finish before Device A")
+        assertEquals("req-concurrent-A", responses[1].requestId, "Device A must finish second")
+
+        val byRequest = responses.associateBy { it.requestId }
+        val respA = assertNotNull(byRequest["req-concurrent-A"])
+        val respB = assertNotNull(byRequest["req-concurrent-B"])
+        assertEquals(HostResponseStatus.OK, respA.status, respA.error?.message ?: "")
+        assertEquals(HostResponseStatus.OK, respB.status, respB.error?.message ?: "")
+        assertEquals(serialA, str(respA, "serial"))
+        assertEquals(serialB, str(respB, "serial"))
+        assertNotEquals(str(respA, "sessionUuid"), str(respB, "sessionUuid"))
+        assertNotEquals(str(respA, "deviceLifecycleId"), str(respB, "deviceLifecycleId"))
+        assertNotEquals(str(respA, "reportId"), str(respB, "reportId"))
+    }
+
+    @Test
+    fun licenseConcurrencyLimit_enforcesMaxConcurrentScans_andRefusesDuplicateSameDeviceScan() {
+        val serialA = "RF8R-CONC-01"
+        val serialB = "RF8R-CONC-02"
+        val serialC = "RF8R-CONC-03"
+        val twoActiveLatch = CountDownLatch(2)
+        val releaseScansLatch = CountDownLatch(1)
+        val delegate = FakeAdbRunner()
+
+        val gatedRunner = object : ProcessRunner {
+            override fun execute(command: List<String>, timeoutMs: Long): ProcessExecutionResult {
+                val joined = command.joinToString(" ")
+                if (joined.contains("shell getprop ro.product.model") &&
+                    (joined.contains(serialA) || joined.contains(serialB))
+                ) {
+                    twoActiveLatch.countDown()
+                    releaseScansLatch.await(5, TimeUnit.SECONDS)
+                }
+                return delegate.execute(command, timeoutMs)
+            }
+        }
+
+        val twoScanLicense = LicenseFileResult(
+            record = licensedRecord().copy(
+                deviceScanEntitlement = 2,
+                scansUsed = 0,
+                scansRemaining = 2,
+            ),
+            reason = LicenseFileReason.LOADED,
+            sourcePath = "/installation/resources/license.json",
+        )
+        val targetDispatcher = dispatcher(
+            license = twoScanLicense,
+            adbRunner = gatedRunner,
+        )
+
+        val futureA = java.util.concurrent.CompletableFuture.supplyAsync {
+            targetDispatcher.dispatch(
+                HostRequest(
+                    protocolVersion = HostProtocolV1.VERSION,
+                    requestId = "req-slot-1",
+                    command = HostCommand.RUN_SCAN,
+                    payload = buildJsonObject {
+                        put("serial", serialA)
+                        put("operatorId", OPERATOR)
+                    },
+                ),
+            )
+        }
+        val futureB = java.util.concurrent.CompletableFuture.supplyAsync {
+            targetDispatcher.dispatch(
+                HostRequest(
+                    protocolVersion = HostProtocolV1.VERSION,
+                    requestId = "req-slot-2",
+                    command = HostCommand.RUN_SCAN,
+                    payload = buildJsonObject {
+                        put("serial", serialB)
+                        put("operatorId", OPERATOR)
+                    },
+                ),
+            )
+        }
+
+        assertTrue(twoActiveLatch.await(5, TimeUnit.SECONDS), "Two scans must be simultaneously active")
+
+        // 1. Duplicate scan on serialA while in flight -> SCAN_IN_PROGRESS
+        val dupA = targetDispatcher.dispatch(
+            HostRequest(
+                protocolVersion = HostProtocolV1.VERSION,
+                requestId = "req-dup-A",
+                command = HostCommand.RUN_SCAN,
+                payload = buildJsonObject {
+                    put("serial", serialA)
+                    put("operatorId", OPERATOR)
+                },
+            ),
+        )
+        assertError(dupA, "SCAN_IN_PROGRESS")
+
+        // 2. 3rd concurrent scan on serialC when licence has 2 scans allowed -> LICENSE_CONCURRENCY_LIMIT_REACHED
+        val overLimitC = targetDispatcher.dispatch(
+            HostRequest(
+                protocolVersion = HostProtocolV1.VERSION,
+                requestId = "req-over-limit-C",
+                command = HostCommand.RUN_SCAN,
+                payload = buildJsonObject {
+                    put("serial", serialC)
+                    put("operatorId", OPERATOR)
+                },
+            ),
+        )
+        assertError(overLimitC, "LICENSE_CONCURRENCY_LIMIT_REACHED")
+
+        releaseScansLatch.countDown()
+        assertEquals(HostResponseStatus.OK, futureA.get(5, TimeUnit.SECONDS).status)
+        assertEquals(HostResponseStatus.OK, futureB.get(5, TimeUnit.SECONDS).status)
+    }
+
+    @Test
+    fun consolidatedSanitizeAuthorize_requiresBothReports_andWritesAuditPdfAndDisconnectsSession() {
+        val session = Session()
+        val scan = session.scan()
+        assertEquals(HostResponseStatus.OK, scan.status, scan.error?.message ?: "")
+        assertEquals(true, bool(scan, "hwReportGenerated"), "RUN_SCAN must generate the HW_SCAN PDF report")
+
+        val start = session.send(
+            HostCommand.SANITIZE_START,
+            buildJsonObject { put("serial", SERIAL) },
+        )
+        assertEquals(HostResponseStatus.OK, start.status, start.error?.message ?: "")
+        val phrase = assertNotNull(str(start, "step2PhraseRequired"))
+
+        // Before GET_APPLICATION_INVENTORY is run, consolidated SANITIZE_AUTHORIZE must refuse
+        // with PRE_SANITIZATION_REPORTS_REQUIRED because the APP_SCAN report has not been generated yet.
+        val missingAppReport = session.send(
+            HostCommand.SANITIZE_AUTHORIZE,
+            buildJsonObject {
+                put("serial", SERIAL)
+                put("acknowledged", true)
+                put("confirmationPhrase", phrase)
+                put("consolidated", true)
+            },
+        )
+        assertError(missingAppReport, "PRE_SANITIZATION_REPORTS_REQUIRED")
+
+        // Generate the APP_SCAN report via GET_APPLICATION_INVENTORY.
+        val inv = session.send(
+            HostCommand.GET_APPLICATION_INVENTORY,
+            buildJsonObject { put("serial", SERIAL) },
+        )
+        assertEquals(HostResponseStatus.OK, inv.status, inv.error?.message ?: "")
+        assertEquals(true, bool(inv, "appReportGenerated"), "GET_APPLICATION_INVENTORY must generate the APP_SCAN PDF report")
+
+        // Now consolidated SANITIZE_AUTHORIZE succeeds in a single entry-point call, executing
+        // wipe + post-wipe verification + SANITIZATION_AUDIT PDF generation + session disconnect.
+        val authorized = session.send(
+            HostCommand.SANITIZE_AUTHORIZE,
+            buildJsonObject {
+                put("serial", SERIAL)
+                put("acknowledged", true)
+                put("confirmationPhrase", phrase)
+                put("consolidated", true)
+            },
+        )
+        assertEquals(HostResponseStatus.OK, authorized.status, authorized.error?.message ?: "")
+        assertEquals("CONSOLIDATED_SANITIZE_AUTHORIZE", str(authorized, "workflowMode"))
+        assertEquals("BLOCKED_NOT_ELIGIBLE", str(authorized, "executionStatus"))
+        assertEquals(true, bool(authorized, "sanitizationAuditReportGenerated"))
+        assertEquals(true, bool(authorized, "sessionDisconnected"))
+
+        val auditPdfPath = assertNotNull(str(authorized, "pdfPath"))
+        val auditPdfFile = File(auditPdfPath)
+        assertTrue(auditPdfFile.isFile && auditPdfFile.length() > 0, "Audit PDF must exist on disk")
+
+        // Subsequent sanitization attempt on the disconnected session is refused until re-scanned.
+        val afterDisconnect = session.send(
+            HostCommand.SANITIZE_AUTHORIZE,
+            buildJsonObject {
+                put("serial", SERIAL)
+                put("acknowledged", true)
+                put("confirmationPhrase", phrase)
+                put("consolidated", true)
+            },
+        )
+        assertError(afterDisconnect, "DEVICE_SESSION_DISCONNECTED")
+    }
+
+    @Test
+    fun pdfReports_areWrittenToDownloadsCyvraWithValidPdfStructureAndCollisionSafeNames() {
+        val session = Session()
+        val scan = session.scan()
+        assertEquals(HostResponseStatus.OK, scan.status)
+
+        val hwReport = session.send(
+            HostCommand.GET_DEVICE_REPORT,
+            buildJsonObject {
+                put("serial", SERIAL)
+                put("forceNewPdf", true)
+            },
+        )
+        assertEquals(HostResponseStatus.OK, hwReport.status)
+
+        val appReport = session.send(
+            HostCommand.GET_APPLICATION_INVENTORY,
+            buildJsonObject {
+                put("serial", SERIAL)
+                put("forceNewPdf", true)
+            },
+        )
+        assertEquals(HostResponseStatus.OK, appReport.status)
+
+        val start = session.send(HostCommand.SANITIZE_START, buildJsonObject { put("serial", SERIAL) })
+        val phrase = assertNotNull(str(start, "step2PhraseRequired"))
+        val sanitize = session.send(
+            HostCommand.SANITIZE_AUTHORIZE,
+            buildJsonObject {
+                put("serial", SERIAL)
+                put("acknowledged", true)
+                put("confirmationPhrase", phrase)
+                put("consolidated", true)
+            },
+        )
+        assertEquals(HostResponseStatus.OK, sanitize.status, sanitize.error?.message ?: "")
+
+        val paths = listOf(
+            assertNotNull(str(scan, "pdfPath")),
+            assertNotNull(str(hwReport, "pdfPath")),
+            assertNotNull(str(appReport, "pdfPath")),
+            assertNotNull(str(sanitize, "pdfPath")),
+        )
+        assertEquals(4, paths.toSet().size, "Every generated PDF must have a distinct collision-safe path")
+
+        paths.forEach { path ->
+            val file = File(path)
+            assertTrue(file.exists() && file.isFile, "PDF file must exist: $path")
+            assertEquals(session.downloadsDir.canonicalFile, file.parentFile.canonicalFile)
+            assertTrue(
+                Regex("""^CYVRA_\d{3}_[A-Za-z0-9._-]+-[A-Za-z0-9._-]+_(HW_SCAN|APP_SCAN|SANITIZATION_AUDIT)_\d{8}-\d{6}\.pdf$""")
+                    .matches(file.name),
+                "Filename must match deterministic CYVRA naming convention: ${file.name}",
+            )
+            val text = file.readText(Charsets.ISO_8859_1)
+            assertTrue(text.startsWith("%PDF-1.4"), "File must start with %PDF-1.4 header: ${file.name}")
+            assertTrue(text.contains("xref"), "File must contain PDF xref table: ${file.name}")
+            assertTrue(text.trimEnd().endsWith("%%EOF"), "File must end with %%EOF trailer: ${file.name}")
+        }
+    }
+
+    @Test
+    fun serialOwnership_guardsAllSanitizeSubSteps_D_AUD_01() {
+        val session = Session()
+        session.scan()
+        val start = session.send(HostCommand.SANITIZE_START, buildJsonObject { put("serial", SERIAL) })
+        assertEquals(HostResponseStatus.OK, start.status)
+        val phrase = assertNotNull(str(start, "step2PhraseRequired"))
+
+        val wrongAuth = session.send(
+            HostCommand.SANITIZE_AUTHORIZE,
+            buildJsonObject {
+                put("serial", "WRONG-SERIAL-999")
+                put("acknowledged", true)
+            },
+        )
+        assertError(wrongAuth, "SERIAL_MISMATCH")
+        assertTrue(wrongAuth.payload.isEmpty())
+
+        val wrongConfirm = session.send(
+            HostCommand.SANITIZE_CONFIRM,
+            buildJsonObject {
+                put("serial", "WRONG-SERIAL-999")
+                put("confirmationPhrase", phrase)
+            },
+        )
+        assertError(wrongConfirm, "SERIAL_MISMATCH")
+        assertTrue(wrongConfirm.payload.isEmpty())
+
+        // Execute sanitization to stage lifecycle result for SANITIZE_VERIFY
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.SANITIZE_AUTHORIZE, buildJsonObject {
+                put("acknowledged", true)
+            }).status,
+        )
+        assertEquals(
+            HostResponseStatus.OK,
+            session.send(HostCommand.SANITIZE_CONFIRM, buildJsonObject {
+                put("confirmationPhrase", phrase)
+            }).status,
+        )
+        assertEquals(HostResponseStatus.OK, session.send(HostCommand.SANITIZE_EXECUTE).status)
+
+        val wrongVerify = session.send(
+            HostCommand.SANITIZE_VERIFY,
+            buildJsonObject {
+                put("serial", "WRONG-SERIAL-999")
+            },
+        )
+        assertError(wrongVerify, "SERIAL_MISMATCH")
+        assertTrue(wrongVerify.payload.isEmpty())
     }
 }

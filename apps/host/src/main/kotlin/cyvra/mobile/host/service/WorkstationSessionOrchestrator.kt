@@ -207,7 +207,9 @@ class WorkstationSessionOrchestrator(
                 null
             } else {
                 val deviceLifecycleId = deviceLifecycleIdFor(serial)
-                HostAndroidComponentBridge(adbClient, serial)
+                val bridge = HostAndroidComponentBridge(adbClient, serial)
+                bridge.ensureInstalledOrDeploy()
+                bridge
                     .triggerEvidenceCollection(sessionUuid, deviceLifecycleId)
                     .payload
                     ?.applicationInventory
