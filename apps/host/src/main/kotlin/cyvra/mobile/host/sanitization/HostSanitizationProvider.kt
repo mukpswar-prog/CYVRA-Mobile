@@ -107,7 +107,10 @@ class HostSanitizationProvider(
             )
         }
 
-        val outcome = wipe.trigger()
+        val outcome = wipe.trigger(
+            sessionUuid = preRecord.sessionUuid,
+            operationId = preRecord.operationId,
+        )
         when (outcome.outcome) {
             WipeTriggerOutcome.NOT_ISSUED -> {
                 return SanitizationExecutionResult(

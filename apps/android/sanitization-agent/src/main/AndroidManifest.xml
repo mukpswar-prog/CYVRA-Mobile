@@ -44,8 +44,7 @@
     -->
     <application
         android:allowBackup="false"
-        android:testOnly="true"
-        android:label="CYVRA Sanitization [POC]"
+        android:label="CYVRA Sanitization"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light">
 
@@ -96,7 +95,9 @@
             android:name=".SanitizationBroadcastReceiver"
             android:exported="true">
             <intent-filter>
+                <action android:name="com.cyvra.sanitization.ARM" />
                 <action android:name="com.cyvra.sanitization.WIPE" />
+                <action android:name="com.cyvra.sanitization.DISARM" />
             </intent-filter>
         </receiver>
     </application>

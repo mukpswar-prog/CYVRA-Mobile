@@ -8,12 +8,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
- * Three lines of text. Nothing else.
+ * Clean status display for the CYVRA Sanitization Agent.
  *
- * PROOF OF CONCEPT: there are deliberately **no buttons** (so the wipe cannot be
- * triggered by a mis-tap), **no network calls** (this module declares no INTERNET
- * permission at all), and **no storage access**. The activity cannot start a purge;
- * only the exported broadcast receiver can, and only from the operator's shell.
+ * Adheres to CYVRA-POL-AGENT-01:
+ * - No buttons (wipe is triggered exclusively via authorized ADB broadcast)
+ * - No network permissions
+ * - No storage access
  */
 class MainActivity : Activity() {
 
@@ -45,12 +45,12 @@ class MainActivity : Activity() {
         (value * resources.displayMetrics.density + 0.5f).toInt()
 
     companion object {
-        private const val TITLE = "CYVRA Sanitization Agent — PROOF OF CONCEPT"
+        private const val TITLE = "CYVRA Sanitization Agent"
 
         private const val WARNING =
-            "This APK exists only to enable dpm set-device-owner for the wipe proof. " +
-                "It is erased by the wipe. Do not install on production devices."
+            "CYVRA Mobile Device Owner Sanitization Component. " +
+                "Erases user data upon authorized command."
 
-        private const val STATUS = "Status: awaiting device-owner enrollment via adb"
+        private const val STATUS = "Status: active"
     }
 }

@@ -54,18 +54,18 @@ class HostDestructiveWipeProviderTest {
 
     @Test
     fun `the trigger issues exactly the command the 12-Oct proof used`() {
-        var issued = ""
+        val issuedCommands = mutableListOf<String>()
         val runner = ProcessRunner { command, _ ->
             val cmd = command.joinToString(" ")
-            issued = cmd
+            issuedCommands.add(cmd)
             DefaultProcessExecutionResult(0, "Broadcast completed: result=-1", "")
         }
         val outcome = HostDestructiveWipeProvider(AdbClient(File("/mock/adb"), runner), "s")
-            .trigger()
+            .trigger(sessionUuid = "sess-1", operationId = "op-1")
 
         assertEquals(WipeTriggerOutcome.DELIVERED, outcome.outcome)
-        assertTrue(issued.contains("am broadcast -n com.cyvra.sanitization/"), issued)
-        assertTrue(issued.contains("-a com.cyvra.sanitization.WIPE"), issued)
+        assertTrue(issuedCommands.any { it.contains("am broadcast -n com.cyvra.sanitization/") && it.contains("-a com.cyvra.sanitization.ARM") })
+        assertTrue(issuedCommands.any { it.contains("am broadcast -n com.cyvra.sanitization/") && it.contains("-a com.cyvra.sanitization.WIPE") })
     }
 
     @Test
@@ -78,7 +78,9 @@ class HostDestructiveWipeProviderTest {
             when {
                 cmd.contains("pm list packages") ->
                     DefaultProcessExecutionResult(0, agentPresent, "")
-                cmd.contains("am broadcast") ->
+                cmd.contains("-a com.cyvra.sanitization.ARM") ->
+                    DefaultProcessExecutionResult(0, "Broadcast completed: result=0", "")
+                cmd.contains("-a com.cyvra.sanitization.WIPE") ->
                     DefaultProcessExecutionResult(224, "", "")
                 else -> DefaultProcessExecutionResult(0, "", "")
             }

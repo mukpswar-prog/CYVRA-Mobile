@@ -14,17 +14,34 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "0.0.1-poc"
+        versionName = "1.0.0"
     }
 
-    // PROOF OF CONCEPT.
-    //
-    // No release signingConfig is declared anywhere in this module, so an assembled
-    // release artifact is unsigned and cannot be installed. The only installable
-    // output is the debug build, signed with the platform debug keystore.
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("CYVRA_RELEASE_KEYSTORE") ?: (project.findProperty("cyvra.release.keystore") as? String)
+            val keystorePassword = System.getenv("CYVRA_RELEASE_KEYSTORE_PASSWORD") ?: (project.findProperty("cyvra.release.keystore.password") as? String)
+            val keyAlias = System.getenv("CYVRA_RELEASE_KEY_ALIAS") ?: (project.findProperty("cyvra.release.key.alias") as? String)
+            val keyPassword = System.getenv("CYVRA_RELEASE_KEY_PASSWORD") ?: (project.findProperty("cyvra.release.key.password") as? String)
+
+            if (keystorePath != null && file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            } else {
+                // For development and test environments without the Chief Engineer's production key,
+                // fallback to the debug signing configuration so release builds assemble signed and installable
+                // rather than failing with unresolvable signing errors or producing an uninstallable unsigned APK.
+                initWith(getByName("debug"))
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

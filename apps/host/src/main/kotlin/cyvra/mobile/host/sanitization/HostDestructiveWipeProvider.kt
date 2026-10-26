@@ -129,12 +129,14 @@ class HostDestructiveWipeProvider(
     }
 
     /**
-     * Issues the wipe trigger. Call only after [preflight] has returned ELIGIBLE.
+     * Issues the two-step ARM -> WIPE trigger. Call only after [preflight] has returned ELIGIBLE.
+     * Generates a 256-bit cryptographically secure token and binds the request strictly to
+     * [serial], [sessionUuid], and [operationId].
      *
      * `delivered` means the broadcast reached the device. It does not mean the device
      * is wiping, and it certainly does not mean data is gone. See the class note.
      */
-    fun trigger(): WipeOutcome {
+    fun trigger(sessionUuid: String? = null, operationId: String? = null): WipeOutcome {
         // Established BEFORE the trigger, because afterwards the device may be gone and
         // "absent to begin with" would then be indistinguishable from "absent because
         // it is wiping".
@@ -147,7 +149,32 @@ class HostDestructiveWipeProvider(
             )
         }
 
-        val result = adbClient.runShell(serial, WIPE_COMMAND)
+        // Cryptographically secure, high-entropy 256-bit single-use token
+        val secureRandom = java.security.SecureRandom()
+        val tokenBytes = ByteArray(32)
+        secureRandom.nextBytes(tokenBytes)
+        val wipeToken = tokenBytes.joinToString("") { "%02x".format(it) }
+
+        val commonExtras = buildList {
+            add("--es wipeToken $wipeToken")
+            if (!sessionUuid.isNullOrBlank()) add("--es sessionUuid $sessionUuid")
+            add("--es targetSerial $serial")
+            if (!operationId.isNullOrBlank()) add("--es operationId $operationId")
+        }.joinToString(" ")
+
+        // Phase 1: ARM broadcast
+        val armCommand = "am broadcast -n $AGENT_PACKAGE/.SanitizationBroadcastReceiver -p $AGENT_PACKAGE -a $AGENT_PACKAGE.ARM $commonExtras"
+        val armResult = adbClient.runShell(serial, armCommand)
+        if (!armResult.isSuccess || (!armResult.stdout.contains("result=0") && !armResult.stdout.contains("result=-1"))) {
+            return WipeOutcome(
+                WipeTriggerOutcome.NOT_ISSUED,
+                "The arm command was rejected or failed on the device: ${armResult.stderr.ifBlank { armResult.stdout }}",
+            )
+        }
+
+        // Phase 2: WIPE broadcast with matching token and binding
+        val wipeCommand = "am broadcast -n $AGENT_PACKAGE/.SanitizationBroadcastReceiver -p $AGENT_PACKAGE -a $AGENT_PACKAGE.WIPE $commonExtras"
+        val result = adbClient.runShell(serial, wipeCommand)
         if (result.isSuccess) {
             return WipeOutcome(WipeTriggerOutcome.DELIVERED, null)
         }
@@ -164,6 +191,13 @@ class HostDestructiveWipeProvider(
                 "That is consistent with the wipe starting. It is settled only by the " +
                 "post-reboot reading, never by a second guess here.",
         )
+    }
+
+    /** Explicitly cancels any armed state on the device. */
+    fun disarm(): Boolean {
+        val disarmCommand = "am broadcast -n $AGENT_PACKAGE/.SanitizationBroadcastReceiver -p $AGENT_PACKAGE -a $AGENT_PACKAGE.DISARM --es targetSerial $serial"
+        val result = adbClient.runShell(serial, disarmCommand)
+        return result.isSuccess
     }
 
     /** `null` when the listing did not answer. */
