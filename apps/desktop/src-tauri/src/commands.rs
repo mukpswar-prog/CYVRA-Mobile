@@ -724,3 +724,65 @@ pub async fn force_clean_attestation(
         &completed_at,
     )
 }
+
+/// Opens the reports directory (%USERPROFILE%\Downloads\CYVRA\ or configured folder)
+/// in native Windows Explorer.
+///
+/// Creates the directory if it does not already exist, and returns the resolved path.
+#[tauri::command]
+pub async fn open_reports_folder(folder_path: Option<String>) -> Result<String, String> {
+    let target_dir = if let Some(p) = folder_path.filter(|s| !s.trim().is_empty()) {
+        std::path::PathBuf::from(p)
+    } else {
+        match std::env::var("CYVRA_DOWNLOADS_DIR") {
+            Ok(v) if !v.trim().is_empty() => std::path::PathBuf::from(v),
+            _ => {
+                let user_profile = std::env::var("USERPROFILE")
+                    .or_else(|_| std::env::var("HOME"))
+                    .map_err(|e| format!("Could not resolve user profile directory: {}", e))?;
+                std::path::PathBuf::from(user_profile).join("Downloads").join("CYVRA")
+            }
+        }
+    };
+
+    if !target_dir.exists() {
+        std::fs::create_dir_all(&target_dir)
+            .map_err(|e| format!("Could not create reports directory '{}': {}", target_dir.display(), e))?;
+    }
+
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer.exe")
+            .arg(&target_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to launch Windows Explorer: {}", e))?;
+    }
+    #[cfg(not(windows))]
+    {
+        #[cfg(target_os = "macos")]
+        let cmd = "open";
+        #[cfg(not(target_os = "macos"))]
+        let cmd = "xdg-open";
+        std::process::Command::new(cmd)
+            .arg(&target_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open directory: {}", e))?;
+    }
+
+    Ok(target_dir.to_string_lossy().to_string())
+}
+
+/// Returns the resolved reports output path without launching Windows Explorer.
+#[tauri::command]
+pub async fn get_reports_folder_path() -> Result<String, String> {
+    let target_dir = match std::env::var("CYVRA_DOWNLOADS_DIR") {
+        Ok(v) if !v.trim().is_empty() => std::path::PathBuf::from(v),
+        _ => {
+            let user_profile = std::env::var("USERPROFILE")
+                .or_else(|_| std::env::var("HOME"))
+                .map_err(|e| format!("Could not resolve user profile directory: {}", e))?;
+            std::path::PathBuf::from(user_profile).join("Downloads").join("CYVRA")
+        }
+    };
+    Ok(target_dir.to_string_lossy().to_string())
+}

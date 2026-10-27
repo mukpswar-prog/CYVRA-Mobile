@@ -663,7 +663,7 @@ function inventoryOutcomeText(envelope: HostEnvelope | null): string {
   const noun = total === 1 ? "application" : "applications";
 
   return completeness === "COMPLETE"
-    ? `Application list read for this phone: ${total} ${noun}.`
+    ? `Application list read for this phone: ${total} ${noun} (default user scope; private app data uninspected).`
     : `Application list read for this phone: ${total} ${noun} (enumeration is ${completeness}).`;
 }
 
@@ -909,9 +909,21 @@ function App() {
    */
   useEffect(() => {
     const trimmed = serial.trim();
+    const activeDevice = connectedDevices.find((device) => device.serial === trimmed);
+    if (trimmed && (!activeDevice || activeDevice.state === "disconnected")) {
+      setLastScanSerial(null);
+      setScan(null);
+      setInventory(null);
+      setSanitize(EMPTY_SANITIZE);
+      setChecklistRecorded(null);
+      setExported(null);
+      setFinalised(null);
+      return;
+    }
     if (
       trimmed &&
-      connectedDevices.some((device) => device.serial === trimmed) &&
+      activeDevice &&
+      activeDevice.state !== "disconnected" &&
       deviceEnvelopesRef.current[trimmed]?.scan?.status === "OK"
     ) {
       setLastScanSerial(trimmed);
@@ -958,6 +970,8 @@ function App() {
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [activationBusy, setActivationBusy] = useState(false);
   const [activationMessage, setActivationMessage] = useState<string | null>(null);
+  const [reportsDirectory, setReportsDirectory] = useState<string>("");
+  const [openFolderError, setOpenFolderError] = useState<string | null>(null);
 
   /**
    * Which stage of the wizard is on screen. Navigation only: it gates nothing.
@@ -1145,6 +1159,30 @@ function App() {
    * fails closed: a row's Scan stays locked until the Host has actually said
    * the licence is present.
    */
+
+  useEffect(() => {
+    invoke<string>("get_reports_folder_path")
+      .then((path) => {
+        if (path) setReportsDirectory(path);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleOpenReportsFolder = useCallback(async () => {
+    try {
+      setOpenFolderError(null);
+      const resolved = await invoke<string>("open_reports_folder", {
+        folderPath: reportsDirectory ? reportsDirectory : null,
+      });
+      if (resolved) {
+        setReportsDirectory(resolved);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setOpenFolderError(message);
+    }
+  }, [reportsDirectory]);
+
   const loadLicense = useCallback(async () => {
     try {
       const raw = await invoke<string>("send_host_command", {
@@ -1154,11 +1192,13 @@ function App() {
 
       const envelope = JSON.parse(raw) as HostEnvelope;
       const payload = payloadOf(envelope);
-      setLicensePresent(
-        envelope.status === "OK" && readBoolean(payload, "present") === true,
-      );
+      const isPresent = envelope.status === "OK" && readBoolean(payload, "present") === true;
+      setLicensePresent(isPresent);
       setLicenseStatus(readString(payload, "status"));
       setLicenseScansRemaining(readCount(payload, "scansRemaining"));
+      if (envelope.status === "OK" && !isPresent) {
+        setShowActivationModal(true);
+      }
     } catch {
       setLicensePresent(null);
       setLicenseStatus(null);
@@ -1902,6 +1942,9 @@ function App() {
   const reportJsonPath = readString(exportPayload, "reportJsonPath");
   const reportMarkdownPath = readString(exportPayload, "reportMarkdownPath");
   const manifestPath = readString(exportPayload, "manifestPath");
+  const pdfPath = readString(exportPayload, "pdfPath");
+  const hwPdfPath = readString(exportPayload, "hwPdfPath");
+  const appPdfPath = readString(exportPayload, "appPdfPath");
 
   const finalPayload = payloadOf(finalised);
   const sealDigest = readString(finalPayload, "sealDigest");
@@ -2583,8 +2626,8 @@ function App() {
                     <button
                       type="button"
                       className={`btn-report is-${stageToneSlug[slot.downloadTone]}${
-                        slot.scanCompleted ? " is-ready" : ""
-                      }`}
+                        slot.scanCompleted && !slot.rowState.exportedOk ? " state-orange is-ready" : ""
+                      }${slot.rowState.exportedOk ? " state-green is-completed" : ""}`}
                       disabled={!slot.scanCompleted || Boolean(slot.serial && busyBySerial[slot.serial])}
                       title={
                         !slot.scanCompleted
@@ -3863,21 +3906,52 @@ function App() {
             {/* ---- Step 6 ------------------------------------------------ */}
             {activeStep === "export" && (
               <>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!scanOk || busy !== null}
-                  title={lockDownload ?? undefined}
-                  aria-label={busy === "EXPORT_REPORT" ? "Writing..." : activeMeta.primary}
-                  onClick={() => void runExport()}
-                >
-                  {busy === "EXPORT_REPORT" ? "Writing..." : activeMeta.primary}
-                </button>
+                <div className="report-actions-row">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={!scanOk || busy !== null}
+                    title={lockDownload ?? undefined}
+                    aria-label={busy === "EXPORT_REPORT" ? "Writing..." : activeMeta.primary}
+                    onClick={() => void runExport()}
+                  >
+                    {busy === "EXPORT_REPORT" ? "Writing..." : activeMeta.primary}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-open-folder"
+                    title="Open the reports directory on this computer where PDF reports and data files are saved"
+                    aria-label="Open Reports Folder"
+                    onClick={() => void handleOpenReportsFolder()}
+                  >
+                    Open Reports Folder
+                  </button>
+                </div>
+
+                <div className="reports-folder-path-box">
+                  <span className="card-label">Reports Output Directory</span>
+                  <code className="path">{reportsDirectory || "%USERPROFILE%\\Downloads\\CYVRA"}</code>
+                </div>
+
+                {openFolderError && (
+                  <p className="field-error" role="alert">
+                    Could not open reports directory: {openFolderError}
+                  </p>
+                )}
 
                 <Outcome envelope={exported} />
 
                 {exported && (
                   <div className="kv-grid">
+                    {(pdfPath || hwPdfPath || appPdfPath) && (
+                      <div className="kv">
+                        <span className="card-label">pdfReportPath</span>
+                        <strong className="path">
+                          <Value value={pdfPath ?? hwPdfPath ?? appPdfPath} fallback="Not returned" />
+                        </strong>
+                      </div>
+                    )}
                     <div className="kv">
                       <span className="card-label">reportJsonPath</span>
                       <strong className="path">

@@ -2248,3 +2248,82 @@ td.col-stage.hue-green .stage-seg {
   color: #0f172a;
 }
 
+/* --- Report actions, folder path banner, and button state tokens --- */
+.report-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.btn-open-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface, #f8fafc);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  color: var(--ink-base, #1e293b);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-open-folder:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.reports-folder-path-box {
+  margin: 10px 0 16px 0;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reports-folder-path-box .card-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.reports-folder-path-box code.path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: #0f172a;
+  word-break: break-all;
+  background: #ffffff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+.btn-report.state-orange,
+.btn-report.is-ready {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.btn-report.state-green,
+.btn-report.is-completed {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}
+
+.stage-btn.state-green,
+.stage-btn.is-completed {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}

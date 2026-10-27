@@ -55,7 +55,9 @@ pub fn run() {
             commands::force_clean_assess,
             commands::force_clean_redact,
             commands::force_clean_redact_view,
-            commands::force_clean_attestation
+            commands::force_clean_attestation,
+            commands::open_reports_folder,
+            commands::get_reports_folder_path
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
