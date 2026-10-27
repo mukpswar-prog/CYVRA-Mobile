@@ -28,6 +28,8 @@ param(
     [string]$JdkHome = $env:JAVA_HOME,
     [string]$DriversRoot,
     [string]$AgentApk,
+    [ValidateSet('unsigned', 'test', 'production')]
+    [string]$SigningMode = 'unsigned',
     [switch]$SkipHost,
     [switch]$SkipRuntime,
     [switch]$SkipPlatformTools,
@@ -446,80 +448,121 @@ if (-not $SkipAgent) {
             throw "GRADLEW_MISSING: $gradlew"
         }
 
-        Write-Host '[stage] agent: building :sanitization-agent:assembleRelease ...'
+        Write-Host "[stage] agent: building :sanitization-agent:assembleRelease (mode: $SigningMode) ..."
         Push-Location $androidDir
         try {
-            Invoke-Native $gradlew @(':sanitization-agent:assembleRelease', '--console=plain') `
-                'AGENT_BUILD_FAILED'
+            Invoke-Native $gradlew @(
+                ':sanitization-agent:assembleRelease',
+                "-Pcyvra.signing.mode=$SigningMode",
+                '--console=plain'
+            ) 'AGENT_BUILD_FAILED'
         }
         finally {
             Pop-Location
         }
 
         $apk = Get-ChildItem -Path $agentOutputs -Filter '*.apk' -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
     }
 
-    if (-not $apk) {
-        throw "AGENT_APK_MISSING: no APK produced under $agentOutputs"
+    if (-not $apk -or -not (Test-Path $apk.FullName) -or $apk.Length -le 0) {
+        throw "AGENT_APK_MISSING: no valid APK produced under $agentOutputs"
     }
 
-    # ---------------------------------------------- verify it is unsigned --
+    # Verify package / application ID if output-metadata.json exists
+    $metaJsonPath = Join-Path $agentOutputs 'output-metadata.json'
+    if (Test-Path $metaJsonPath) {
+        try {
+            $meta = Get-Content $metaJsonPath -Raw | ConvertFrom-Json
+            if ($meta.applicationId -and $meta.applicationId -ne 'com.cyvra.sanitization') {
+                throw "AGENT_APK_PACKAGE_MISMATCH: expected application ID 'com.cyvra.sanitization', found '$($meta.applicationId)'"
+            }
+        }
+        catch {
+            Write-Host "[stage] agent: metadata check: $_"
+        }
+    }
+
+    # ---------------------------------------------- verify signing mode --
     # Three independent signals. Any one of them alone is weak; together they
     # cover both APK signature schemes plus the naming convention.
 
-    $signingEvidence = @()
-
-    # 1. Name. A release build with no signingConfig assembles "-unsigned".
-    if ($apk.Name -notmatch '-unsigned') {
-        $signingEvidence += "file name '$($apk.Name)' does not carry the -unsigned suffix"
-    }
-
-    # 2. v1 (JAR) signature scheme: entries under META-INF/ at the archive root.
-    #    Guarded because the assembly is not preloaded in every PowerShell host.
+    $hasV1Sig = $false
     try {
         Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
         $zip = [System.IO.Compression.ZipFile]::OpenRead($apk.FullName)
         try {
-            $signingEvidence += @($zip.Entries | Where-Object {
+            $v1Entries = @($zip.Entries | Where-Object {
                 $_.FullName -match '^META-INF/[^/]+\.(RSA|DSA|EC|SF|MF)$'
-            } | ForEach-Object { "v1 signature entry $($_.FullName)" })
+            })
+            if ($v1Entries.Count -gt 0) {
+                $hasV1Sig = $true
+            }
         }
         finally {
             $zip.Dispose()
         }
     }
     catch {
-        Write-Host '[stage] agent: WARNING - v1 signature scan unavailable; relying on v2 scan and name'
+        Write-Host '[stage] agent: WARNING - v1 signature scan unavailable'
     }
 
-    # 3. v2/v3 signature scheme. The APK Signing Block sits immediately before the
-    #    ZIP central directory and is NOT a ZIP entry, so scan 2 can never see it.
-    #    It carries the literal marker "APK Sig Block 42". Latin-1 gives a strict
-    #    byte-to-character mapping, so a string search here is a byte search - and
-    #    it runs in milliseconds instead of a per-byte loop.
+    # v2/v3 signature scheme check (APK Signing Block marker)
     $latin1 = [System.Text.Encoding]::GetEncoding(28591)
     $rawText = $latin1.GetString([System.IO.File]::ReadAllBytes($apk.FullName))
-    if ($rawText.IndexOf('APK Sig Block 42', [StringComparison]::Ordinal) -ge 0) {
-        $signingEvidence += 'APK Signing Block present (v2/v3 signature)'
+    $hasV2V3Sig = ($rawText.IndexOf('APK Sig Block 42', [StringComparison]::Ordinal) -ge 0)
+
+    $isSigned = $hasV1Sig -or $hasV2V3Sig
+
+    if ($SigningMode -eq 'unsigned') {
+        $signingEvidence = @()
+        if ($apk.Name -notmatch '-unsigned') {
+            $signingEvidence += "file name '$($apk.Name)' does not carry the -unsigned suffix"
+        }
+        if ($hasV1Sig) {
+            $signingEvidence += 'v1 signature entry present'
+        }
+        if ($hasV2V3Sig) {
+            $signingEvidence += 'APK Signing Block present (v2/v3 signature)'
+        }
+
+        if ($signingEvidence.Count -gt 0) {
+            throw ("AGENT_APK_SIGNED_UNEXPECTED: refusing to stage a signed APK in unsigned mode. " +
+                "Signing is deferred until the Ed25519 custody ruling (R-I). " +
+                "Evidence: $($signingEvidence -join '; ')")
+        }
+
+        if (Test-Path $agentDir) { Remove-Item $agentDir -Recurse -Force }
+        New-Item -ItemType Directory -Path $agentDir -Force | Out-Null
+
+        # Staged under stable name for installer
+        $stagedAgent = Join-Path $agentDir 'sanitization-agent-unsigned.apk'
+        Copy-Item -Path $apk.FullName -Destination $stagedAgent -Force
+
+        Write-Host ('[stage]   agent apk        : {0} ({1:N0} bytes, verified unsigned)' -f
+            $apk.Name, $apk.Length)
     }
+    else {
+        # 'test' or 'production' mode
+        if (-not $isSigned) {
+            throw ("AGENT_APK_UNSIGNED_UNEXPECTED: refusing to stage an unsigned APK in $SigningMode mode. " +
+                "Expected signed artifact.")
+        }
 
-    if ($signingEvidence.Count -gt 0) {
-        throw ("AGENT_APK_SIGNED_UNEXPECTED: refusing to stage a signed APK. " +
-            "Signing is deferred until the Ed25519 custody ruling (R-I). " +
-            "Evidence: $($signingEvidence -join '; ')")
+        if (Test-Path $agentDir) { Remove-Item $agentDir -Recurse -Force }
+        New-Item -ItemType Directory -Path $agentDir -Force | Out-Null
+
+        $stagedAgent = Join-Path $agentDir 'sanitization-agent-release.apk'
+        Copy-Item -Path $apk.FullName -Destination $stagedAgent -Force
+
+        # Also maintain sanitization-agent-unsigned.apk name for consumers expecting that stable path
+        $stagedAgentCompat = Join-Path $agentDir 'sanitization-agent-unsigned.apk'
+        Copy-Item -Path $apk.FullName -Destination $stagedAgentCompat -Force
+
+        Write-Host ('[stage]   agent apk        : {0} ({1:N0} bytes, verified signed [{2}])' -f
+            $apk.Name, $apk.Length, $SigningMode)
     }
-
-    if (Test-Path $agentDir) { Remove-Item $agentDir -Recurse -Force }
-    New-Item -ItemType Directory -Path $agentDir -Force | Out-Null
-
-    # Staged under a stable name so downstream references do not depend on the
-    # build variant that produced the bytes.
-    $stagedAgent = Join-Path $agentDir 'sanitization-agent-unsigned.apk'
-    Copy-Item -Path $apk.FullName -Destination $stagedAgent -Force
-
-    Write-Host ('[stage]   agent apk        : {0} ({1:N0} bytes, verified unsigned)' -f
-        $apk.Name, $apk.Length)
 }
 
 # ------------------------------------------------------------------ validate --

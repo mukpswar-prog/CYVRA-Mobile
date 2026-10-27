@@ -150,6 +150,13 @@ jobs:
         working-directory: apps/android
         run: ./gradlew.bat :app:compileDebugKotlin --console=plain
 
+      - name: Run sanitization-agent unit tests
+        working-directory: apps/android
+        run: ./gradlew.bat :sanitization-agent:testDebugUnitTest --console=plain
+
+      - name: Run signing contract regression tests
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-signing-contract.ps1
+
       - name: Run desktop Rust tests
         working-directory: apps/desktop/src-tauri
         run: cargo test
