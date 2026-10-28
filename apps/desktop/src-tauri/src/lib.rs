@@ -51,6 +51,8 @@ pub fn run() {
             commands::send_host_command,
             activation::commands::activation_launch,
             activation::commands::activation_submit,
+            activation::commands::activation_status,
+            activation::commands::activation_deactivate,
             commands::ledger_read,
             commands::force_clean_assess,
             commands::force_clean_redact,

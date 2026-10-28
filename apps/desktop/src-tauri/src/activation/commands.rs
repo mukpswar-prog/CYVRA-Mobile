@@ -170,3 +170,60 @@ pub async fn activation_submit(
     })
     .await
 }
+
+/// Detailed workstation activation status exposed to the desktop UI for operator & license management.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivationStatusInfo {
+    pub activated: bool,
+    pub customer_email: Option<String>,
+    pub stored_at: Option<String>,
+    pub server_time: Option<String>,
+}
+
+/// Retrieves the current stored activation status without triggering revalidation.
+#[tauri::command]
+pub async fn activation_status() -> ActivationStatusInfo {
+    let home = home();
+    match crate::activation::store::read(&home) {
+        Ok(Some(stored)) => ActivationStatusInfo {
+            activated: true,
+            customer_email: Some(stored.email),
+            stored_at: Some(stored.stored_at),
+            server_time: Some(stored.server_time),
+        },
+        _ => ActivationStatusInfo {
+            activated: false,
+            customer_email: None,
+            stored_at: None,
+            server_time: None,
+        },
+    }
+}
+
+/// Controlled workstation deactivation / licence reset.
+///
+/// Removes the stored activation token and exported entitlement from `<cyvra.home>`,
+/// allowing an operator to switch serial keys or perform a clean first-run activation test.
+#[tauri::command]
+pub async fn activation_deactivate() -> Result<(), String> {
+    let home = home();
+    if home.as_os_str().is_empty() {
+        return Err("Installation root could not be resolved".to_string());
+    }
+
+    let store_file = crate::activation::store::store_path(&home);
+    let entitlement_file = home.join(crate::activation::entitlement::FILE_NAME);
+
+    if store_file.exists() {
+        std::fs::remove_file(&store_file)
+            .map_err(|e| format!("Failed to remove activation token: {}", e))?;
+    }
+    if entitlement_file.exists() {
+        let _ = std::fs::remove_file(&entitlement_file);
+    }
+
+    log::info!("Workstation deactivated: activation and entitlement stores cleared.");
+    Ok(())
+}
+

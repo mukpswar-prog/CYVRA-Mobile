@@ -1,8 +1,13 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import { ActivationScreen, type ActivationFields } from "./activation/ActivationScreen";
+import {
+  OperatorAttestationScreen,
+  type AttestationSlotItem,
+  type ChecklistCheck,
+} from "./attestation/OperatorAttestationScreen";
 import cyvoriqLogo from "./assets/cyvoriq-solutions.png";
 import { LedgerScreen } from "./ledger/LedgerScreen";
 import type { LedgerReadResult } from "./ledger/parseLedger";
@@ -40,10 +45,18 @@ type HostInfoResult = {
   hostVersion: string;
 };
 
-type ActivationStatusResult = {
-  state: "activated" | "unactivated" | "rejected" | "error";
-  termsVersion: string;
+type ActivationDecision = {
+  state: "enter" | "needsActivation" | "refused" | "localFault";
+  offline: boolean;
   message: string | null;
+  termsVersion: string;
+};
+
+type ActivationStatusInfo = {
+  activated: boolean;
+  customerEmail: string | null;
+  storedAt: string | null;
+  serverTime: string | null;
 };
 
 type HostError = {
@@ -783,14 +796,13 @@ function SerialProvenance({
 }
 
 /**
- * Which of the workstation's two top-level views is on screen.
+ * Which of the workstation's top-level views is on screen.
  *
  * Navigation only, exactly like [StepKey]: it decides what is rendered and
  * nothing else. Neither view is gated on the other - an operator may open the
- * ledger mid-scan and come back to find the scan exactly where it was, because
- * the ledger is a reader and reading it does not touch anything.
+ * ledger or attestation mid-scan and come back to find the scan exactly where it was.
  */
-type ScreenKey = "workflow" | "ledger";
+type ScreenKey = "workflow" | "ledger" | "attestation";
 
 /**
  * The old `deviceView()` sentence-builder lived here and turned the Host's
@@ -825,6 +837,33 @@ function App() {
   const [serial, setSerial] = useState("");
   const [serialFromHost, setSerialFromHost] = useState(false);
   const [operatorId, setOperatorId] = useState("");
+
+  /** Active bench technician attribution, persisted locally across sessions. */
+  const [activeOperatorId, setActiveOperatorId] = useState<string>(() => {
+    try {
+      return localStorage.getItem("cyvra_active_operator_id") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [showOperatorModal, setShowOperatorModal] = useState<boolean>(false);
+  const [operatorInput, setOperatorInput] = useState<string>("");
+  const [activationInfo, setActivationInfo] = useState<ActivationStatusInfo | null>(null);
+
+  /** Selected slot index on the dedicated 50-slot Operator Attestation screen. */
+  const [attestationSlotIndex, setAttestationSlotIndex] = useState<number>(0);
+
+  /** In-progress checklist answers keyed by slot label (e.g. "CYVRA.01"). */
+  const [slotChecklistAnswers, setSlotChecklistAnswers] = useState<
+    Record<string, Record<string, string>>
+  >({});
+
+  // Synchronize operatorId with activeOperatorId if operatorId is not set
+  useEffect(() => {
+    if (activeOperatorId.trim() && !operatorId.trim()) {
+      setOperatorId(activeOperatorId.trim());
+    }
+  }, [activeOperatorId, operatorId]);
 
   const [scan, setScan] = useState<HostEnvelope | null>(null);
   const [inventory, setInventory] = useState<HostEnvelope | null>(null);
@@ -1204,6 +1243,13 @@ function App() {
       setLicenseStatus(null);
       setLicenseScansRemaining(null);
     }
+
+    try {
+      const info = await invoke<ActivationStatusInfo>("activation_status");
+      setActivationInfo(info);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const submitWorkstationActivation = useCallback(
@@ -1211,8 +1257,11 @@ function App() {
       setActivationBusy(true);
       setActivationMessage(null);
       try {
-        const result = await invoke<ActivationStatusResult>("activation_submit", { fields });
-        if (result.state === "activated") {
+        const result = await invoke<ActivationDecision>("activation_submit", {
+          email: fields.email,
+          licenceKey: fields.licenceKey,
+        });
+        if (result.state === "enter") {
           setShowActivationModal(false);
           setActivationMessage(null);
           void loadLicense();
@@ -1230,6 +1279,51 @@ function App() {
     },
     [loadLicense],
   );
+
+  const handleOpenOperatorModal = useCallback(async () => {
+    setOperatorInput(activeOperatorId);
+    setShowOperatorModal(true);
+    try {
+      const info = await invoke<ActivationStatusInfo>("activation_status");
+      setActivationInfo(info);
+    } catch {
+      setActivationInfo(null);
+    }
+  }, [activeOperatorId]);
+
+  const handleSaveOperator = useCallback((newId: string) => {
+    const trimmed = newId.trim();
+    setActiveOperatorId(trimmed);
+    setOperatorId(trimmed);
+    try {
+      if (trimmed) {
+        localStorage.setItem("cyvra_active_operator_id", trimmed);
+      } else {
+        localStorage.removeItem("cyvra_active_operator_id");
+      }
+    } catch {
+      // local storage fallback
+    }
+    setShowOperatorModal(false);
+  }, []);
+
+  const handleDeactivateWorkstation = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Deactivating this workstation will clear the local activation token and entitlement. You will need to re-enter a valid licence key to use the software. Proceed?",
+    );
+    if (!confirmed) return;
+    try {
+      await invoke("activation_deactivate");
+      setActivationInfo(null);
+      setLicensePresent(false);
+      setLicenseStatus("UNACTIVATED");
+      setLicenseScansRemaining(null);
+      setShowOperatorModal(false);
+      setShowActivationModal(true);
+    } catch (err) {
+      alert(`Failed to deactivate: ${String(err)}`);
+    }
+  }, []);
 
   const patchDeviceEnvelope = useCallback(
     (rowSerial: string, patch: Partial<DeviceSessionEnvelopes>) => {
@@ -1416,8 +1510,9 @@ function App() {
     const scanSerial = (targetSerial ?? serial).trim();
     const payload: Record<string, unknown> = { serial: scanSerial };
 
-    if (operatorId.trim()) {
-      payload.operatorId = operatorId.trim();
+    const effOp = (activeOperatorId.trim() || operatorId.trim());
+    if (effOp) {
+      payload.operatorId = effOp;
     }
 
     if (targetSerial) {
@@ -1670,11 +1765,12 @@ function App() {
     });
 
     const currentSanitize = deviceEnvelopes[target]?.sanitize ?? sanitize;
+    const effOp = (activeOperatorId.trim() || operatorId.trim());
     let startEnv = currentSanitize.start;
     if (!startEnv || startEnv.status !== "OK") {
       startEnv = await send("SANITIZE_START", {
         serial: target,
-        ...(operatorId.trim() ? { operatorId: operatorId.trim() } : {}),
+        ...(effOp ? { operatorId: effOp } : {}),
       });
     }
 
@@ -1701,7 +1797,7 @@ function App() {
       acknowledged: true,
       confirmationPhrase: startPhrase,
       consolidated: true,
-      ...(operatorId.trim() ? { operatorId: operatorId.trim() } : {}),
+      ...(effOp ? { operatorId: effOp } : {}),
     });
 
     const nextSanitize: Record<SanitizeStage, HostEnvelope | null> = {
@@ -1836,9 +1932,12 @@ function App() {
       at: clockNow(),
     });
 
+    const effOp = (activeOperatorId.trim() || operatorId.trim());
     const envelope = await send(
       "RECORD_CHECKLIST",
-      target ? { serial: target, results } : { results },
+      target
+        ? { serial: target, results, ...(effOp ? { operatorId: effOp } : {}) }
+        : { results, ...(effOp ? { operatorId: effOp } : {}) },
     );
     setChecklistRecorded(envelope);
     patchDeviceEnvelope(target, { checklistRecorded: envelope, checklistAnswers });
@@ -1849,7 +1948,7 @@ function App() {
       setChecklist(await send("GET_CHECKLIST", target ? { serial: target } : {}));
       patchStage(target, "verify", {
         tone: "completed",
-        note: "The technician's checks were recorded for this phone.",
+        note: `The technician's checks were recorded for this phone by ${effOp || "technician"}.`,
         at: clockNow(),
       });
     } else {
@@ -1878,8 +1977,9 @@ function App() {
       at: clockNow(),
     });
 
+    const effOp = (activeOperatorId.trim() || operatorId.trim());
     const envelope = await send("FINALISE_REPORT", {
-      operatorId: operatorId.trim(),
+      operatorId: effOp,
       ...(target ? { serial: target } : {}),
     });
     setFinalised(envelope);
@@ -2485,11 +2585,188 @@ function App() {
     }
     if (stageKey === "verify") {
       selectDeviceForStage(targetSerial, "checklist");
+      const slotNum = slotOfSerial[targetSerial] ?? 1;
+      setAttestationSlotIndex(slotNum - 1);
+      openScreen("attestation");
       if (!isDeviceBusy) {
         void loadChecklist(targetSerial);
       }
+      return;
     }
   };
+
+  const DEFAULT_OUTCOMES = ["PASSED", "FAILED", "NOT_PERFORMED", "UNRESOLVED"];
+
+  const attestationSlots: AttestationSlotItem[] = useMemo(() => {
+    return Array.from({ length: DEVICE_SLOT_CAPACITY }, (_, i) => {
+      const slotNum = i + 1;
+      const label = slotLabelFor(slotNum);
+      const entry = Object.entries(slotOfSerial).find(([, num]) => num === slotNum);
+      const devSerial = entry ? entry[0] : null;
+      const dev = devSerial ? connectedDevices.find((d) => d.serial === devSerial) : null;
+      const sessionEnv = devSerial ? deviceEnvelopes[devSerial] : null;
+      const checklistRec =
+        sessionEnv?.checklistRecorded ??
+        (devSerial === (lastScanSerial ?? serial) ? checklistRecorded : null);
+      const isComplete =
+        checklistRec?.status === "OK" &&
+        (readBoolean(payloadOf(checklistRec), "complete") === true ||
+          readBoolean(payloadOf(checklistRec), "checklistComplete") === true);
+
+      const slotAns =
+        slotChecklistAnswers[label] ??
+        (devSerial === (lastScanSerial ?? serial) ? checklistAnswers : {});
+      const answeredCount = Object.keys(slotAns).filter(
+        (k) => slotAns[k] && slotAns[k] !== "NOT_PERFORMED",
+      ).length;
+
+      return {
+        slotNumber: slotNum,
+        label,
+        serial: devSerial,
+        make: dev?.make ?? null,
+        model: dev?.model ?? null,
+        checklistComplete: isComplete,
+        checklistAnswered: answeredCount,
+        checklistExpected: 14,
+        checklistRecordedAt:
+          checklistRec?.status === "OK" ? readString(payloadOf(checklistRec), "recordedAt") : null,
+      };
+    });
+  }, [
+    connectedDevices,
+    slotOfSerial,
+    deviceEnvelopes,
+    checklistRecorded,
+    lastScanSerial,
+    serial,
+    slotChecklistAnswers,
+    checklistAnswers,
+  ]);
+
+  const attestationCatalogue: ChecklistCheck[] = useMemo(() => {
+    const payload = payloadOf(checklist);
+    const checks = readObjectList(payload, "checks");
+    if (checks.length > 0) {
+      return checks.map((c) => ({
+        id: readString(c, "id") ?? "",
+        title: readString(c, "item") ?? readString(c, "title") ?? "",
+        category: readString(c, "domain") ?? readString(c, "category") ?? "",
+        description:
+          readString(c, "whyNotAutomatable") ?? readString(c, "description") ?? undefined,
+      }));
+    }
+    return [
+      {
+        id: "PHY-001",
+        category: "Physical Casing",
+        title: "Enclosure and Chassis Integrity",
+        description: "Enclosure free of cracks, structural bends, punctures, or unauthorized opening.",
+      },
+      {
+        id: "PHY-002",
+        category: "Display & Glass",
+        title: "Screen Surface and Touch Assembly",
+        description: "Front glass free of spider cracks, delamination, deep scoring, or lifting.",
+      },
+      {
+        id: "PHY-003",
+        category: "Battery Safety",
+        title: "Battery Enclosure and Swelling Check",
+        description: "No swelling, bulging, heat discoloration, sweet odor, or frame separation.",
+      },
+      {
+        id: "PHY-004",
+        category: "Port & Connector",
+        title: "USB Connector & Charging Pins",
+        description: "USB port pins intact, free of debris, corrosion, burn marks, or mechanical looseness.",
+      },
+      {
+        id: "PHY-005",
+        category: "Camera & Optics",
+        title: "Lens Integrity & Optical Covers",
+        description: "Front and rear camera glass free of cracks, clouding, condensation, or obstruction.",
+      },
+      {
+        id: "PHY-006",
+        category: "Tamper Evidence",
+        title: "Hardware Tamper-Evident Seals",
+        description: "Factory warranty stickers, screws, and internal liquid ingress indicators (LDI) uncompromised.",
+      },
+    ];
+  }, [checklist]);
+
+  const handleUpdateSlotAnswer = useCallback(
+    (slotLabel: string, checkId: string, outcome: string) => {
+      setSlotChecklistAnswers((prev) => ({
+        ...prev,
+        [slotLabel]: {
+          ...(prev[slotLabel] ?? {}),
+          [checkId]: outcome,
+        },
+      }));
+      const slotNum = parseInt(slotLabel.replace("CYVRA.", ""), 10);
+      const entry = Object.entries(slotOfSerial).find(([, num]) => num === slotNum);
+      const devSerial = entry ? entry[0] : null;
+      if (devSerial && devSerial === (lastScanSerial ?? serial)) {
+        setChecklistAnswers((prev) => ({ ...prev, [checkId]: outcome }));
+      }
+    },
+    [slotOfSerial, lastScanSerial, serial],
+  );
+
+  const handleRecordAttestationFromScreen = useCallback(
+    async (targetSerial: string, answers: Record<string, string>) => {
+      setChecklistAnswers(answers);
+      const payload = payloadOf(checklist);
+      const checks = readObjectList(payload, "checks");
+      const catalogueChecks = checks.length > 0 ? checks : [];
+      const results = (
+        catalogueChecks.length > 0
+          ? catalogueChecks.map((c) => {
+              const id = readString(c, "id");
+              const outcome = id ? answers[id] : undefined;
+              return id && outcome ? { id, outcome } : null;
+            })
+          : Object.entries(answers).map(([id, outcome]) => ({ id, outcome }))
+      ).filter((row): row is { id: string; outcome: string } => row !== null);
+
+      patchStage(targetSerial, "verify", {
+        tone: "in-progress",
+        note: "Recording this phone's technician checks.",
+        at: clockNow(),
+      });
+
+      const effOp = (activeOperatorId.trim() || operatorId.trim());
+      const envelope = await send("RECORD_CHECKLIST", {
+        serial: targetSerial,
+        results,
+        ...(effOp ? { operatorId: effOp } : {}),
+      });
+
+      setChecklistRecorded(envelope);
+      patchDeviceEnvelope(targetSerial, {
+        checklistRecorded: envelope,
+        checklistAnswers: answers,
+      });
+
+      if (envelope?.status === "OK") {
+        setChecklist(await send("GET_CHECKLIST", { serial: targetSerial }));
+        patchStage(targetSerial, "verify", {
+          tone: "completed",
+          note: `Technician checks recorded for this phone by ${effOp || "technician"}.`,
+          at: clockNow(),
+        });
+      } else {
+        patchStage(targetSerial, "verify", {
+          tone: "failed",
+          note: envelopeReason(envelope, "The workstation did not record this phone's checks."),
+          at: clockNow(),
+        });
+      }
+    },
+    [activeOperatorId, operatorId, checklist, send, patchStage, patchDeviceEnvelope],
+  );
 
   /**
    * One monitoring table: 25 compact rows, four operational stage controls + separate Report column per row.
@@ -2847,16 +3124,13 @@ function App() {
             className={`status-pill is-interactive ${
               licensePresent === true ? "is-online" : "is-idle"
             }`}
-            aria-label="Open User ID and Licence Key activation dialog"
+            aria-label="Open Workstation Licence and Operator dialog"
             title={
               licensePresent === true
-                ? `Active licence (${licenseStatus ?? "VALID"}). Click to view or update User ID and Serial Key.`
+                ? `Active licence (${licenseStatus ?? "VALID"}). Click to view workstation licence & technician attribution.`
                 : "Enter Registered User ID and Serial Key to activate this workstation."
             }
-            onClick={() => {
-              setActivationMessage(null);
-              setShowActivationModal(true);
-            }}
+            onClick={() => void handleOpenOperatorModal()}
           >
             <span className="status-dot" aria-hidden="true" />
             {licensePresent === true
@@ -2864,6 +3138,21 @@ function App() {
                   licenseScansRemaining !== null ? ` (${licenseScansRemaining})` : ""
                 }`
               : "USER ID / LICENCE KEY"}
+          </button>
+
+          <button
+            type="button"
+            className={`status-pill is-interactive ${
+              activeOperatorId.trim() ? "is-online" : "is-warning"
+            }`}
+            aria-label="Manage active bench operator and workstation identity"
+            title="Active bench operator/technician attribution. Click to set or change."
+            onClick={() => void handleOpenOperatorModal()}
+          >
+            <span className="status-dot" aria-hidden="true" />
+            {activeOperatorId.trim()
+              ? `OPERATOR: ${activeOperatorId.trim()}`
+              : "OPERATOR: NOT SET"}
           </button>
 
           <span
@@ -2914,7 +3203,129 @@ function App() {
         </div>
       )}
 
-      {/* The workstation's two top-level views. Its own bar rather than a
+      {showOperatorModal && (
+        <div
+          className="operator-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Workstation Licence and Bench Operator Attribution"
+        >
+          <div className="operator-modal-card">
+            <div className="operator-modal-bar">
+              <span className="operator-modal-title">Workstation Licence &amp; Operator Identity</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-compact"
+                aria-label="Close workstation modal"
+                onClick={() => setShowOperatorModal(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="operator-modal-content">
+              {/* Licence / Workstation Account Section */}
+              <div className="operator-modal-section">
+                <h3 className="section-title">Workstation Licence &amp; Account</h3>
+                <div className="operator-licence-card">
+                  <div className="operator-licence-row">
+                    <span className="licence-label">Registered Account / Customer:</span>
+                    <strong className="licence-value">
+                      {activationInfo?.customerEmail || (licensePresent ? "Licensed Workstation" : "Unactivated")}
+                    </strong>
+                  </div>
+                  <div className="operator-licence-row">
+                    <span className="licence-label">Licence Status:</span>
+                    <span className={`status-pill ${licensePresent ? "is-online" : "is-idle"}`}>
+                      <span className="status-dot" aria-hidden="true" />
+                      {licensePresent ? (licenseStatus ?? "ACTIVATED") : "UNACTIVATED"}
+                    </span>
+                  </div>
+                  <div className="operator-licence-row">
+                    <span className="licence-label">Authorized Scans Remaining:</span>
+                    <strong className="licence-value">
+                      {licenseScansRemaining !== null ? licenseScansRemaining : "N/A"}
+                    </strong>
+                  </div>
+                  {activationInfo?.storedAt && (
+                    <div className="operator-licence-row">
+                      <span className="licence-label">Workstation Token Issued:</span>
+                      <span className="licence-value small-date">{activationInfo.storedAt}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="licence-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-compact"
+                    onClick={() => {
+                      setShowOperatorModal(false);
+                      setActivationMessage(null);
+                      setShowActivationModal(true);
+                    }}
+                  >
+                    Enter New Licence Key / Sign In
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-compact"
+                    title="Removes the stored activation token and entitlement from this workstation"
+                    onClick={() => void handleDeactivateWorkstation()}
+                  >
+                    Deactivate / Reset Licence Token
+                  </button>
+                </div>
+              </div>
+
+              {/* Bench Operator / Technician Identification Section */}
+              <div className="operator-modal-section">
+                <h3 className="section-title">Active Bench Operator (Technician Attribution)</h3>
+                <p className="section-desc">
+                  Identifies the technician operating this workstation bench. This identity is cryptographically stamped on all hardware scans, the 50-slot operator attestations, sanitization logs, and sealed certificates.
+                </p>
+
+                <div className="operator-input-row">
+                  <label htmlFor="operator-bench-id" className="operator-input-label">
+                    Technician / Operator ID:
+                  </label>
+                  <input
+                    id="operator-bench-id"
+                    type="text"
+                    className="operator-id-input"
+                    placeholder="e.g. TECH-44, OP-01, CYVRA-BENCH-A"
+                    value={operatorInput}
+                    onChange={(e) => setOperatorInput(e.target.value)}
+                    maxLength={64}
+                  />
+                </div>
+
+                <div className="operator-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-compact"
+                    disabled={operatorInput.trim() === activeOperatorId.trim()}
+                    onClick={() => handleSaveOperator(operatorInput)}
+                  >
+                    Save Active Operator
+                  </button>
+                  {activeOperatorId.trim() !== "" && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-compact"
+                      onClick={() => handleSaveOperator("")}
+                    >
+                      Clear Operator ID
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* The workstation's top-level views. Its own bar rather than a
           button in the brand header: that header carries status, and status is
           not navigation. */}
       <nav className="screen-nav" aria-label="Workstation views">
@@ -2926,6 +3337,14 @@ function App() {
             onClick={() => openScreen("workflow")}
           >
             Inspection
+          </button>
+          <button
+            type="button"
+            className={`screen-nav-btn${screen === "attestation" ? " is-active" : ""}`}
+            aria-current={screen === "attestation" ? "page" : undefined}
+            onClick={() => openScreen("attestation")}
+          >
+            Operator Attestation
           </button>
           <button
             type="button"
@@ -2946,6 +3365,25 @@ function App() {
           verified={ledger?.verified ?? null}
           decodedCount={ledger?.entries.length ?? 0}
           onRefresh={() => void refreshLedger()}
+        />
+      ) : screen === "attestation" ? (
+        <OperatorAttestationScreen
+          slots={attestationSlots}
+          selectedSlotIndex={attestationSlotIndex}
+          onSelectSlot={setAttestationSlotIndex}
+          activeOperatorId={activeOperatorId}
+          onOpenOperatorModal={() => void handleOpenOperatorModal()}
+          onRecordAttestation={handleRecordAttestationFromScreen}
+          checklistCatalogue={attestationCatalogue}
+          checklistOutcomes={DEFAULT_OUTCOMES}
+          slotAnswers={slotChecklistAnswers}
+          onUpdateAnswer={handleUpdateSlotAnswer}
+          busy={busy === "RECORD_CHECKLIST"}
+          error={
+            checklistRecorded?.status === "ERROR"
+              ? envelopeReason(checklistRecorded, "Checklist recorded")
+              : null
+          }
         />
       ) : (
       <div className="workspace">
@@ -3809,6 +4247,22 @@ function App() {
             {/* ---- Step 5: technician verification -------------------- */}
             {activeStep === "checklist" && (
               <>
+                <div className="attestation-handoff-banner">
+                  <div className="attestation-handoff-header">
+                    <strong>Dedicated Operator Attestation Grid (50 Slots)</strong>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-compact"
+                      onClick={() => openScreen("attestation")}
+                    >
+                      Open Full 50-Slot Attestation Grid &rarr;
+                    </button>
+                  </div>
+                  <p>
+                    Technician attestations are tracked across 50 dedicated bench slots and bound to the verified phone session and active operator ({activeOperatorId.trim() || "NOT SET"}).
+                  </p>
+                </div>
+
                 <button
                   type="button"
                   className="btn btn-primary"
@@ -3989,12 +4443,13 @@ function App() {
                   <label className="field">
                     <span>Operator ID (required to finalise and seal)</span>
                     <input
-                      value={operatorId}
+                      value={operatorId || activeOperatorId}
                       onChange={(event) => setOperatorId(event.target.value)}
-                      placeholder="Name or ID of the authorising operator"
+                      placeholder="Name or ID of the authorising operator (e.g. TECH-44)"
                     />
                     <small>
                       Required by FINALISE_REPORT before the workstation will normalise, sign and seal the final report.
+                      {activeOperatorId && ` Active bench technician: ${activeOperatorId}.`}
                     </small>
                   </label>
                 </div>
@@ -4002,9 +4457,9 @@ function App() {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={!scanOk || busy !== null || operatorId.trim() === ""}
+                  disabled={!scanOk || busy !== null || (operatorId.trim() === "" && activeOperatorId.trim() === "")}
                   title={
-                    operatorId.trim() === ""
+                    operatorId.trim() === "" && activeOperatorId.trim() === ""
                       ? "Name the operator authorising this report before it can be sealed."
                       : lockDownload ?? undefined
                   }

@@ -2327,3 +2327,178 @@ td.col-stage.hue-green .stage-seg {
   border-color: #10b981;
   color: #047857;
 }
+
+/* --- Workstation Licence & Active Operator Management Modal --- */
+.status-pill.is-warning {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber-ink);
+}
+
+.operator-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 910;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.operator-modal-card {
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.32);
+}
+
+.operator-modal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.operator-modal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+}
+
+.operator-modal-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.operator-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.operator-modal-section .section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+}
+
+.operator-modal-section .section-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.operator-licence-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.operator-licence-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.licence-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.licence-value {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.licence-value.small-date {
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: #475569;
+}
+
+.licence-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.operator-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.operator-input-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.operator-id-input {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.operator-id-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.operator-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* --- Attestation Handoff Banner in Step 5 --- */
+.attestation-handoff-banner {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attestation-handoff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #166534;
+  font-size: 13px;
+}
+
+.attestation-handoff-banner p {
+  margin: 0;
+  font-size: 12px;
+  color: #15803d;
+  line-height: 1.4;
+}
