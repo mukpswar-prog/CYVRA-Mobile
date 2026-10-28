@@ -106,4 +106,119 @@ class HostAndroidComponentBridgeTest {
         assertEquals(310, result.payload?.batteryExtras?.temperatureDeciCelsius)
         assertEquals(420, result.payload?.displayMetrics?.densityDpi)
     }
+
+    @Test
+    fun locateBundledAgentApkFindsStagedApkInInstallationResources() {
+        val tempInstallDir = java.nio.file.Files.createTempDirectory("cyvra-install-test").toFile()
+        val resourcesAgentDir = File(tempInstallDir, "resources/agent")
+        resourcesAgentDir.mkdirs()
+        val dummyApk = File(resourcesAgentDir, "cyvra-agent.apk")
+        dummyApk.writeText("PK stub")
+
+        val prevProp = System.getProperty("cyvra.install")
+        try {
+            System.setProperty("cyvra.install", tempInstallDir.absolutePath)
+            val located = HostAndroidComponentBridge.locateBundledAgentApk()
+            assertNotNull(located, "Bridge should locate bundled APK under cyvra.install/resources/agent")
+            assertEquals(dummyApk.absolutePath, located.absolutePath)
+        } finally {
+            if (prevProp != null) System.setProperty("cyvra.install", prevProp)
+            else System.clearProperty("cyvra.install")
+            tempInstallDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun detectInstalledPackageRecognizesUnifiedAndLegacyPackages() {
+        val runnerUnified = ProcessRunner { cmd, _ ->
+            val cmdStr = cmd.joinToString(" ")
+            if (cmdStr.contains("co.in.cyvra.mobile")) {
+                DefaultProcessExecutionResult(0, "package:co.in.cyvra.mobile\n", "")
+            } else {
+                DefaultProcessExecutionResult(0, "", "")
+            }
+        }
+        val bridgeUnified = HostAndroidComponentBridge(AdbClient(File("/mock/adb"), runnerUnified), "s1")
+        assertEquals("co.in.cyvra.mobile", bridgeUnified.detectInstalledPackage())
+
+        val runnerLegacy = ProcessRunner { cmd, _ ->
+            val cmdStr = cmd.joinToString(" ")
+            if (cmdStr.contains("com.cyvra.sanitization")) {
+                DefaultProcessExecutionResult(0, "package:com.cyvra.sanitization\n", "")
+            } else {
+                DefaultProcessExecutionResult(0, "", "")
+            }
+        }
+        val bridgeLegacy = HostAndroidComponentBridge(AdbClient(File("/mock/adb"), runnerLegacy), "s2")
+        assertEquals("com.cyvra.sanitization", bridgeLegacy.detectInstalledPackage())
+    }
+
+    @Test
+    fun ensureInstalledOrDeployReturnsInstalledIfAlreadyPresent() {
+        val runner = ProcessRunner { cmd, _ ->
+            val cmdStr = cmd.joinToString(" ")
+            if (cmdStr.contains("co.in.cyvra.mobile")) {
+                DefaultProcessExecutionResult(0, "package:co.in.cyvra.mobile\n", "")
+            } else {
+                DefaultProcessExecutionResult(0, "", "")
+            }
+        }
+        val bridge = HostAndroidComponentBridge(AdbClient(File("/mock/adb"), runner), "s1")
+        val (installed, status) = bridge.ensureInstalledOrDeploy()
+        assertTrue(installed)
+        assertEquals("INSTALLED", status)
+    }
+
+    @Test
+    fun ensureInstalledOrDeployFailsClosedWhenPayloadMissing() {
+        val runner = ProcessRunner { _, _ -> DefaultProcessExecutionResult(0, "", "") }
+        val bridge = HostAndroidComponentBridge(AdbClient(File("/mock/adb"), runner), "s1")
+
+        val prevProp = System.getProperty("cyvra.install")
+        val prevHome = System.getProperty("cyvra.home")
+        val prevApk = System.getProperty("cyvra.agent.apk")
+        try {
+            System.setProperty("cyvra.install", "/non/existent/install/path")
+            System.setProperty("cyvra.home", "/non/existent/home/path")
+            System.setProperty("cyvra.agent.apk", "/non/existent/agent.apk")
+            val (installed, status) = bridge.ensureInstalledOrDeploy()
+            assertFalse(installed, "Must fail closed when payload missing")
+        } finally {
+            if (prevProp != null) System.setProperty("cyvra.install", prevProp) else System.clearProperty("cyvra.install")
+            if (prevHome != null) System.setProperty("cyvra.home", prevHome) else System.clearProperty("cyvra.home")
+            if (prevApk != null) System.setProperty("cyvra.agent.apk", prevApk) else System.clearProperty("cyvra.agent.apk")
+        }
+    }
+
+    @Test
+    fun ensureInstalledOrDeployFailsClosedWhenAdbInstallFails() {
+        val tempInstallDir = java.nio.file.Files.createTempDirectory("cyvra-install-fail-test").toFile()
+        val resourcesAgentDir = File(tempInstallDir, "resources/agent")
+        resourcesAgentDir.mkdirs()
+        val dummyApk = File(resourcesAgentDir, "cyvra-agent.apk")
+        dummyApk.writeText("PK stub")
+
+        val runner = ProcessRunner { cmd, _ ->
+            val cmdStr = cmd.joinToString(" ")
+            if (cmdStr.contains("install")) {
+                DefaultProcessExecutionResult(1, "", "INSTALL_FAILED_VERIFICATION_FAILURE")
+            } else {
+                DefaultProcessExecutionResult(0, "", "")
+            }
+        }
+        val bridge = HostAndroidComponentBridge(AdbClient(File("/mock/adb"), runner), "s1")
+
+        val prevProp = System.getProperty("cyvra.install")
+        try {
+            System.setProperty("cyvra.install", tempInstallDir.absolutePath)
+            val (installed, status) = bridge.ensureInstalledOrDeploy()
+            assertFalse(installed, "Must fail closed when ADB install fails")
+            assertTrue(status.startsWith("INSTALLATION_FAILED"), "Status should indicate installation failure, got: $status")
+            assertTrue(status.contains("INSTALL_FAILED_VERIFICATION_FAILURE"), "Status should contain failure reason")
+        } finally {
+            if (prevProp != null) System.setProperty("cyvra.install", prevProp)
+            else System.clearProperty("cyvra.install")
+            tempInstallDir.deleteRecursively()
+        }
+    }
 }

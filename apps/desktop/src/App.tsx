@@ -121,6 +121,11 @@ type ConnectedDevice = {
   imei?: string;
   imeiReason?: string;
   portOrLocation?: string;
+  agentInstalled?: boolean;
+  agentStatus?: string;
+  scanCapability?: string;
+  sanitizationCapability?: string;
+  deviceLifecycleId?: string;
 };
 
 /** The payload shape the Host returns for `GET_CONNECTED_DEVICES`. */
@@ -1158,7 +1163,7 @@ function App() {
       try {
         const raw = await invoke<string>("send_host_command", {
           command: "GET_CONNECTED_DEVICES",
-          payload: "{}",
+          payload: JSON.stringify({ deployAgent: true, probeAgent: true }),
         });
 
         const envelope = JSON.parse(raw) as HostEnvelope;

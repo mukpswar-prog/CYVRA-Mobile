@@ -105,13 +105,24 @@ class HostDestructiveWipeProvider(
                 "The presence of the CYVRA sanitization agent could not be established " +
                 "(the package listing did not answer). No destructive step was attempted."
         }
-        if (!installed) {
+        var activePkg = resolveActivePackage()
+        if (!installed || activePkg == null) {
+            // Attempt automated deployment if bundled agent payload exists
+            val bridge = cyvra.mobile.host.evidence.HostAndroidComponentBridge(adbClient, serial)
+            val (deployed, _) = bridge.ensureInstalledOrDeploy()
+            if (deployed) {
+                activePkg = resolveActivePackage()
+            }
+        }
+
+        if (activePkg == null && !installed) {
             return WipeEligibility.NOT_ELIGIBLE to
                 "Refused: the CYVRA sanitization agent is not installed on this device, so " +
                 "no purge method is available. Purge on this build is agent-based; it is not " +
                 "offered as an agent-less capability."
         }
 
+        val effectivePkg = activePkg ?: AGENT_PACKAGE
         val owner = deviceOwnerPresent()
         if (owner == null) {
             return WipeEligibility.INDETERMINATE to
@@ -128,6 +139,18 @@ class HostDestructiveWipeProvider(
             "The CYVRA sanitization agent is installed and is the device owner."
     }
 
+    /** Resolves which supported sanitization package is present on the device. */
+    fun resolveActivePackage(): String? {
+        val candidates = listOf(AGENT_PACKAGE, "co.in.cyvra.mobile")
+        for (pkg in candidates) {
+            val result = adbClient.runShell(serial, "pm list packages $pkg")
+            if (result.isSuccess && result.stdout.lines().any { it.trim() == "package:$pkg" }) {
+                return pkg
+            }
+        }
+        return null
+    }
+
     /**
      * Issues the two-step ARM -> WIPE trigger. Call only after [preflight] has returned ELIGIBLE.
      * Generates a 256-bit cryptographically secure token and binds the request strictly to
@@ -137,10 +160,11 @@ class HostDestructiveWipeProvider(
      * is wiping, and it certainly does not mean data is gone. See the class note.
      */
     fun trigger(sessionUuid: String? = null, operationId: String? = null): WipeOutcome {
+        val targetPkg = resolveActivePackage() ?: AGENT_PACKAGE
         // Established BEFORE the trigger, because afterwards the device may be gone and
         // "absent to begin with" would then be indistinguishable from "absent because
         // it is wiping".
-        val reachableBefore = adbClient.runShell(serial, CMD_AGENT_PRESENT)
+        val reachableBefore = adbClient.runShell(serial, "pm list packages $targetPkg")
         if (!reachableBefore.isSuccess) {
             return WipeOutcome(
                 WipeTriggerOutcome.NOT_ISSUED,
@@ -163,7 +187,7 @@ class HostDestructiveWipeProvider(
         }.joinToString(" ")
 
         // Phase 1: ARM broadcast
-        val armCommand = "am broadcast -n $AGENT_PACKAGE/.SanitizationBroadcastReceiver -p $AGENT_PACKAGE -a $AGENT_PACKAGE.ARM $commonExtras"
+        val armCommand = "am broadcast -n $targetPkg/.SanitizationBroadcastReceiver -p $targetPkg -a $targetPkg.ARM $commonExtras"
         val armResult = adbClient.runShell(serial, armCommand)
         if (!armResult.isSuccess || (!armResult.stdout.contains("result=0") && !armResult.stdout.contains("result=-1"))) {
             return WipeOutcome(
@@ -173,7 +197,7 @@ class HostDestructiveWipeProvider(
         }
 
         // Phase 2: WIPE broadcast with matching token and binding
-        val wipeCommand = "am broadcast -n $AGENT_PACKAGE/.SanitizationBroadcastReceiver -p $AGENT_PACKAGE -a $AGENT_PACKAGE.WIPE $commonExtras"
+        val wipeCommand = "am broadcast -n $targetPkg/.SanitizationBroadcastReceiver -p $targetPkg -a $targetPkg.WIPE $commonExtras"
         val result = adbClient.runShell(serial, wipeCommand)
         if (result.isSuccess) {
             return WipeOutcome(WipeTriggerOutcome.DELIVERED, null)
@@ -195,7 +219,8 @@ class HostDestructiveWipeProvider(
 
     /** Explicitly cancels any armed state on the device. */
     fun disarm(): Boolean {
-        val disarmCommand = "am broadcast -n $AGENT_PACKAGE/.SanitizationBroadcastReceiver -p $AGENT_PACKAGE -a $AGENT_PACKAGE.DISARM --es targetSerial $serial"
+        val targetPkg = resolveActivePackage() ?: AGENT_PACKAGE
+        val disarmCommand = "am broadcast -n $targetPkg/.SanitizationBroadcastReceiver -p $targetPkg -a $targetPkg.DISARM --es targetSerial $serial"
         val result = adbClient.runShell(serial, disarmCommand)
         return result.isSuccess
     }
@@ -204,10 +229,16 @@ class HostDestructiveWipeProvider(
     private fun agentInstalled(): Boolean? {
         val result = adbClient.runShell(serial, CMD_AGENT_PRESENT)
         if (!result.isSuccess) return null
-        return result.stdout.lines().any {
+        val found = result.stdout.lines().any {
             it.trim().startsWith(PACKAGE_LINE_PREFIX) &&
                 it.contains(AGENT_PACKAGE, ignoreCase = true)
         }
+        if (found) return true
+        val altResult = adbClient.runShell(serial, "pm list packages co.in.cyvra.mobile")
+        if (altResult.isSuccess && altResult.stdout.lines().any { it.trim() == "package:co.in.cyvra.mobile" }) {
+            return true
+        }
+        return false
     }
 
     /**

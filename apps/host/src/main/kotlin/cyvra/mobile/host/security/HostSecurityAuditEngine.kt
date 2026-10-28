@@ -53,6 +53,8 @@ class HostSecurityAuditEngine {
             // validateAdbCommandSafety, so this cannot be extended into an
             // injection by appending `;` or a pipe.
             "am broadcast -n com.cyvra.sanitization/",
+            "am broadcast -n co.in.cyvra.mobile/",
+            "am broadcast -a co.in.cyvra.mobile.",
         )
     }
 

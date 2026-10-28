@@ -50,7 +50,7 @@ class AdbClient(
     }
 
     fun installApk(serial: String, apkFile: File, timeoutMs: Long = 30_000L): ProcessExecutionResult {
-        return executeAdb(listOf("-s", serial, "install", "-r", apkFile.absolutePath), timeoutMs)
+        return executeAdb(listOf("-s", serial, "install", "-r", "-t", apkFile.absolutePath), timeoutMs)
     }
 
     private fun executeAdb(args: List<String>, timeoutMs: Long = defaultTimeoutMs): ProcessExecutionResult {

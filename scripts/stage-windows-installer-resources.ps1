@@ -436,7 +436,10 @@ if (-not $SkipAgent) {
         $apk = Get-Item -Path $AgentApk
     }
     else {
-        $apk = Get-ChildItem -Path $agentOutputs -Filter '*.apk' -ErrorAction SilentlyContinue |
+        $candidateFilter = if ($SigningMode -eq 'unsigned') { '*-unsigned.apk' } else { '*-release.apk' }
+        $apk = Get-ChildItem -Path $agentOutputs -Filter $candidateFilter -ErrorAction SilentlyContinue |
+            Where-Object { if ($SigningMode -ne 'unsigned') { $_.Name -notmatch '-unsigned' } else { $true } } |
+            Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
     }
 
@@ -536,9 +539,11 @@ if (-not $SkipAgent) {
         if (Test-Path $agentDir) { Remove-Item $agentDir -Recurse -Force }
         New-Item -ItemType Directory -Path $agentDir -Force | Out-Null
 
-        # Staged under stable name for installer
+        # Staged under both stable canonical names for installer and bridge compatibility
         $stagedAgent = Join-Path $agentDir 'sanitization-agent-unsigned.apk'
         Copy-Item -Path $apk.FullName -Destination $stagedAgent -Force
+        $stagedCanonical = Join-Path $agentDir 'cyvra-agent.apk'
+        Copy-Item -Path $apk.FullName -Destination $stagedCanonical -Force
 
         Write-Host ('[stage]   agent apk        : {0} ({1:N0} bytes, verified unsigned)' -f
             $apk.Name, $apk.Length)
@@ -556,9 +561,11 @@ if (-not $SkipAgent) {
         $stagedAgent = Join-Path $agentDir 'sanitization-agent-release.apk'
         Copy-Item -Path $apk.FullName -Destination $stagedAgent -Force
 
-        # Also maintain sanitization-agent-unsigned.apk name for consumers expecting that stable path
+        # Also maintain sanitization-agent-unsigned.apk and cyvra-agent.apk for bridge compatibility
         $stagedAgentCompat = Join-Path $agentDir 'sanitization-agent-unsigned.apk'
         Copy-Item -Path $apk.FullName -Destination $stagedAgentCompat -Force
+        $stagedCanonical = Join-Path $agentDir 'cyvra-agent.apk'
+        Copy-Item -Path $apk.FullName -Destination $stagedCanonical -Force
 
         Write-Host ('[stage]   agent apk        : {0} ({1:N0} bytes, verified signed [{2}])' -f
             $apk.Name, $apk.Length, $SigningMode)

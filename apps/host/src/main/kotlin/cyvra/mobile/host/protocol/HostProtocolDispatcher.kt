@@ -446,8 +446,8 @@ class HostProtocolDispatcher(
 
             val client = adbClientFactory(adbBinary)
             val devices = client.listDevices()
-            val probeAgent = (request.payload["probeAgent"] as? JsonPrimitive)?.booleanOrNull == true
-            val deployAgent = (request.payload["deployAgent"] as? JsonPrimitive)?.booleanOrNull == true
+            val probeAgent = (request.payload["probeAgent"] as? JsonPrimitive)?.booleanOrNull ?: false
+            val deployAgent = (request.payload["deployAgent"] as? JsonPrimitive)?.booleanOrNull ?: false
             val targetSerial = request.stringPayload(KEY_SERIAL)
 
             okResponse(
@@ -499,8 +499,18 @@ class HostProtocolDispatcher(
                 val present = bridge.checkInstalled()
                 present to if (present) "INSTALLED" else "NOT_INSTALLED"
             }
+            val activePkg = bridge.detectInstalledPackage()
+            val hasScanPkg = activePkg == HostAndroidComponentBridge.DEFAULT_PACKAGE_NAME
+            val hasSanitizePkg = activePkg == HostAndroidComponentBridge.SANITIZATION_PACKAGE_NAME
+            val isOwner = if (hasSanitizePkg || hasScanPkg) {
+                val policyDump = client.runShell(descriptor.serial, "dumpsys device_policy")
+                policyDump.isSuccess && policyDump.stdout.contains("Device Owner")
+            } else false
+
             put("agentInstalled", installed)
             put("agentStatus", status)
+            put("scanCapability", if (hasScanPkg) "SCAN_CAPABILITY_READY" else "HOST_FALLBACK_READY")
+            put("sanitizationCapability", if (hasSanitizePkg && isOwner) "SANITIZATION_CAPABILITY_READY" else "PRIVILEGE_NOT_AVAILABLE")
             put("deviceLifecycleId", WorkstationSessionOrchestrator.deviceLifecycleIdFor(descriptor.serial))
         }
 
