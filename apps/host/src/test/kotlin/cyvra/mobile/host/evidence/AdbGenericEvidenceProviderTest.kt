@@ -253,5 +253,30 @@ class AdbGenericEvidenceProviderTest {
         assertEquals(false, unlocked.secureBootEnabled.value)
         assertEquals(true, unlocked.deviceOwnerActive.value)
         assertEquals(true, unlocked.adbEnabled.value)
+
+        // Real-device multiline format as observed on Android 11 (Samsung Galaxy A10s).
+        val realDeviceProvider = AdbGenericEvidenceProvider(
+            AdbClient(
+                File("mock-adb"),
+                ProcessRunner { _, cmd ->
+                    when {
+                        cmd.contains("dumpsys device_policy") -> DefaultProcessExecutionResult(
+                            0,
+                            "  Device Owner: \n    admin=ComponentInfo{com.cyvra.sanitization/com.cyvra.sanitization.SanitizationAdmin}\n    name=\n    package=com.cyvra.sanitization\n",
+                            "",
+                        )
+                        cmd.contains("ro.boot.verifiedbootstate") -> DefaultProcessExecutionResult(0, "orange\n", "")
+                        cmd.contains("settings get global adb_enabled") -> DefaultProcessExecutionResult(0, "1\n", "")
+                        cmd.contains("dumpsys trust") -> DefaultProcessExecutionResult(0, "deviceLocked=false\n", "")
+                        else -> DefaultProcessExecutionResult(0, "", "")
+                    }
+                },
+            ),
+            "serial-real-a10s",
+        )
+        val realSecurity = realDeviceProvider.collectSecurity()
+        assertEquals(true, realSecurity.deviceOwnerActive.value)
+        assertEquals(EvidenceStatus.AVAILABLE, realSecurity.deviceOwnerActive.status)
+        assertTrue(realSecurity.deviceOwnerActive.reason?.contains("com.cyvra.sanitization") == true)
     }
 }

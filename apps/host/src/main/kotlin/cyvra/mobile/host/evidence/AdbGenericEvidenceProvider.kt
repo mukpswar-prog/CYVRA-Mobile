@@ -313,14 +313,22 @@ class AdbGenericEvidenceProvider(
         // the header alone is not evidence either way. Only a resolved component name
         // (package/class) establishes an owner; a present-but-empty section establishes
         // that the policy service answered and named none.
-        val ownerLines = output.lineSequence()
-            .map { it.trim() }
-            .filter { it.startsWith("Device Owner", ignoreCase = true) }
-            .toList()
-        val component = ownerLines.firstOrNull { it.substringAfter(':').trim().contains('/') }
+        val lines = output.lines()
+        val ownerIndex = lines.indexOfFirst { it.trim().startsWith("Device Owner", ignoreCase = true) }
+        val component = if (ownerIndex != -1) {
+            val sameLine = lines[ownerIndex].substringAfter(':').trim()
+            if (sameLine.contains('/')) {
+                sameLine
+            } else {
+                lines.drop(ownerIndex + 1)
+                    .takeWhile { it.startsWith(" ") || it.startsWith("\t") }
+                    .firstOrNull { it.trim().contains("admin=") || it.trim().contains('/') }
+                    ?.trim()
+            }
+        } else null
         return when {
             component != null -> EvidenceFieldResult(true, EvidenceStatus.AVAILABLE, "ADB", "observed: $component")
-            ownerLines.isNotEmpty() -> EvidenceFieldResult(
+            ownerIndex != -1 -> EvidenceFieldResult(
                 false,
                 EvidenceStatus.AVAILABLE,
                 "ADB",
