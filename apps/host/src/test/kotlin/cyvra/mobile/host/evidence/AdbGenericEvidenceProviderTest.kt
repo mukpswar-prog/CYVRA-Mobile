@@ -258,7 +258,8 @@ class AdbGenericEvidenceProviderTest {
         val realDeviceProvider = AdbGenericEvidenceProvider(
             AdbClient(
                 File("mock-adb"),
-                ProcessRunner { _, cmd ->
+                ProcessRunner { command, _ ->
+                    val cmd = command.joinToString(" ")
                     when {
                         cmd.contains("dumpsys device_policy") -> DefaultProcessExecutionResult(
                             0,

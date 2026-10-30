@@ -64,16 +64,22 @@ Step 3 factory-resets the device, including internal storage, and erases this AP
 with everything else. Removable media is not touched and bootloader state is not
 altered, because the agent passes `0` as the wipe flags.
 
-## Security posture — read this before adapting anything
+## Security posture & Cryptographic Gating
 
-The wipe receiver is **exported and unguarded**. That is required for the proof to
-work from `adb shell`, and it means **any app on the device can factory-reset it**.
+The sanitization receiver is guarded by a two-step cryptographic protocol with single-use token semantics (CYVRA-POL-AGENT-01 §4.2):
 
-That trade is acceptable only because this APK is a sacrificial proof artifact that
-is erased by its own action. If any of this is ever carried into a shipping
-component, the receiver must be given a signature-level permission (or removed
-entirely), and the wipe must be gated on an ownership attestation. Nothing in this
-module is that component.
+1. **`ARM` Action (`com.cyvra.sanitization.ARM`):**
+   * Requires a high-entropy 256-bit token passed via `wipeToken`.
+   * Cryptographically bound to `sessionUuid`, `targetSerial`, and `operationId`.
+   * Enforces a strict 60-second Time-to-Live (TTL).
+2. **`WIPE` Action (`com.cyvra.sanitization.WIPE`):**
+   * Must present the matching `wipeToken`, `sessionUuid`, and `targetSerial` within the 60-second window.
+   * State transitions and execution occur inside a synchronized block (`stateLock`).
+   * The active token is immediately invalidated prior to invoking `DevicePolicyManager.wipeData(0)`, preventing replay attacks or unauthorized reset triggers.
+3. **`DISARM` Action (`com.cyvra.sanitization.DISARM`):**
+   * Explicitly disarms the agent and clears any active token immediately upon request.
+
+Unauthenticated or mismatched broadcasts are rejected and logged with specific failure codes (`REJECTED_NOT_ARMED`, `REJECTED_TOKEN_MISMATCH`, `REJECTED_SERIAL_MISMATCH`, `REJECTED_TOKEN_EXPIRED`).
 
 ## Relationship to the governed record
 
