@@ -122,14 +122,42 @@ class FileBasedPatchStateProvider(
         System.getProperty(HostSystemProperties.INSTALLATION_ROOT_PROPERTY)
     },
     private val matrixLoader: CapabilityMatrixLoader = CapabilityMatrixLoader(),
-    private val trustAnchors: Map<String, TrustAnchor> = PatchTrustAnchors.ALL,
+    private val trustAnchors: Map<String, TrustAnchor>? = null,
+    private val manifestVerifier: TrustManifestVerifier? = null,
     private val appliedStateSource: AppliedPatchStateSource = NoGovernedAppliedStateSource,
     private val clock: () -> Instant = { Instant.now() },
 ) {
 
+    private val effectiveVerifier: TrustManifestVerifier =
+        manifestVerifier ?: TrustManifestVerifier(clock = clock)
+
+    private fun resolveAnchorsFromManifest(root: String): Map<String, TrustAnchor> {
+        val manifestFile = File(root, "$PATCH_CORPUS_DIRECTORY/trust-manifest.json").takeIf { it.isFile }
+            ?: File(root, "trust/trust-manifest.json").takeIf { it.isFile }
+            ?: return emptyMap()
+        val text = try {
+            manifestFile.readText(Charsets.UTF_8)
+        } catch (e: Exception) {
+            return emptyMap()
+        }
+        return when (val result = effectiveVerifier.verify(text)) {
+            is TrustManifestResult.Accepted -> result.anchors
+            is TrustManifestResult.Rejected -> emptyMap()
+        }
+    }
+
     fun establish(device: DeviceProfile? = null): PatchStateOutcome {
+        val root = installationRoot()?.takeIf { it.isNotBlank() }
+
+        val effectiveAnchors = when {
+            trustAnchors != null -> trustAnchors
+            PatchTrustAnchors.ALL.isNotEmpty() -> PatchTrustAnchors.ALL
+            root != null -> resolveAnchorsFromManifest(root)
+            else -> emptyMap()
+        }
+
         // Gate 1 — contract 3. Refuse before touching the filesystem.
-        if (trustAnchors.isEmpty()) {
+        if (effectiveAnchors.isEmpty()) {
             return PatchStateOutcome.Unavailable(
                 "NO_APPROVED_TRUST_ANCHOR: the build-time trust-anchor registry is empty, " +
                     "so no signed patch can be verified (contract 3; custody is open item 9.1)",
@@ -137,11 +165,12 @@ class FileBasedPatchStateProvider(
         }
 
         // Gate 2 — the governed read-only root the workstation supplies.
-        val root = installationRoot()?.takeIf { it.isNotBlank() }
-            ?: return PatchStateOutcome.Unavailable(
+        if (root == null) {
+            return PatchStateOutcome.Unavailable(
                 "INSTALL_ROOT_UNSET: ${HostSystemProperties.INSTALLATION_ROOT_PROPERTY} is " +
                     "not supplied, so no patch corpus can be resolved",
             )
+        }
 
         // Gate 3/4 — corpus presence. Absence is never `NO-PATCHES`.
         val corpusDirectory = File(root, PATCH_CORPUS_DIRECTORY)
@@ -151,7 +180,9 @@ class FileBasedPatchStateProvider(
                     "the installation root",
             )
         }
-        val envelopes = corpusDirectory.listFiles { entry -> entry.isFile && entry.name.endsWith(".json") }
+        val envelopes = corpusDirectory.listFiles { entry ->
+            entry.isFile && entry.name.endsWith(".json") && entry.name != "trust-manifest.json"
+        }
             ?.sortedBy { it.name }
             ?: return PatchStateOutcome.Unavailable(
                 "PATCH_CORPUS_UNREADABLE: $PATCH_CORPUS_DIRECTORY could not be listed",
@@ -166,7 +197,7 @@ class FileBasedPatchStateProvider(
         // Gate 5 — contract 6, ordered and fail-closed, via the existing verifier.
         val verifier = PatchVerifier(
             engineVersion = engineVersion,
-            trustAnchors = trustAnchors,
+            trustAnchors = effectiveAnchors,
             knownMatrixRows = ::knownMatrixRowIds,
             clock = clock,
         )
