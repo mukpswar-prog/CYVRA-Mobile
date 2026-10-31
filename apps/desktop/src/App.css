@@ -635,6 +635,101 @@
   color: var(--graphite);
 }
 
+/* ---- Polished Inspection Action Buttons ---------------------------------- */
+
+.btn-action-hw {
+  background: #f0f7ff;
+  border-color: #0066cc;
+  color: #0052a3;
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--radius-pill);
+}
+
+.btn-action-hw:hover:not(:disabled) {
+  background: #0066cc;
+  color: #ffffff;
+}
+
+.btn-action-app {
+  background: #f7f3ff;
+  border-color: #6a1b9a;
+  color: #511378;
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--radius-pill);
+}
+
+.btn-action-app:hover:not(:disabled) {
+  background: #6a1b9a;
+  color: #ffffff;
+}
+
+.btn-action-sanitize {
+  background: #fff5f5;
+  border-color: #d32f2f;
+  color: #b71c1c;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--radius-pill);
+}
+
+.btn-action-sanitize:hover:not(:disabled) {
+  background: #d32f2f;
+  color: #ffffff;
+}
+
+.btn-action-verify {
+  background: #eef8f6;
+  border-color: #00796b;
+  color: #004d40;
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--radius-pill);
+}
+
+.btn-action-verify:hover:not(:disabled) {
+  background: #00796b;
+  color: #ffffff;
+}
+
+.btn-action-download {
+  background: #e8f5e9;
+  border-color: #2e7d32;
+  color: #1b5e20;
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--radius-pill);
+}
+
+.btn-action-download:hover:not(:disabled) {
+  background: #2e7d32;
+  color: #ffffff;
+}
+
+.status-pill.is-signout {
+  background: #fce8e6;
+  border-color: #ea868f;
+  color: #c5221f;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.status-pill.is-signout:hover {
+  background: #d93025;
+  color: #ffffff;
+}
+
 /* ------------------------------------------------------------ outcome bands -- */
 
 .band {

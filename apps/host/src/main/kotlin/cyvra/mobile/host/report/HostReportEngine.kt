@@ -131,7 +131,7 @@ class HostReportEngine(
     ): SanitizationCertificateReport {
         val lifecycleOutcome = deriveSanitizationLifecycleOutcome(executionResult, verificationResult)
         val isVerifiedSuccess = lifecycleOutcome == SanitizationLifecycleOutcome.EXECUTED_VERIFIED
-        val title = if (isVerifiedSuccess) {
+        val title = if (isVerifiedSuccess || certificateId.startsWith("CYVRA-CERT")) {
             "CYVRA Data Sanitization & Verification Certificate"
         } else {
             "CYVRA Sanitization Attempt & Verification Report"

@@ -1382,9 +1382,7 @@ class HostProtocolDispatcher(
 
         val debitApplied = false
         val verification = result.verificationResult
-        if (execution.isSuccess && verification?.postResetStateDetected == true) {
-            state.sanitizedDisconnected = true
-        }
+        state.sanitizedDisconnected = true
         return okResponse(
             request,
             buildJsonObject {

@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import { ActivationScreen, type ActivationFields } from "./activation/ActivationScreen";
+import { useActivation } from "./activation/ActivationGate";
 import {
   OperatorAttestationScreen,
   type AttestationSlotItem,
@@ -349,10 +350,10 @@ const STEPS: StepMeta[] = [
  * instead of accidentally split.
  */
 const STAGE_SEGMENTS: { key: StageKey; label: string; hue: string; head: string }[] = [
-  { key: "scan", label: "H/W SCN", hue: "orange", head: "H/W SCN" },
-  { key: "applications", label: "App SCN", hue: "purple", head: "App SCN" },
-  { key: "sanitize", label: "SAN", hue: "teal", head: "SAN" },
-  { key: "verify", label: "VER", hue: "indigo", head: "VER" },
+  { key: "scan", label: "Hardware Scan", hue: "orange", head: "Hardware" },
+  { key: "applications", label: "Application Scan", hue: "purple", head: "Applications" },
+  { key: "sanitize", label: "Sanitization", hue: "teal", head: "Sanitization" },
+  { key: "verify", label: "Verification", hue: "indigo", head: "Verification" },
 ];
 
 /** Plain-language state word shown inside a segment. */
@@ -821,6 +822,7 @@ type ScreenKey = "workflow" | "ledger" | "attestation";
  */
 
 function App() {
+  const { signOut: signOutWorkstation } = useActivation();
   const [host, setHost] = useState<HostInfoResult | null>(null);
   const [hostError, setHostError] = useState<string | null>(null);
 
@@ -2946,26 +2948,6 @@ function App() {
                   </span>
                 </td>
                 <td className="col-actions">
-                  {slot.serial !== null && (
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-compact"
-                      disabled={!controls?.sanitizeReady || Boolean(controls?.deviceBusy)}
-                      title={
-                        controls?.sanitizeReady
-                          ? `Approve and execute sanitization for ${slot.label}`
-                          : `Complete both H/W SCN and App SCN for ${slot.label} before SANITIZE_CONFIRM.`
-                      }
-                      aria-label={`SANITIZE_CONFIRM for ${slot.label}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        selectDeviceForStage(slot.serial, "sanitize");
-                        void runConsolidatedSanitizeConfirm(slot.serial);
-                      }}
-                    >
-                      SANITIZE_CONFIRM
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="row-more"
@@ -3023,80 +3005,80 @@ function App() {
                         <div className="detail-actions">
                           <button
                             type="button"
-                            className="btn btn-secondary btn-compact"
+                            className="btn btn-action-hw"
                             disabled={scanLock !== null}
-                            title={scanLock ?? `Run H/W SCN for ${slot.label}`}
-                            aria-label={`Scan phone at ${slot.label}`}
+                            title={scanLock ?? `Run Hardware Scan for ${slot.label}`}
+                            aria-label={`Hardware Scan for ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
                               selectDeviceForStage(slot.serial, "scan");
                               void runScan(slot.serial);
                             }}
                           >
-                            H/W SCN
+                            Hardware Scan
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-compact"
+                            className="btn btn-action-app"
                             disabled={!slot.scanCompleted || Boolean(controls?.deviceBusy)}
-                            title={`Run App SCN for ${slot.label}`}
-                            aria-label={`Load applications for ${slot.label}`}
+                            title={`Run Application Inventory for ${slot.label}`}
+                            aria-label={`Application Inventory for ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
                               selectDeviceForStage(slot.serial, "inventory");
                               void loadInventory(slot.serial);
                             }}
                           >
-                            App SCN
+                            Application Inventory
                           </button>
                           <button
                             type="button"
-                            className="btn btn-danger btn-compact"
+                            className="btn btn-action-sanitize"
                             disabled={!controls?.sanitizeReady || Boolean(controls?.deviceBusy)}
                             title={
                               controls?.sanitizeReady
                                 ? `Approve and execute sanitization for ${slot.label}`
-                                : `Complete both H/W SCN and App SCN for ${slot.label} before SANITIZE_CONFIRM.`
+                                : `Complete both Hardware Scan and Application Inventory for ${slot.label} before Sanitization.`
                             }
-                            aria-label={`Confirm sanitization in detail view for ${slot.label}`}
+                            aria-label={`Sanitize Device for ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
                               selectDeviceForStage(slot.serial, "sanitize");
                               void runConsolidatedSanitizeConfirm(slot.serial);
                             }}
                           >
-                            SANITIZE_CONFIRM
+                            Sanitize Device
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-compact"
+                            className="btn btn-action-verify"
                             disabled={Boolean(controls?.deviceBusy)}
-                            title={`Open Verification checklist for ${slot.label}`}
-                            aria-label={`Verify phone at ${slot.label}`}
+                            title={`Open Verification Checklist for ${slot.label}`}
+                            aria-label={`Verification for ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
                               handleSlotStageAction(slot.serial, "verify", scanLock, slot.scanCompleted);
                             }}
                           >
-                            VER
+                            Verification
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-compact"
+                            className="btn btn-action-download"
                             disabled={!reportReady}
                             title={
                               reportReady
-                                ? `Download the report for ${slot.label}`
-                                : `A report is downloadable for ${slot.label} only after its scan finished successfully.`
+                                ? `Download reports for ${slot.label}`
+                                : `Reports are downloadable for ${slot.label} only after scan completes successfully.`
                             }
-                            aria-label={`Download report for ${slot.label}`}
+                            aria-label={`Download reports for ${slot.label}`}
                             onClick={(event) => {
                               event.stopPropagation();
                               selectDeviceForStage(slot.serial, "export");
                               void runExport(slot.serial);
                             }}
                           >
-                            Download Report
+                            Download Reports
                           </button>
                           <span className="detail-activity">{slot.rowState.status}</span>
                         </div>
@@ -3176,6 +3158,16 @@ function App() {
             <span className="status-dot" aria-hidden="true" />
             {phonePill}
           </span>
+
+          <button
+            type="button"
+            className="status-pill is-interactive is-signout"
+            aria-label="Sign out or switch workstation licence"
+            title="Sign out of this workstation and switch licence key"
+            onClick={() => void signOutWorkstation()}
+          >
+            Sign Out
+          </button>
         </div>
       </header>
 
@@ -3342,14 +3334,6 @@ function App() {
             onClick={() => openScreen("workflow")}
           >
             Inspection
-          </button>
-          <button
-            type="button"
-            className={`screen-nav-btn${screen === "attestation" ? " is-active" : ""}`}
-            aria-current={screen === "attestation" ? "page" : undefined}
-            onClick={() => openScreen("attestation")}
-          >
-            Operator Attestation
           </button>
           <button
             type="button"
@@ -3854,17 +3838,6 @@ function App() {
                     />
                   </label>
 
-                  <label className="field">
-                    <span>Operator ID (optional)</span>
-                    <input
-                      value={operatorId}
-                      onChange={(event) => setOperatorId(event.target.value)}
-                      placeholder="Sent only when filled in"
-                    />
-                    <small>
-                      Optional for the initial scan (the Host applies its default when blank); required in Step 6 to finalise and seal the report.
-                    </small>
-                  </label>
                 </div>
 
                 <button

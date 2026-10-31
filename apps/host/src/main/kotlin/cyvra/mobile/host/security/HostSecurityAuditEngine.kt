@@ -38,7 +38,6 @@ class HostSecurityAuditEngine {
             "getprop",
             "dumpsys battery",
             "dumpsys package",
-            "dumpsys account",
             // Added 14-Oct for the PUR-004 pre-flight. Read-only, and narrower than
             // `dumpsys` as a whole: it reports device-owner state, which is the one
             // fact that must be established before a destructive trigger is issued.

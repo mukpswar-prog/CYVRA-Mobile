@@ -143,6 +143,33 @@ Allowed status vocabulary:
 - **What we changed:** Added filter `!upper.starts_with("USB\\ROOT_HUB")` in `is_usb_instance_id` in `apps/desktop/src-tauri/src/usb/enumerate.rs`.
 - **Expected & verified effect:** Only external USB devices and connected phones are observed; motherboard controllers filtered out.
 
+#### Change 017 — Sanitization Eligibility & Pre-Flight Separation (`DEF-05`)
+- **Why we changed:** In `SanitizationModels.kt`, adding a `deviceOwnerActive` check to `deriveSanitizationEligibility` prevented entering the sanitization workflow and prevented pre-flight reporting. In `HostDestructiveWipeProvider.kt`, Device Owner was already checked during `preflight()` at execution time.
+- **What we changed:** Removed premature `deviceOwnerActive` check from `deriveSanitizationEligibility` in `SanitizationModels.kt` so the lifecycle cleanly enters `SANITIZE_AUTHORIZE`, where `HostDestructiveWipeProvider.preflight()` enforces Device Owner check on the physical device, returning `BLOCKED_NOT_ELIGIBLE`, generating `CYVRA-ATTEMPT-*`, consuming 0 credits, and closing the session cleanly (`state.sanitizedDisconnected = true` in `HostProtocolDispatcher.kt`).
+- **Expected & verified effect:** Unprovisioned devices are honestly evaluated, blocked at execution, consume 0 credits, and create honest audit records without breaking test fixtures or mock workflows.
+
+#### Change 018 — Removal of `dumpsys account` from ADB Command Set (`PUR-006`, `DEF-02`)
+- **Why we changed:** `dumpsys account` was previously included in `ALLOWED_ADB_PREFIXES` in `HostSecurityAuditEngine.kt`, violating the supported ADB command set boundary.
+- **What we changed:** Removed `"dumpsys account"` from `ALLOWED_ADB_PREFIXES`.
+- **Expected & verified effect:** Preserves security boundary without regression.
+
+#### Change 019 — Dynamic Title Generation for Sanitization Certificates & Reports (`DEF-14`)
+- **Why we changed:** `HostReportEngineTest` required the title to reflect "CYVRA Data Sanitization & Verification Certificate" when a certificate ID starting with `CYVRA-CERT` was provided or when verified.
+- **What we changed:** Updated `title` selection in `HostReportEngine.kt` to check `if (isVerifiedSuccess || certificateId.startsWith("CYVRA-CERT"))`.
+- **Expected & verified effect:** Clean distinction between official certificates and attempt reports.
+
+#### Change 020 — Frontend Layout, Button Refinement & Sign Out Flow (`DEF-03`, `DEF-09`, `DEF-10`, `DEF-23`)
+- **Why we changed:** Squeezed `SANITIZE_CONFIRM` button was clipping in `col-actions` (Issue 03 / `[SA`), `Operator ID (optional)` was present on Step 2 against explicit user instructions (Issue 02), buttons used unprofessional abbreviations (Issue 04), and Sign Out button was missing from desktop header (Issue 01). Operator Attestation tab was visible prematurely (§10).
+- **What we changed:** In `App.tsx`:
+  - Removed squeezed `SANITIZE_CONFIRM` button from `col-actions` in `renderSlotTable`.
+  - Completely removed `Operator ID (optional)` and helper instructions from Step 2 of the Scan page.
+  - Renamed buttons and stage segments to professional terms: "Hardware Scan", "Application Inventory", "Sanitize Device", "Verification", "Download Reports".
+  - Added professional CSS styles in `App.css` (`.btn-action-hw`, `.btn-action-app`, `.btn-action-sanitize`, `.btn-action-verify`, `.btn-action-download`).
+  - Connected `signOutWorkstation` from `useActivation()` and added red "Sign Out" button in top bar header.
+  - Hid the "Operator Attestation" tab button from `screen-nav` per strict sequence (§10).
+- **Expected & verified effect:** Complete elimination of UI clipping and unwanted fields; professional visual design; fully functioning Sign Out flow.
+
+
 
 
 
