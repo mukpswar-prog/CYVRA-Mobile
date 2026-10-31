@@ -169,6 +169,12 @@ Allowed status vocabulary:
   - Hid the "Operator Attestation" tab button from `screen-nav` per strict sequence (§10).
 - **Expected & verified effect:** Complete elimination of UI clipping and unwanted fields; professional visual design; fully functioning Sign Out flow.
 
+#### Change 021 — Desktop Window Dimension Rectification (`DEF-09`)
+- **Why we changed:** Default window resolution was set to `800x600` without minimum dimension constraints in `tauri.conf.json`, causing the 50-device dashboard table and expanded detail card to compress and scroll aggressively on workstation launches.
+- **What we changed:** Updated `app.windows[0]` in `tauri.conf.json` to default `width: 1440, height: 900, minWidth: 1024, minHeight: 700`.
+- **Expected & verified effect:** Professional, spacious launch dimensions accommodating the multi-device dashboard and split cards comfortably.
+
+
 
 
 
