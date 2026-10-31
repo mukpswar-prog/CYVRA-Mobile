@@ -198,21 +198,27 @@ class AdbExtendedEvidenceProvider(
     // ------------------------------------------------------------------ sensors
 
     private fun sensors() = listOf(
-        sensorParam("SEN-001", "Accelerometer"),
-        sensorParam("SEN-002", "Gyroscope"),
-        sensorParam("SEN-003", "Magnetometer"),
-        sensorParam("SEN-004", "Proximity"),
-        sensorParam("SEN-005", "Light"),
-        sensorParam("SEN-006", "Barometer"),
+        sensorParam("SEN-001", "Accelerometer", 1, "android.sensor.accelerometer"),
+        sensorParam("SEN-002", "Gyroscope", 4, "android.sensor.gyroscope"),
+        sensorParam("SEN-003", "Magnetometer", 2, "android.sensor.magnetic_field"),
+        sensorParam("SEN-004", "Proximity", 8, "android.sensor.proximity"),
+        sensorParam("SEN-005", "Light", 5, "android.sensor.light"),
+        sensorParam("SEN-006", "Barometer", 6, "android.sensor.pressure"),
     )
 
-    private fun sensorParam(id: String, name: String): DeviceParameter =
+    private fun sensorParam(id: String, name: String, typeId: Int, typeString: String): DeviceParameter =
         param(id, "SENSORS", "$name sensor", "dumpsys sensorservice",
             { out ->
-                out.lines().firstOrNull { it.contains(name, ignoreCase = true) }
-                    ?.trim()?.ifEmpty { null }
+                val sensorListBlock = out.substringAfter("Sensor List:", "")
+                    .substringBefore("Fusion States:")
+                    .substringBefore("Recent Sensor events:")
+                sensorListBlock.lines()
+                    .map { it.trim() }
+                    .firstOrNull { line ->
+                        line.startsWith("0x") && (line.contains("($typeId)") || line.contains(typeString, ignoreCase = true) || line.contains(name, ignoreCase = true))
+                    }?.ifEmpty { null }
             },
-            "sensorservice did not list a $name sensor")
+            "Sensor List registered no $name sensor (type $typeId)")
 
     // ------------------------------------------------------------------ haptics
 

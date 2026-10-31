@@ -183,12 +183,16 @@ pub fn export(
     write_envelope(home, &envelope)
 }
 
+fn session_idempotency_key(subject: &str) -> &str {
+    subject.split(':').next().unwrap_or(subject).trim()
+}
+
 /// Appends one settlement to `<cyvra.home>/entitlement.json`.
 ///
-/// Idempotent by [subject]: replaying the same certificate returns the entry
-/// already on file rather than spending twice, which is what makes a retried
-/// GET_FINAL_REPORT safe. The signed `payload` and `signature` are copied
-/// through untouched, so the Host's verification is unaffected.
+/// Idempotent by [subject] and by scan session prefix (`<sessionUuid>:<reportId>`):
+/// replaying the same scan session returns the entry already on file rather than
+/// spending twice. The signed `payload` and `signature` are copied through
+/// untouched, so the Host's Ed25519 verification is unaffected.
 ///
 /// `at` comes from the caller's injected clock - this module never reads one.
 pub fn record_debit(
@@ -199,21 +203,38 @@ pub fn record_debit(
     if home.as_os_str().is_empty() {
         return Err(ExportError::HomeUnavailable);
     }
+    let normalized_subject = subject.trim();
+    if normalized_subject.is_empty() {
+        return Err(ExportError::WriteFailed);
+    }
 
     /*
      * Taken before the read, not after it: this is a read-modify-write of a
-     * shared file, and two certificates settling at the same moment would each
+     * shared file, and two scans settling at the same moment would each
      * otherwise see the other's spend as absent and drop it on the floor.
      */
     let _guard = ledger::file_lock()
         .lock()
         .map_err(|_| ExportError::WriteFailed)?;
 
+    record_debit_locked(home, normalized_subject, at).map(|(debit, _)| debit)
+}
+
+fn record_debit_locked(
+    home: &Path,
+    subject: &str,
+    at: &str,
+) -> Result<(Debit, bool), ExportError> {
     let document = read_document(home)?.ok_or(ExportError::NoSnapshot)?;
+    let incoming_session_key = session_idempotency_key(subject);
 
     let mut debits = document.debits;
-    if let Some(existing) = debits.iter().find(|debit| debit.subject == subject) {
-        return Ok(existing.clone());
+    if let Some(existing) = debits.iter().find(|debit| {
+        debit.subject == subject
+            || (!incoming_session_key.is_empty()
+                && session_idempotency_key(&debit.subject) == incoming_session_key)
+    }) {
+        return Ok((existing.clone(), false));
     }
 
     let (seq, prev) = match debits.last() {
@@ -241,7 +262,54 @@ pub fn record_debit(
 
     write_envelope(home, &envelope)?;
 
-    Ok(entry)
+    Ok((entry, true))
+}
+
+/// Reconciles `<cyvra.home>/entitlement.json` against verified `SCAN_DEBITED`
+/// entries in `<cyvra.home>/logs/ledger.jsonl` (DEF-04 / DEF-22 crash recovery).
+///
+/// If an application crash or power loss occurred after `SCAN_DEBITED` was
+/// committed to `ledger.jsonl` but before `entitlement.json` was updated, this
+/// replays any missing debits whose timestamp `at` is at or after the active
+/// entitlement snapshot's `issuedAt` timestamp, idempotently under the shared
+/// journal mutex.
+pub fn reconcile_from_ledger(home: &Path) -> Result<usize, ExportError> {
+    if home.as_os_str().is_empty() {
+        return Err(ExportError::HomeUnavailable);
+    }
+
+    let _guard = ledger::file_lock()
+        .lock()
+        .map_err(|_| ExportError::WriteFailed)?;
+
+    let Some(document) = read_document(home)? else {
+        return Ok(0);
+    };
+
+    let entries = ledger::read_entries(home).map_err(|_| ExportError::WriteFailed)?;
+    if entries.is_empty() {
+        return Ok(0);
+    }
+    ledger::verify_chain(&entries).map_err(|_| ExportError::WriteFailed)?;
+
+    let mut recovered = 0usize;
+    for entry in entries {
+        if entry.event != ledger::LedgerEvent::ScanDebited {
+            continue;
+        }
+        if !document.issued_at.is_empty() && entry.at.as_str() < document.issued_at.as_str() {
+            continue;
+        }
+        let Some(subject) = entry.subject.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        let (_, added) = record_debit_locked(home, subject, &entry.at)?;
+        if added {
+            recovered += 1;
+        }
+    }
+
+    Ok(recovered)
 }
 
 /// What a previously written document held.
@@ -616,5 +684,111 @@ mod tests {
             None,
             "no document is not an answer to which document it is"
         );
+    }
+
+    #[test]
+    fn session_prefix_idempotency_prevents_double_debit_for_same_scan_session() {
+        let home = temp_home();
+        export(&home, &snapshot(), "2026-09-30T10:00:00Z").expect("export");
+
+        let first = record_debit(
+            &home,
+            "sess-1111-2222:CYVRA-R1-2026-AAAAAA",
+            "2026-09-30T11:00:00Z",
+        )
+        .expect("first debit");
+        let replay_same_session = record_debit(
+            &home,
+            "sess-1111-2222:CYVRA-R1-2026-BBBBBB",
+            "2026-09-30T11:00:05Z",
+        )
+        .expect("idempotent replay");
+
+        assert_eq!(first, replay_same_session);
+        assert_eq!(parsed(&home)["debits"].as_array().expect("array").len(), 1);
+    }
+
+    #[test]
+    fn concurrent_settlements_serialize_cleanly_without_duplicate_or_dropped_debits() {
+        let home = temp_home();
+        export(&home, &snapshot(), "2026-09-30T10:00:00Z").expect("export");
+
+        let mut handles = Vec::new();
+        // 8 threads: 4 pairs racing on 4 distinct scan sessions
+        for idx in 0..8usize {
+            let home_clone = home.clone();
+            let session_num = idx / 2;
+            handles.push(std::thread::spawn(move || {
+                record_debit(
+                    &home_clone,
+                    &format!("session-000{session_num}:CYVRA-R1-2026-000{session_num}"),
+                    "2026-09-30T11:00:00Z",
+                )
+                .expect("concurrent debit")
+            }));
+        }
+
+        for handle in handles {
+            handle.join().expect("thread join");
+        }
+
+        let doc = parsed(&home);
+        let debits = doc["debits"].as_array().expect("debits array");
+        assert_eq!(
+            debits.len(),
+            4,
+            "4 distinct sessions raced across 8 threads must produce exactly 4 debits"
+        );
+        for (i, item) in debits.iter().enumerate() {
+            assert_eq!(item["seq"].as_u64(), Some((i + 1) as u64));
+        }
+    }
+
+    #[test]
+    fn reconcile_from_ledger_recovers_missing_debit_after_interrupted_settlement() {
+        let home = temp_home();
+        export(&home, &snapshot(), "2026-09-30T10:00:00Z").expect("export");
+
+        // Simulate crash: ledger recorded SCAN_COMMITTED + SCAN_DEBITED at 10:05:00Z,
+        // plus an older historical SCAN_DEBITED from 09:00:00Z (prior statement),
+        // while entitlement.json still has 0 debits.
+        let old_clock = ledger::FixedClock::new(1_790_758_800); // 2026-09-30T09:00:00Z
+        ledger::append(
+            &home,
+            ledger::LedgerRequest::new(ledger::LedgerEvent::ScanDebited)
+                .subject("prior-session:CYVRA-R1-OLD")
+                .unique(),
+            &old_clock,
+        )
+        .expect("prior ledger entry");
+
+        let live_clock = ledger::FixedClock::new(1_790_762_700); // 2026-09-30T10:05:00Z
+        ledger::append(
+            &home,
+            ledger::LedgerRequest::new(ledger::LedgerEvent::ScanCommitted)
+                .subject("crashed-session-1")
+                .unique(),
+            &live_clock,
+        )
+        .expect("committed ledger entry");
+        ledger::append(
+            &home,
+            ledger::LedgerRequest::new(ledger::LedgerEvent::ScanDebited)
+                .subject("crashed-session-1:CYVRA-R1-CRASH1")
+                .unique(),
+            &live_clock,
+        )
+        .expect("debited ledger entry");
+
+        let recovered_first = reconcile_from_ledger(&home).expect("reconcile");
+        assert_eq!(recovered_first, 1, "only post-issuedAt debit must be recovered");
+
+        let recovered_second = reconcile_from_ledger(&home).expect("reconcile idempotent");
+        assert_eq!(recovered_second, 0, "second reconciliation must be a no-op");
+
+        let doc = parsed(&home);
+        let debits = doc["debits"].as_array().expect("debits array");
+        assert_eq!(debits.len(), 1);
+        assert_eq!(debits[0]["subject"], "crashed-session-1:CYVRA-R1-CRASH1");
     }
 }

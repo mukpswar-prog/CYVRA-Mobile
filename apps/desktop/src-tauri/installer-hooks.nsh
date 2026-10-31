@@ -4,24 +4,14 @@
  * Referenced by bundle.windows.nsis.installerHooks in tauri.conf.json.
  * Tauri expands these macros inside its generated installer.nsi.
  *
- * Purpose of this file: make the installed product self-contained with
- * respect to Android USB drivers. A customer who plugs in a phone should
- * not have to download or install a driver by hand - the workstation
- * image already carries them.
- *
- * Why POSTINSTALL and not PREINSTALL: the driver packages are bundled
- * under $INSTDIR\resources\drivers, and PREINSTALL runs before the file
- * copy. At PREINSTALL the payloads do not exist yet.
- *
- * Why this works without a UAC prompt: bundle.windows.nsis.installMode is
- * perMachine, so the installer already runs elevated. pnputil needs that
- * elevation to write to the driver store.
- *
- * Failure policy: every step is non-fatal and logged. If a driver cannot
- * be staged the application still launches, still runs its self-test, and
- * still reports connection state honestly - it simply will not see a
- * phone until a driver is present. An installer that aborts half-way
- * through would leave the customer worse off than one that continues.
+ * Purpose of this file:
+ * 1. Stage bundled Android USB drivers (Samsung + Google WinUSB) under elevation.
+ * 2. Provision `%ProgramData%\CYVRA Mobile` with safe, non-recursive inheritance ACLs
+ *    after checking that the target path is NOT a reparse point / NTFS junction (DEF-18).
+ * 3. On full uninstallation (excluding in-place `/UPDATE` upgrades), remove active
+ *    workstation session credentials (`activation.dat` and `entitlement.json`) so a
+ *    subsequent clean installation begins cleanly at `Sign in & Activate`, while
+ *    preserving immutable audit logs (`logs\`) and generated customer reports (`reports\`).
  */
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -30,28 +20,13 @@
 
     IfFileExists "$SYSDIR\pnputil.exe" 0 cyvra_pnputil_absent
 
-        /*
-         * Samsung ADB interface driver (ssudadb). This is the package that
-         * binds the composite ADB function of a Samsung handset, which is
-         * the interface the Host's adb transport talks to.
-         */
         IfFileExists "$INSTDIR\resources\drivers\ssudadb\*.inf" 0 cyvra_drv_ssudadb_done
             DetailPrint "CYVRA: staging Samsung ADB driver (ssudadb)"
             nsExec::ExecToLog '"$SYSDIR\pnputil.exe" /add-driver "$INSTDIR\resources\drivers\ssudadb\*.inf" /install'
             Pop $0
-            /*
-             * 0   = staged and bound
-             * 259 = the package is already in the store (ERROR_NO_MORE_ITEMS),
-             *       which is the desired end state on a repair install.
-             * Anything else is reported and skipped over.
-             */
             DetailPrint "CYVRA: ssudadb pnputil exit code $0"
         cyvra_drv_ssudadb_done:
 
-        /*
-         * Samsung USB bus driver (ssudbus). Present so the composite device
-         * enumerates cleanly before the ADB function is bound.
-         */
         IfFileExists "$INSTDIR\resources\drivers\ssudbus\*.inf" 0 cyvra_drv_ssudbus_done
             DetailPrint "CYVRA: staging Samsung USB bus driver (ssudbus)"
             nsExec::ExecToLog '"$SYSDIR\pnputil.exe" /add-driver "$INSTDIR\resources\drivers\ssudbus\*.inf" /install'
@@ -59,11 +34,6 @@
             DetailPrint "CYVRA: ssudbus pnputil exit code $0"
         cyvra_drv_ssudbus_done:
 
-        /*
-         * Google generic Android WinUSB driver (android_winusb). Covers
-         * Pixel and other AOSP-reference devices that do not ship an OEM
-         * driver of their own.
-         */
         IfFileExists "$INSTDIR\resources\drivers\android_winusb\*.inf" 0 cyvra_drv_awinusb_done
             DetailPrint "CYVRA: staging Google Android WinUSB driver"
             nsExec::ExecToLog '"$SYSDIR\pnputil.exe" /add-driver "$INSTDIR\resources\drivers\android_winusb\*.inf" /install'
@@ -75,38 +45,18 @@
         GoTo cyvra_pnputil_done
 
     cyvra_pnputil_absent:
-        /*
-         * Not expected on Windows 10 or 11. Recorded rather than assumed,
-         * because a silent skip here would look identical to a success in
-         * the install log.
-         */
         DetailPrint "CYVRA: pnputil.exe not found; USB drivers not staged"
 
     cyvra_pnputil_done:
 
     /*
-     * Per-machine writable state root (Option C, P6 task 6.2).
+     * Per-machine writable state root with junction / reparse-point protection (DEF-18).
      *
-     * Activation writes entitlement.json, license.json, logs/, reports/ and
-     * certificates/ into <ProgramData>\CYVRA Mobile - never into $INSTDIR.
-     * Under perMachine $INSTDIR is Program Files, which is read-only for the
-     * operator running the app, and that was the defect: the export failed,
-     * the failure rendered as a local fault carrying no message, and ACTIVATE
-     * simply did not move to the next screen.
-     *
-     * installMode stays perMachine so the pnputil staging above keeps the
-     * elevation it needs. Only this data directory's ACL changes.
-     *
-     * The grant is (OI)(CI)M on the state directory alone and is deliberately
-     * not applied to $INSTDIR: bundled adb.exe, the JRE and the Host JARs stay
-     * read-only for every non-elevated account, because an evidence product
-     * must not resolve its tooling from a directory any local user can rewrite.
-     *
-     * Non-fatal, like every other step in this hook. If the grant fails the
-     * install still completes, and the workstation - which creates this
-     * directory itself on first run - still works for the account that
-     * created it. The exit code is printed so a failure cannot be mistaken
-     * for a granted ACL when the log is read later.
+     * Security hardening:
+     * 1. Verify `$1` (`%ProgramData%\CYVRA Mobile`) is NOT a reparse point / junction via
+     *    `fsutil.exe reparsepoint query "$1"`. `fsutil` returns exit code 0 ONLY when the
+     *    target IS a reparse point; if exit code is 0, abort ACL modification immediately.
+     * 2. Apply `(OI)(CI)M` on `$1` WITHOUT `/T` (no recursive traversal of child junctions).
      */
     DetailPrint "CYVRA: state root ACL starting"
     ReadEnvStr $0 ProgramData
@@ -115,21 +65,70 @@
         StrCpy $1 "$0\CYVRA Mobile"
         CreateDirectory "$1"
         DetailPrint "CYVRA: state root $1"
-        nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$1" /grant "*S-1-5-32-545:(OI)(CI)M" /T /C'
-        Pop $2
-        DetailPrint "CYVRA: state root icacls exit code $2"
-        GoTo cyvra_state_done
+
+        IfFileExists "$SYSDIR\fsutil.exe" 0 cyvra_state_apply_acl
+            nsExec::ExecToLog '"$SYSDIR\fsutil.exe" reparsepoint query "$1"'
+            Pop $2
+            StrCmp $2 "0" cyvra_state_reparse_detected cyvra_state_apply_acl
+
+        cyvra_state_reparse_detected:
+            DetailPrint "CYVRA: SECURITY ABORT - state root $1 is a reparse point; refusing ACL grant"
+            GoTo cyvra_state_done
+
+        cyvra_state_apply_acl:
+            nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$1" /grant "*S-1-5-32-545:(OI)(CI)M" /C'
+            Pop $2
+            DetailPrint "CYVRA: state root icacls exit code $2"
+            GoTo cyvra_state_done
 
     cyvra_state_no_programdata:
-        /*
-         * Not expected on Windows 10 or 11. Recorded rather than assumed,
-         * for the same reason pnputil's absence is: a silent skip in the
-         * install log is indistinguishable from a granted ACL.
-         */
         DetailPrint "CYVRA: ProgramData not set; the workstation creates the state root on first run"
 
     cyvra_state_done:
-
     DetailPrint "CYVRA: state root ACL finished"
+
+!macroend
+
+!macro NSIS_HOOK_PREUNINSTALL
+
+    /*
+     * Clean session-credential removal on full uninstall (DEF-03 / DEF-18).
+     *
+     * Tauri invokes the uninstaller with `/UPDATE` (or `/P` during silent update) when
+     * upgrading in place; during an in-place upgrade we preserve `activation.dat` and
+     * `entitlement.json`. During a full user-initiated uninstall, we remove active
+     * session tokens so reinstalling starts cleanly at `Sign in & Activate`, while
+     * preserving `logs\` (ledger + audit trail) and `reports\` / `certificates\`.
+     *
+     * Pure NSIS substring scan over `$CMDLINE` avoids any `FileFunc.nsh` macro-insertion
+     * ordering assumptions inside Tauri's generated `installer.nsi`.
+     */
+    StrCpy $R0 $CMDLINE
+    StrLen $R1 $R0
+    StrCpy $R2 0
+    cyvra_uninst_scan_cmdline:
+        IntCmp $R2 $R1 cyvra_uninst_not_update 0 cyvra_uninst_not_update
+        StrCpy $R3 $R0 7 $R2
+        StrCmp $R3 "/UPDATE" cyvra_uninst_preserve_session
+        StrCpy $R3 $R0 3 $R2
+        StrCmp $R3 " /P" cyvra_uninst_preserve_session
+        IntOp $R2 $R2 + 1
+        GoTo cyvra_uninst_scan_cmdline
+
+    cyvra_uninst_not_update:
+        ReadEnvStr $0 ProgramData
+        StrCmp $0 "" cyvra_uninst_done
+            StrCpy $1 "$0\CYVRA Mobile"
+            IfFileExists "$1\activation.dat" 0 +3
+                DetailPrint "CYVRA: clearing workstation activation session on uninstall"
+                Delete "$1\activation.dat"
+            IfFileExists "$1\entitlement.json" 0 +2
+                Delete "$1\entitlement.json"
+        GoTo cyvra_uninst_done
+
+    cyvra_uninst_preserve_session:
+        DetailPrint "CYVRA: in-place update detected; preserving active workstation licence session"
+
+    cyvra_uninst_done:
 
 !macroend

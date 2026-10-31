@@ -22,8 +22,9 @@ import java.util.UUID
 class HostSecurityAuditEngine {
 
     companion object {
-        // Forbidden private key patterns
+        // Forbidden private key patterns (PEM headers and raw Base64 PKCS#8 Ed25519 PrivateKeyInfo)
         private val PRIVATE_KEY_PATTERN = Regex("-----BEGIN .*PRIVATE KEY-----")
+        private val PKCS8_ED25519_PRIVATE_KEY_PATTERN = Regex("MC4CAQAwBQYDK2VwBCIE[A-Za-z0-9+/=]{40,}")
 
         // Forbidden payment gateway patterns (§43)
         private val PAYMENT_PATTERNS = listOf(
@@ -37,14 +38,21 @@ class HostSecurityAuditEngine {
             "getprop",
             "dumpsys battery",
             "dumpsys package",
+            "dumpsys account",
             // Added 14-Oct for the PUR-004 pre-flight. Read-only, and narrower than
             // `dumpsys` as a whole: it reports device-owner state, which is the one
             // fact that must be established before a destructive trigger is issued.
             "dumpsys device_policy",
+            "settings get global device_provisioned",
+            "settings get global adb_enabled",
             "cat /proc/meminfo",
+            "cat /proc/uptime",
+            "cat /proc/sys/kernel/random/boot_id",
             "df",
             "pm list packages",
             "cmd recovery wipe-data",
+            // Governed Device-Owner provisioning restricted strictly to CYVRA SanitizationAdmin
+            "dpm set-device-owner com.cyvra.sanitization/.SanitizationAdmin",
             // Added 14-Oct for PUR-004. This is deliberately the full component
             // address rather than the bare `am broadcast`, which would let any
             // broadcast on the device be issued. Scoped to the CYVRA sanitization
@@ -87,6 +95,9 @@ class HostSecurityAuditEngine {
         val violations = mutableListOf<String>()
         if (PRIVATE_KEY_PATTERN.containsMatchIn(content)) {
             violations.add("Forbidden private key detected matching: ${PRIVATE_KEY_PATTERN.pattern}")
+        }
+        if (PKCS8_ED25519_PRIVATE_KEY_PATTERN.containsMatchIn(content)) {
+            violations.add("Forbidden PKCS#8 Ed25519 private key detected")
         }
         return violations
     }

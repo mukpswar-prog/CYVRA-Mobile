@@ -101,6 +101,80 @@ mod tests {
         assert!(!session_id.contains("VID_04E8"));
         assert!(session_id.starts_with("wpd-session-"));
     }
+
+    #[test]
+    fn approved_credit_rule_debits_once_for_completed_run_scan_and_zero_for_failures_or_redownloads() {
+        use crate::activation::api::SignedSnapshot;
+        use crate::activation::entitlement;
+        use crate::ledger::{self, FixedClock, LedgerEvent};
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let home = std::env::temp_dir().join(format!(
+            "cyvra-cmd-credit-{}-{nanos}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&home).expect("temp home");
+
+        let snap = SignedSnapshot {
+            payload: r#"{"licenseId":"LIC-1","scansRemaining":10}"#.to_string(),
+            signature: "c2ln".to_string(),
+        };
+        entitlement::export(&home, &snap, "2026-10-31T08:00:00Z").expect("export");
+        let clock = FixedClock::new(1_793_434_800); // 2026-10-31T08:20:00Z
+
+        // 1. Failed scan -> 0 ledger entries, 0 debits
+        super::record_scan_ledger_at(
+            &home,
+            "RUN_SCAN",
+            r#"{"status":"ERROR","error":{"code":"SCAN_FAILED","message":"adb lost"}}"#,
+            &clock,
+        )
+        .expect("failed scan");
+        assert!(ledger::read_entries(&home).unwrap().is_empty());
+
+        // 2. Completed scan + Report 1 -> 1 SCAN_COMMITTED + 1 SCAN_DEBITED + 1 entitlement debit
+        let ok_scan = r#"{"status":"OK","payload":{"scanStatus":"COMPLETED","sessionUuid":"sess-a10s-01","reportId":"CYVRA-R1-2026-000101"}}"#;
+        super::record_scan_ledger_at(&home, "RUN_SCAN", ok_scan, &clock).expect("ok scan");
+
+        // 3. Repeated processing of same completed session -> 0 duplicate debits
+        super::record_scan_ledger_at(&home, "RUN_SCAN", ok_scan, &clock).expect("replay scan");
+
+        // 4. Report re-downloads & blocked sanitization -> 0 additional debits
+        for (cmd, resp) in [
+            ("GET_DEVICE_REPORT", r#"{"status":"OK","payload":{"reportId":"CYVRA-R1-2026-000101"}}"#),
+            ("EXPORT_REPORT", r#"{"status":"OK","payload":{"reportId":"CYVRA-R1-2026-000101"}}"#),
+            ("SANITIZE_START", r#"{"status":"ERROR","error":{"code":"SANITIZE_NOT_ELIGIBLE","message":"Requires Device Owner"}}"#),
+            ("SANITIZE_AUTHORIZE", r#"{"status":"OK","payload":{"lifecycleOutcome":"BLOCKED_NOT_EXECUTED","certificateId":"CYVRA-ATTEMPT-2026-0001"}}"#),
+            ("GET_FINAL_REPORT", r#"{"status":"OK","payload":{"certificateId":"CYVRA-ATTEMPT-2026-0001"}}"#),
+        ] {
+            super::record_scan_ledger_at(&home, cmd, resp, &clock).expect("non-debit cmd");
+        }
+
+        let entries = ledger::read_entries(&home).unwrap();
+        ledger::verify_chain(&entries).expect("valid chain");
+        assert_eq!(
+            entries.iter().map(|e| e.event).collect::<Vec<_>>(),
+            vec![LedgerEvent::ScanCommitted, LedgerEvent::ScanDebited]
+        );
+        assert_eq!(entries[0].subject.as_deref(), Some("sess-a10s-01"));
+        assert_eq!(
+            entries[1].subject.as_deref(),
+            Some("sess-a10s-01:CYVRA-R1-2026-000101")
+        );
+
+        let ent_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(entitlement::entitlement_path(&home)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            ent_json["debits"].as_array().expect("debits").len(),
+            1,
+            "exactly 1 credit consumed across scan + replay + re-downloads + blocked sanitize"
+        );
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -219,9 +293,19 @@ pub async fn send_host_command(
         manager.enqueue_host_command(&command, &payload)?
     };
 
-    let recv_outcome = tauri::async_runtime::spawn_blocking(move || rx.recv())
-        .await
-        .map_err(|e| format!("HOST_ASYNC_JOIN_FAILED: {}", e))?;
+    let recv_outcome = tauri::async_runtime::spawn_blocking(move || {
+        rx.recv_timeout(std::time::Duration::from_secs(
+            host_process::HOST_COMMAND_TIMEOUT_SECS,
+        ))
+    })
+    .await
+    .map_err(|e| format!("HOST_ASYNC_JOIN_FAILED: {}", e))?;
+
+    if matches!(recv_outcome, Err(std::sync::mpsc::RecvTimeoutError::Timeout)) {
+        if let Ok(manager) = state.manager.lock() {
+            manager.remove_pending(&request_id);
+        }
+    }
 
     let line = HostProcessManager::finalize_host_command(&request_id, recv_outcome)?;
 
@@ -271,22 +355,35 @@ fn on_offline_lease(home: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Appends the ledger entry a scan exchange implies, if it implies one.
+/// Appends the ledger entry and entitlement settlement implied by a completed
+/// scan exchange, enforcing the Approved Credit Rule (§4 & §9):
 ///
-/// Only two commands ever move an entitlement, and only a `status: "OK"`
-/// answer means the Host actually did the work: a refused or failed
-/// `RUN_SCAN` reserves nothing, and a `GET_FINAL_REPORT` that did not produce
-/// a certificate spends nothing. Recording from the status rather than from
-/// the request is what keeps the ledger from claiming spends that never
-/// happened.
+/// **One credit is consumed for one successfully completed phone scan session
+/// and its associated Report 1 generation.**
+///
+/// Credits are **never** deducted for:
+/// - Failed or incomplete scans (`status != "OK"`, or missing `sessionUuid` / `reportId`)
+/// - Report re-downloads (`GET_DEVICE_REPORT`, `EXPORT_REPORT`, `GET_FINAL_REPORT`)
+/// - Unsupported-device eligibility checks (`SANITIZE_START`)
+/// - Blocked or failed sanitization attempts (`SANITIZE_AUTHORIZE`, `SANITIZE_EXECUTE`)
+/// - Repeated processing of the same completed scan session (idempotent by `sessionUuid`)
 fn record_scan_ledger(command: &str, line: &str) -> Result<(), ledger::LedgerError> {
-    let request = match command {
-        "RUN_SCAN" => ledger::LedgerRequest::new(ledger::LedgerEvent::ScanCommitted),
-        "GET_FINAL_REPORT" => ledger::LedgerRequest::new(ledger::LedgerEvent::ScanDebited)
-            // One certificate, one spend, however many times it is fetched.
-            .unique(),
-        _ => return Ok(()),
-    };
+    if command != "RUN_SCAN" {
+        return Ok(());
+    }
+    let home = host_process::cyvra_home().map_err(|_| ledger::LedgerError::HomeUnavailable)?;
+    record_scan_ledger_at(&home, command, line, &ledger::SystemClock)
+}
+
+fn record_scan_ledger_at(
+    home: &std::path::Path,
+    command: &str,
+    line: &str,
+    clock: &dyn ledger::Clock,
+) -> Result<(), ledger::LedgerError> {
+    if command != "RUN_SCAN" {
+        return Ok(());
+    }
 
     let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
         return Ok(());
@@ -295,45 +392,56 @@ fn record_scan_ledger(command: &str, line: &str) -> Result<(), ledger::LedgerErr
         return Ok(());
     }
 
-    let payload = value.get("payload");
-    let subject = match command {
-        "RUN_SCAN" => payload.and_then(|it| it.get("sessionUuid")),
-        _ => payload.and_then(|it| it.get("certificateId")),
+    let Some(payload) = value.get("payload") else {
+        return Ok(());
     };
-
-    let name = match subject.and_then(|it| it.as_str()) {
-        Some(name) => name,
-        // An OK answer that names no session or certificate cannot be tied to
-        // a transaction, so nothing is claimed about one.
-        None => return Ok(()),
-    };
-
-    let home = host_process::cyvra_home().map_err(|_| ledger::LedgerError::HomeUnavailable)?;
-    let clock = ledger::SystemClock;
-    let request = request.subject(name).offline(on_offline_lease(&home));
-    ledger::append(&home, request, &clock)?;
-
-    /*
-     * A settled scan is recorded in two places on purpose.
-     *
-     * The revision ledger says *what happened* - the immutable history the
-     * desktop view renders. The entitlement journal says *what it cost*, and
-     * is what the Host reads back on its next boot, because the signed
-     * `payload` it cannot edit. One file proves the spend occurred; the other
-     * makes it stick. Neither is sufficient alone.
-     *
-     * A journal failure is reported and then allowed through: the certificate
-     * has already been written and handed to the operator, so refusing their
-     * report over a disk error would punish them for it. What they would get
-     * is a restored balance on the next launch - and an audit line in
-     * `ledger.jsonl` naming the spend, which is exactly the discrepancy an
-     * auditor is meant to find rather than have papered over.
-     */
-    if command == "GET_FINAL_REPORT" {
-        match entitlement::record_debit(&home, name, &state::iso8601(clock.now_unix())) {
-            Ok(debit) => log::info!("entitlement settled: {}", debit.subject),
-            Err(error) => log::warn!("entitlement debit not persisted: {error}"),
+    if let Some(scan_status) = payload.get("scanStatus").and_then(|s| s.as_str()) {
+        if scan_status != "COMPLETED" {
+            return Ok(());
         }
+    }
+
+    let Some(session_uuid) = payload
+        .get("sessionUuid")
+        .and_then(|it| it.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return Ok(());
+    };
+    let Some(report_id) = payload
+        .get("reportId")
+        .and_then(|it| it.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return Ok(());
+    };
+
+    let offline = on_offline_lease(home);
+    let debit_subject = format!("{session_uuid}:{report_id}");
+
+    ledger::append(
+        home,
+        ledger::LedgerRequest::new(ledger::LedgerEvent::ScanCommitted)
+            .subject(session_uuid)
+            .offline(offline)
+            .unique(),
+        clock,
+    )?;
+
+    ledger::append(
+        home,
+        ledger::LedgerRequest::new(ledger::LedgerEvent::ScanDebited)
+            .subject(&debit_subject)
+            .offline(offline)
+            .unique(),
+        clock,
+    )?;
+
+    match entitlement::record_debit(home, &debit_subject, &state::iso8601(clock.now_unix())) {
+        Ok(debit) => log::info!("entitlement settled for Report 1 session: {}", debit.subject),
+        Err(error) => log::warn!("entitlement debit not persisted (recoverable from ledger): {error}"),
     }
 
     Ok(())

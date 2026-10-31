@@ -105,6 +105,8 @@ data class DeviceVerificationReport(
     val integrity: ReportIntegrityRecord? = null,
     /** Evidence-level application inventory summary; null when no inventory was collected. */
     val applicationInventory: ApplicationInventoryReportSection? = null,
+    /** All extended diagnostic parameters collected by extended evidence providers (§8). */
+    val extendedParameters: List<DeviceParameter> = emptyList(),
 )
 
 /**

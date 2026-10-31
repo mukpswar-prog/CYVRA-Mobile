@@ -23,9 +23,14 @@ fn win32_hresult(code: u32) -> HRESULT {
 }
 
 fn is_usb_instance_id(value: &str) -> bool {
-    value
+    if !value
         .get(..4)
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("USB\\"))
+    {
+        return false;
+    }
+    let upper = value.to_ascii_uppercase();
+    !upper.starts_with("USB\\ROOT_HUB")
 }
 
 fn device_instance_id(

@@ -61,9 +61,20 @@ class HostReportEngine(
             sessionUuid = evidence.sessionUuid,
         )
 
-        // Assess coverage label per GUIDELINE §3
+        val redactedIdentity = evidence.identity.copy(
+            platformIdentifier = cyvra.mobile.core.EvidenceFieldResult(
+                value = null,
+                status = cyvra.mobile.core.EvidenceStatus.RESTRICTED,
+                source = "ADB",
+                reason = "Platform Android ID withheld from customer-facing report for privacy",
+            )
+        )
+
+        val extendedParams = evidence.extended?.parameters.orEmpty()
+        val hasComponent = componentEvidence != null
+        val allExtendedAvailable = extendedParams.isNotEmpty() && extendedParams.all { it.result.status == cyvra.mobile.core.EvidenceStatus.AVAILABLE }
         val coverage = when {
-            componentEvidence != null -> ReportCoverageLabel.COMPLETE
+            hasComponent && allExtendedAvailable -> ReportCoverageLabel.COMPLETE
             evidence.identity.manufacturer.value != null && evidence.storage.internalTotalBytes.value != null -> ReportCoverageLabel.PARTIAL
             else -> ReportCoverageLabel.LIMITED
         }
@@ -71,7 +82,7 @@ class HostReportEngine(
         val baseReport = DeviceVerificationReport(
             header = header,
             coverage = coverage,
-            deviceIdentity = evidence.identity,
+            deviceIdentity = redactedIdentity,
             batterySnapshot = evidence.battery,
             storageSnapshot = evidence.storage,
             securitySnapshot = evidence.security,
@@ -85,6 +96,7 @@ class HostReportEngine(
                 primary = evidence.applicationInventory,
                 reconciled = evidence.reconciledApplicationInventory,
             ),
+            extendedParameters = extendedParams,
         )
 
         // Calculate cryptographic digest over serialized base report
@@ -117,18 +129,35 @@ class HostReportEngine(
         evidenceProvenance: List<String> = emptyList(),
         conflicts: List<String> = emptyList(),
     ): SanitizationCertificateReport {
+        val lifecycleOutcome = deriveSanitizationLifecycleOutcome(executionResult, verificationResult)
+        val isVerifiedSuccess = lifecycleOutcome == SanitizationLifecycleOutcome.EXECUTED_VERIFIED
+        val title = if (isVerifiedSuccess) {
+            "CYVRA Data Sanitization & Verification Certificate"
+        } else {
+            "CYVRA Sanitization Attempt & Verification Report"
+        }
+
+        val redactedPreRecord = preRecord.copy(
+            identity = preRecord.identity.copy(
+                platformIdentifier = cyvra.mobile.core.EvidenceFieldResult(
+                    value = null,
+                    status = cyvra.mobile.core.EvidenceStatus.RESTRICTED,
+                    source = "ADB",
+                    reason = "Platform Android ID withheld from customer-facing report for privacy",
+                )
+            )
+        )
+
         val header = ReportHeader(
             reportId = certificateId,
-            reportTitle = "CYVRA Data Sanitization & Verification Certificate",
+            reportTitle = title,
             operatorId = operatorId,
             sessionUuid = preRecord.sessionUuid,
         )
 
-        val lifecycleOutcome = deriveSanitizationLifecycleOutcome(executionResult, verificationResult)
-
         val baseReport = SanitizationCertificateReport(
             header = header,
-            preSanitizationRecord = preRecord,
+            preSanitizationRecord = redactedPreRecord,
             executionResult = executionResult,
             verificationResult = verificationResult,
             nistStandardReference = "NIST SP 800-88 Rev. 2",

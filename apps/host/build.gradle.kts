@@ -21,6 +21,7 @@ java {
 dependencies {
     implementation(project(":core"))
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("org.apache.pdfbox:pdfbox:3.0.3")
     testImplementation(kotlin("test"))
     /*
      * Property-based testing for the §14 transaction state.

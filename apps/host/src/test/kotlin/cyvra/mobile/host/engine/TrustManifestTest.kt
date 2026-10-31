@@ -8,28 +8,28 @@ import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.PrivateKey
 import java.security.Signature
-import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
 import java.time.Instant
 import java.util.Base64
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
  * Security test matrix for CYVRA Automated Key Management Trust Manifests.
  *
- * Verifies RFC 8032 Ed25519 root signatures, payload canonicalization, fail-closed
- * rejection, purpose isolation, revocation filtering, and FileBasedPatchStateProvider integration.
+ * Uses strictly ephemeral in-memory Ed25519 test keypairs (zero committed private keys)
+ * and verifies RFC 8032 Ed25519 root signatures, compromised-key revocation, anti-rollback,
+ * strict date/status fail-closed parsing, purpose isolation, and FileBasedPatchStateProvider integration.
  */
 class TrustManifestTest {
 
-    // The private key corresponding to PinnedRootTrust.ROOT_PUBLIC_KEY_BASE64
-    private val rootPrivateKeyBase64 = "MC4CAQAwBQYDK2VwBCIEIAt3zKJfzlybCkfRZUNvCW6nh1HiSlQ/xLQyPVwwhGhw"
-    private val rootPrivateKey: PrivateKey = KeyFactory.getInstance("Ed25519").generatePrivate(
-        PKCS8EncodedKeySpec(Base64.getDecoder().decode(rootPrivateKeyBase64))
-    )
+    private val testRootKeyId = "CYVRA-TEST-ROOT-EPHEMERAL"
+    private val testRootKeyPair: KeyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+    private val testRootPubBase64: String = Base64.getEncoder().encodeToString(testRootKeyPair.public.encoded)
 
     private val operationalKeyPair: KeyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
     private val operationalPubBase64: String = Base64.getEncoder().encodeToString(operationalKeyPair.public.encoded)
@@ -41,7 +41,17 @@ class TrustManifestTest {
         tempDir.deleteRecursively()
     }
 
-    private fun signPayload(payloadJsonText: String, key: PrivateKey = rootPrivateKey): String {
+    private fun testVerifier(
+        minimumManifestVersion: Int = 1,
+        clockInstant: Instant = Instant.parse("2026-10-30T12:00:00Z"),
+    ): TrustManifestVerifier = TrustManifestVerifier(
+        pinnedRootKeyId = testRootKeyId,
+        pinnedRootPublicKeyBase64 = testRootPubBase64,
+        minimumManifestVersion = minimumManifestVersion,
+        clock = { clockInstant },
+    )
+
+    private fun signPayload(payloadJsonText: String, key: PrivateKey = testRootKeyPair.private): String {
         val element = Json.parseToJsonElement(payloadJsonText)
         val canonicalBytes = PatchVerifier.canonicalize(element).toByteArray(Charsets.UTF_8)
         val signer = Signature.getInstance("Ed25519")
@@ -52,8 +62,8 @@ class TrustManifestTest {
 
     private fun buildEnvelope(
         payloadJsonText: String,
-        rootKeyId: String = PinnedRootTrust.ROOT_KEY_ID,
-        signingKey: PrivateKey = rootPrivateKey,
+        rootKeyId: String = testRootKeyId,
+        signingKey: PrivateKey = testRootKeyPair.private,
         alg: String = "Ed25519",
         tamperPayload: Boolean = false,
     ): String {
@@ -75,7 +85,7 @@ class TrustManifestTest {
 
     private fun samplePayload(
         version: Int = 1,
-        rootKeyId: String = PinnedRootTrust.ROOT_KEY_ID,
+        rootKeyId: String = testRootKeyId,
         anchorsJson: String = """
         [
           {
@@ -100,8 +110,38 @@ class TrustManifestTest {
     """.trimIndent()
 
     @Test
+    fun pinnedProductionRootTrustUsesRotatedPublicKeyAndDenylistsCompromised202601Key() {
+        assertEquals("CYVRA-ROOT-KEY-2026-02", PinnedRootTrust.ROOT_KEY_ID)
+        assertTrue("CYVRA-ROOT-KEY-2026-01" in PinnedRootTrust.COMPROMISED_ROOT_KEY_IDS)
+
+        val decoded = Base64.getDecoder().decode(PinnedRootTrust.ROOT_PUBLIC_KEY_BASE64)
+        val parsedPublic = KeyFactory.getInstance("Ed25519").generatePublic(X509EncodedKeySpec(decoded))
+        assertNotNull(parsedPublic)
+    }
+
+    @Test
+    fun compromised202601RootKeyIdIsUnconditionallyRejected() {
+        val productionVerifier = TrustManifestVerifier()
+        val envelope = buildEnvelope(
+            samplePayload(rootKeyId = "CYVRA-ROOT-KEY-2026-01"),
+            rootKeyId = "CYVRA-ROOT-KEY-2026-01",
+        )
+        val result = productionVerifier.verify(envelope)
+        assertTrue(result is TrustManifestResult.Rejected)
+        assertTrue(result.reason.contains("MANIFEST_COMPROMISED_ROOT_KEY"), result.reason)
+
+        val misconfiguredVerifier = TrustManifestVerifier(
+            pinnedRootKeyId = "CYVRA-ROOT-KEY-2026-01",
+            pinnedRootPublicKeyBase64 = testRootPubBase64,
+        )
+        val misconfiguredResult = misconfiguredVerifier.verify(envelope)
+        assertTrue(misconfiguredResult is TrustManifestResult.Rejected)
+        assertTrue(misconfiguredResult.reason.contains("MANIFEST_COMPROMISED_ROOT_KEY"), misconfiguredResult.reason)
+    }
+
+    @Test
     fun validManifestSignedByPinnedRootIsAccepted() {
-        val verifier = TrustManifestVerifier(clock = { Instant.parse("2026-10-30T12:00:00Z") })
+        val verifier = testVerifier()
         val jsonEnvelope = buildEnvelope(samplePayload())
 
         val result = verifier.verify(jsonEnvelope)
@@ -118,7 +158,7 @@ class TrustManifestTest {
     @Test
     fun manifestSignedByUnknownRogueRootIsRejected() {
         val rogueRootKeyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
-        val verifier = TrustManifestVerifier()
+        val verifier = testVerifier()
         val jsonEnvelope = buildEnvelope(
             samplePayload(rootKeyId = "ROGUE-ROOT-KEY"),
             rootKeyId = "ROGUE-ROOT-KEY",
@@ -132,7 +172,7 @@ class TrustManifestTest {
 
     @Test
     fun tamperedManifestPayloadFailsSignatureVerification() {
-        val verifier = TrustManifestVerifier()
+        val verifier = testVerifier()
         val jsonEnvelope = buildEnvelope(samplePayload(), tamperPayload = true)
 
         val result = verifier.verify(jsonEnvelope)
@@ -142,7 +182,7 @@ class TrustManifestTest {
 
     @Test
     fun unsupportedAlgorithmIsRejected() {
-        val verifier = TrustManifestVerifier()
+        val verifier = testVerifier()
         val jsonEnvelope = buildEnvelope(samplePayload(), alg = "RSA-SHA256")
 
         val result = verifier.verify(jsonEnvelope)
@@ -151,8 +191,54 @@ class TrustManifestTest {
     }
 
     @Test
+    fun nonPositiveOrRolledBackManifestVersionFailsClosed() {
+        val zeroResult = testVerifier().verify(buildEnvelope(samplePayload(version = 0)))
+        assertTrue(zeroResult is TrustManifestResult.Rejected)
+        assertTrue(zeroResult.reason.contains("MANIFEST_VERSION_INVALID"), zeroResult.reason)
+
+        val rollbackResult = testVerifier(minimumManifestVersion = 5).verify(buildEnvelope(samplePayload(version = 4)))
+        assertTrue(rollbackResult is TrustManifestResult.Rejected)
+        assertTrue(rollbackResult.reason.contains("MANIFEST_ROLLBACK_DETECTED"), rollbackResult.reason)
+    }
+
+    @Test
+    fun malformedValidityTimestampOrUnknownStatusFailsClosed() {
+        val verifier = testVerifier()
+        val malformedDateAnchors = """
+        [
+          {
+            "keyId": "CYVRA-BAD-DATE-KEY",
+            "algorithm": "Ed25519",
+            "publicKeyBase64": "$operationalPubBase64",
+            "purpose": "PATCH_AUTHORITY",
+            "status": "ACTIVE",
+            "validUntil": "not-an-iso-timestamp"
+          }
+        ]
+        """.trimIndent()
+        val dateResult = verifier.verify(buildEnvelope(samplePayload(anchorsJson = malformedDateAnchors)))
+        assertTrue(dateResult is TrustManifestResult.Rejected)
+        assertTrue(dateResult.reason.contains("MANIFEST_ANCHOR_DATE_INVALID"), dateResult.reason)
+
+        val unknownStatusAnchors = """
+        [
+          {
+            "keyId": "CYVRA-SUSPENDED-KEY",
+            "algorithm": "Ed25519",
+            "publicKeyBase64": "$operationalPubBase64",
+            "purpose": "PATCH_AUTHORITY",
+            "status": "SUSPENDED"
+          }
+        ]
+        """.trimIndent()
+        val statusResult = verifier.verify(buildEnvelope(samplePayload(anchorsJson = unknownStatusAnchors)))
+        assertTrue(statusResult is TrustManifestResult.Rejected)
+        assertTrue(statusResult.reason.contains("MANIFEST_ANCHOR_STATUS_INVALID"), statusResult.reason)
+    }
+
+    @Test
     fun purposeSeparationExcludesNonPatchAuthorityKeys() {
-        val verifier = TrustManifestVerifier(clock = { Instant.parse("2026-10-30T12:00:00Z") })
+        val verifier = testVerifier()
         val anchors = """
         [
           {
@@ -185,7 +271,7 @@ class TrustManifestTest {
 
     @Test
     fun revokedKeyIsFilteredOut() {
-        val verifier = TrustManifestVerifier(clock = { Instant.parse("2026-10-30T12:00:00Z") })
+        val verifier = testVerifier()
         val anchors = """
         [
           {
@@ -209,7 +295,7 @@ class TrustManifestTest {
 
     @Test
     fun retiredKeyIsMappedToVerifyOnly() {
-        val verifier = TrustManifestVerifier(clock = { Instant.parse("2026-10-30T12:00:00Z") })
+        val verifier = testVerifier()
         val anchors = """
         [
           {
@@ -234,7 +320,7 @@ class TrustManifestTest {
 
     @Test
     fun expiredKeyIsExcludedFromActiveAnchors() {
-        val verifier = TrustManifestVerifier(clock = { Instant.parse("2026-10-30T12:00:00Z") })
+        val verifier = testVerifier()
         val anchors = """
         [
           {
@@ -268,6 +354,7 @@ class TrustManifestTest {
         val provider = FileBasedPatchStateProvider(
             engineVersion = "1.0.0",
             installationRoot = { tempDir.absolutePath },
+            manifestVerifier = testVerifier(),
             clock = { Instant.parse("2026-10-30T12:00:00Z") },
         )
 

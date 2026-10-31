@@ -26,6 +26,9 @@ const DEVICE_STATE_COMMAND: &str = "GET_DEVICE_STATE";
 const PREFLIGHT_COMMAND: &str = "GET_PREFLIGHT";
 const HOST_MAIN_CLASS: &str = "cyvra.mobile.host.protocol.HostMain";
 
+/// Bounded per-request IPC timeout so an orphaned request can never stall the UI indefinitely (DEF-17).
+pub const HOST_COMMAND_TIMEOUT_SECS: u64 = 120;
+
 /// Directory under `<cyvra.home>` that receives the Host's stderr, one file per launch.
 const HOST_LOG_DIR: &str = "logs";
 
@@ -452,7 +455,7 @@ impl HostProcessManager {
         request: &HostRequest,
     ) -> Result<(String, HostResponse), String> {
         let rx = self.enqueue_request(request)?;
-        match rx.recv() {
+        match rx.recv_timeout(std::time::Duration::from_secs(HOST_COMMAND_TIMEOUT_SECS)) {
             Ok(Ok(pair)) => Ok(pair),
             Ok(Err(err)) => {
                 if err.starts_with("HOST_PROCESS_CLOSED") {
@@ -460,13 +463,26 @@ impl HostProcessManager {
                 }
                 Err(err)
             }
-            Err(_) => {
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                self.remove_pending(&request.request_id);
+                Err(format!(
+                    "HOST_COMMAND_TIMEOUT: Host did not respond to request {} within {}s",
+                    request.request_id, HOST_COMMAND_TIMEOUT_SECS
+                ))
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
                 self.stop();
                 Err(
                     "HOST_PROCESS_CLOSED: Host exited before returning a response"
                         .to_string(),
                 )
             }
+        }
+    }
+
+    pub fn remove_pending(&self, request_id: &str) {
+        if let Ok(mut map) = self.pending.lock() {
+            map.remove(request_id);
         }
     }
 
@@ -485,7 +501,7 @@ impl HostProcessManager {
     /// Validates a completed response envelope delivered from the stdout router.
     pub fn finalize_host_command(
         request_id: &str,
-        outcome: Result<PendingResponse, mpsc::RecvError>,
+        outcome: Result<PendingResponse, mpsc::RecvTimeoutError>,
     ) -> Result<String, String> {
         match outcome {
             Ok(Ok((line, response))) => {
@@ -493,7 +509,11 @@ impl HostProcessManager {
                 Ok(line)
             }
             Ok(Err(err)) => Err(err),
-            Err(_) => Err(
+            Err(mpsc::RecvTimeoutError::Timeout) => Err(format!(
+                "HOST_COMMAND_TIMEOUT: Host did not respond to request {} within {}s",
+                request_id, HOST_COMMAND_TIMEOUT_SECS
+            )),
+            Err(mpsc::RecvTimeoutError::Disconnected) => Err(
                 "HOST_PROCESS_CLOSED: Host exited before returning a response".to_string(),
             ),
         }
@@ -625,7 +645,7 @@ impl HostProcessManager {
         Ok(())
     }
 
-    fn stop(&mut self) {
+    pub fn stop(&mut self) {
         self.stdin = None;
         if let Ok(mut map) = self.pending.lock() {
             for (_, tx) in map.drain() {

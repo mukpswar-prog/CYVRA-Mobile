@@ -128,6 +128,8 @@ pub enum AuditEvent {
     ActivationRefused,
     /// Shown the activation screen with nothing to report.
     ActivationScreenShown,
+    /// Operator explicitly signed out / switched licence on this workstation.
+    WorkstationSignedOut,
     /// Something local failed. `code` names it; the UI stays silent.
     LocalFault,
 }
@@ -229,6 +231,36 @@ pub fn launch(home: &Path, api: &dyn LicenseApiClient, now_unix: u64) -> LaunchO
     match store::read(home) {
         Ok(None) => never_activated(home, api, now_unix),
         Ok(Some(stored)) => revalidate_path(home, api, stored, now_unix),
+        Err(error) => local_fault(home, now_unix, store_code(&error)),
+    }
+}
+
+/// Production launch entry point that also verifies the live hardware
+/// fingerprint of this workstation against the fingerprint bound inside
+/// `activation.dat` (DEF-03).
+///
+/// Prevents a copied `activation.dat` from another workstation (or user profile)
+/// from bypassing live hardware binding during online revalidation or offline
+/// grace entry.
+pub fn launch_with_fingerprint(
+    home: &Path,
+    api: &dyn LicenseApiClient,
+    live_fingerprint: Result<String, FingerprintError>,
+    now_unix: u64,
+) -> LaunchOutcome {
+    if home.as_os_str().is_empty() {
+        return no_home();
+    }
+
+    match store::read(home) {
+        Ok(None) => never_activated(home, api, now_unix),
+        Ok(Some(stored)) => match live_fingerprint {
+            Err(_) => local_fault(home, now_unix, "FINGERPRINT_UNAVAILABLE"),
+            Ok(ref fp) if fp != &stored.device_fingerprint => {
+                local_fault(home, now_unix, "FINGERPRINT_MISMATCH")
+            }
+            Ok(_) => revalidate_path(home, api, stored, now_unix),
+        },
         Err(error) => local_fault(home, now_unix, store_code(&error)),
     }
 }
@@ -361,6 +393,7 @@ fn offline_path(home: &Path, stored: StoredActivation, now_unix: u64) -> LaunchO
     if let Err(_) = entitlement::export(home, &stored.offline_lease, &stored.server_time) {
         return local_fault(home, now_unix, "ENTITLEMENT_EXPORT_FAILED");
     }
+    let _ = entitlement::reconcile_from_ledger(home);
 
     record(
         home,
@@ -389,6 +422,7 @@ fn commit(
     if let Err(_) = entitlement::export(home, &success.entitlement, &success.server_time) {
         return local_fault(home, now_unix, "ENTITLEMENT_EXPORT_FAILED");
     }
+    let _ = entitlement::reconcile_from_ledger(home);
 
     let stored = StoredActivation::from_success(
         success,
@@ -503,6 +537,7 @@ fn ledger_request(line: &AuditLine) -> Option<LedgerRequest> {
         }
         AuditEvent::ActivationRefused
         | AuditEvent::ActivationScreenShown
+        | AuditEvent::WorkstationSignedOut
         | AuditEvent::LocalFault => None,
     }
 }
@@ -1290,6 +1325,48 @@ mod tests {
         // A leap day and a year boundary, both outside the 2026 test range.
         assert_eq!(iso8601(1_709_164_800), "2024-02-29T00:00:00Z");
         assert_eq!(iso8601(1_798_761_599), "2026-12-31T23:59:59Z");
+    }
+
+    #[test]
+    fn launch_with_fingerprint_refuses_mismatched_or_unavailable_live_hardware_identity() {
+        let home = temp_home();
+        seed(&home);
+        let api = FakeLicenseApiClient::default();
+
+        // Mismatched workstation fingerprint -> refused to activation screen with FINGERPRINT_MISMATCH
+        let mismatch = launch_with_fingerprint(
+            &home,
+            &api,
+            Ok("0000000000000000000000000000000000000000000000000000000000000000".to_string()),
+            SERVER_NOW + 30,
+        );
+        assert_eq!(mismatch.launch, Launch::LocalFault);
+        assert_eq!(
+            mismatch.audit.as_ref().expect("audit").code.as_deref(),
+            Some("FINGERPRINT_MISMATCH")
+        );
+
+        // Unavailable live fingerprint -> refused to activation screen with FINGERPRINT_UNAVAILABLE
+        let unavailable = launch_with_fingerprint(
+            &home,
+            &api,
+            Err(FingerprintError::Missing { component: "machine_guid" }),
+            SERVER_NOW + 45,
+        );
+        assert_eq!(unavailable.launch, Launch::LocalFault);
+        assert_eq!(
+            unavailable.audit.as_ref().expect("audit").code.as_deref(),
+            Some("FINGERPRINT_UNAVAILABLE")
+        );
+
+        // Matching live fingerprint -> normal silent revalidation into Enter
+        let valid = launch_with_fingerprint(
+            &home,
+            &api,
+            Ok(FINGERPRINT.to_string()),
+            SERVER_NOW + 60,
+        );
+        assert_eq!(valid.launch, Launch::Enter { offline: false });
     }
 }
 

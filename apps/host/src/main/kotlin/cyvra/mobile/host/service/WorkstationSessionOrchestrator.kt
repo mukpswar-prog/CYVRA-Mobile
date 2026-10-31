@@ -456,8 +456,10 @@ class WorkstationSessionOrchestrator(
         // FINAL REPORT: lifecycle outcome + success claim derived fail-closed inside
         // the report engine; Report 1 reference, provenance, and conflicts are carried over.
         val inventorySection = report1.applicationInventory
+        val outcome = cyvra.mobile.core.deriveSanitizationLifecycleOutcome(executionResult, verificationResult)
+        val docPrefix = if (outcome == cyvra.mobile.core.SanitizationLifecycleOutcome.EXECUTED_VERIFIED) "CYVRA-CERT" else "CYVRA-ATTEMPT"
         val finalReport = reportEngine.generateSanitizationCertificate(
-            certificateId = "CYVRA-CERT-${java.time.Year.now().value}-${UUID.randomUUID().toString().take(6).uppercase()}",
+            certificateId = "$docPrefix-${java.time.Year.now().value}-${UUID.randomUUID().toString().take(6).uppercase()}",
             operatorId = operatorId,
             preRecord = preRecord,
             executionResult = executionResult,
@@ -493,23 +495,22 @@ class WorkstationSessionOrchestrator(
         )
 
     companion object {
-        private const val LIFECYCLE_NAMESPACE = "cyvra:device-lifecycle:"
-
         /**
-         * Derives a deterministic, canonical RFC 4122 UUID v3 for a physical device's
-         * lifecycle identity (`device_lifecycles.id` contract, D-CE-26-01).
+         * Resolves or allocates an opaque, canonical RFC 4122 UUID v4 for a physical device's
+         * lifecycle identity (`device_lifecycles.id` contract, D-CE-26-01 & DEF-07).
          *
-         * Properties:
+         * Backed by [DeviceLifecycleRegistry], which stores restricted `HMAC-SHA256 -> UUIDv4`
+         * mappings under `<cyvra.home>/state/device-lifecycle-registry.json` completely separate
+         * from customer-facing reports:
          * - Canonical lowercase UUID string (`UUID.fromString(id).toString() == id`)
          * - Persistent across multiple diagnostic scans of the same physical device
          * - Distinct from the ephemeral per-scan `sessionUuid` (UUID v4)
-         * - Never exposes the raw hardware serial in evidence files
+         * - Cryptographically non-reversible (eliminates unsalted MD5 serial derivation)
          */
-        fun deviceLifecycleIdFor(serial: String): String {
-            val normalized = serial.trim()
-            return UUID.nameUUIDFromBytes(
-                "$LIFECYCLE_NAMESPACE$normalized".toByteArray(Charsets.UTF_8),
-            ).toString()
-        }
+        fun deviceLifecycleIdFor(serial: String): String =
+            DeviceLifecycleRegistry.resolveOrAssign(serial)
+
+        fun opaqueDeviceRefFor(serial: String): String =
+            DeviceLifecycleRegistry.opaqueReferenceForLifecycleId(deviceLifecycleIdFor(serial))
     }
 }

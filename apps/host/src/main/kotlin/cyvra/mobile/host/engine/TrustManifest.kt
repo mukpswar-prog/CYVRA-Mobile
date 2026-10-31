@@ -16,13 +16,19 @@ import java.util.Base64
  * - The root key is an offline / air-gapped authority used solely to authorize the Trust Manifest.
  * - CYVRA Host pins this root public key at compile time.
  * - Routine operational signing keys (patches, reports) are distributed through authenticated manifests.
+ * - Compromised historical root key IDs (such as CYVRA-ROOT-KEY-2026-01) are permanently denylisted.
  */
 object PinnedRootTrust {
-    const val ROOT_KEY_ID: String = "CYVRA-ROOT-KEY-2026-01"
+    const val ROOT_KEY_ID: String = "CYVRA-ROOT-KEY-2026-02"
 
-    /** Base64 SPKI of the compiled-in root Ed25519 public key. */
+    /** Base64 SPKI of the compiled-in root Ed25519 public key (rotated 2026-10-31; private key never stored in repo). */
     const val ROOT_PUBLIC_KEY_BASE64: String =
-        "MCowBQYDK2VwAyEAM++Pc5uoOW1164Q5rRvty4mUqVEQGXEcmpcLMM4kQZc="
+        "MCowBQYDK2VwAyEA7b8ZfI3OQanHh0Xl8rkMCH2/xWe36QsRFx9BtgQ61Us="
+
+    /** Permanently revoked root key identifiers that must never be trusted. */
+    val COMPROMISED_ROOT_KEY_IDS: Set<String> = setOf(
+        "CYVRA-ROOT-KEY-2026-01",
+    )
 }
 
 /**
@@ -78,15 +84,18 @@ sealed interface TrustManifestResult {
  * Fail-closed by construction:
  * 1. Requires valid JSON envelope with payload, signature, alg, rootKeyId.
  * 2. Checks alg == "Ed25519".
- * 3. Enforces rootKeyId matches [pinnedRootKeyId].
- * 4. Authenticates Ed25519 signature over canonical UTF-8 bytes of payload.
- * 5. Validates active validity window against [clock].
- * 6. Discards revoked keys; maps retired keys to verify-only.
- * 7. Isolates key purposes: only purpose == "PATCH_AUTHORITY" is converted to [TrustAnchor].
+ * 3. Rejects permanently compromised root key IDs even if supplied via configuration.
+ * 4. Enforces rootKeyId matches [pinnedRootKeyId].
+ * 5. Authenticates Ed25519 signature over canonical UTF-8 bytes of payload.
+ * 6. Enforces positive manifestVersion >= [minimumManifestVersion] (anti-rollback).
+ * 7. Validates active validity window against [clock]; malformed dates fail closed.
+ * 8. Enforces strict status allowlist (ACTIVE, RETIRED, REVOKED); unknown statuses fail closed.
+ * 9. Isolates key purposes: only purpose == "PATCH_AUTHORITY" is converted to [TrustAnchor].
  */
 class TrustManifestVerifier(
     private val pinnedRootKeyId: String = PinnedRootTrust.ROOT_KEY_ID,
     private val pinnedRootPublicKeyBase64: String = PinnedRootTrust.ROOT_PUBLIC_KEY_BASE64,
+    private val minimumManifestVersion: Int = 1,
     private val clock: () -> Instant = { Instant.now() },
 ) {
     private val json = Json {
@@ -95,6 +104,12 @@ class TrustManifestVerifier(
     }
 
     fun verify(manifestJsonText: String): TrustManifestResult {
+        if (pinnedRootKeyId in PinnedRootTrust.COMPROMISED_ROOT_KEY_IDS) {
+            return TrustManifestResult.Rejected(
+                "MANIFEST_COMPROMISED_ROOT_KEY: pinned root key '$pinnedRootKeyId' is permanently revoked",
+            )
+        }
+
         val root = try {
             json.parseToJsonElement(manifestJsonText) as? JsonObject
         } catch (e: Exception) {
@@ -113,6 +128,11 @@ class TrustManifestVerifier(
 
         if (alg != "Ed25519") {
             return TrustManifestResult.Rejected("MANIFEST_UNSUPPORTED_ALG: alg must be Ed25519, was '$alg'")
+        }
+        if (rootKeyId in PinnedRootTrust.COMPROMISED_ROOT_KEY_IDS) {
+            return TrustManifestResult.Rejected(
+                "MANIFEST_COMPROMISED_ROOT_KEY: envelope specifies revoked root key '$rootKeyId'",
+            )
         }
         if (rootKeyId != pinnedRootKeyId) {
             return TrustManifestResult.Rejected("MANIFEST_UNKNOWN_ROOT_KEY: expected '$pinnedRootKeyId', got '$rootKeyId'")
@@ -151,8 +171,23 @@ class TrustManifestVerifier(
             return TrustManifestResult.Rejected("MANIFEST_PAYLOAD_INVALID: ${e.message}")
         }
 
+        if (payload.rootKeyId in PinnedRootTrust.COMPROMISED_ROOT_KEY_IDS) {
+            return TrustManifestResult.Rejected(
+                "MANIFEST_COMPROMISED_ROOT_KEY: payload specifies revoked root key '${payload.rootKeyId}'",
+            )
+        }
         if (payload.rootKeyId != pinnedRootKeyId) {
             return TrustManifestResult.Rejected("MANIFEST_ROOT_KEY_MISMATCH: payload specifies '${payload.rootKeyId}'")
+        }
+        if (payload.manifestVersion <= 0) {
+            return TrustManifestResult.Rejected(
+                "MANIFEST_VERSION_INVALID: manifestVersion must be >= 1, was ${payload.manifestVersion}",
+            )
+        }
+        if (payload.manifestVersion < minimumManifestVersion) {
+            return TrustManifestResult.Rejected(
+                "MANIFEST_ROLLBACK_DETECTED: manifestVersion ${payload.manifestVersion} is older than minimum $minimumManifestVersion",
+            )
         }
 
         val publishedAt = try {
@@ -165,30 +200,62 @@ class TrustManifestVerifier(
         val anchors = mutableMapOf<String, TrustAnchor>()
 
         for (entry in payload.anchors) {
+            if (!entry.algorithm.equals("Ed25519", ignoreCase = false)) {
+                return TrustManifestResult.Rejected(
+                    "MANIFEST_ANCHOR_ALG_INVALID: anchor '${entry.keyId}' specifies unsupported algorithm '${entry.algorithm}'",
+                )
+            }
+
+            val normalizedStatus = entry.status.trim().uppercase()
+            if (normalizedStatus !in ALLOWED_ANCHOR_STATUSES) {
+                return TrustManifestResult.Rejected(
+                    "MANIFEST_ANCHOR_STATUS_INVALID: anchor '${entry.keyId}' has unknown status '${entry.status}'",
+                )
+            }
+
+            // Malformed validity dates fail closed across all entries
+            val validFromInstant = entry.validFrom?.let { raw ->
+                try {
+                    Instant.parse(raw)
+                } catch (e: Exception) {
+                    return TrustManifestResult.Rejected(
+                        "MANIFEST_ANCHOR_DATE_INVALID: anchor '${entry.keyId}' has malformed validFrom '$raw'",
+                    )
+                }
+            }
+            val validUntilInstant = entry.validUntil?.let { raw ->
+                try {
+                    Instant.parse(raw)
+                } catch (e: Exception) {
+                    return TrustManifestResult.Rejected(
+                        "MANIFEST_ANCHOR_DATE_INVALID: anchor '${entry.keyId}' has malformed validUntil '$raw'",
+                    )
+                }
+            }
+            if (validFromInstant != null && validUntilInstant != null && validUntilInstant.isBefore(validFromInstant)) {
+                return TrustManifestResult.Rejected(
+                    "MANIFEST_ANCHOR_DATE_INVALID: anchor '${entry.keyId}' validUntil precedes validFrom",
+                )
+            }
+
             // Purpose isolation: only PATCH_AUTHORITY is accepted for capability patches
             if (entry.purpose != "PATCH_AUTHORITY") {
                 continue
             }
             // Revocation check
-            if (entry.status.equals("REVOKED", ignoreCase = true)) {
+            if (normalizedStatus == "REVOKED") {
                 continue
             }
 
-            // Expiry / validity check
-            if (entry.validFrom != null) {
-                val from = try { Instant.parse(entry.validFrom) } catch (e: Exception) { null }
-                if (from != null && now.isBefore(from)) {
-                    continue
-                }
+            // Expiry / active window check
+            if (validFromInstant != null && now.isBefore(validFromInstant)) {
+                continue
             }
-            if (entry.validUntil != null) {
-                val until = try { Instant.parse(entry.validUntil) } catch (e: Exception) { null }
-                if (until != null && now.isAfter(until)) {
-                    continue
-                }
+            if (validUntilInstant != null && now.isAfter(validUntilInstant)) {
+                continue
             }
 
-            val isVerifyOnly = entry.trustedForVerifyOnly || entry.status.equals("RETIRED", ignoreCase = true)
+            val isVerifyOnly = entry.trustedForVerifyOnly || normalizedStatus == "RETIRED"
             anchors[entry.keyId] = TrustAnchor(
                 keyId = entry.keyId,
                 publicKeyBase64 = entry.publicKeyBase64,
@@ -201,5 +268,9 @@ class TrustManifestVerifier(
             anchors = anchors,
             publishedAt = publishedAt,
         )
+    }
+
+    private companion object {
+        val ALLOWED_ANCHOR_STATUSES: Set<String> = setOf("ACTIVE", "RETIRED", "REVOKED")
     }
 }

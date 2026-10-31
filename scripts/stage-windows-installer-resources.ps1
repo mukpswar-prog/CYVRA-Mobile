@@ -29,7 +29,7 @@ param(
     [string]$DriversRoot,
     [string]$AgentApk,
     [ValidateSet('unsigned', 'test', 'production')]
-    [string]$SigningMode = 'unsigned',
+    [string]$SigningMode = $(if ($env:CYVRA_SIGNING_MODE) { $env:CYVRA_SIGNING_MODE.Trim().ToLowerInvariant() } else { 'unsigned' }),
     [switch]$SkipHost,
     [switch]$SkipRuntime,
     [switch]$SkipPlatformTools,
@@ -437,10 +437,19 @@ if (-not $SkipAgent) {
     }
     else {
         $candidateFilter = if ($SigningMode -eq 'unsigned') { '*-unsigned.apk' } else { '*-release.apk' }
-        $apk = Get-ChildItem -Path $agentOutputs -Filter $candidateFilter -ErrorAction SilentlyContinue |
+        $candidateApk = Get-ChildItem -Path $agentOutputs -Filter $candidateFilter -ErrorAction SilentlyContinue |
             Where-Object { if ($SigningMode -ne 'unsigned') { $_.Name -notmatch '-unsigned' } else { $true } } |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
+
+        # Invalidate cached APK whenever sanitization-agent sources are newer or -Force is specified
+        $agentSrcDir = Join-Path $androidDir 'sanitization-agent\src\main'
+        $newestSource = Get-ChildItem -Path $agentSrcDir -Recurse -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($candidateApk -and (-not $Force) -and (-not $newestSource -or $candidateApk.LastWriteTimeUtc -ge $newestSource.LastWriteTimeUtc)) {
+            $apk = $candidateApk
+        }
     }
 
     if (-not $apk) {
@@ -464,7 +473,9 @@ if (-not $SkipAgent) {
             Pop-Location
         }
 
-        $apk = Get-ChildItem -Path $agentOutputs -Filter '*.apk' -ErrorAction SilentlyContinue |
+        $postBuildFilter = if ($SigningMode -eq 'unsigned') { '*-unsigned.apk' } else { '*-release.apk' }
+        $apk = Get-ChildItem -Path $agentOutputs -Filter $postBuildFilter -ErrorAction SilentlyContinue |
+            Where-Object { if ($SigningMode -ne 'unsigned') { $_.Name -notmatch '-unsigned' } else { $true } } |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
     }

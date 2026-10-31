@@ -8,10 +8,16 @@ import kotlin.test.assertTrue
 
 /**
  * Unit test suite for [SanitizationBroadcastReceiver] on the JVM.
- * Proves the two-step ARM -> WIPE protocol, one-time token semantics, replay protection,
- * and fail-closed security rules without requiring a real device or Robolectric.
+ * Proves the two-step ARM -> WIPE protocol, 256-bit token entropy requirement,
+ * session/operation/serial/fingerprint binding, replay protection, and fail-closed
+ * security rules without requiring a real device or Robolectric.
  */
 class SanitizationBroadcastReceiverTest {
+
+    private val validTokenA = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+    private val validTokenB = "f0e1d2c3b4a5968778695a4b3c2d1e0ff0e1d2c3b4a5968778695a4b3c2d1e0f"
+    private val syntheticSerial = "TEST_DEVICE_SERIAL_0001"
+    private val syntheticFingerprint = "vendor/testdevice/test:14/UP1A.231005.007/1001:user/release-keys"
 
     @BeforeTest
     fun setUp() {
@@ -19,11 +25,11 @@ class SanitizationBroadcastReceiverTest {
     }
 
     @Test
-    fun armWithValidTokenTransitionsToArmedState() {
+    fun armWithValidHighEntropyTokenTransitionsToArmedState() {
         val receiver = SanitizationBroadcastReceiver()
         val result = receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = "token-uuid-1234",
+            token = validTokenA,
             currentTimeMs = 1000L,
         )
 
@@ -32,15 +38,22 @@ class SanitizationBroadcastReceiverTest {
     }
 
     @Test
-    fun armWithBlankTokenFailsClosed() {
+    fun armWithBlankOrLowEntropyTokenFailsClosed() {
         val receiver = SanitizationBroadcastReceiver()
-        val result = receiver.dispatch(
+        val blankResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
             token = "",
             currentTimeMs = 1000L,
         )
+        assertEquals(DispatchResult.REJECTED_TOKEN_MISMATCH, blankResult)
+        assertFalse(SanitizationBroadcastReceiver.isArmed(currentTimeMs = 1000L))
 
-        assertEquals(DispatchResult.REJECTED_TOKEN_MISMATCH, result)
+        val shortResult = receiver.dispatch(
+            action = SanitizationBroadcastReceiver.ARM_ACTION,
+            token = "short-token-1234",
+            currentTimeMs = 1000L,
+        )
+        assertEquals(DispatchResult.REJECTED_TOKEN_WEAK, shortResult)
         assertFalse(SanitizationBroadcastReceiver.isArmed(currentTimeMs = 1000L))
     }
 
@@ -48,18 +61,17 @@ class SanitizationBroadcastReceiverTest {
     fun twoStepArmAndWipeWithMatchingTokenExecutesWipe() {
         var wipeCalls = 0
         val receiver = SanitizationBroadcastReceiver(onWipe = { wipeCalls++ })
-        val token = "secure-one-time-token-999"
 
         val armResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = token,
+            token = validTokenA,
             currentTimeMs = 10_000L,
         )
         assertEquals(DispatchResult.ARMED, armResult)
 
         val wipeResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = token,
+            token = validTokenA,
             currentTimeMs = 15_000L,
         )
         assertEquals(DispatchResult.WIPED, wipeResult)
@@ -74,13 +86,13 @@ class SanitizationBroadcastReceiverTest {
 
         receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = "token-original",
+            token = validTokenA,
             currentTimeMs = 10_000L,
         )
 
         val wipeResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = "token-attacker-tampered",
+            token = validTokenB,
             currentTimeMs = 15_000L,
         )
 
@@ -93,18 +105,17 @@ class SanitizationBroadcastReceiverTest {
     fun wipeWithExpiredTokenFailsClosed() {
         var wipeCalls = 0
         val receiver = SanitizationBroadcastReceiver(onWipe = { wipeCalls++ })
-        val token = "token-will-expire"
 
         receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = token,
+            token = validTokenA,
             currentTimeMs = 10_000L,
         )
 
         // TTL is 60,000ms. At 70,001ms it has elapsed 60,001ms
         val wipeResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = token,
+            token = validTokenA,
             currentTimeMs = 70_001L,
         )
 
@@ -117,26 +128,23 @@ class SanitizationBroadcastReceiverTest {
     fun replayAttackIsBlockedBecauseTokenIsConsumedOnFirstUse() {
         var wipeCalls = 0
         val receiver = SanitizationBroadcastReceiver(onWipe = { wipeCalls++ })
-        val token = "single-use-token-abc"
 
-        // First execution succeeds
         receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = token,
+            token = validTokenA,
             currentTimeMs = 1000L,
         )
         val firstWipe = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = token,
+            token = validTokenA,
             currentTimeMs = 2000L,
         )
         assertEquals(DispatchResult.WIPED, firstWipe)
         assertEquals(1, wipeCalls)
 
-        // Second execution with replayed token must fail
         val secondWipe = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = token,
+            token = validTokenA,
             currentTimeMs = 3000L,
         )
         assertEquals(DispatchResult.REJECTED_NOT_ARMED, secondWipe)
@@ -150,7 +158,7 @@ class SanitizationBroadcastReceiverTest {
 
         val result = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = "unarmed-token",
+            token = validTokenA,
             currentTimeMs = 1000L,
         )
 
@@ -173,30 +181,33 @@ class SanitizationBroadcastReceiverTest {
     }
 
     @Test
-    fun armAndWipeWithDeviceAndSessionBindingSucceeds() {
+    fun armAndWipeWithFullDeviceFingerprintAndSessionBindingSucceeds() {
         var wipeCalls = 0
-        val receiver = SanitizationBroadcastReceiver(onWipe = { wipeCalls++ })
-        val token = "secure-bound-token-456"
+        val receiver = SanitizationBroadcastReceiver(
+            onWipe = { wipeCalls++ },
+            deviceBuildFingerprintProvider = { syntheticFingerprint },
+        )
         val sessionUuid = "session-uuid-777"
-        val targetSerial = "R9BN3015NQJ"
         val operationId = "op-999"
 
         val armResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = token,
+            token = validTokenA,
             sessionUuid = sessionUuid,
-            targetSerial = targetSerial,
+            targetSerial = syntheticSerial,
             operationId = operationId,
+            targetBuildFingerprint = syntheticFingerprint,
             currentTimeMs = 10_000L,
         )
         assertEquals(DispatchResult.ARMED, armResult)
 
         val wipeResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = token,
+            token = validTokenA,
             sessionUuid = sessionUuid,
-            targetSerial = targetSerial,
+            targetSerial = syntheticSerial,
             operationId = operationId,
+            targetBuildFingerprint = syntheticFingerprint,
             currentTimeMs = 15_000L,
         )
         assertEquals(DispatchResult.WIPED, wipeResult)
@@ -205,48 +216,70 @@ class SanitizationBroadcastReceiverTest {
     }
 
     @Test
-    fun wipeWithSessionMismatchFailsClosedAndDisarms() {
+    fun wipeWithSessionOrOperationMismatchFailsClosedAndDisarms() {
         var wipeCalls = 0
         val receiver = SanitizationBroadcastReceiver(onWipe = { wipeCalls++ })
-        val token = "secure-bound-token-456"
 
         receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = token,
+            token = validTokenA,
             sessionUuid = "expected-session-uuid",
-            targetSerial = "R9BN3015NQJ",
+            targetSerial = syntheticSerial,
+            operationId = "expected-op-id",
             currentTimeMs = 10_000L,
         )
 
         val wipeResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = token,
+            token = validTokenA,
             sessionUuid = "tampered-session-uuid",
-            targetSerial = "R9BN3015NQJ",
+            targetSerial = syntheticSerial,
+            operationId = "expected-op-id",
             currentTimeMs = 15_000L,
         )
         assertEquals(DispatchResult.REJECTED_SESSION_MISMATCH, wipeResult)
         assertEquals(0, wipeCalls)
         assertFalse(SanitizationBroadcastReceiver.isArmed(currentTimeMs = 15_000L))
-    }
-
-    @Test
-    fun wipeWithSerialMismatchFailsClosedAndDisarms() {
-        var wipeCalls = 0
-        val receiver = SanitizationBroadcastReceiver(onWipe = { wipeCalls++ })
-        val token = "secure-bound-token-456"
 
         receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = token,
+            token = validTokenA,
             sessionUuid = "expected-session-uuid",
-            targetSerial = "R9BN3015NQJ",
+            targetSerial = syntheticSerial,
+            operationId = "expected-op-id",
+            currentTimeMs = 20_000L,
+        )
+        val opMismatchResult = receiver.dispatch(
+            action = SanitizationBroadcastReceiver.WIPE_ACTION,
+            token = validTokenA,
+            sessionUuid = "expected-session-uuid",
+            targetSerial = syntheticSerial,
+            operationId = "tampered-op-id",
+            currentTimeMs = 25_000L,
+        )
+        assertEquals(DispatchResult.REJECTED_OPERATION_MISMATCH, opMismatchResult)
+        assertEquals(0, wipeCalls)
+    }
+
+    @Test
+    fun wipeWithSerialOrBuildFingerprintMismatchFailsClosedAndDisarms() {
+        var wipeCalls = 0
+        val receiver = SanitizationBroadcastReceiver(
+            onWipe = { wipeCalls++ },
+            deviceBuildFingerprintProvider = { syntheticFingerprint },
+        )
+
+        receiver.dispatch(
+            action = SanitizationBroadcastReceiver.ARM_ACTION,
+            token = validTokenA,
+            sessionUuid = "expected-session-uuid",
+            targetSerial = syntheticSerial,
             currentTimeMs = 10_000L,
         )
 
         val wipeResult = receiver.dispatch(
             action = SanitizationBroadcastReceiver.WIPE_ACTION,
-            token = token,
+            token = validTokenA,
             sessionUuid = "expected-session-uuid",
             targetSerial = "WRONG_DEVICE_SERIAL",
             currentTimeMs = 15_000L,
@@ -254,6 +287,17 @@ class SanitizationBroadcastReceiverTest {
         assertEquals(DispatchResult.REJECTED_SERIAL_MISMATCH, wipeResult)
         assertEquals(0, wipeCalls)
         assertFalse(SanitizationBroadcastReceiver.isArmed(currentTimeMs = 15_000L))
+
+        val wrongDeviceArm = receiver.dispatch(
+            action = SanitizationBroadcastReceiver.ARM_ACTION,
+            token = validTokenA,
+            sessionUuid = "expected-session-uuid",
+            targetSerial = syntheticSerial,
+            targetBuildFingerprint = "othervendor/wrongphone/wrong:14/BUILD/1:user/release-keys",
+            currentTimeMs = 20_000L,
+        )
+        assertEquals(DispatchResult.REJECTED_FINGERPRINT_MISMATCH, wrongDeviceArm)
+        assertEquals(0, wipeCalls)
     }
 
     @Test
@@ -261,7 +305,7 @@ class SanitizationBroadcastReceiverTest {
         val receiver = SanitizationBroadcastReceiver()
         receiver.dispatch(
             action = SanitizationBroadcastReceiver.ARM_ACTION,
-            token = "token-to-disarm",
+            token = validTokenA,
             currentTimeMs = 1000L,
         )
         assertTrue(SanitizationBroadcastReceiver.isArmed(currentTimeMs = 1000L))

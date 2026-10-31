@@ -203,6 +203,11 @@ fun deriveSanitizationEligibility(
                 "TARGET_IDENTITY_MISMATCH: pre-sanitization evidence identifies a different device target than Report 1.",
             )
         }
+        if (verificationReport.securitySnapshot.deviceOwnerActive.value != true) {
+            blockReasons.add(
+                "DEVICE_OWNER_NOT_PROVISIONED: Target device lacks Device Owner privilege required for cryptographic data sanitization (requires Device Owner provisioning).",
+            )
+        }
     }
 
     return SanitizationEligibility(

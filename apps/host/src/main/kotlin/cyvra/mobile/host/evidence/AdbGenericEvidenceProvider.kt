@@ -106,14 +106,25 @@ class AdbGenericEvidenceProvider(
         val output = dumpsys.stdout
         val level = output.lines().firstOrNull { it.trim().startsWith("level:") }
             ?.substringAfter("level:")?.trim()?.toIntOrNull()
-        val plugged = output.lines().firstOrNull { it.trim().startsWith("AC powered:") || it.trim().startsWith("USB powered:") }
+        val acPlugged = output.lines().firstOrNull { it.trim().startsWith("AC powered:") }
             ?.substringAfter(":")?.trim()?.toBooleanStrictOrNull() ?: false
         val usbPlugged = output.lines().firstOrNull { it.trim().startsWith("USB powered:") }
             ?.substringAfter(":")?.trim()?.toBooleanStrictOrNull() ?: false
-        val isCharging = plugged || usbPlugged
-        val health = output.lines().firstOrNull { it.trim().startsWith("health:") }
+        val wirelessPlugged = output.lines().firstOrNull { it.trim().startsWith("Wireless powered:") }
+            ?.substringAfter(":")?.trim()?.toBooleanStrictOrNull() ?: false
+        val isCharging = acPlugged || usbPlugged || wirelessPlugged
+        val rawHealth = output.lines().firstOrNull { it.trim().startsWith("health:") }
             ?.substringAfter("health:")?.trim() ?: "UNKNOWN"
-        // BAT-004 was present in this output all along and simply discarded.
+        val health = when (rawHealth) {
+            "1" -> "Unknown (code 1)"
+            "2" -> "Good (code 2)"
+            "3" -> "Overheat (code 3)"
+            "4" -> "Dead (code 4)"
+            "5" -> "Over Voltage (code 5)"
+            "6" -> "Unspecified Failure (code 6)"
+            "7" -> "Cold (code 7)"
+            else -> rawHealth
+        }
         val rawTemp = output.lines().firstOrNull { it.trim().startsWith("temperature:") }
             ?.substringAfter("temperature:")?.trim()?.toIntOrNull()
 
@@ -326,6 +337,12 @@ class AdbGenericEvidenceProvider(
                     ?.trim()
             }
         } else null
+
+        val hasAdminState = lines.any {
+            it.contains("Enabled Device Admins", ignoreCase = true) ||
+            it.contains("Current Device Policy Manager state:", ignoreCase = true)
+        }
+
         return when {
             component != null -> EvidenceFieldResult(true, EvidenceStatus.AVAILABLE, "ADB", "observed: $component")
             ownerIndex != -1 -> EvidenceFieldResult(
@@ -333,6 +350,12 @@ class AdbGenericEvidenceProvider(
                 EvidenceStatus.AVAILABLE,
                 "ADB",
                 "device_policy section present and named no owner component",
+            )
+            hasAdminState -> EvidenceFieldResult(
+                false,
+                EvidenceStatus.AVAILABLE,
+                "ADB",
+                "device_policy active (provisioningState: 0); no Device Owner configured",
             )
             else -> EvidenceFieldResult(
                 value = null,

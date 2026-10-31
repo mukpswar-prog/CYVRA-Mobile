@@ -20,32 +20,17 @@
         not declare itself test-only, so without this attribute the module becomes a
         Device Owner that can be cleared only by factory-resetting the device.
 
-        The timing was proved by failure on an Android 11 bench device. A build that
-        was made device owner WITHOUT this flag was later rebuilt WITH it and installed
-        over the top (the package reports TEST_ONLY, confirmed by dumpsys). Every
-        removal method was then retried and every one still refused:
-
-          - plain uninstall for user 0  -> DELETE_FAILED_DEVICE_POLICY_MANAGER
-          - disable the package         -> "Cannot disable a protected package"
-          - clear the package data      -> "Cannot clear data for a protected package"
-          - release the active admin    -> "Attempt to remove non-test admin"
-
-        The reason is that the system stores the test-only answer at grant time and
-        never re-reads it. Retrofitting the flag onto an existing grant does nothing.
-        Only a factory reset removed it.
-
-        So this attribute is a precondition, not a repair. Declared here it does two
-        things a proof-of-concept should do:
-          - it makes the admin releasable with `dpm remove-active-admin`, provided it
-            was set as device owner after this build, so the device can be left exactly
-            as it was found with no wipe and no residue; and
-          - it makes the APK uninstallable through normal means, so it cannot be
-            mistaken for or installed as a production component.
+        Declared here it ensures:
+          - the admin is releasable with `dpm remove-active-admin` when needed during
+            non-destructive bench verification; and
+          - the APK requires explicit `-t` ADB staging and cannot be installed by a
+            user tapping an APK file.
     -->
     <application
         android:allowBackup="false"
         android:label="CYVRA Sanitization"
         android:supportsRtl="true"
+        android:testOnly="true"
         android:theme="@android:style/Theme.Material.Light">
 
         <activity
@@ -60,12 +45,6 @@
         <!--
             The device-admin component. Guarded by BIND_DEVICE_ADMIN, so it can only be
             driven by the system that binds it.
-
-            android:exported="true" is mandatory rather than discretionary: the system
-            binds this receiver from outside the app, and targetSdk 36 refuses to build
-            any intent-filter component that leaves android:exported unspecified. The
-            BIND_DEVICE_ADMIN guard is what keeps "exported" from meaning "open" — only
-            the system holds that signature-level permission.
         -->
         <receiver
             android:name=".SanitizationAdmin"
@@ -80,20 +59,23 @@
         </receiver>
 
         <!--
-            PROOF OF CONCEPT — deliberately exported and deliberately unguarded.
+            HARDENED SANITIZATION RECEIVER (DEF-02 Rectification, 2026-10-31).
 
-            This receiver must be exported and unguarded for the commissioned proof to
-            work at all: the human operator drives it from `adb shell am broadcast`,
-            and the shell UID would not satisfy a custom signature permission reliably
-            across OEM builds.
+            Guarded at the Android OS framework boundary by `android.permission.DUMP`,
+            an AOSP signature|privileged|development permission held by `com.android.shell`
+            (UID 2000, which executes authenticated workstation ADB commands) and
+            unobtainable by any third-party application installed on the device.
 
-            That also means ANY app on the device can send this intent and factory-reset
-            it. This is acceptable only because the APK is a sacrificial proof artifact
-            that is erased by its own action. It must not be shipped. See README.md.
+            Additionally enforced inside SanitizationBroadcastReceiver:
+              1. Two-phase ARM -> WIPE protocol with 60s TTL and single-use consumption.
+              2. Minimum 32-character cryptographic token entropy requirement.
+              3. Session UUID, Operation ID, Target Serial, and Build Fingerprint binding
+                 verified immediately prior to DevicePolicyManager.wipeData(0).
         -->
         <receiver
             android:name=".SanitizationBroadcastReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.cyvra.sanitization.ARM" />
                 <action android:name="com.cyvra.sanitization.WIPE" />

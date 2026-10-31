@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ActivationScreen, type ActivationFields } from "./ActivationScreen";
 
@@ -15,6 +15,22 @@ export type ActivationDecision = {
   message: string | null;
   termsVersion: string;
 };
+
+export interface ActivationContextValue {
+  decision: ActivationDecision | null;
+  signOut: () => Promise<void>;
+  busy: boolean;
+}
+
+export const ActivationContext = createContext<ActivationContextValue>({
+  decision: null,
+  signOut: async () => {},
+  busy: false,
+});
+
+export function useActivation(): ActivationContextValue {
+  return useContext(ActivationContext);
+}
 
 /**
  * What the gate does when it cannot get a decision at all.
@@ -97,11 +113,29 @@ export function ActivationGate({ children }: { children: ReactNode }) {
     document.documentElement.dataset.cyvraEntry = decision.offline ? "offline" : "online";
   }, [decision]);
 
+  const signOut = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next = await decide("activation_deactivate");
+      launchDecision = Promise.resolve(next);
+      setDecision(next);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Still deciding. Nothing is rendered: the application is not reachable
   // without an explicit `enter`, so there is nothing to show but the door.
   if (decision === null) return null;
 
-  if (decision.state === "enter") return <>{children}</>;
+  if (decision.state === "enter") {
+    return (
+      <ActivationContext.Provider value={{ decision, signOut, busy }}>
+        {children}
+      </ActivationContext.Provider>
+    );
+  }
 
   function submit(fields: ActivationFields) {
     if (busy) return;
@@ -112,6 +146,7 @@ export function ActivationGate({ children }: { children: ReactNode }) {
         email: fields.email,
         licenceKey: fields.licenceKey,
       });
+      launchDecision = Promise.resolve(next);
       setDecision(next);
       setBusy(false);
     })();

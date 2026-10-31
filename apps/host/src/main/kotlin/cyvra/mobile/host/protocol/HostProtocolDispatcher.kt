@@ -927,6 +927,9 @@ class HostProtocolDispatcher(
             else -> hwPdf ?: appPdf
         }
 
+        val debitApplied = licenseService.debitForSession(scan.sessionUuid)
+        val scansRemaining = licenseService.getLicense().scansRemaining
+
         return okResponse(
             request,
             buildJsonObject {
@@ -935,6 +938,8 @@ class HostProtocolDispatcher(
                 put("sessionUuid", scan.sessionUuid)
                 put("deviceLifecycleId", deviceLifecycleId)
                 put("format", "json+markdown+pdf")
+                put("debitApplied", debitApplied)
+                put("scansRemaining", scansRemaining)
                 put("reportJson", jsonContent)
                 put("reportMarkdown", markdownContent)
                 put("reportJsonPath", written.jsonPath)
@@ -1375,10 +1380,11 @@ class HostProtocolDispatcher(
             null
         }
 
-        val debitApplied = licenseService.debitForSession(scan.sessionUuid)
-        state.sanitizedDisconnected = true
-
+        val debitApplied = false
         val verification = result.verificationResult
+        if (execution.isSuccess && verification?.postResetStateDetected == true) {
+            state.sanitizedDisconnected = true
+        }
         return okResponse(
             request,
             buildJsonObject {
@@ -1701,7 +1707,7 @@ class HostProtocolDispatcher(
         }
 
         val sessionUuid = state.lastScan?.sessionUuid
-        val debitApplied = sessionUuid != null && licenseService.debitForSession(sessionUuid)
+        val debitApplied = false
         val targetSerial = state.lastScan?.deviceDescriptor?.serial ?: ""
         val deviceLifecycleId = if (targetSerial.isNotBlank()) {
             WorkstationSessionOrchestrator.deviceLifecycleIdFor(targetSerial)

@@ -179,11 +179,19 @@ class HostDestructiveWipeProvider(
         secureRandom.nextBytes(tokenBytes)
         val wipeToken = tokenBytes.joinToString("") { "%02x".format(it) }
 
+        // Read target hardware build fingerprint immediately before destructive execution
+        val liveBuildFingerprint = adbClient.runShell(serial, "getprop ro.build.fingerprint")
+            .takeIf { it.isSuccess }
+            ?.stdout
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() && it.none { ch -> ch.isWhitespace() || ch in ";|&`\"'<>()" } }
+
         val commonExtras = buildList {
             add("--es wipeToken $wipeToken")
             if (!sessionUuid.isNullOrBlank()) add("--es sessionUuid $sessionUuid")
             add("--es targetSerial $serial")
             if (!operationId.isNullOrBlank()) add("--es operationId $operationId")
+            if (!liveBuildFingerprint.isNullOrBlank()) add("--es targetBuildFingerprint $liveBuildFingerprint")
         }.joinToString(" ")
 
         // Phase 1: ARM broadcast
@@ -223,6 +231,60 @@ class HostDestructiveWipeProvider(
         val disarmCommand = "am broadcast -n $targetPkg/.SanitizationBroadcastReceiver -p $targetPkg -a $targetPkg.DISARM --es targetSerial $serial"
         val result = adbClient.runShell(serial, disarmCommand)
         return result.isSuccess
+    }
+
+    /**
+     * Legitimate Android Device-Owner provisioning workflow via ADB (`dpm set-device-owner`).
+     *
+     * Preconditions enforced without bypassing Android platform rules:
+     * 1. Confirms the device is reachable and has 0 registered user accounts (`dumpsys account`),
+     *    because Android refuses `dpm set-device-owner` when personal/Google/Samsung accounts exist.
+     * 2. Ensures the signed CYVRA sanitization agent APK (`com.cyvra.sanitization`) is installed.
+     * 3. Runs `dpm set-device-owner com.cyvra.sanitization/.SanitizationAdmin` and re-verifies
+     *    via [preflight] that `WipeEligibility.ELIGIBLE` is genuinely established.
+     */
+    fun provisionDeviceOwner(): Pair<Boolean, String> {
+        val existingOwner = deviceOwnerPresent()
+        if (existingOwner == true && agentInstalled() == true) {
+            return true to "Device Owner is already active for CYVRA Sanitization Agent."
+        }
+
+        val accountsDump = adbClient.runShell(serial, "dumpsys account")
+        if (!accountsDump.isSuccess) {
+            return false to "Unable to inspect device account state before Device Owner provisioning."
+        }
+        val accountHeaderMatch = Regex("Accounts:\\s*(\\d+)").find(accountsDump.stdout)
+        val accountCount = accountHeaderMatch?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: accountsDump.stdout.lines().count { it.trim().startsWith("Account {") }
+        if (accountCount > 0) {
+            return false to
+                "Android refuses Device Owner provisioning while $accountCount account(s) exist on the device. " +
+                "Remove all Google/OEM accounts in Android Settings -> Accounts first, then retry provisioning."
+        }
+
+        if (agentInstalled() != true) {
+            val bridge = cyvra.mobile.host.evidence.HostAndroidComponentBridge(adbClient, serial)
+            val (deployed, deployMessage) = bridge.ensureInstalledOrDeploy()
+            if (!deployed && agentInstalled() != true) {
+                return false to "CYVRA Sanitization Agent APK could not be installed: $deployMessage"
+            }
+        }
+
+        val dpmResult = adbClient.runShell(
+            serial,
+            "dpm set-device-owner com.cyvra.sanitization/.SanitizationAdmin",
+        )
+        if (!dpmResult.isSuccess) {
+            val detail = dpmResult.stderr.ifBlank { dpmResult.stdout }.trim()
+            return false to "Android Device Policy Manager rejected provisioning: $detail"
+        }
+
+        val (postEligibility, postReason) = preflight()
+        return if (postEligibility == WipeEligibility.ELIGIBLE) {
+            true to "Device Owner provisioned and verified: $postReason"
+        } else {
+            false to "Provisioning command returned, but Device Owner verification is $postEligibility: $postReason"
+        }
     }
 
     /** `null` when the listing did not answer. */

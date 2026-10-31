@@ -9,7 +9,9 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -74,7 +76,13 @@ object HostMain {
         targetDispatcher: HostProtocolDispatcher = dispatcher,
     ) {
         val outputLock = Any()
-        val executor = Executors.newCachedThreadPool { runnable ->
+        val executor = ThreadPoolExecutor(
+            4,
+            52,
+            60L,
+            TimeUnit.SECONDS,
+            LinkedBlockingQueue(500),
+        ) { runnable ->
             Thread(runnable, "cyvra-host-worker").apply { isDaemon = true }
         }
         val serialChains = ConcurrentHashMap<String, CompletableFuture<Void>>()
@@ -86,6 +94,23 @@ object HostMain {
                 output.write(encoded)
                 output.newLine()
                 output.flush()
+            }
+        }
+
+        fun safeDispatch(request: HostRequest): HostResponse {
+            return try {
+                targetDispatcher.dispatch(request)
+            } catch (t: Throwable) {
+                HostResponse(
+                    protocolVersion = HostProtocolV1.VERSION,
+                    requestId = request.requestId,
+                    status = HostResponseStatus.ERROR,
+                    hostVersion = HostProtocolV1.DEFAULT_HOST_VERSION,
+                    error = HostError(
+                        code = "INTERNAL_ERROR",
+                        message = t.message ?: "Host encountered an internal exception",
+                    ),
+                )
             }
         }
 
@@ -121,7 +146,7 @@ object HostMain {
                 val taskFuture: CompletableFuture<Void> = if (bypassSerialQueue) {
                     CompletableFuture.runAsync(
                         Runnable {
-                            val response = targetDispatcher.dispatch(parsedRequest)
+                            val response = safeDispatch(parsedRequest)
                             writeResponse(response)
                         },
                         executor,
@@ -131,7 +156,7 @@ object HostMain {
                         val base = previous ?: CompletableFuture.completedFuture(null)
                         base.handleAsync(
                             { _, _ ->
-                                val response = targetDispatcher.dispatch(parsedRequest)
+                                val response = safeDispatch(parsedRequest)
                                 writeResponse(response)
                                 null as Void?
                             },
@@ -140,6 +165,7 @@ object HostMain {
                     }!!
                 }
                 allFutures.add(taskFuture)
+                taskFuture.whenComplete { _, _ -> allFutures.remove(taskFuture) }
             }
 
             if (allFutures.isNotEmpty()) {

@@ -115,15 +115,16 @@ async fn decide(compute: impl FnOnce() -> LaunchOutcome + Send + 'static) -> Act
 
 /// First-paint decision: may this operator reach the existing application?
 ///
-/// Called once when the window opens. It is a *read* of the stored activation
-/// plus, when there is one, a read-only revalidation - it never writes a
-/// binding, never deletes one, and never asks the operator for anything.
+/// Called once when the window opens. It reads the stored activation, verifies
+/// live workstation hardware identity against the stored fingerprint, and performs
+/// silent revalidation (or offline grace entry) without writing a new binding.
 #[tauri::command]
 pub async fn activation_launch() -> ActivationDecision {
     decide(|| {
-        state::launch(
+        state::launch_with_fingerprint(
             &home(),
             live_client::production_client(),
+            crate::activation::device_fingerprint(),
             state::system_now_unix(),
         )
     })
@@ -135,18 +136,20 @@ pub async fn activation_launch() -> ActivationDecision {
 /// The app version and the terms version come from this binary, the device
 /// fingerprint is computed here rather than accepted from the screen, and the
 /// verdict comes back from the state machine as one of the six strings or as
-/// nothing at all.
+/// nothing at all. When entry is granted, any previously running Host JVM is
+/// stopped so the next request spawns cleanly with the newly exported entitlement.
 #[tauri::command]
 pub async fn activation_submit(
     app_handle: tauri::AppHandle,
+    host_state: tauri::State<'_, crate::commands::HostState>,
     email: String,
     licence_key: String,
-) -> ActivationDecision {
+) -> Result<ActivationDecision, String> {
     let app_version = app_handle.package_info().version.to_string();
     let email = email.trim().to_string();
     let licence_key = licence_key.trim().to_string();
 
-    decide(move || {
+    let decision = decide(move || {
         let now = state::system_now_unix();
         let home = home();
 
@@ -156,19 +159,27 @@ pub async fn activation_submit(
             TERMS_VERSION,
             app_version.as_str(),
         ) {
-                Ok(request) => request,
-                Err(error) => {
-                    // This workstation will not say which computer it is, so it
-                    // was never asked and the server never answered. A local
-                    // fault - not a licence verdict, because no verdict exists.
-                    log::warn!("activation request could not be formed: {error}");
-                    return state::local_fault(&home, now, "FINGERPRINT_UNAVAILABLE");
-                }
-            };
+            Ok(request) => request,
+            Err(error) => {
+                // This workstation will not say which computer it is, so it
+                // was never asked and the server never answered. A local
+                // fault - not a licence verdict, because no verdict exists.
+                log::warn!("activation request could not be formed: {error}");
+                return state::local_fault(&home, now, "FINGERPRINT_UNAVAILABLE");
+            }
+        };
 
         state::activate(&home, live_client::production_client(), &request, now)
     })
-    .await
+    .await;
+
+    if decision.state == "enter" {
+        if let Ok(mut manager) = host_state.manager.lock() {
+            manager.stop();
+        }
+    }
+
+    Ok(decision)
 }
 
 /// Detailed workstation activation status exposed to the desktop UI for operator & license management.
@@ -201,15 +212,23 @@ pub async fn activation_status() -> ActivationStatusInfo {
     }
 }
 
-/// Controlled workstation deactivation / licence reset.
+/// Controlled workstation Sign Out / Switch Licence reset (DEF-03).
 ///
-/// Removes the stored activation token and exported entitlement from `<cyvra.home>`,
-/// allowing an operator to switch serial keys or perform a clean first-run activation test.
+/// Terminates the running Host JVM (clearing in-memory licence/session state),
+/// removes the stored activation token and exported entitlement from `<cyvra.home>`,
+/// and records an immutable `WORKSTATION_SIGNED_OUT` line in `activation-audit.jsonl`,
+/// returning the workstation cleanly to `Sign in & Activate`.
 #[tauri::command]
-pub async fn activation_deactivate() -> Result<(), String> {
+pub async fn activation_deactivate(
+    host_state: tauri::State<'_, crate::commands::HostState>,
+) -> Result<(), String> {
     let home = home();
     if home.as_os_str().is_empty() {
         return Err("Installation root could not be resolved".to_string());
+    }
+
+    if let Ok(mut manager) = host_state.manager.lock() {
+        manager.stop();
     }
 
     let store_file = crate::activation::store::store_path(&home);
@@ -220,10 +239,20 @@ pub async fn activation_deactivate() -> Result<(), String> {
             .map_err(|e| format!("Failed to remove activation token: {}", e))?;
     }
     if entitlement_file.exists() {
-        let _ = std::fs::remove_file(&entitlement_file);
+        std::fs::remove_file(&entitlement_file)
+            .map_err(|e| format!("Failed to remove entitlement document: {}", e))?;
     }
 
-    log::info!("Workstation deactivated: activation and entitlement stores cleared.");
+    let audit_line = state::AuditLine {
+        at_unix: state::system_now_unix(),
+        event: state::AuditEvent::WorkstationSignedOut,
+        code: None,
+    };
+    if let Err(error) = state::append_audit(&home, &audit_line) {
+        log::warn!("sign-out audit line not written: {error}");
+    }
+
+    log::info!("Workstation signed out: Host stopped, activation and entitlement stores cleared.");
     Ok(())
 }
 
