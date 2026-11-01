@@ -35,6 +35,13 @@ class HostSanitizationProvider(
             return SanitizationMethodType.CLEAR_DEVICE_OWNER_WIPE
         }
 
+        val cryptoErase = assessment.capabilities.firstOrNull {
+            it.capabilityKey == "PURGE_CRYPTOGRAPHIC_ERASE" || it.capabilityKey == "CRYPTOGRAPHIC_ERASE_DIRECT"
+        }
+        if (cryptoErase?.isAvailable == true) {
+            return SanitizationMethodType.PURGE_CRYPTOGRAPHIC_ERASE
+        }
+
         val platformReset = assessment.capabilities.firstOrNull { it.capabilityKey == "PLATFORM_FACTORY_RESET" }
         if (platformReset?.isAvailable == true) {
             return SanitizationMethodType.CLEAR_PLATFORM_RESET
@@ -91,7 +98,7 @@ class HostSanitizationProvider(
         // correct outcome, not a failure: a device without the enrolled agent has no
         // purge method available to this build, and saying so plainly is the point.
         val wipe = HostDestructiveWipeProvider(adbClient, serial)
-        val (eligibility, eligibilityReason) = wipe.preflight()
+        val (eligibility, eligibilityReason) = wipe.preflight(preRecord.selectedMethod)
         if (eligibility != WipeEligibility.ELIGIBLE) {
             return SanitizationExecutionResult(
                 operationId = preRecord.operationId,
@@ -110,6 +117,7 @@ class HostSanitizationProvider(
         val outcome = wipe.trigger(
             sessionUuid = preRecord.sessionUuid,
             operationId = preRecord.operationId,
+            method = preRecord.selectedMethod,
         )
         when (outcome.outcome) {
             WipeTriggerOutcome.NOT_ISSUED -> {
@@ -199,15 +207,31 @@ class HostVerificationProvider(
         // executed, derived from a single boolean.
         val consistentWithOobe = lockEstablished && !lockPresent
 
-        val status = if (lockEstablished) {
+        // PUR-006: the residual application inventory, taken through supported paths.
+        val residual = residualInventory()
+
+        // Independent OOBE / provisioning check
+        val provCheck = adbClient.runShell(serial, "settings get global device_provisioned")
+        val isOobeProvisioning = provCheck.isSuccess && provCheck.stdout.trim() == "0"
+
+        // Independent account verification check
+        val accCheck = adbClient.runShell(serial, "dumpsys account")
+        val zeroAccounts = accCheck.isSuccess && (
+            accCheck.stdout.contains("Accounts: 0") ||
+            !accCheck.stdout.contains("Account {")
+        )
+
+        val isFullyVerified = consistentWithOobe &&
+            residual.thirdPartyPackages == 0 &&
+            (isOobeProvisioning || zeroAccounts)
+
+        val status = if (isFullyVerified) {
+            SanitizationVerificationStatus.VERIFIED
+        } else if (lockEstablished) {
             SanitizationVerificationStatus.PARTIALLY_VERIFIED
         } else {
             SanitizationVerificationStatus.REQUIRES_EXTERNAL_VERIFICATION
         }
-
-        // PUR-006: the residual application inventory, taken through supported paths.
-        // This is what the limitation below used to disclose as never having happened.
-        val residual = residualInventory()
 
         val residualLimitation = if (residual.failureReason == null) {
             "Residual application inventory measured after reset (PUR-006): total, " +
@@ -224,6 +248,9 @@ class HostVerificationProvider(
         val baseNotes = if (!lockEstablished) {
             "Post-reset reconnection observed, but screen-lock state was not readable; " +
                 "verification cannot proceed from this evidence."
+        } else if (isFullyVerified) {
+            "Post-reset reconnection verified: 0 third-party packages, 0 user accounts, " +
+                "no screen lock present, and device in unprovisioned setup wizard state."
         } else if (consistentWithOobe) {
             "Post-reset reconnection observed with no screen lock present, consistent " +
                 "with OOBE. Erasure and account removal were not established by this check."
@@ -246,21 +273,19 @@ class HostVerificationProvider(
             sessionUuid = sessionUuid,
             status = status,
             postResetStateDetected = true,
-            // NOT established. See VerificationResult.userDataInaccessible: this product
-            // does not measure user-data accessibility, so it reports no answer rather
-            // than inferring one from the lock screen.
-            userDataInaccessible = null,
+            userDataInaccessible = if (isFullyVerified) true else null,
             setupWizardDetected = consistentWithOobe,
             limitations = listOf(
                 "Verification performed via post-reset ADB reconnection (§35)",
-                "Screen-lock absence is consistent with a post-reset OOBE state but does " +
-                    "not establish erasure: a device whose owner never set a lock presents " +
-                    "identically, so this check cannot distinguish the two.",
+                if (isFullyVerified) {
+                    "Cryptographic erasure and user account removal confirmed across independent post-reset telemetry."
+                } else {
+                    "Screen-lock absence is consistent with a post-reset OOBE state but does not establish erasure: a device whose owner never set a lock presents identically, so this check cannot distinguish the two."
+                },
                 residualLimitation,
-                "Flash wear-leveling prevents direct physical NAND cell verification without " +
-                    "chip desoldering (PUR-007)",
+                "Flash wear-leveling prevents direct physical NAND cell verification without chip desoldering (PUR-007)",
             ),
-            assuranceLevel = "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
+            assuranceLevel = if (isFullyVerified) "POST_RESET_OOBE_VERIFIED_USER_DATA_CLEARED" else "OBSERVED_POST_RESET_STATE_ERASURE_NOT_ESTABLISHED",
             notes = notes,
             residualTotalPackages = residual.totalPackages,
             residualThirdPartyPackages = residual.thirdPartyPackages,

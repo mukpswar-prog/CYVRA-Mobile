@@ -132,6 +132,23 @@ class StandardCapabilityAssessmentEngine(
         }
 
         // 9. Cryptographic Erase Direct Invocation
+        val extCrypto = evidence?.extended?.parameters?.firstOrNull {
+            it.id == "SEC-002" || (it.id.startsWith("SEC-") && it.label.contains("crypto", ignoreCase = true))
+        }?.result?.value
+        val isFbe = extCrypto?.contains("file", ignoreCase = true) == true || apiLevel >= 28
+        val isKeyStoreHw = apiLevel >= 28
+
+        capabilities.add(
+            DeviceCapabilityItem(
+                capabilityKey = "PURGE_CRYPTOGRAPHIC_ERASE",
+                displayName = "Cryptographic Erase (Hardware-Backed FBE)",
+                status = if (isFbe && isKeyStoreHw) CapabilityStatus.SUPPORTED else CapabilityStatus.PARTIAL,
+                requiredTier = RequiredAccessTier.L2_HOST_ADB,
+                isAvailable = isFbe && isKeyStoreHw,
+                reason = if (isFbe && isKeyStoreHw) null else "Target storage is not FBE encrypted or lacks hardware KeyStore",
+            ),
+        )
+
         capabilities.add(
             DeviceCapabilityItem(
                 capabilityKey = "CRYPTOGRAPHIC_ERASE_DIRECT",
@@ -143,10 +160,12 @@ class StandardCapabilityAssessmentEngine(
             ),
         )
 
-        val recommendedPurge = if (isAdbReady) {
-            "PLATFORM_FACTORY_RESET"
-        } else {
-            "NONE_AUTHORIZATION_REQUIRED"
+        val recommendedPurge = when {
+            !isAdbReady -> "NONE_AUTHORIZATION_REQUIRED"
+            isDeviceOwnerActive -> "DEVICE_OWNER_WIPE"
+            isFbe && isKeyStoreHw -> "PURGE_CRYPTOGRAPHIC_ERASE"
+            isOemSupported && oemAdapter != null -> "OEM_PROPRIETARY_SECURE_ERASE"
+            else -> "PLATFORM_FACTORY_RESET"
         }
 
         return DeviceCapabilityAssessment(

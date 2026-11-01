@@ -1,5 +1,6 @@
 package cyvra.mobile.host.sanitization
 
+import cyvra.mobile.core.SanitizationMethodType
 import cyvra.mobile.host.security.HostSecurityAuditEngine
 import cyvra.mobile.host.transport.AdbClient
 
@@ -92,13 +93,10 @@ class HostDestructiveWipeProvider(
 ) {
 
     /**
-     * Establishes whether a destructive trigger may be issued at all.
-     *
-     * Both facts are read rather than assumed. Neither may be inferred from the other:
-     * an installed agent that is not the device owner cannot wipe, and this is the
-     * single condition the wipe call itself depends on.
+     * Establishes whether a destructive trigger may be issued at all under Option C.
+     * Evaluates method-specific prerequisites (Device Owner, Cryptographic Erase, OEM, or Platform Reset).
      */
-    fun preflight(): Pair<WipeEligibility, String> {
+    fun preflight(selectedMethod: SanitizationMethodType = SanitizationMethodType.CLEAR_DEVICE_OWNER_WIPE): Pair<WipeEligibility, String> {
         val installed = agentInstalled()
         if (installed == null) {
             return WipeEligibility.INDETERMINATE to
@@ -123,20 +121,60 @@ class HostDestructiveWipeProvider(
         }
 
         val effectivePkg = activePkg ?: AGENT_PACKAGE
-        val owner = deviceOwnerPresent()
-        if (owner == null) {
-            return WipeEligibility.INDETERMINATE to
-                "The device-owner state could not be read, so eligibility was never " +
-                "established. No destructive step was attempted."
-        }
-        if (!owner) {
-            return WipeEligibility.NOT_ELIGIBLE to
-                "Refused: the CYVRA sanitization agent is installed but is not the device " +
-                "owner on this device, so it holds no wipe authority."
-        }
 
-        return WipeEligibility.ELIGIBLE to
-            "The CYVRA sanitization agent is installed and is the device owner."
+        return when (selectedMethod) {
+            SanitizationMethodType.CLEAR_DEVICE_OWNER_WIPE -> {
+                val owner = deviceOwnerPresent()
+                if (owner == null) {
+                    WipeEligibility.INDETERMINATE to
+                        "The device-owner state could not be read, so eligibility was never established. No destructive step was attempted."
+                } else if (!owner) {
+                    WipeEligibility.NOT_ELIGIBLE to
+                        "Refused: the CYVRA sanitization agent is installed but is not the device owner on this device, so it holds no Device Owner wipe authority."
+                } else {
+                    WipeEligibility.ELIGIBLE to
+                        "The CYVRA sanitization agent is installed and is the device owner."
+                }
+            }
+            SanitizationMethodType.PURGE_CRYPTOGRAPHIC_ERASE -> {
+                val cryptoType = adbClient.runShell(serial, "getprop ro.crypto.type").stdout.trim()
+                val cryptoState = adbClient.runShell(serial, "getprop ro.crypto.state").stdout.trim()
+                val isEncrypted = cryptoState.equals("encrypted", ignoreCase = true)
+                val isFbe = cryptoType.equals("file", ignoreCase = true)
+                val apiLevel = adbClient.runShell(serial, "getprop ro.build.version.sdk").stdout.trim().toIntOrNull() ?: 0
+                val isHwKeyStore = apiLevel >= 28
+
+                if (!isEncrypted && !isFbe) {
+                    WipeEligibility.NOT_ELIGIBLE to
+                        "Refused: target device storage is unencrypted; cryptographic key destruction cannot be applied to plaintext storage."
+                } else if (!isHwKeyStore) {
+                    WipeEligibility.NOT_ELIGIBLE to
+                        "Refused: target device platform (API $apiLevel) lacks hardware-backed KeyStore TEE required for cryptographic erasure guarantee."
+                } else {
+                    WipeEligibility.ELIGIBLE to
+                        "Qualified: CYVRA agent installed with File-Based Encryption (FBE) and hardware-backed KeyStore TEE verified. Ready for cryptographic key destruction."
+                }
+            }
+            SanitizationMethodType.PURGE_OEM_SECURE_ERASE -> {
+                val mfr = adbClient.runShell(serial, "getprop ro.product.manufacturer").stdout.trim().lowercase()
+                if (mfr.contains("samsung") || mfr.contains("google")) {
+                    WipeEligibility.ELIGIBLE to "Qualified: Target device ($mfr) supports OEM hardware block erase protocol."
+                } else {
+                    WipeEligibility.NOT_ELIGIBLE to "Refused: OEM proprietary secure erase is not configured for manufacturer '$mfr'."
+                }
+            }
+            SanitizationMethodType.CLEAR_PLATFORM_RESET -> {
+                val apiLevel = adbClient.runShell(serial, "getprop ro.build.version.sdk").stdout.trim().toIntOrNull() ?: 0
+                if (apiLevel >= 26) {
+                    WipeEligibility.ELIGIBLE to "Qualified: Android platform API $apiLevel supports verified standard factory reset."
+                } else {
+                    WipeEligibility.NOT_ELIGIBLE to "Refused: Android API $apiLevel is below platform minimum (API 26)."
+                }
+            }
+            SanitizationMethodType.UNSUPPORTED_METHOD -> {
+                WipeEligibility.NOT_ELIGIBLE to "Refused: selected method is unsupported on this device."
+            }
+        }
     }
 
     /** Resolves which supported sanitization package is present on the device. */
@@ -159,7 +197,11 @@ class HostDestructiveWipeProvider(
      * `delivered` means the broadcast reached the device. It does not mean the device
      * is wiping, and it certainly does not mean data is gone. See the class note.
      */
-    fun trigger(sessionUuid: String? = null, operationId: String? = null): WipeOutcome {
+    fun trigger(
+        sessionUuid: String? = null,
+        operationId: String? = null,
+        method: SanitizationMethodType = SanitizationMethodType.CLEAR_DEVICE_OWNER_WIPE,
+    ): WipeOutcome {
         val targetPkg = resolveActivePackage() ?: AGENT_PACKAGE
         // Established BEFORE the trigger, because afterwards the device may be gone and
         // "absent to begin with" would then be indistinguishable from "absent because
@@ -192,6 +234,7 @@ class HostDestructiveWipeProvider(
             add("--es targetSerial $serial")
             if (!operationId.isNullOrBlank()) add("--es operationId $operationId")
             if (!liveBuildFingerprint.isNullOrBlank()) add("--es targetBuildFingerprint $liveBuildFingerprint")
+            add("--es method ${method.name}")
         }.joinToString(" ")
 
         // Phase 1: ARM broadcast

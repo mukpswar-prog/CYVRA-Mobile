@@ -164,7 +164,7 @@ describe("App desktop scan-to-seal workflow", () => {
     expect(finaliseBtn).toBeDisabled();
 
     const step6OperatorInput = screen.getByPlaceholderText(
-      "Name or ID of the authorising operator",
+      /Name or ID of the authorising operator/i,
     );
     fireEvent.change(step6OperatorInput, { target: { value: "tech.operator@cyvoriq.com" } });
     expect(finaliseBtn).not.toBeDisabled();
@@ -280,10 +280,10 @@ describe("App desktop scan-to-seal workflow", () => {
     render(<App />);
 
     // Verify exact concise column headers and absence of Model / Make and Down-load columns
-    expect((await screen.findAllByText("H/W SCN")).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("App SCN").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("SAN").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("VER").length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText("Hardware")).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Applications").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Sanitization").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Verification").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Report").length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText("Model / Make")).not.toBeInTheDocument();
     expect(screen.queryByText(/Down-\s*load/i)).not.toBeInTheDocument();
@@ -302,8 +302,8 @@ describe("App desktop scan-to-seal workflow", () => {
     expect(slot1DownloadBtn).toBeDisabled();
     expect(slot2DownloadBtn).toBeDisabled();
 
-    // Trigger H/W SCN directly from CYVRA.01 row
-    const slot1HwScanBtn = screen.getByLabelText(/CYVRA\.01 H\/W SCN:/i);
+    // Trigger Hardware Scan directly from CYVRA.01 row
+    const slot1HwScanBtn = screen.getByLabelText(/CYVRA\.01 Hardware Scan:/i);
     await waitFor(() => expect(slot1HwScanBtn).not.toBeDisabled(), { timeout: 10_000 });
     fireEvent.click(slot1HwScanBtn);
 
@@ -311,8 +311,8 @@ describe("App desktop scan-to-seal workflow", () => {
     await waitFor(() => expect(slot1DownloadBtn).not.toBeDisabled(), { timeout: 10_000 });
     expect(slot2DownloadBtn).toBeDisabled();
 
-    // Trigger H/W SCN directly from CYVRA.02 row
-    const slot2HwScanBtn = screen.getByLabelText(/CYVRA\.02 H\/W SCN:/i);
+    // Trigger Hardware Scan directly from CYVRA.02 row
+    const slot2HwScanBtn = screen.getByLabelText(/CYVRA\.02 Hardware Scan:/i);
     fireEvent.click(slot2HwScanBtn);
 
     // Both CYVRA.01 and CYVRA.02 now have independent Download Report buttons enabled
@@ -331,9 +331,14 @@ describe("App desktop scan-to-seal workflow", () => {
       { timeout: 10_000 },
     );
 
-    // Open User ID & Licence Key dialog from header pill
-    const licenseBtn = screen.getByLabelText("Open User ID and Licence Key activation dialog");
+    // Open Workstation Licence and Operator dialog from header pill
+    const licenseBtn = screen.getByLabelText(/Open Workstation Licence and Operator dialog/i);
     fireEvent.click(licenseBtn);
+    expect(await screen.findByText(/Workstation Licence & Operator Identity/i)).toBeInTheDocument();
+
+    // Click "Enter New Licence Key / Sign In" to open activation dialog
+    const enterKeyBtn = screen.getByText("Enter New Licence Key / Sign In");
+    fireEvent.click(enterKeyBtn);
     expect(await screen.findByText(/Workstation User ID & Serial Key/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Registered User ID (email)")).toBeInTheDocument();
     expect(screen.getByLabelText("Licence Key")).toBeInTheDocument();
@@ -448,18 +453,21 @@ describe("App desktop scan-to-seal workflow", () => {
     render(<App />);
 
     await screen.findByText(/LICENCE: ACTIVE/i, {}, { timeout: 10_000 });
-    const slot2SanConfirmBtn = await screen.findByLabelText("SANITIZE_CONFIRM for CYVRA.02", {}, { timeout: 10_000 });
-    const slot1HwBtn = screen.getByLabelText(/CYVRA\.01 H\/W SCN:/i);
-    const slot2HwBtn = screen.getByLabelText(/CYVRA\.02 H\/W SCN:/i);
+    // Expand CYVRA.02 row to reveal per-device action buttons
+    const slot2Row = (await screen.findAllByText("CYVRA.02"))[0];
+    fireEvent.click(slot2Row);
+    const slot2SanConfirmBtn = await screen.findByLabelText("Sanitize Device for CYVRA.02", {}, { timeout: 10_000 });
+    const slot1HwBtn = screen.getByLabelText(/CYVRA\.01 Hardware Scan:/i);
+    const slot2HwBtn = screen.getByLabelText(/CYVRA\.02 Hardware Scan:/i);
 
     await waitFor(() => expect(slot1HwBtn).not.toBeDisabled(), { timeout: 10_000 });
     expect(slot2SanConfirmBtn).toBeDisabled();
 
-    // 1. Start H/W SCN on CYVRA.01 (remains in flight)
+    // 1. Start Hardware Scan on CYVRA.01 (remains in flight)
     fireEvent.click(slot1HwBtn);
     await waitFor(() => expect(scan1Deferred.resolve).toBeDefined(), { timeout: 10_000 });
 
-    // 2. While CYVRA.01 is scanning in flight, CYVRA.02 H/W SCN must NOT be disabled!
+    // 2. While CYVRA.01 is scanning in flight, CYVRA.02 Hardware Scan must NOT be disabled!
     expect(slot2HwBtn).not.toBeDisabled();
     fireEvent.click(slot2HwBtn);
 
@@ -467,17 +475,17 @@ describe("App desktop scan-to-seal workflow", () => {
     const slot2DownloadBtn = screen.getByLabelText("Download Report for CYVRA.02");
     await waitFor(() => expect(slot2DownloadBtn).not.toBeDisabled(), { timeout: 10_000 });
 
-    // SANITIZE_CONFIRM for CYVRA.02 is still disabled until App SCN also completes
+    // Sanitize Device for CYVRA.02 is still disabled until Application Scan also completes
     expect(slot2SanConfirmBtn).toBeDisabled();
 
-    // 3. Run App SCN on CYVRA.02
-    const slot2AppBtn = screen.getByLabelText(/CYVRA\.02 App SCN:/i);
+    // 3. Run Application Scan on CYVRA.02
+    const slot2AppBtn = screen.getByLabelText(/CYVRA\.02 Application Scan:/i);
     fireEvent.click(slot2AppBtn);
 
-    // Once both H/W SCN and App SCN have completed for CYVRA.02, SANITIZE_CONFIRM for CYVRA.02 becomes enabled
+    // Once both Hardware Scan and Application Scan have completed for CYVRA.02, Sanitize Device for CYVRA.02 becomes enabled
     await waitFor(() => expect(slot2SanConfirmBtn).not.toBeDisabled(), { timeout: 10_000 });
 
-    // 4. Click SANITIZE_CONFIRM for CYVRA.02 and verify consolidated SANITIZE_AUTHORIZE is sent for RF8R999888
+    // 4. Click Sanitize Device for CYVRA.02 and verify consolidated SANITIZE_AUTHORIZE is sent for RF8R999888
     fireEvent.click(slot2SanConfirmBtn);
     await waitFor(
       () =>

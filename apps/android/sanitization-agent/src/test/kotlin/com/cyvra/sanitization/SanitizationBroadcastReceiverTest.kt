@@ -320,14 +320,77 @@ class SanitizationBroadcastReceiverTest {
 
     @Test
     fun actionConstantsMatchManifestIntentFilter() {
+        assertEquals("com.cyvra.sanitization.HANDSHAKE", SanitizationBroadcastReceiver.HANDSHAKE_ACTION)
+        assertEquals("com.cyvra.sanitization.ASSESS", SanitizationBroadcastReceiver.ASSESS_ACTION)
         assertEquals("com.cyvra.sanitization.ARM", SanitizationBroadcastReceiver.ARM_ACTION)
         assertEquals("com.cyvra.sanitization.WIPE", SanitizationBroadcastReceiver.WIPE_ACTION)
         assertEquals("com.cyvra.sanitization.DISARM", SanitizationBroadcastReceiver.DISARM_ACTION)
+        assertTrue(SanitizationBroadcastReceiver.isHandshakeAction(SanitizationBroadcastReceiver.HANDSHAKE_ACTION))
+        assertTrue(SanitizationBroadcastReceiver.isAssessAction(SanitizationBroadcastReceiver.ASSESS_ACTION))
         assertTrue(SanitizationBroadcastReceiver.isWipeAction(SanitizationBroadcastReceiver.WIPE_ACTION))
         assertTrue(SanitizationBroadcastReceiver.isArmAction(SanitizationBroadcastReceiver.ARM_ACTION))
         assertTrue(SanitizationBroadcastReceiver.isDisarmAction(SanitizationBroadcastReceiver.DISARM_ACTION))
+        assertFalse(SanitizationBroadcastReceiver.isHandshakeAction(null))
+        assertFalse(SanitizationBroadcastReceiver.isAssessAction(null))
         assertFalse(SanitizationBroadcastReceiver.isWipeAction(null))
         assertFalse(SanitizationBroadcastReceiver.isArmAction(null))
         assertFalse(SanitizationBroadcastReceiver.isDisarmAction(null))
+    }
+
+    @Test
+    fun handshakeActionReturnsReadyWithAgentVersion() {
+        val receiver = SanitizationBroadcastReceiver()
+        var writtenFile: String? = null
+        var writtenData: String? = null
+        var resultData: String? = null
+
+        val result = receiver.dispatch(
+            action = SanitizationBroadcastReceiver.HANDSHAKE_ACTION,
+            sessionUuid = "test-session-1234",
+            currentTimeMs = 5000L,
+            writeOutput = { file, data ->
+                writtenFile = file
+                writtenData = data
+            },
+            onResultData = { data ->
+                resultData = data
+            }
+        )
+
+        assertEquals(DispatchResult.HANDSHAKE_ACK, result)
+        assertEquals("cyvra-agent-handshake.json", writtenFile)
+        assertTrue(writtenData.orEmpty().contains("\"status\":\"READY\""))
+        assertTrue(writtenData.orEmpty().contains("\"agentVersion\":\"2.1.1\""))
+        assertTrue(writtenData.orEmpty().contains("\"sessionUuid\":\"test-session-1234\""))
+        assertEquals(writtenData, resultData)
+    }
+
+    @Test
+    fun assessActionReturnsStructuredAssessmentJson() {
+        val receiver = SanitizationBroadcastReceiver()
+        var writtenFile: String? = null
+        var writtenData: String? = null
+        var resultData: String? = null
+
+        val mockJson = "{\"schemaVersion\":\"cyvra.agent.assessment.v2\",\"agentVersion\":\"2.1.1\",\"methodQualification\":{\"recommendedMethod\":\"CLEAR_DEVICE_OWNER_WIPE\"}}"
+
+        val result = receiver.dispatch(
+            action = SanitizationBroadcastReceiver.ASSESS_ACTION,
+            sessionUuid = "test-session-5678",
+            currentTimeMs = 6000L,
+            assessmentCollector = { mockJson },
+            writeOutput = { file, data ->
+                writtenFile = file
+                writtenData = data
+            },
+            onResultData = { data ->
+                resultData = data
+            }
+        )
+
+        assertEquals(DispatchResult.ASSESSED, result)
+        assertEquals("cyvra-agent-assessment.json", writtenFile)
+        assertEquals(mockJson, writtenData)
+        assertEquals(mockJson, resultData)
     }
 }

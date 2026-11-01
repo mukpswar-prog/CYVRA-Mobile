@@ -26,6 +26,7 @@ import cyvra.mobile.host.report.HostReportEngine
 import cyvra.mobile.host.report.HostReportStore
 import cyvra.mobile.host.report.WrittenPdfArtifact
 import cyvra.mobile.host.service.ConcurrencyAdmissionOutcome
+import cyvra.mobile.host.service.HostAgentDeploymentOrchestrator
 import cyvra.mobile.host.service.HostBootstrap
 import cyvra.mobile.host.service.HostLicenseService
 import cyvra.mobile.host.service.SanitizationLifecycleStart
@@ -492,26 +493,40 @@ class HostProtocolDispatcher(
         manufacturerOf(client, descriptor)?.let { put("make", it) }
 
         if ((probeAgent || deployAgent) && descriptor.state == "device") {
-            val bridge = HostAndroidComponentBridge(client, descriptor.serial)
-            val (installed, status) = if (deployAgent) {
-                bridge.ensureInstalledOrDeploy()
-            } else {
-                val present = bridge.checkInstalled()
-                present to if (present) "INSTALLED" else "NOT_INSTALLED"
-            }
-            val activePkg = bridge.detectInstalledPackage()
-            val hasScanPkg = activePkg == HostAndroidComponentBridge.DEFAULT_PACKAGE_NAME
-            val hasSanitizePkg = activePkg == HostAndroidComponentBridge.SANITIZATION_PACKAGE_NAME
-            val isOwner = if (hasSanitizePkg || hasScanPkg) {
-                val policyDump = client.runShell(descriptor.serial, "dumpsys device_policy")
-                policyDump.isSuccess && policyDump.stdout.contains("Device Owner")
-            } else false
+            try {
+                val orchestrator = HostAgentDeploymentOrchestrator(client)
+                val session = orchestrator.ensureAgentReady(descriptor.serial)
+                put("agentInstalled", session.agentInstalled)
+                put("agentStatus", session.deploymentStatus)
+                session.agentVersion?.let { put("agentVersion", it) }
+                put("scanCapability", "SCAN_CAPABILITY_READY")
+                put("sanitizationCapability", session.qualification.qualifiedMethod.name)
+                put("qualifiedMethod", session.qualification.qualifiedMethod.name)
+                put("deviceLifecycleId", session.deviceLifecycleId)
+                put("opaqueReference", session.opaqueReference)
+            } catch (e: Exception) {
+                val bridge = HostAndroidComponentBridge(client, descriptor.serial)
+                val (installed, status) = if (deployAgent) {
+                    bridge.ensureInstalledOrDeploy()
+                } else {
+                    val present = bridge.checkInstalled()
+                    present to if (present) "INSTALLED" else "NOT_INSTALLED"
+                }
+                val activePkg = bridge.detectInstalledPackage()
+                val hasScanPkg = activePkg == HostAndroidComponentBridge.DEFAULT_PACKAGE_NAME
+                val hasSanitizePkg = activePkg == HostAndroidComponentBridge.SANITIZATION_PACKAGE_NAME
+                val isOwner = if (hasSanitizePkg || hasScanPkg) {
+                    val policyDump = client.runShell(descriptor.serial, "dumpsys device_policy")
+                    policyDump.isSuccess && policyDump.stdout.contains("Device Owner")
+                } else false
 
-            put("agentInstalled", installed)
-            put("agentStatus", status)
-            put("scanCapability", if (hasScanPkg) "SCAN_CAPABILITY_READY" else "HOST_FALLBACK_READY")
-            put("sanitizationCapability", if (hasSanitizePkg && isOwner) "SANITIZATION_CAPABILITY_READY" else "PRIVILEGE_NOT_AVAILABLE")
-            put("deviceLifecycleId", WorkstationSessionOrchestrator.deviceLifecycleIdFor(descriptor.serial))
+                put("agentInstalled", installed)
+                put("agentStatus", status)
+                put("scanCapability", if (hasScanPkg) "SCAN_CAPABILITY_READY" else "HOST_FALLBACK_READY")
+                put("sanitizationCapability", if (hasSanitizePkg && isOwner) "CLEAR_DEVICE_OWNER_WIPE" else "CLEAR_PLATFORM_RESET")
+                put("qualifiedMethod", if (isOwner) "CLEAR_DEVICE_OWNER_WIPE" else "CLEAR_PLATFORM_RESET")
+                put("deviceLifecycleId", WorkstationSessionOrchestrator.deviceLifecycleIdFor(descriptor.serial))
+            }
         }
 
         put("imeiReason", IMEI_REASON)

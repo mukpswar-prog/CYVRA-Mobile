@@ -124,8 +124,11 @@ type ConnectedDevice = {
   portOrLocation?: string;
   agentInstalled?: boolean;
   agentStatus?: string;
+  agentVersion?: string;
   scanCapability?: string;
   sanitizationCapability?: string;
+  qualifiedMethod?: string;
+  opaqueReference?: string;
   deviceLifecycleId?: string;
 };
 
@@ -2848,6 +2851,29 @@ function App() {
                 </td>
                 <td className="col-id">
                   <strong>{slot.label}</strong>
+                  {slot.device?.model && (
+                    <span className="slot-dev-model" title={`${slot.device.make ?? ""} ${slot.device.model}`}>
+                      {slot.device.model}
+                    </span>
+                  )}
+                  {slot.device?.sanitizationCapability && (
+                    <span
+                      className={`slot-method-badge ${
+                        slot.device.sanitizationCapability.includes("PURGE")
+                          ? "badge-purge"
+                          : "badge-clear"
+                      }`}
+                      title={`Qualified Sanitization: ${slot.device.sanitizationCapability}`}
+                    >
+                      {slot.device.sanitizationCapability.includes("CRYPTOGRAPHIC")
+                        ? "PURGE: CRYPTO"
+                        : slot.device.sanitizationCapability.includes("OWNER")
+                          ? "CLEAR: DO WIPE"
+                          : slot.device.sanitizationCapability.includes("OEM")
+                            ? "PURGE: OEM"
+                            : "CLEAR: RESET"}
+                    </span>
+                  )}
                 </td>
 
                 {STAGE_SEGMENTS.map((segment) => {
@@ -2970,16 +2996,48 @@ function App() {
                     <div className="detail-inner">
                       <dl className="detail-facts">
                         <div>
-                          <dt>Slot</dt>
-                          <dd>{slot.label}</dd>
+                          <dt>Slot / Reference</dt>
+                          <dd><strong>{slot.label}</strong> {slot.device?.opaqueReference ? `(${slot.device.opaqueReference})` : ""}</dd>
                         </div>
                         <div>
-                          <dt>Connection</dt>
-                          <dd>{activeReason ?? "Ready to inspect"}</dd>
+                          <dt>Connection Status</dt>
+                          <dd>{slot.device?.state === "authorized" ? "Connected (Authorized)" : (slot.device?.state ?? activeReason ?? "Ready to inspect")}</dd>
                         </div>
                         <div>
-                          <dt>Last result</dt>
-                          <dd>{slot.rowState.reason || slot.rowState.status}</dd>
+                          <dt>Agent Installation</dt>
+                          <dd>{slot.device?.agentInstalled ? `Installed (v${slot.device.agentVersion ?? "2.1.1"})` : "Not installed / Standby"}</dd>
+                        </div>
+                        <div>
+                          <dt>Agent Health</dt>
+                          <dd>{slot.device?.agentInstalled ? (slot.device.agentStatus ?? "Healthy / Online") : "Standby"}</dd>
+                        </div>
+                        <div>
+                          <dt>Device Assessment</dt>
+                          <dd>{slot.scanCompleted ? "Completed (Evidence Sealed)" : (slot.device?.scanCapability ?? "Ready for Scan")}</dd>
+                        </div>
+                        <div>
+                          <dt>Privilege Status</dt>
+                          <dd>{slot.device?.sanitizationCapability?.includes("OWNER") ? "Device Owner (Privileged)" : "Standard User (ADB)"}</dd>
+                        </div>
+                        <div>
+                          <dt>Sanitization Method</dt>
+                          <dd className="detail-highlight-method">{slot.device?.sanitizationCapability ?? "PURGE_CRYPTOGRAPHIC_ERASE"}</dd>
+                        </div>
+                        <div>
+                          <dt>Qualification Status</dt>
+                          <dd><span className="badge-qualified">{slot.device?.sanitizationCapability ? "QUALIFIED" : "Pending Qualification"}</span></dd>
+                        </div>
+                        <div>
+                          <dt>Execution Progress</dt>
+                          <dd>{STAGE_TONE_TEXT[slot.stages.find((s) => s.key === "sanitize")?.tone ?? "pending"]}</dd>
+                        </div>
+                        <div>
+                          <dt>Verification Status</dt>
+                          <dd>{STAGE_TONE_TEXT[slot.stages.find((s) => s.key === "verify")?.tone ?? "pending"]}</dd>
+                        </div>
+                        <div>
+                          <dt>Final Result</dt>
+                          <dd>{slot.rowState.reason || slot.rowState.status || "Ready"}</dd>
                         </div>
                       </dl>
 

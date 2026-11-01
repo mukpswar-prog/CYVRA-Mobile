@@ -13,6 +13,8 @@ enum class DispatchResult {
     ARMED,
     DISARMED,
     WIPED,
+    HANDSHAKE_ACK,
+    ASSESSED,
     REJECTED_NOT_ARMED,
     REJECTED_TOKEN_MISMATCH,
     REJECTED_TOKEN_WEAK,
@@ -68,6 +70,23 @@ class SanitizationBroadcastReceiver(
             targetBuildFingerprint = targetBuildFingerprint,
             currentTimeMs = System.currentTimeMillis(),
             realWipe = { SanitizationAdmin().triggerWipe(context) },
+            assessmentCollector = { AgentAssessmentCollector(context).collectAssessment(sessionUuid).toString() },
+            writeOutput = { filename, content ->
+                try {
+                    val file = java.io.File("/data/local/tmp", filename)
+                    file.writeText(content)
+                } catch (_: Throwable) {
+                    try {
+                        val file = java.io.File(context.cacheDir, filename)
+                        file.writeText(content)
+                    } catch (_: Throwable) {}
+                }
+            },
+            onResultData = { data ->
+                try {
+                    setResultData(data)
+                } catch (_: Throwable) {}
+            },
         )
     }
 
@@ -84,8 +103,27 @@ class SanitizationBroadcastReceiver(
         targetBuildFingerprint: String? = null,
         currentTimeMs: Long = System.currentTimeMillis(),
         realWipe: (() -> Unit)? = null,
+        assessmentCollector: (() -> String)? = null,
+        writeOutput: ((String, String) -> Unit)? = null,
+        onResultData: ((String) -> Unit)? = null,
     ): DispatchResult {
         when (action) {
+            HANDSHAKE_ACTION -> {
+                val payload = """{"status":"READY","agentVersion":"2.1.1","agentPackage":"com.cyvra.sanitization","sessionUuid":"${sessionUuid ?: "UNBOUND"}","timestampMs":$currentTimeMs}"""
+                writeOutput?.invoke("cyvra-agent-handshake.json", payload)
+                onResultData?.invoke(payload)
+                Log.i(TAG, "HANDSHAKE acknowledged for session=${sessionUuid ?: "unbound"}")
+                return DispatchResult.HANDSHAKE_ACK
+            }
+
+            ASSESS_ACTION -> {
+                val payload = assessmentCollector?.invoke() ?: "{}"
+                writeOutput?.invoke("cyvra-agent-assessment.json", payload)
+                onResultData?.invoke(payload)
+                Log.i(TAG, "ASSESSMENT generated for session=${sessionUuid ?: "unbound"}")
+                return DispatchResult.ASSESSED
+            }
+
             ARM_ACTION -> {
                 if (token.isNullOrBlank()) {
                     Log.w(TAG, "ARM rejected: wipeToken missing or blank")
@@ -212,6 +250,8 @@ class SanitizationBroadcastReceiver(
     )
 
     companion object {
+        const val HANDSHAKE_ACTION = "com.cyvra.sanitization.HANDSHAKE"
+        const val ASSESS_ACTION = "com.cyvra.sanitization.ASSESS"
         const val ARM_ACTION = "com.cyvra.sanitization.ARM"
         const val WIPE_ACTION = "com.cyvra.sanitization.WIPE"
         const val DISARM_ACTION = "com.cyvra.sanitization.DISARM"
@@ -244,6 +284,8 @@ class SanitizationBroadcastReceiver(
             }
         }
 
+        fun isHandshakeAction(action: String?): Boolean = action == HANDSHAKE_ACTION
+        fun isAssessAction(action: String?): Boolean = action == ASSESS_ACTION
         fun isWipeAction(action: String?): Boolean = action == WIPE_ACTION
         fun isArmAction(action: String?): Boolean = action == ARM_ACTION
         fun isDisarmAction(action: String?): Boolean = action == DISARM_ACTION

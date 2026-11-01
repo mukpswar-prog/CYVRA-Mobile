@@ -2597,3 +2597,56 @@ td.col-stage.hue-green .stage-seg {
   color: #15803d;
   line-height: 1.4;
 }
+
+/* --- Version 2.1.1 Slot Device & Sanitization Badges --- */
+.slot-dev-model {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.slot-method-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 3px;
+  line-height: 1.2;
+}
+
+.slot-method-badge.badge-purge {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #d8b4fe;
+}
+
+.slot-method-badge.badge-clear {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.badge-qualified {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.detail-highlight-method {
+  font-weight: 600;
+  color: #7e22ce !important;
+}
+

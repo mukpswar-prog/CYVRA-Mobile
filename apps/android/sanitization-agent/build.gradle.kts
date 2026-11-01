@@ -13,8 +13,8 @@ android {
         // Android 8.0+ floor as the evidence app, so the proof exercises the real floor.
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "2.1.1"
     }
 
     val signingMode = (project.findProperty("cyvra.signing.mode") as? String)?.trim()?.lowercase()
