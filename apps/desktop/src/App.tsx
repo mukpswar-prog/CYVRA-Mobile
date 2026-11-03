@@ -3395,6 +3395,14 @@ function App() {
           </button>
           <button
             type="button"
+            className={`screen-nav-btn${screen === "attestation" ? " is-active" : ""}`}
+            aria-current={screen === "attestation" ? "page" : undefined}
+            onClick={() => openScreen("attestation")}
+          >
+            Operator Attestation
+          </button>
+          <button
+            type="button"
             className={`screen-nav-btn${screen === "ledger" ? " is-active" : ""}`}
             aria-current={screen === "ledger" ? "page" : undefined}
             onClick={() => openScreen("ledger")}

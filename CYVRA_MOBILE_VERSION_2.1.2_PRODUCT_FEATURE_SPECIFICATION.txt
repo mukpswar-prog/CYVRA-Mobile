@@ -1,0 +1,357 @@
+================================================================================
+CYVRA MOBILE — VERSION 2.1.2 COMPREHENSIVE PRODUCT FEATURE SPECIFICATION
+================================================================================
+Product Name     : CYVRA Mobile
+Release Version  : 2.1.2
+Architecture     : Option C Hybrid Capability-Based Sanitization & On-Device Agent
+Target OS        : Windows 10 / Windows 11 (64-bit)
+Target Devices   : Android 8.0 (API 26) through Android 16 (API 36)
+Vendor           : CYVORIQ Solutions (cyvoriq.co.in)
+Document Type    : Formal Product Feature & Verification Specification
+Release Date     : 02 November 2026
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. EXECUTIVE SUMMARY & WHAT IS NEW IN VERSION 2.1.2
+2. DETAILED COMPARISON: VERSION 2.1.1 VS VERSION 2.1.2
+3. TOP-LEVEL 3-TAB DESKTOP WORKSTATION NAVIGATION
+4. 50-SLOT HIGH-THROUGHPUT CONCURRENT DASHBOARD & LIVE TELEMETRY
+5. DEDICATED 50-SLOT OPERATOR PHYSICAL ATTESTATION ENGINE
+6. INSTANT PREFLIGHT DEVICE READINESS & ZERO-HANG TIMEOUT PROTECTION
+7. MANDATORY ON-DEVICE ANDROID AGENT (com.cyvra.sanitization v2.1.2)
+8. OPTION C HYBRID SANITIZATION & 5-TIER QUALIFICATION ENGINE
+9. MULTI-SIGNAL POST-RESET VERIFICATION & ZERO-RESIDUAL INTEGRITY PROOF
+10. TAMPER-EVIDENT REPORTING & VECTOR PDF CERTIFICATION (PDFBOX 3.0.3)
+11. ACTIVATION GATEWAY, DPAPI SECURITY & BENCH OPERATOR ATTRIBUTION
+12. IMMUTABLE TRANSACTION LEDGER & 1-CREDIT BILLING INVARIANTS
+13. BUILD PIPELINE & RELEASE ARTIFACT VERIFICATION
+
+================================================================================
+1. EXECUTIVE SUMMARY & WHAT IS NEW IN VERSION 2.1.2
+================================================================================
+CYVRA Mobile Version 2.1.2 is a major engineering and stability release that 
+builds upon the Option C Hybrid Sanitization architecture introduced in Version 2.1.1.
+
+While Version 2.1.1 successfully unlocked cryptographic data erasure for consumer 
+devices without requiring enterprise Device Owner privileges, field testing 
+identified workflow gaps, navigation tab omissions, and bridge timeout errors when 
+connecting unauthorized or recently wiped handsets.
+
+Version 2.1.2 resolves every identified field issue while introducing significant 
+extra capabilities:
+
+• EXTRA 1: RESTORED 3-TAB NAVIGATION BAR (Top Navigation)
+  Restores the missing "Operator Attestation" tab to the main navigation header, 
+  enabling instantaneous switching between Inspection, Physical Attestation, and 
+  the Transaction Ledger.
+
+• EXTRA 2: DEDICATED 50-SLOT OPERATOR PHYSICAL ATTESTATION GRID
+  Full-screen dedicated physical audit interface for all 50 bench slots with an 
+  interactive 6-point physical hardware checklist (screen, enclosure, cameras, 
+  biometrics, battery swelling, ports/buttons) cryptographically bound to the 
+  bench technician's identity.
+
+• EXTRA 3: ZERO-HANG PREFLIGHT TIMEOUT PROTECTION
+  Eliminates the 120-second "Bridge Failure: The workstation engine did not answer" 
+  timeout. If a phone is in an "unauthorized" or "offline" state (e.g. after a 
+  factory wipe before the operator accepts the RSA prompt), the Host engine 
+  detects it immediately (<10ms) and displays a clear on-screen instruction: 
+  "Target device is unauthorized. Please unlock the phone and tap 'Allow USB debugging'".
+
+• EXTRA 4: ONE-CLICK "SIGN IN & ACTIVATE" ACCESS
+  Ensures the corporate Sign In & Activation screen remains accessible on-demand 
+  via a prominent [Sign Out] button and dedicated [Enter New Licence Key / Sign In] 
+  controls in the Workstation License modal.
+
+• EXTRA 5: CLEANED 50-SLOT TABLE LAYOUT (Clipped Button Removed)
+  Removes the legacy clipped "SA" button from populated table rows. Replaces it 
+  with clean, responsive columns and moves all stage execution controls into the 
+  expandable per-device details card.
+
+• EXTRA 6: SIMPLIFIED STEP 2 HARDWARE SCAN WIZARD
+  Eliminated the redundant "OPERATOR ID (OPTIONAL)" input field from Step 2 of the 
+  Scan Wizard, centralizing technician attribution in the header bar and Step 6.
+
+• EXTRA 7: UPDATED ON-DEVICE ANDROID AGENT v2.1.2
+  Upgrades `com.cyvra.sanitization` to Version 2.1.2 (versionCode = 3). Supports 
+  automatic agent version synchronization across all 50 USB slots.
+
+• EXTRA 8: FOOLPROOF AUTOMATED POWERSHELL BUILD ENGINE
+  Introduces `build-cyvra-2.1.2.ps1` with permanent parameter quoting, automatic 
+  path resolution, and end-of-build cryptographic checksum verification.
+
+================================================================================
+2. DETAILED COMPARISON: VERSION 2.1.1 VS VERSION 2.1.2
+================================================================================
+Feature / Capability             Version 2.1.1                Version 2.1.2 (New)
+--------------------------------------------------------------------------------
+Navigation Tabs                  2 Tabs (Inspection, Ledger)  3 Tabs (Inspection, 
+                                 Attestation omitted          Attestation, Ledger)
+--------------------------------------------------------------------------------
+Operator Physical Attestation    Hidden / Inaccessible via    Dedicated Full-Screen
+                                 Top Navigation Bar           50-Slot Interactive Grid
+--------------------------------------------------------------------------------
+Unauthorized Device Handling     Waits 120s -> Bridge Timeout Instant Fail-Safe (<10ms)
+                                 "Engine did not answer"      "Please tap Allow USB debug"
+--------------------------------------------------------------------------------
+Sign In / Activation Access      Auto-bypassed when activated On-demand via [Sign Out]
+                                 No quick re-activate button  and [Enter New Licence Key]
+--------------------------------------------------------------------------------
+50-Slot Table Action Buttons     Clipped "SA" button on row   Clean table layout;
+                                 overflowing right border     Actions in details drawer
+--------------------------------------------------------------------------------
+Scan Wizard Step 2               Crowded with "OPERATOR ID"   Clean, focused layout;
+                                 input field                  Centralized Operator badge
+--------------------------------------------------------------------------------
+On-Device Agent Version          v2.1.1 (versionCode = 2)     v2.1.2 (versionCode = 3)
+--------------------------------------------------------------------------------
+Build Pipeline Scripts           Unquoted Gradle flags        Fully quoted `"-P..."`
+                                 failed in PowerShell Step 2  100% clean 1-click build
+--------------------------------------------------------------------------------
+PDF Report Creator Metadata      "CYVRA Mobile 2.0.1/2.1.1"   "CYVRA Mobile 2.1.2"
+--------------------------------------------------------------------------------
+
+================================================================================
+3. TOP-LEVEL 3-TAB DESKTOP WORKSTATION NAVIGATION
+================================================================================
+Version 2.1.2 features a unified 3-tab top navigation bar (`screen-nav`) positioned 
+immediately below the corporate status header:
+
+[TAB 1: INSPECTION]
+• The primary operational dashboard.
+• Displays summary KPI cards: Sensed, Authorized, Total Slots (50), Connected, 
+  Empty Slots, Disconnected, Scanning, Completed, Pending, Blocked.
+• Search and filter toolbar: filter by CYVRA ID, commercial model, or slot status.
+• 50-slot dual-column responsive grid (Slots CYVRA.01 through CYVRA.50).
+
+[TAB 2: OPERATOR ATTESTATION] (RESTORED EXTRA)
+• Dedicated physical device audit interface.
+• 50-slot interactive card selector showing connection and verification state.
+• Bench slot binding indicator (`HARDWARE BOUND` to physical device serial).
+• 6-point physical hardware checklist for ISO/IEC 17025 and R2 compliance.
+• Active technician assignment (`[Set Operator]` button).
+
+[TAB 3: TRANSACTION LEDGER]
+• Real-time reader for the tamper-evident `<cyvra.home>/ledger.jsonl`.
+• Dual-verifier engine: validates SHA-256 hash chains independently in both 
+  Rust backend and TypeScript frontend.
+• Displays event sequence, UTC timestamp, event type, opaque device reference, 
+  previous hash, and current block hash.
+
+================================================================================
+4. 50-SLOT HIGH-THROUGHPUT CONCURRENT DASHBOARD & LIVE TELEMETRY
+================================================================================
+The desktop application provides non-blocking, parallel operations across 50 slots:
+
+A. 50-Slot Parallel Grid:
+   • Supports 50 simultaneous Android devices.
+   • Non-blocking concurrency: running a hardware scan on CYVRA.01 never locks or 
+     freezes CYVRA.02 through CYVRA.50.
+   • Zero Serial Leakage: displays opaque references (`DEV-XXXXXXXX`) rather than 
+     raw serial numbers, maintaining forensic privacy.
+   • Dynamic Qualification Badges rendered directly in the CYVRA ID column:
+       - [PURGE: CRYPTO]  : Purple badge for FBE cryptographic erase.
+       - [CLEAR: DO WIPE] : Blue badge for enterprise Device Owner wipe.
+       - [PURGE: OEM]     : Purple badge for OEM recovery erase.
+       - [CLEAR: RESET]   : Cyan badge for standard platform reset.
+
+B. 10-Point Live Telemetry Fact Card (Per Device):
+   Expanding any slot row exposes the comprehensive 10-parameter status card:
+   1. Device Connection Status : Live USB/ADB state (e.g. "Connected (Authorized)").
+   2. Agent Installation Status: Package status (e.g. "Installed (v2.1.2)").
+   3. Agent Health             : Agent communication state (e.g. "INSTALLED / Healthy").
+   4. Device Assessment Status : Assessment state (e.g. "SCAN_CAPABILITY_READY").
+   5. Privilege Status         : Authority level (e.g. "Standard User (ADB)").
+   6. Selected Sanitization Method: Method (e.g. "PURGE_CRYPTOGRAPHIC_ERASE").
+   7. Qualification Status     : Readiness tier (e.g. "QUALIFIED").
+   8. Execution Progress       : Progress indicator (Pending, In Progress, Completed).
+   9. Verification Status      : Post-wipe audit (Pending, In Progress, Passed).
+   10. Final Result            : Conclusive audit summary with timestamp.
+
+C. Independent Action Buttons:
+   • `Hardware Scan`        : Triggers 48-parameter deep profiling.
+   • `Application Inventory`: Enumerates third-party and system packages.
+   • `Sanitize Device`      : Gated on scan completion; prompts for confirmation phrase.
+   • `Verification`         : Launches post-wipe verification and attestation.
+
+================================================================================
+5. DEDICATED 50-SLOT OPERATOR PHYSICAL ATTESTATION ENGINE
+================================================================================
+Physical device condition is distinct from software-collected telemetry. The 
+Operator Physical Attestation screen allows bench technicians to record physical 
+hardware checks that cannot be sensed over USB:
+
+A. 6-Point Physical Hardware Checklist:
+   1. Display / Touchscreen : Physical cracks, display bleed, dead pixels, touch accuracy.
+   2. Outer Enclosure       : Chassis dents, housing cracks, liquid ingress indicators.
+   3. Camera Lenses         : Front and rear lens scratches, cracks, optical clarity.
+   4. Biometric Sensors     : Fingerprint scanner surface integrity, facial sensor glass.
+   5. Battery Physical State: Evidence of swelling, expansion, deformation, or heat damage.
+   6. Physical Buttons/Ports: USB charging port wear, power/volume tactile response.
+
+B. Cryptographic Binding:
+   • Each answer is recorded as PASS, FAIL, or NOT_APPLICABLE.
+   • Attestation answers are sealed with the active technician's Operator ID.
+   • Merged into the Final Verification Report and stamped with a SHA-256 digest.
+
+================================================================================
+6. INSTANT PREFLIGHT DEVICE READINESS & ZERO-HANG TIMEOUT PROTECTION
+================================================================================
+In Version 2.1.1, if a device was connected but sitting in an `unauthorized` state 
+(e.g., after a factory wipe or before accepting the computer's RSA key), ADB 
+commands would hang and retry, eventually exceeding the 120-second IPC bridge 
+timeout and generating a red "Bridge Failure" banner.
+
+Version 2.1.2 implements instant pre-flight device validation in `HostProtocolDispatcher.kt`:
+1. When `RUN_SCAN` is invoked, the engine checks `adbClient.listDevices()` in <5ms.
+2. If the target serial is `unauthorized`, it halts immediately and returns:
+   - Code   : `DEVICE_NOT_READY`
+   - Message: `Target device <serial> is unauthorized. Please unlock the phone and tap 'Allow USB debugging' when prompted.`
+3. If the target serial is in state `offline` or disconnected:
+   - Code   : `DEVICE_NOT_READY`
+   - Message: `Target device <serial> is in state '<state>'. Ensure the device is powered on and unlocked.`
+4. Zero UI Freezes: Eliminates the 120-second stall completely, delivering an 
+   instant, friendly instruction directly to the bench technician.
+
+================================================================================
+7. MANDATORY ON-DEVICE ANDROID AGENT (com.cyvra.sanitization v2.1.2)
+================================================================================
+The on-device agent runs natively on the connected phone:
+
+A. Automated Push & Version Synchronization:
+   • HostAgentDeploymentOrchestrator senses phone connections on slots 1-50.
+   • Pushes `cyvra-agent.apk` (v2.1.2, versionCode = 3) automatically if absent 
+     or outdated.
+   • Handles signature incompatibilities automatically via safe clean replacement.
+
+B. Authenticated Native Protocols:
+   • `com.cyvra.sanitization.HANDSHAKE`: Validates communication and agent liveliness.
+   • `com.cyvra.sanitization.ASSESS`   : Collects native hardware, KeyStore, battery, 
+     and encryption facts; outputs to `/data/local/tmp/cyvra-agent-assessment.json`.
+   • `com.cyvra.sanitization.ARM`      : Cryptographically arms the sanitization 
+     subsystem with a 256-bit token (60-second time-to-live).
+   • `com.cyvra.sanitization.WIPE`     : Destructive wipe broadcast; triggers 
+     immediate master key eviction and platform recovery formatting.
+
+================================================================================
+8. OPTION C HYBRID SANITIZATION & 5-TIER QUALIFICATION ENGINE
+================================================================================
+Evaluates device telemetry dynamically to qualify the optimal sanitization method:
+
+• TIER 1: CLEAR_DEVICE_OWNER_WIPE
+  - Conditions: Device Owner active (`deviceOwnerActive == true`).
+  - Action    : Dispatches authorized enterprise wipe via `DevicePolicyManager.wipeData()`.
+  - Standard  : NIST SP 800-88 R1 "Clear".
+
+• TIER 2: PURGE_CRYPTOGRAPHIC_ERASE
+  - Conditions: File-Based Encryption (FBE) active (`storageEncryptionStatus == 5` or 
+    `isEncrypted == true`) and hardware-backed KeyStore present.
+  - Action    : Destroys Master KEK/DEK encryption keys, evicts credentials, and 
+    formats data partition via recovery.
+  - Standard  : NIST SP 800-88 R1 "Purge" (Cryptographic Erase). Data is mathematically 
+    unrecoverable.
+
+• TIER 3: PURGE_OEM_SECURE_ERASE
+  - Conditions: Samsung / Google OEM secure recovery erase service available.
+  - Action    : Triggers authenticated OEM hardware secure erase command block.
+  - Standard  : NIST SP 800-88 R1 "Purge".
+
+• TIER 4: CLEAR_PLATFORM_RESET
+  - Conditions: Legacy Android device without FBE, or unencrypted storage.
+  - Action    : Dispatches authorized recovery factory reset (`--wipe_data`).
+  - Standard  : NIST SP 800-88 R1 "Clear".
+
+• TIER 5: TECHNICAL_BLOCKER
+  - Conditions: Rooted kernel detected, modified bootloader, or tampered su binary.
+  - Action    : Sanitization refused; outputs explicit technical reasoning.
+
+================================================================================
+9. MULTI-SIGNAL POST-RESET VERIFICATION & ZERO-RESIDUAL INTEGRITY PROOF
+================================================================================
+CYVRA Mobile never assumes a reset succeeded without post-wipe verification:
+1. `device_provisioned` Verification: Must return `0` (pristine OOBE state).
+2. Zero Account Invariant: 0 Google, Samsung, or enterprise accounts remaining.
+3. Zero Third-Party App Invariant: 0 user applications remaining on `/data/app`.
+4. Screen Lock Eviction: Keyguard confirmed unconfigured; credentials evicted.
+5. Invariant Reporting: Full audit numbers included in final certificate.
+
+================================================================================
+10. TAMPER-EVIDENT REPORTING & VECTOR PDF CERTIFICATION (PDFBOX 3.0.3)
+================================================================================
+A. Dual-Document Architecture:
+   • Successful Sanitization: Issues official "CYVRA Data Sanitization & Verification Certificate" 
+     (`CYVRA-CERT-<UUID>-<TIMESTAMP>`).
+   • Refused / Ineligible: Issues "CYVRA Data Sanitization Assessment Report" 
+     (`CYVRA-ATTEMPT-<UUID>-<TIMESTAMP>`).
+
+B. Vector PDF Engine (Apache PDFBox 3.0.3):
+   • Generates crisp, tamper-evident vector PDFs with embedded CYVORIQ branding.
+   • Includes full 48-parameter hardware profile, cryptographic digests, operator 
+     attribution, and physical attestation checklist results.
+   • PDF creator metadata stamped as `CYVRA Mobile 2.1.2`.
+
+C. Complete Machine-Readable Export Bundle:
+   • `report.pdf`     : Formatted vector certificate for customer presentation.
+   • `report.json`    : Full structured JSON evidence dump.
+   • `manifest.json`  : Cryptographic SHA-256 trust manifest.
+
+================================================================================
+11. ACTIVATION GATEWAY, DPAPI SECURITY & BENCH OPERATOR ATTRIBUTION
+================================================================================
+A. Workstation Activation Gateway (`ActivationScreen.tsx`):
+   • Clean corporate lockup: "CYVRA MOBILE — Mobile Device Evidence Platform".
+   • Requires Registered User ID (email) and valid Licence Key.
+   • Mandatory Terms Acceptance: Checkbox always loads unchecked by default.
+   • Displays bundled software licence terms in-app.
+   • Secure Storage: Sensitive tokens protected using Windows DPAPI encryption.
+
+B. On-Demand Activation Controls:
+   • Clicking the red `[Sign Out]` button de-authenticates the workstation and 
+     immediately brings up the Sign In & Activate screen.
+   • Opening the Workstation Licence modal provides `[Enter New Licence Key / Sign In]` 
+     and `[Deactivate / Reset Licence Token]` for quick bench reconfiguration.
+
+C. Bench Operator Header Bar:
+   • `[LICENCE: ACTIVE (Remaining Credits)]`: Current credit balance and status.
+   • `[OPERATOR: <ID> / NOT SET]`          : Technician attribution for all logs.
+   • `[ENGINE ONLINE]`                     : Local host engine heartbeat.
+   • `[PHONE: X CONNECTED]`                : Real-time USB/ADB device count.
+   • `[Sign Out]`                          : Immediate workstation de-authorization.
+
+================================================================================
+12. IMMUTABLE TRANSACTION LEDGER & 1-CREDIT BILLING INVARIANTS
+================================================================================
+A. Append-Only Ledger (`<cyvra.home>/ledger.jsonl`):
+   • Records all events: ACTIVATION, HW_SCAN, APP_SCAN, SANITIZE_START, SANITIZE_VERIFY.
+   • SHA-256 hash-chained: each entry carries the hash of the preceding record.
+   • Dual verification: verified in both Rust (`ledger.rs`) and TypeScript (`parseLedger.ts`).
+
+B. Strict 1-Credit Billing Invariant:
+   • 1 scan credit is debited ONLY upon a fully verified, successful sanitization.
+   • Blocked sanitizations, failed verifications, or diagnostic scans debit 
+     EXACTLY ZERO CREDITS (`scansRemaining` balance is never deducted).
+
+================================================================================
+13. BUILD PIPELINE & RELEASE ARTIFACT VERIFICATION
+================================================================================
+A. Automated 1-Click PowerShell Build Pipeline (`build-cyvra-2.1.2.ps1`):
+   • Step 0: Project path auto-resolution & ExecutionPolicy configuration.
+   • Step 1: Clean all previous build artifacts (Android, Host, Desktop).
+   • Step 2: Compile & sign Android Agent v2.1.2 with quoted parameters `"-Pcyvra.signing.mode=test"`.
+   • Step 3: Build Host Engine distribution JARs (`:host:installDist`).
+   • Step 4: Stage verified installer resources into desktop bundle.
+   • Step 5: Compile Desktop Frontend React & TypeScript (`pnpm.cmd build`).
+   • Step 6: Assemble Windows NSIS Installer (.exe) with Tauri (`pnpm.cmd tauri build`).
+   • Step 7: Verify output location, size in MB, build timestamp, and SHA-256 hash.
+
+B. Expected Release Artifacts (Version 2.1.2):
+   • Windows Installer : `apps/desktop/src-tauri/target/release/bundle/nsis/CYVRA Mobile_2.1.2_x64-setup.exe` (~268 MB)
+   • Signed Agent APK  : `apps/desktop/src-tauri/.resources/agent/cyvra-agent.apk` (v2.1.2, 670,204 bytes)
+   • Host Distribution : 10 JAR packages including PDFBox 3.0.3 and Kotlin 2.3.21
+   • Java Runtime      : Embedded isolated OpenJDK 21 LTS runtime (jlink trimmed)
+   • Drivers Bundled   : Samsung ssudadb, ssudbus, Google android_winusb
+
+================================================================================
+END OF SPECIFICATION — CYVRA MOBILE VERSION 2.1.2 IS READY FOR COMPILATION
+================================================================================

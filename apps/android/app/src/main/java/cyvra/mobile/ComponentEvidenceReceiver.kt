@@ -143,7 +143,7 @@ class ComponentEvidenceReceiver : BroadcastReceiver() {
         }
 
         return AndroidComponentEvidencePayload(
-            componentVersion = "0.0.0-g5",
+            componentVersion = "2.1.2",
             collectedAt = collectedAt,
             source = "ANDROID_COMPONENT",
             deviceLifecycleId = deviceLifecycleId,

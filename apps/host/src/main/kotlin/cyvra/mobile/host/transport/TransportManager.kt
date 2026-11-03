@@ -374,7 +374,7 @@ class AdbTransport(
 
     companion object {
         private val CONNECTION_DOMAIN = setOf("Connection")
-        private const val COMMAND_TIMEOUT_MS = 10_000L
+        private const val COMMAND_TIMEOUT_MS = 60_000L
         const val DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 
         /** A post-capture health scan: a dying guest still reports state=device. */
