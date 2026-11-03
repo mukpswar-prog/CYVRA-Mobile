@@ -27,7 +27,7 @@ class AgentAssessmentCollector(private val context: Context) {
     fun collectAssessment(sessionUuid: String?): JSONObject {
         val root = JSONObject()
         root.put("schemaVersion", "cyvra.agent.assessment.v2")
-        root.put("agentVersion", "2.1.1")
+        root.put("agentVersion", "2.1.2")
         root.put("agentPackage", context.packageName)
         root.put("sessionUuid", sessionUuid ?: "UNBOUND")
         root.put("timestampMs", System.currentTimeMillis())

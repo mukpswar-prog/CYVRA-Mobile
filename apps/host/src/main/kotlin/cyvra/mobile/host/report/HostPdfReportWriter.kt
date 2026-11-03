@@ -119,7 +119,7 @@ class HostPdfReportWriter(
             val info = PDDocumentInformation()
             info.title = title
             info.author = "CYVORIQ Solutions"
-            info.creator = "CYVRA Mobile 2.0.1"
+            info.creator = "CYVRA Mobile 2.1.2"
             info.producer = "CYVRA Evidence Engine / Apache PDFBox 3.0.3"
             val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
             info.creationDate = cal

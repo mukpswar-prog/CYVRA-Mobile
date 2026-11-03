@@ -27,7 +27,9 @@ const PREFLIGHT_COMMAND: &str = "GET_PREFLIGHT";
 const HOST_MAIN_CLASS: &str = "cyvra.mobile.host.protocol.HostMain";
 
 /// Bounded per-request IPC timeout so an orphaned request can never stall the UI indefinitely (DEF-17).
-pub const HOST_COMMAND_TIMEOUT_SECS: u64 = 120;
+/// Maximized to 1800s (30 minutes) to ensure complete tolerance for large, legacy Android devices
+/// with 500+ applications, slow USB hubs, or intensive diagnostic and sanitization pipelines.
+pub const HOST_COMMAND_TIMEOUT_SECS: u64 = 1800;
 
 /// Directory under `<cyvra.home>` that receives the Host's stderr, one file per launch.
 const HOST_LOG_DIR: &str = "logs";

@@ -12,7 +12,7 @@ import java.io.File
 class AdbClient(
     private val adbBinary: File,
     private val processRunner: ProcessRunner = SystemProcessRunner(),
-    private val defaultTimeoutMs: Long = 10_000L,
+    private val defaultTimeoutMs: Long = 60_000L,
 ) {
     fun getVersion(): AdbVersionInfo? {
         val result = executeAdb(listOf("version"))
@@ -49,7 +49,7 @@ class AdbClient(
         return executeAdb(listOf("-s", serial, "shell", command), timeoutMs)
     }
 
-    fun installApk(serial: String, apkFile: File, timeoutMs: Long = 30_000L): ProcessExecutionResult {
+    fun installApk(serial: String, apkFile: File, timeoutMs: Long = 300_000L): ProcessExecutionResult {
         return executeAdb(listOf("-s", serial, "install", "-r", "-t", apkFile.absolutePath), timeoutMs)
     }
 

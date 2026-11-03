@@ -460,11 +460,12 @@ if (-not $SkipAgent) {
             throw "GRADLEW_MISSING: $gradlew"
         }
 
-        Write-Host "[stage] agent: building :sanitization-agent:assembleRelease (mode: $SigningMode) ..."
+        Write-Host "[stage] agent: building :sanitization-agent:assembleRelease and :app:assembleRelease (mode: $SigningMode) ..."
         Push-Location $androidDir
         try {
             Invoke-Native $gradlew @(
                 ':sanitization-agent:assembleRelease',
+                ':app:assembleRelease',
                 "-Pcyvra.signing.mode=$SigningMode",
                 '--console=plain'
             ) 'AGENT_BUILD_FAILED'
@@ -580,6 +581,30 @@ if (-not $SkipAgent) {
 
         Write-Host ('[stage]   agent apk        : {0} ({1:N0} bytes, verified signed [{2}])' -f
             $apk.Name, $apk.Length, $SigningMode)
+    }
+
+    # ---------------------------------------------- stage Hardware Agent (:app / co.in.cyvra.mobile) --
+    $appOutputs = Join-Path $androidDir 'app\build\outputs\apk\release'
+    $hwPostBuildFilter = if ($SigningMode -eq 'unsigned') { '*-unsigned.apk' } else { '*-release.apk' }
+    $hwApk = Get-ChildItem -Path $appOutputs -Filter $hwPostBuildFilter -ErrorAction SilentlyContinue |
+        Where-Object { if ($SigningMode -ne 'unsigned') { $_.Name -notmatch '-unsigned' } else { $true } } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if (-not $hwApk -or -not (Test-Path $hwApk.FullName)) {
+        $hwApk = Get-ChildItem -Path (Join-Path $androidDir 'app\build\outputs\apk') -Filter '*.apk' -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+
+    if ($hwApk -and (Test-Path $hwApk.FullName) -and $hwApk.Length -gt 0) {
+        $stagedHwAgent = Join-Path $agentDir 'cyvra-hw-agent.apk'
+        Copy-Item -Path $hwApk.FullName -Destination $stagedHwAgent -Force
+        $stagedComponentAgent = Join-Path $agentDir 'cyvra-component-agent.apk'
+        Copy-Item -Path $hwApk.FullName -Destination $stagedComponentAgent -Force
+
+        Write-Host ('[stage]   hw agent apk     : {0} ({1:N0} bytes, staged as cyvra-hw-agent.apk)' -f
+            $hwApk.Name, $hwApk.Length)
     }
 }
 

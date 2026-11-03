@@ -629,6 +629,22 @@ class HostProtocolDispatcher(
                 message = "RUN_SCAN requires an ADB binary and none was resolved on this machine",
             )
 
+        val adbClient = adbClientFor(adbBinary)
+        val discoveredDevices = adbClient.listDevices()
+        val targetDevice = discoveredDevices.find { it.serial == serial }
+        if (targetDevice != null && targetDevice.state != "device") {
+            val statusMsg = if (targetDevice.state == "unauthorized") {
+                "Target device $serial is unauthorized. Please unlock the phone and tap 'Allow USB debugging' when prompted."
+            } else {
+                "Target device $serial is in state '${targetDevice.state}'. Ensure the device is powered on and unlocked."
+            }
+            return errorResponse(
+                request = request,
+                code = "DEVICE_NOT_READY",
+                message = statusMsg,
+            )
+        }
+
         val sideInventory = when (val element = request.objectPayload(KEY_DEVICE_SIDE_INVENTORY)) {
             null -> null
             else -> try {

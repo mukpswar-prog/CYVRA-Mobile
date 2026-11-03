@@ -19,12 +19,12 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * On-device native telemetry collected by CYVRA Agent 2.1.1.
+ * On-device native telemetry collected by CYVRA Agent 2.1.2.
  */
 @Serializable
 data class AgentNativeTelemetry(
     val schemaVersion: String = "cyvra.agent.assessment.v2",
-    val agentVersion: String = "2.1.1",
+    val agentVersion: String = "2.1.2",
     val deviceLifecycleId: String? = null,
     val sessionUuid: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
@@ -89,8 +89,65 @@ class HostAgentDeploymentOrchestrator(
 ) {
     companion object {
         const val AGENT_PACKAGE = "com.cyvra.sanitization"
-        const val TARGET_VERSION = "2.1.1"
+        const val TARGET_VERSION = "2.1.2"
         const val ASSESSMENT_DEVICE_PATH = "/data/local/tmp/cyvra-agent-assessment.json"
+
+        /**
+         * Resolves the bundled sanitization agent APK (`com.cyvra.sanitization`).
+         */
+        fun locateSanitizationAgentApk(): java.io.File? {
+            val prop = System.getProperty("cyvra.sanitization.apk")?.trim()?.takeIf { it.isNotEmpty() }
+            if (prop != null) {
+                val f = java.io.File(prop)
+                if (f.isFile) return f
+            }
+            val env = System.getenv("CYVRA_SANITIZATION_APK")?.trim()?.takeIf { it.isNotEmpty() }
+            if (env != null) {
+                val f = java.io.File(env)
+                if (f.isFile) return f
+            }
+            val installRoot = System.getProperty("cyvra.install")?.trim()?.takeIf { it.isNotEmpty() }
+            if (installRoot != null) {
+                val installCandidates = listOf(
+                    java.io.File(installRoot, "resources/agent/cyvra-agent.apk"),
+                    java.io.File(installRoot, "resources/agent/sanitization-agent-release.apk"),
+                    java.io.File(installRoot, "resources/agent/sanitization-agent-unsigned.apk"),
+                    java.io.File(installRoot, "agent/cyvra-agent.apk"),
+                    java.io.File(installRoot, "resources/cyvra-agent.apk"),
+                    java.io.File(installRoot, "cyvra-agent.apk"),
+                )
+                installCandidates.firstOrNull { it.isFile }?.let { return it }
+
+                for (dirName in listOf("resources/agent", "agent")) {
+                    val dir = java.io.File(installRoot, dirName)
+                    if (dir.isDirectory) {
+                        val apk = dir.listFiles { _, name -> (name.contains("sanitization", ignoreCase = true) || name.equals("cyvra-agent.apk", ignoreCase = true)) && name.endsWith(".apk", ignoreCase = true) }?.firstOrNull()
+                        if (apk != null && apk.isFile) return apk
+                    }
+                }
+            }
+            val home = System.getProperty("cyvra.home")?.trim()?.takeIf { it.isNotEmpty() }
+            if (home != null) {
+                val candidates = listOf(
+                    java.io.File(home, "resources/agent/cyvra-agent.apk"),
+                    java.io.File(home, "resources/agent/sanitization-agent-unsigned.apk"),
+                    java.io.File(home, "resources/cyvra-agent.apk"),
+                    java.io.File(home, "agent/cyvra-agent.apk"),
+                    java.io.File(home, "cyvra-agent.apk"),
+                )
+                candidates.firstOrNull { it.isFile }?.let { return it }
+            }
+            val devCandidates = listOf(
+                java.io.File("apps/desktop/src-tauri/.resources/agent/cyvra-agent.apk"),
+                java.io.File("apps/desktop/src-tauri/.resources/agent/sanitization-agent-release.apk"),
+                java.io.File("apps/desktop/src-tauri/.resources/agent/sanitization-agent-unsigned.apk"),
+                java.io.File("apps/android/sanitization-agent/build/outputs/apk/release/sanitization-agent-release.apk"),
+                java.io.File("apps/android/sanitization-agent/build/outputs/apk/release/sanitization-agent-release-unsigned.apk"),
+                java.io.File("../apps/desktop/src-tauri/.resources/agent/cyvra-agent.apk"),
+                java.io.File("../apps/desktop/src-tauri/.resources/agent/sanitization-agent-unsigned.apk"),
+            )
+            return devCandidates.firstOrNull { it.isFile }
+        }
     }
 
     private val sessions = ConcurrentHashMap<String, DeviceAgentSession>()
@@ -118,7 +175,7 @@ class HostAgentDeploymentOrchestrator(
 
         // 2. Deploy or update if missing or older version
         if (!isInstalled || currentVersion != TARGET_VERSION) {
-            val apk = HostAndroidComponentBridge.locateBundledAgentApk()
+            val apk = locateSanitizationAgentApk()
             if (apk != null && apk.isFile) {
                 var installResult = adbClient.installApk(serial, apk)
                 val combinedOutput = "${installResult.stdout} ${installResult.stderr}"
@@ -142,6 +199,12 @@ class HostAgentDeploymentOrchestrator(
             }
         }
 
+        // Also ensure hardware evidence agent (co.in.cyvra.mobile) is deployed and ready
+        try {
+            val hwBridge = cyvra.mobile.host.evidence.HostAndroidComponentBridge(adbClient, serial)
+            hwBridge.ensureInstalledOrDeploy()
+        } catch (_: Exception) {}
+
         // 3. Dispatch Handshake broadcast
         var handshakeAck = false
         if (isInstalled) {
@@ -161,8 +224,14 @@ class HostAgentDeploymentOrchestrator(
                     "--es sessionUuid \"$sessionUuid\" --es targetSerial \"$serial\""
             val assessRes = adbClient.runShell(serial, assessCmd)
             if (assessRes.isSuccess) {
-                // Read assessment JSON from device
-                val readRes = adbClient.runShell(serial, "cat $ASSESSMENT_DEVICE_PATH")
+                // Read assessment JSON from device with polling retry
+                var readRes = adbClient.runShell(serial, "cat $ASSESSMENT_DEVICE_PATH")
+                var attempts = 0
+                while ((!readRes.isSuccess || readRes.stdout.isBlank() || !readRes.stdout.trim().startsWith("{")) && attempts < 15) {
+                    try { Thread.sleep(200) } catch (_: InterruptedException) { break }
+                    readRes = adbClient.runShell(serial, "cat $ASSESSMENT_DEVICE_PATH")
+                    attempts++
+                }
                 if (readRes.isSuccess && readRes.stdout.isNotBlank() && readRes.stdout.trim().startsWith("{")) {
                     assessmentTelemetry = parseAssessmentJson(readRes.stdout.trim(), lifecycleId, sessionUuid)
                 }

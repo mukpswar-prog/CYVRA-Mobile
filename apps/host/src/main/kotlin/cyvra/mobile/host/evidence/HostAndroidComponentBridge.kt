@@ -36,21 +36,15 @@ class HostAndroidComponentBridge(
         }
 
         /**
-         * Resolves the bundled agent APK using the deterministic runtime path hierarchy.
-         * Priority:
-         * 1. Explicit system property `cyvra.agent.apk`
-         * 2. Environment variable `CYVRA_AGENT_APK`
-         * 3. Installation root `cyvra.install` (where Tauri bundles resources)
-         * 4. State directory `cyvra.home` (%ProgramData%)
-         * 5. Development tree fallbacks
+         * Resolves the bundled hardware evidence agent APK (`co.in.cyvra.mobile`).
          */
-        fun locateBundledAgentApk(): java.io.File? {
-            val prop = System.getProperty("cyvra.agent.apk")?.trim()?.takeIf { it.isNotEmpty() }
+        fun locateHardwareAgentApk(): java.io.File? {
+            val prop = System.getProperty("cyvra.hw.agent.apk")?.trim()?.takeIf { it.isNotEmpty() }
             if (prop != null) {
                 val f = java.io.File(prop)
                 if (f.isFile) return f
             }
-            val env = System.getenv("CYVRA_AGENT_APK")?.trim()?.takeIf { it.isNotEmpty() }
+            val env = System.getenv("CYVRA_HW_AGENT_APK")?.trim()?.takeIf { it.isNotEmpty() }
             if (env != null) {
                 val f = java.io.File(env)
                 if (f.isFile) return f
@@ -59,20 +53,18 @@ class HostAndroidComponentBridge(
             val installRoot = System.getProperty("cyvra.install")?.trim()?.takeIf { it.isNotEmpty() }
             if (installRoot != null) {
                 val installCandidates = listOf(
+                    java.io.File(installRoot, "resources/agent/cyvra-hw-agent.apk"),
+                    java.io.File(installRoot, "resources/agent/cyvra-component-agent.apk"),
+                    java.io.File(installRoot, "agent/cyvra-hw-agent.apk"),
+                    java.io.File(installRoot, "agent/cyvra-component-agent.apk"),
                     java.io.File(installRoot, "resources/agent/cyvra-agent.apk"),
-                    java.io.File(installRoot, "resources/agent/sanitization-agent-unsigned.apk"),
-                    java.io.File(installRoot, "resources/agent/sanitization-agent-release.apk"),
-                    java.io.File(installRoot, "agent/cyvra-agent.apk"),
-                    java.io.File(installRoot, "agent/sanitization-agent-unsigned.apk"),
-                    java.io.File(installRoot, "resources/cyvra-agent.apk"),
-                    java.io.File(installRoot, "cyvra-agent.apk"),
                 )
                 installCandidates.firstOrNull { it.isFile }?.let { return it }
 
                 for (dirName in listOf("resources/agent", "agent")) {
                     val dir = java.io.File(installRoot, dirName)
                     if (dir.isDirectory) {
-                        val apk = dir.listFiles { _, name -> name.endsWith(".apk", ignoreCase = true) }?.firstOrNull()
+                        val apk = dir.listFiles { _, name -> name.contains("hw", ignoreCase = true) && name.endsWith(".apk", ignoreCase = true) }?.firstOrNull()
                         if (apk != null && apk.isFile) return apk
                     }
                 }
@@ -81,38 +73,32 @@ class HostAndroidComponentBridge(
             val home = System.getProperty("cyvra.home")?.trim()?.takeIf { it.isNotEmpty() }
             if (home != null) {
                 val candidates = listOf(
-                    java.io.File(home, "resources/agent/cyvra-agent.apk"),
-                    java.io.File(home, "resources/agent/sanitization-agent-unsigned.apk"),
-                    java.io.File(home, "resources/cyvra-agent.apk"),
-                    java.io.File(home, "agent/cyvra-agent.apk"),
-                    java.io.File(home, "cyvra-agent.apk"),
+                    java.io.File(home, "resources/agent/cyvra-hw-agent.apk"),
+                    java.io.File(home, "resources/agent/cyvra-component-agent.apk"),
+                    java.io.File(home, "agent/cyvra-hw-agent.apk"),
+                    java.io.File(home, "agent/cyvra-component-agent.apk"),
                 )
                 candidates.firstOrNull { it.isFile }?.let { return it }
             }
             // 5. Development tree fallbacks
             val devCandidates = listOf(
-                java.io.File("apps/desktop/src-tauri/.resources/agent/sanitization-agent-unsigned.apk"),
-                java.io.File("apps/desktop/src-tauri/.resources/agent/cyvra-agent.apk"),
-                java.io.File("apps/android/sanitization-agent/build/outputs/apk/release/sanitization-agent-release-unsigned.apk"),
+                java.io.File("apps/desktop/src-tauri/.resources/agent/cyvra-hw-agent.apk"),
+                java.io.File("apps/desktop/src-tauri/.resources/agent/cyvra-component-agent.apk"),
+                java.io.File("apps/android/app/build/outputs/apk/release/app-release.apk"),
                 java.io.File("apps/android/app/build/outputs/apk/release/app-release-unsigned.apk"),
-                java.io.File("../apps/desktop/src-tauri/.resources/agent/sanitization-agent-unsigned.apk"),
+                java.io.File("../apps/desktop/src-tauri/.resources/agent/cyvra-hw-agent.apk"),
             )
             return devCandidates.firstOrNull { it.isFile }
         }
+
+        fun locateBundledAgentApk(): java.io.File? = locateHardwareAgentApk()
     }
 
-    /** Returns the installed package name, checking both unified and legacy IDs. */
+    /** Returns the installed package name for the hardware evidence receiver. */
     fun detectInstalledPackage(): String? {
-        val targets = if (packageName == DEFAULT_PACKAGE_NAME) {
-            listOf(DEFAULT_PACKAGE_NAME, SANITIZATION_PACKAGE_NAME)
-        } else {
-            listOf(packageName, DEFAULT_PACKAGE_NAME, SANITIZATION_PACKAGE_NAME).distinct()
-        }
-        for (pkg in targets) {
-            val result = adbClient.runShell(serial, "pm list packages $pkg")
-            if (result.isSuccess && result.stdout.lines().any { it.trim() == "package:$pkg" }) {
-                return pkg
-            }
+        val result = adbClient.runShell(serial, "pm list packages $packageName")
+        if (result.isSuccess && result.stdout.lines().any { it.trim() == "package:$packageName" }) {
+            return packageName
         }
         return null
     }
@@ -195,8 +181,14 @@ class HostAndroidComponentBridge(
 
         val triggerResult = adbClient.runShell(serial, triggerCmd)
 
-        // Read the output JSON generated by the component
-        val readResult = adbClient.runShell(serial, "cat $COMPONENT_DATA_PATH")
+        // Read the output JSON generated by the component (polling retry up to 5 seconds for slower devices)
+        var readResult = adbClient.runShell(serial, "cat $COMPONENT_DATA_PATH")
+        var attempts = 0
+        while ((!readResult.isSuccess || readResult.stdout.isBlank()) && attempts < 20) {
+            try { Thread.sleep(250) } catch (_: InterruptedException) { break }
+            readResult = adbClient.runShell(serial, "cat $COMPONENT_DATA_PATH")
+            attempts++
+        }
         if (!readResult.isSuccess || readResult.stdout.isBlank()) {
             return AndroidComponentExecutionResult(
                 isInstalled = true,

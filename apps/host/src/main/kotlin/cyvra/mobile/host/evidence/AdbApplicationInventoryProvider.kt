@@ -84,11 +84,21 @@ class AdbApplicationInventoryProvider(
             limitations += FILTER_STATE_LIMITATION
         }
 
-        // 3. Per-package metadata via dumpsys (flags + version).
+        // 3. Per-package metadata via bulk dumpsys with graceful per-package fallback.
+        // Reading all package blocks in a single bulk dumpsys invocation avoids hundreds of slow sequential ADB roundtrips.
+        val bulkDumpsys = adbClient.runShell(serial, "dumpsys package packages")
+        val bulkBlocks = if (bulkDumpsys.isSuccess && bulkDumpsys.stdout.isNotBlank()) {
+            parseAllPackageBlocks(bulkDumpsys.stdout)
+        } else {
+            emptyMap()
+        }
+
         var flagsUnavailable = 0
         val applications = parsed.packages.map { pkg ->
-            val dumpsys = adbClient.runShell(serial, dumpsysCommandFor(pkg.packageName))
-            val block = if (dumpsys.isSuccess) packageBlock(dumpsys.stdout, pkg.packageName) else null
+            val block = bulkBlocks[pkg.packageName] ?: run {
+                val dumpsys = adbClient.runShell(serial, dumpsysCommandFor(pkg.packageName))
+                if (dumpsys.isSuccess) packageBlock(dumpsys.stdout, pkg.packageName) else null
+            }
             val flags = block?.let { parseSystemFlags(it) }
             if (flags == null) flagsUnavailable++
 
@@ -225,6 +235,22 @@ class AdbApplicationInventoryProvider(
         val startIdx = headers[index].range.first
         val endIdx = if (index + 1 < headers.size) headers[index + 1].range.first else stdout.length
         return stdout.substring(startIdx, endIdx)
+    }
+
+    /**
+     * Parses all `Package [<name>]` blocks in a single bulk dumpsys output pass.
+     */
+    private fun parseAllPackageBlocks(stdout: String): Map<String, String> {
+        val headers = PACKAGE_HEADER.findAll(stdout).toList()
+        if (headers.isEmpty()) return emptyMap()
+        val map = HashMap<String, String>(headers.size)
+        for (i in headers.indices) {
+            val pkgName = headers[i].groupValues[1]
+            val startIdx = headers[i].range.first
+            val endIdx = if (i + 1 < headers.size) headers[i + 1].range.first else stdout.length
+            map[pkgName] = stdout.substring(startIdx, endIdx)
+        }
+        return map
     }
 
     /**

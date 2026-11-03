@@ -1,6 +1,6 @@
 [package]
 name = "cyvra-mobile-desktop"
-version = "2.1.1"
+version = "2.1.2"
 description = "CYVRA Mobile Windows Desktop Workstation"
 authors = ["CYVORIQ Solutions Pvt Ltd"]
 edition = "2021"
